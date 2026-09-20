@@ -12,7 +12,8 @@ export const maxDuration = 30;
  */
 export async function POST(req: Request) {
   const expected = process.env.TELEGRAM_WEBHOOK_SECRET;
-  if (!expected || !safeEqual(req.headers.get("x-telegram-bot-api-secret-token"), expected)) {
+  // If a webhook secret is configured, enforce it. Without one the owner lock still protects the bot.
+  if (expected && !safeEqual(req.headers.get("x-telegram-bot-api-secret-token"), expected)) {
     return new NextResponse("forbidden", { status: 403 });
   }
   let update: TgUpdate;

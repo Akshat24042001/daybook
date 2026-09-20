@@ -226,7 +226,7 @@ const STEP_PRESETS = [2000, 4000, 6000, 8000, 10000];
 export function scoreKeyboard(date: DateStr, score: number | null): Button[][] {
   const d = packDate(date);
   if (score !== null) return [[btn(`Score ${score} ✓ (change)`, `sc:c:${d}`)]];
-  const mk = (n: number) => btn(String(n), n === 10 ? `sc:s:10:${d}` : `sc:m:${n}:${d}`);
+  const mk = (n: number) => btn(String(n), `sc:s:${n}:${d}`);
   return [SCORE_ROW_1.map(mk), SCORE_ROW_2.map(mk)];
 }
 
@@ -274,7 +274,7 @@ export async function scoreReminder(ctx: Ctx, date: DateStr): Promise<Msg | null
   const day = await getDay(date);
   if (day?.score !== null && day?.score !== undefined) return null;
   return {
-    text: `🙂 How was ${date === ctx.today ? "today" : fmtDateShort(date)}? Score it out of 10.`,
+    text: `🙂 How was ${date === ctx.today ? "today" : fmtDateShort(date)}? Score it out of 10.\nOr type <code>score 8.5</code> for a half point.`,
     markup: inline([...scoreKeyboard(date, null), [urlBtn("Open Today", "/today")]]),
   };
 }
