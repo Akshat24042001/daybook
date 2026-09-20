@@ -4,19 +4,6 @@ import { safeEqual } from "@/lib/clock";
 const SESSION_COOKIE = "daybook_session";
 const SESSION_VALUE = "authenticated";
 
-export function isPublicPath(pathname: string): boolean {
-  return (
-    pathname === "/login" ||
-    pathname === "/api/telegram" ||
-    pathname.startsWith("/api/cron/") ||
-    pathname === "/manifest.webmanifest" ||
-    pathname === "/sw.js" ||
-    pathname === "/offline.html" ||
-    /^\/icon-\d+\.png$/.test(pathname) ||
-    pathname === "/favicon.ico"
-  );
-}
-
 export function adminPassword(): string | null {
   return process.env.ADMIN_PASSWORD?.trim() || null;
 }
@@ -37,7 +24,7 @@ export async function createSession(): Promise<{ name: string; value: string; op
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 * 90, // 90 days
+      maxAge: 60 * 60 * 24 * 90,
     },
   };
 }
