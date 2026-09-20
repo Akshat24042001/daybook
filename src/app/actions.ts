@@ -32,11 +32,15 @@ type Ok<T> = { ok: true } & T;
 type Fail = { ok: false; error: string };
 export type ActionResult<T = object> = Ok<T> | Fail;
 
-async function run<T extends object = object>(fn: (ctx: Ctx) => Promise<T | void>): Promise<ActionResult<T>> {
+async function run<T extends object = object>(
+  fn: (ctx: Ctx) => Promise<T | void>,
+  paths?: string[],
+): Promise<ActionResult<T>> {
   try {
     const ctx = await makeCtx();
     const data = (await fn(ctx)) ?? ({} as T);
-    revalidatePath("/", "layout");
+    // Revalidate only the paths that changed, not the entire layout tree.
+    for (const p of paths ?? []) revalidatePath(p);
     return { ok: true, ...data } as Ok<T>;
   } catch (e) {
     if (e instanceof UserError) return { ok: false, error: e.message };
@@ -81,7 +85,7 @@ export async function quickAddAction(text: string, opts: { defaultDate?: DateStr
     });
     const where = created.entry ? (created.entry.date === ctx.today ? "today" : created.entry.date) : opts.mode === "someday" || created.task.type === "someday" ? "the Someday pool" : "your list";
     return { taskId: created.task.id, message: `Added "${created.task.title}" to ${where}.` };
-  });
+  }, ["/today", "/goals"]);
 }
 
 /** Explains a typed/spoken line as a time entry, with the calculated hours, without saving anything. */
@@ -104,7 +108,7 @@ export async function timeSaveAction(text: string) {
     await createSegments(ctx, resolveSegments(parsed, tctx));
     const worked = await workedForDate(ctx, parsed.date);
     return { date: parsed.date, workedMin: worked };
-  });
+  }, ["/today"]);
 }
 
 // ------------------------------------------------------------------ entries
@@ -113,7 +117,7 @@ export async function setStatusAction(entryId: number, status: EntryStatus) {
   return run(async (ctx) => {
     const r = await setEntryStatus(ctx, entryId, status);
     return { taskClosed: r.taskClosed };
-  });
+  }, ["/today", "/plan"]);
 }
 
 export async function logMinutesAction(entryId: number, minutes: number) {
@@ -121,7 +125,7 @@ export async function logMinutesAction(entryId: number, minutes: number) {
     const e = await getEntry(entryId);
     if (!e) throw new UserError("That entry no longer exists.");
     await logMinutes(ctx, e.task_id, e.date, minutes, "web");
-  });
+  }, ["/today"]);
 }
 
 export async function clearMinutesAction(entryId: number) {
@@ -129,25 +133,25 @@ export async function clearMinutesAction(entryId: number) {
     const e = await getEntry(entryId);
     if (!e) throw new UserError("That entry no longer exists.");
     await clearMinutes(e.task_id, e.date);
-  });
+  }, ["/today"]);
 }
 
 export async function toggleMustAction(entryId: number, on: boolean) {
   return run(async (ctx) => {
     await setMustDo(ctx, entryId, on);
-  });
+  }, ["/today", "/plan"]);
 }
 
 export async function moveEntryAction(entryId: number, date: DateStr) {
   return run(async (ctx) => {
     await moveEntry(ctx, entryId, date);
-  });
+  }, ["/today", "/plan"]);
 }
 
 export async function removeEntryAction(entryId: number) {
   return run(async () => {
     await removeEntry(entryId);
-  });
+  }, ["/today", "/plan"]);
 }
 
 export async function retryAction(entryId: number, choice: "2h" | "am" | "pm" | { date: DateStr }) {
@@ -164,7 +168,7 @@ export async function retryAction(entryId: number, choice: "2h" | "am" | "pm" | 
     const next = await addEntry(ctx, e.task_id, date, { source: "planned" });
     await scheduleTaskPing("task_retry", next.id, atLogical(date, hour * 60, ctx.tz, ctx.boundaryMin));
     return { message: `Retry set for ${date}.` };
-  });
+  }, ["/today", "/plan"]);
 }
 
 // ------------------------------------------------------------------ time tracking
@@ -173,13 +177,13 @@ export async function switchStateAction(kind: StateKind) {
   return run(async (ctx) => {
     const r = await switchState(ctx, kind);
     return { changed: r.changed };
-  });
+  }, ["/today"]);
 }
 
 export async function endOpenSegmentAction(minutesAgo: number) {
   return run(async (ctx) => {
     await endOpenSegment(ctx, minutesAgo);
-  });
+  }, ["/today"]);
 }
 
 function localToInstant(ctx: Ctx, value: string): Date {
@@ -197,28 +201,28 @@ export interface SegmentForm {
 export async function createSegmentAction(f: SegmentForm) {
   return run(async (ctx) => {
     await createSegment(ctx, { kind: f.kind, start: localToInstant(ctx, f.start), end: f.end ? localToInstant(ctx, f.end) : null });
-  });
+  }, ["/today"]);
 }
 export async function updateSegmentAction(id: number, f: SegmentForm) {
   return run(async (ctx) => {
     await updateSegment(ctx, id, { kind: f.kind, start: localToInstant(ctx, f.start), end: f.end ? localToInstant(ctx, f.end) : null });
-  });
+  }, ["/today"]);
 }
 export async function deleteSegmentAction(id: number) {
   return run(async () => {
     await deleteSegment(id);
-  });
+  }, ["/today"]);
 }
 
 export async function setScoreAction(date: DateStr, score: number | null) {
   return run(async () => {
     await setScore(date, score);
-  });
+  }, ["/today"]);
 }
 export async function setStepsAction(date: DateStr, steps: number | null) {
   return run(async () => {
     await setSteps(date, steps);
-  });
+  }, ["/today"]);
 }
 
 // ------------------------------------------------------------------ plan and goals
@@ -226,31 +230,31 @@ export async function setStepsAction(date: DateStr, steps: number | null) {
 export async function triageAction(entryId: number, action: TriageAction, planDate: DateStr, pickDate?: DateStr) {
   return run(async (ctx) => {
     await triageEntry(ctx, entryId, action, planDate, pickDate);
-  });
+  }, ["/plan", "/today"]);
 }
 
 export async function addToDayAction(taskId: number, date: DateStr, mustDo = false) {
   return run(async (ctx) => {
     await addEntry(ctx, taskId, date, { mustDo, source: "planned" });
-  });
+  }, ["/today", "/plan", "/goals"]);
 }
 
 export async function finishPlanAction(date: DateStr) {
   return run(async (ctx) => {
     await finishPlan(ctx, date);
-  });
+  }, ["/plan"]);
 }
 
 export async function reorderSomedayAction(id: number, dir: "up" | "down") {
   return run(async () => {
     await reorderSomeday(id, dir);
-  });
+  }, ["/goals"]);
 }
 
 export async function snoozeCadenceAction(id: number) {
   return run(async (ctx) => {
     await snoozeCadence(ctx, id);
-  });
+  }, ["/goals"]);
 }
 
 // ------------------------------------------------------------------ health
@@ -258,17 +262,17 @@ export async function snoozeCadenceAction(id: number) {
 export async function logExerciseCellAction(slotIso: string, status: "done" | "skipped", typeId: number | null, amount: number | null) {
   return run(async (ctx) => {
     await logExercise(ctx, new Date(slotIso), status, typeId, amount);
-  });
+  }, ["/health"]);
 }
 export async function createExerciseTypeAction(input: ExerciseTypeInput) {
   return run(async () => {
     await createExerciseType(input);
-  });
+  }, ["/health"]);
 }
 export async function updateExerciseTypeAction(id: number, input: ExerciseTypeInput & { active?: boolean }) {
   return run(async () => {
     await updateExerciseType(id, input);
-  });
+  }, ["/health"]);
 }
 
 // ------------------------------------------------------------------ tasks
@@ -276,19 +280,19 @@ export async function updateExerciseTypeAction(id: number, input: ExerciseTypeIn
 export async function updateTaskAction(id: number, patch: TaskPatch) {
   return run(async (ctx) => {
     await updateTask(ctx, id, patch);
-  });
+  }, ["/today", "/goals"]);
 }
 
 export async function deleteTaskAction(id: number) {
   return run(async () => {
     await deleteTask(id);
-  });
+  }, ["/today", "/goals"]);
 }
 
 export async function appendNoteAction(taskId: number, text: string) {
   return run(async (ctx) => {
     await appendNote(ctx, taskId, text);
-  });
+  }, []);
 }
 
 export interface NewTaskForm {
@@ -341,7 +345,7 @@ export async function createTaskAction(f: NewTaskForm) {
     if (f.notes?.trim()) await q("update tasks set notes = $2 where id = $1", [task.id, f.notes.trim()]);
     if (f.pendingId) await q("delete from pending_adds where id = $1", [f.pendingId]);
     return { taskId: task.id };
-  });
+  }, ["/today", "/goals"]);
 }
 
 // ------------------------------------------------------------------ settings
@@ -349,7 +353,7 @@ export async function createTaskAction(f: NewTaskForm) {
 export async function updateSettingsAction(patch: SettingsPatch) {
   return run(async () => {
     await updateSettings(patch);
-  });
+  }, ["/settings"]);
 }
 
 export async function updateProjectAction(id: number, patch: { name?: string; color?: string; archived?: boolean }) {
@@ -366,14 +370,14 @@ export async function updateProjectAction(id: number, patch: { name?: string; co
       await q("update projects set color = $2 where id = $1", [id, patch.color]);
     }
     if (patch.archived !== undefined) await q("update projects set archived = $2 where id = $1", [id, patch.archived]);
-  });
+  }, ["/settings", "/goals"]);
 }
 
 export async function createProjectAction(name: string) {
   return run(async () => {
     if (!name.trim()) throw new UserError("Project name cannot be empty.");
     await ensureProject(name);
-  });
+  }, ["/settings", "/goals"]);
 }
 
 export async function createPersonAction(name: string, relation: string | null) {
@@ -381,7 +385,7 @@ export async function createPersonAction(name: string, relation: string | null) 
     if (!name.trim()) throw new UserError("Name cannot be empty.");
     const id = await ensurePerson(name, relation);
     if (relation !== null) await q("update people set relation = $2 where id = $1", [id, relation || null]);
-  });
+  }, ["/settings"]);
 }
 
 export async function updatePersonAction(id: number, patch: { name?: string; relation?: string | null }) {
@@ -391,7 +395,7 @@ export async function updatePersonAction(id: number, patch: { name?: string; rel
       await q("update people set name = $2 where id = $1", [id, patch.name.trim()]);
     }
     if (patch.relation !== undefined) await q("update people set relation = $2 where id = $1", [id, patch.relation?.trim() || null]);
-  });
+  }, ["/settings"]);
 }
 
 export async function testNotificationAction() {
@@ -417,5 +421,5 @@ export async function setTaskStateAction(id: number, state: "active" | "dropped"
     } else {
       await q("update tasks set state = 'active', closed_at = null where id = $1", [id]);
     }
-  });
+  }, ["/goals", "/today"]);
 }
