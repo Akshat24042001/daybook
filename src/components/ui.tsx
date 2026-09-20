@@ -162,7 +162,12 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTML
 );
 
 export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={cn(inputClass, "appearance-none pr-8", className)} {...props} />;
+  return (
+    <select
+      className={cn(inputClass, "styled-select appearance-none cursor-pointer", className)}
+      {...props}
+    />
+  );
 }
 
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

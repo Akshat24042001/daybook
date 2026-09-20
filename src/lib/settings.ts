@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { one, q, UserError, type Db, getPool } from "./db";
 import {
   type DateStr,
@@ -21,11 +22,13 @@ export interface Ctx {
   today: DateStr;
 }
 
-export async function getSettings(db: Db = getPool()): Promise<Settings> {
+// cache() deduplicates this within a single RSC render pass —
+// layout + every page that calls makeCtx() share one DB round-trip.
+export const getSettings = cache(async function getSettings(db: Db = getPool()): Promise<Settings> {
   const row = await one<Settings>("select * from settings where id = 1", [], db);
   if (!row) throw new Error("settings row missing; run migrations");
   return row;
-}
+});
 
 export function buildCtx(s: Settings, now: Date): Ctx {
   const boundaryMin = parseHM(s.day_boundary);

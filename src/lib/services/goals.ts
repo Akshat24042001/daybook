@@ -122,11 +122,55 @@ export async function listTargets(ctx: Ctx, db: Db = getPool()): Promise<Record<
     [],
     db,
   );
-  const out: Record<TargetPeriod, TargetProgress[]> = { week: [], month: [], quarter: [] };
-  for (const t of rows) {
+
+  // Filter to tasks whose period contains today
+  const active = rows.filter((t) => {
     const { start, end } = targetBounds(ctx, t);
-    if (ctx.today < start || ctx.today > end) continue;
-    out[(t.target_period ?? "week") as TargetPeriod].push(await targetProgress(ctx, t, db));
+    return ctx.today >= start && ctx.today <= end;
+  });
+  if (active.length === 0) return { week: [], month: [], quarter: [] };
+
+  // Batch-fetch minutes and counts for all targets in one query each
+  const ids = active.map((t) => t.id);
+
+  // Build per-task date bounds for the batch queries
+  const bounds = Object.fromEntries(active.map((t) => [t.id, targetBounds(ctx, t)]));
+  const minDateStr = active.map((t) => bounds[t.id].start).sort()[0];
+  const maxDateStr = active.map((t) => bounds[t.id].end).sort().at(-1)!;
+
+  const [minuteRows, countRows] = await Promise.all([
+    q<{ task_id: number; minutes: number }>(
+      `select task_id, coalesce(sum(minutes),0)::int as minutes
+       from time_logs where task_id = any($1) and date between $2 and $3
+       group by task_id`,
+      [ids, minDateStr, maxDateStr],
+      db,
+    ),
+    q<{ task_id: number; n: number }>(
+      `select task_id, count(*)::int as n
+       from day_entries where task_id = any($1) and date between $2 and $3
+         and status in ('done','progressed')
+       group by task_id`,
+      [ids, minDateStr, maxDateStr],
+      db,
+    ),
+  ]);
+
+  const minuteMap = new Map(minuteRows.map((r) => [r.task_id, r.minutes]));
+  const countMap  = new Map(countRows.map((r) => [r.task_id, r.n]));
+
+  const out: Record<TargetPeriod, TargetProgress[]> = { week: [], month: [], quarter: [] };
+  for (const t of active) {
+    const { start, end } = bounds[t.id];
+    const minutes = minuteMap.get(t.id) ?? 0;
+    const count   = countMap.get(t.id)  ?? 0;
+    const elapsed = elapsedFraction(ctx, start, end);
+    const pace = computePace({ minutes, count, goalMin: t.goal_min, goalCount: t.goal_count, elapsed, done: t.state === "done" });
+    out[(t.target_period ?? "week") as TargetPeriod].push({
+      task: t, start, end, minutes, count, elapsed,
+      daysLeft: Math.max(0, diffDays(end, ctx.today)),
+      ...pace,
+    });
   }
   return out;
 }

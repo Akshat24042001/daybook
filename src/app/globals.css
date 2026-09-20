@@ -3,35 +3,35 @@
 @tailwind utilities;
 
 :root {
-  --bg: 42 30% 96%;
+  --bg: 214 28% 96%;
   --surface: 0 0% 100%;
-  --muted: 40 22% 92%;
-  --border: 38 16% 84%;
-  --fg: 28 18% 12%;
-  --subtle: 28 8% 40%;
-  --accent: 160 55% 24%;
+  --muted: 214 20% 92%;
+  --border: 214 14% 86%;
+  --fg: 220 20% 12%;
+  --subtle: 220 10% 44%;
+  --accent: 217 88% 44%;
   --accent-fg: 0 0% 100%;
   --good: 152 55% 30%;
   --warn: 32 92% 42%;
   --bad: 0 68% 46%;
-  --hl: 92 78% 82%;
+  --hl: 217 90% 88%;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: 30 12% 8%;
-    --surface: 30 9% 12%;
-    --muted: 30 8% 17%;
-    --border: 30 8% 24%;
-    --fg: 40 22% 92%;
-    --subtle: 35 9% 66%;
-    --accent: 152 48% 58%;
-    --accent-fg: 30 14% 8%;
+    --bg: 222 18% 9%;
+    --surface: 222 16% 13%;
+    --muted: 222 14% 18%;
+    --border: 222 12% 24%;
+    --fg: 214 22% 92%;
+    --subtle: 214 10% 60%;
+    --accent: 217 82% 62%;
+    --accent-fg: 222 20% 8%;
     --good: 152 50% 58%;
     --warn: 38 90% 60%;
     --bad: 0 78% 68%;
-    --hl: 148 34% 22%;
+    --hl: 217 36% 22%;
     color-scheme: dark;
   }
 }
@@ -59,17 +59,27 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* the notebook's green highlighter, for must-do rows */
+/* Blue highlight for must-do rows */
 .highlighter {
-  background: linear-gradient(to right, hsl(var(--hl)), hsl(var(--hl) / 0.55));
+  background: linear-gradient(to right, hsl(var(--hl)), hsl(var(--hl) / 0.5));
 }
 
-/* safe areas for the installed PWA */
+/* Safe areas for installed PWA */
 .pb-safe {
   padding-bottom: max(env(safe-area-inset-bottom), 0px);
 }
 .pt-safe {
   padding-top: max(env(safe-area-inset-top), 0px);
+}
+
+/* Custom select arrow */
+select.styled-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 16px;
+  padding-right: 36px !important;
+  cursor: pointer;
 }
 
 @layer base {
@@ -86,43 +96,21 @@ body {
 }
 
 @keyframes sheet-in {
-  from {
-    transform: translateY(24px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  from { transform: translateY(24px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
 }
 @keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 @keyframes pulse-dot {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
-  }
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
 }
 
-.sheet-content {
-  animation: sheet-in 160ms ease-out;
-}
-.sheet-overlay {
-  animation: fade-in 140ms ease-out;
-}
+.sheet-content  { animation: sheet-in 160ms ease-out; }
+.sheet-overlay  { animation: fade-in  140ms ease-out; }
 
 @media (prefers-reduced-motion: reduce) {
-  .sheet-content,
-  .sheet-overlay {
-    animation: none;
-  }
+  .sheet-content, .sheet-overlay { animation: none; }
 }

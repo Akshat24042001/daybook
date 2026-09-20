@@ -22,6 +22,8 @@ export function getPool(): pg.Pool {
       connectionString: url,
       max: process.env.VERCEL ? 3 : 8,
       ssl: needsSsl(url) ? { rejectUnauthorized: false } : undefined,
+      idleTimeoutMillis: 20_000,
+      connectionTimeoutMillis: 5_000,
     });
   }
   return g.__daybookPool;
