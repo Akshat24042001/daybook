@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Pencil, RotateCcw, Star } from "lucide-react";
+import { ArrowRight, ExternalLink, Pencil, RotateCcw, Star } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useOptimistic, useState, useTransition } from "react";
@@ -201,10 +201,17 @@ export function EntrySheet({
           <Button variant="outline" size="sm" disabled={pending} onClick={() => act(() => moveEntryAction(row.id, tomorrow), onClose)}>
             <ArrowRight className="h-4 w-4" /> Move to tomorrow
           </Button>
-          <Button variant="outline" size="sm" onClick={() => router.push(`/task/${row.taskId}`)}>
-            <Pencil className="h-4 w-4" /> Edit
-          </Button>
         </div>
+        <Link
+          href={`/task/${row.taskId}`}
+          className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium hover:bg-muted transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Pencil className="h-4 w-4 text-subtle" />
+            Open task · edit details, notes &amp; history
+          </span>
+          <ExternalLink className="h-4 w-4 text-subtle shrink-0" />
+        </Link>
 
         <div>
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-subtle">Add a note</p>
