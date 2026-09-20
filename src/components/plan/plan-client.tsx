@@ -50,6 +50,26 @@ export function PlanClient(props: {
   const entries = props.entries.filter((r) => !optimisticRemoved.has(r.id));
   const stepOne = triage.length > 0;
 
+  function removeFromDay(entryId: number) {
+    setError(null);
+    start(async () => {
+      setOptimisticRemoved((s) => new Set([...s, entryId]));
+      const r = await removeEntryAction(entryId);
+      if (!r.ok) setError(r.error ?? "That did not work.");
+      else router.refresh();
+    });
+  }
+
+  function doTriage(entryId: number, action: Parameters<typeof triageAction>[1], pd?: string) {
+    setError(null);
+    start(async () => {
+      setOptimisticTriaged((s) => new Set([...s, entryId]));
+      const r = await triageAction(entryId, action, date, pd);
+      if (!r.ok) setError(r.error ?? "That did not work.");
+      else router.refresh();
+    });
+  }
+
   function act(fn: () => Promise<{ ok: boolean; error?: string }>, done?: string) {
     setError(null);
     start(async () => {
@@ -112,28 +132,18 @@ export function PlanClient(props: {
                   {r.carry >= 2 ? <span className={cn("rounded-full px-1.5 py-0.5 text-xs font-medium", r.carry >= 3 ? "bg-bad/15 text-bad" : "bg-warn/15 text-warn")}>carried {r.carry}×</span> : null}
                 </div>
                 <div className="mt-2.5 flex flex-wrap gap-1.5">
-                  <Button size="sm" variant="primary" onClick={() => { start(async () => { setOptimisticTriaged((s) => new Set([...s, r.id])); const res = await triageAction(r.id, "carry", date); if (!res.ok) setError(res.error ?? "Failed"); else router.refresh(); }); }}>
-                    Carry
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => { start(async () => { setOptimisticTriaged((s) => new Set([...s, r.id])); const res = await triageAction(r.id, "carry_must", date); if (!res.ok) setError(res.error ?? "Failed"); else router.refresh(); }); }}>
-                    <Star className="h-3.5 w-3.5" /> Carry as must-do
-                  </Button>
-                  <Button size="sm" variant="outline" disabled={pending} onClick={() => setPickFor(pickFor === r.id ? null : r.id)}>
-                    <CalendarDays className="h-3.5 w-3.5" /> Pick date
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => { start(async () => { setOptimisticTriaged((s) => new Set([...s, r.id])); const res = await triageAction(r.id, "someday", date); if (!res.ok) setError(res.error ?? "Failed"); else router.refresh(); }); }}>
-                    Someday
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => { start(async () => { setOptimisticTriaged((s) => new Set([...s, r.id])); const res = await triageAction(r.id, "drop", date); if (!res.ok) setError(res.error ?? "Failed"); else router.refresh(); }); }}>
-                    <X className="h-3.5 w-3.5" /> Drop
-                  </Button>
+                  <Button size="sm" variant="primary" onClick={() => doTriage(r.id, "carry")}>Carry</Button>
+                  <Button size="sm" variant="outline" onClick={() => doTriage(r.id, "carry_must")}><Star className="h-3.5 w-3.5" /> Carry as must-do</Button>
+                  <Button size="sm" variant="outline" disabled={pending} onClick={() => setPickFor(pickFor === r.id ? null : r.id)}><CalendarDays className="h-3.5 w-3.5" /> Pick date</Button>
+                  <Button size="sm" variant="outline" onClick={() => doTriage(r.id, "someday")}>Someday</Button>
+                  <Button size="sm" variant="ghost" onClick={() => doTriage(r.id, "drop")}><X className="h-3.5 w-3.5" /> Drop</Button>
                 </div>
                 {pickFor === r.id ? (
                   <form
                     className="mt-2 flex gap-2"
                     onSubmit={(e) => {
                       e.preventDefault();
-                      if (pickDate) { start(async () => { setOptimisticTriaged((s) => new Set([...s, r.id])); const res = await triageAction(r.id, "pick", date, pickDate); if (!res.ok) setError(res.error ?? "Failed"); else { toast("Moved."); router.refresh(); } }); }
+                      if (pickDate) doTriage(r.id, "pick", pickDate);
                     }}
                   >
                     <Input type="date" min={addDays(r.date, 1)} value={pickDate} onChange={(e) => setPickDate(e.target.value)} className="h-9" aria-label="Date" />
@@ -192,7 +202,7 @@ export function PlanClient(props: {
                       </p>
                     </div>
                     {r.status === "open" && r.type !== "ongoing" ? (
-                      <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Remove ${r.title} from this day`} onClick={() => { start(async () => { setOptimisticRemoved((s) => new Set([...s, r.id])); const res = await removeEntryAction(r.id); if (!res.ok) setError(res.error ?? "Failed"); else router.refresh(); }); }}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Remove ${r.title} from this day`} onClick={() => removeFromDay(r.id)}>
                         <X className="h-4 w-4" />
                       </Button>
                     ) : null}
