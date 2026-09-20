@@ -3,7 +3,7 @@
 import { ArrowRight, Pencil, RotateCcw, Star } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import {
   appendNoteAction, clearMinutesAction, logMinutesAction, moveEntryAction, retryAction, setStatusAction,
   toggleMustAction,
@@ -40,6 +40,7 @@ export function EntrySheet({
   const router = useRouter();
   const { toast } = useToast();
   const [pending, start] = useTransition();
+  const [optimisticStatus, setOptimisticStatus] = useOptimistic<EntryStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [custom, setCustom] = useState("");
   const [note, setNote] = useState("");
@@ -63,6 +64,7 @@ export function EntrySheet({
   if (!row) return <Sheet open={false} onOpenChange={onClose} title="Task">{null}</Sheet>;
   const isToday = row.date === today;
   const tomorrow = addDays(row.date, 1);
+  const displayStatus = optimisticStatus ?? row.status;
 
   return (
     <Sheet
@@ -87,17 +89,20 @@ export function EntrySheet({
               <button
                 key={status}
                 type="button"
-                disabled={pending}
                 onClick={() =>
-                  act(
-                    () => setStatusAction(row.id, status),
-                    () => setRetryOpen(status === "attempted"),
-                  )
+                  start(async () => {
+                    setOptimisticStatus(status);
+                    setError(null);
+                    const r = await setStatusAction(row.id, status);
+                    if (!r.ok) { setError(r.error ?? "That did not work."); return; }
+                    if (status === "attempted") setRetryOpen(true);
+                    router.refresh();
+                  })
                 }
-                aria-pressed={row.status === status}
+                aria-pressed={displayStatus === status}
                 className={cn(
                   "flex flex-col items-center gap-1 rounded-xl border px-1 py-2 text-[11px] font-medium transition-colors",
-                  row.status === status ? "border-accent bg-accent/10 text-accent" : "border-border hover:bg-muted",
+                  displayStatus === status ? "border-accent bg-accent/10 text-accent" : "border-border hover:bg-muted",
                 )}
               >
                 <StatusGlyph status={status} className="h-6 w-6" />
@@ -105,11 +110,16 @@ export function EntrySheet({
               </button>
             ))}
           </div>
-          {row.status !== "open" ? (
+          {displayStatus !== "open" ? (
             <button
               type="button"
               className="mt-2 inline-flex items-center gap-1 text-xs text-subtle underline-offset-2 hover:underline"
-              onClick={() => act(() => setStatusAction(row.id, "open"))}
+              onClick={() => start(async () => {
+                setOptimisticStatus("open");
+                const r = await setStatusAction(row.id, "open");
+                if (!r.ok) setError(r.error ?? "That did not work.");
+                else router.refresh();
+              })}
             >
               <RotateCcw className="h-3 w-3" /> Reopen
             </button>
