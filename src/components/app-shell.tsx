@@ -55,13 +55,11 @@ export function AppShell({
   tz,
   boundaryMin,
   voiceEnabled,
-  health,
   children,
 }: {
   tz: string;
   boundaryMin: number;
   voiceEnabled: boolean;
-  health: { stale: boolean; ageSec: number | null; lastTickAt: string | null };
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -69,7 +67,7 @@ export function AppShell({
 
   return (
     <ToastProvider>
-      <StaleBanner initial={health} />
+      <StaleBanner />
       <div className="mx-auto flex min-h-dvh w-full max-w-6xl">
         {/* desktop sidebar */}
         <aside className="sticky top-0 hidden h-dvh w-52 shrink-0 flex-col border-r border-border px-3 py-5 md:flex">

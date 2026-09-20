@@ -9,12 +9,14 @@ interface Health {
   lastTickAt: string | null;
 }
 
+const INITIAL: Health = { stale: false, ageSec: null, lastTickAt: null };
+
 /**
- * A silent scheduler failure must be visible (PRD section 3): if the last successful tick is older than
- * 10 minutes, show a red banner on every screen.
+ * Polls /api/health every 60s client-side. No server-side DB call needed —
+ * the banner starts hidden and shows immediately if the poll finds staleness.
  */
-export function StaleBanner({ initial }: { initial: Health }) {
-  const [h, setH] = useState<Health>(initial);
+export function StaleBanner() {
+  const [h, setH] = useState<Health>(INITIAL);
 
   useEffect(() => {
     let alive = true;
@@ -27,6 +29,7 @@ export function StaleBanner({ initial }: { initial: Health }) {
         if (alive) setH((cur) => ({ ...cur, stale: true }));
       }
     };
+    void check(); // check immediately on mount
     const id = setInterval(check, 60_000);
     const onFocus = () => void check();
     window.addEventListener("focus", onFocus);
