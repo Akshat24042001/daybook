@@ -220,11 +220,11 @@ async function handleText(ctx: Ctx, chat: number, text: string, opts: TextOpts =
  *   plan               — show today's plan (same as "Today" button)
  */
 async function tryTextCommand(ctx: Ctx, chat: number, text: string): Promise<boolean> {
-  // score <n>
-  const scoreM = text.match(/^score\s+(\d+(?:\.\d+)?)$/i);
+  // score <n> — matches "score 8", "score is 8", "today score 8.5", "set score 7", etc.
+  const scoreM = text.match(/(?:^|\s)score(?:\s+is)?\s+(\d+(?:[.,]\d+)?)/i);
   if (scoreM) {
-    const val = parseFloat(scoreM[1]);
-    if (val < 1 || val > 10) { await sendMessage(chat, "⚠️ Score must be between 1 and 10."); return true; }
+    const val = parseFloat(scoreM[1].replace(",", "."));
+    if (val < 0 || val > 10) { await sendMessage(chat, "⚠️ Score must be between 0 and 10."); return true; }
     await setScore(ctx.today, val);
     await sendMessage(chat, `🙂 Score for today set to <b>${val}</b>.`);
     return true;
