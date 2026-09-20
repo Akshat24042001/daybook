@@ -63,21 +63,29 @@ export interface PeriodMetrics {
 }
 
 /** All the headline numbers for one date range. Used for the current period and the one before it. */
-export async function periodMetrics(ctx: Ctx, f: StatsFilters): Promise<PeriodMetrics> {
+export async function periodMetrics(
+  ctx: Ctx,
+  f: StatsFilters,
+  pre?: { worked?: Map<DateStr, number>; logged?: Map<DateStr, number> },
+): Promise<PeriodMetrics> {
   const { from, to } = f;
   const dates = dateRange(from, to);
-  const worked = await workedByDay(ctx, from, to);
+  const worked = pre?.worked ?? (await workedByDay(ctx, from, to));
 
-  const scoreRows = await q<{ score: number }>(
-    "select score from days where date between $1 and $2 and score is not null",
-    [from, to],
-  );
-  const loggedRows = await q<{ date: DateStr; m: number }>(
-    `select l.date, sum(l.minutes)::int as m from time_logs l join tasks t on t.id = l.task_id
-     where l.date between $1 and $2 and not t.is_personal group by l.date`,
-    [from, to],
-  );
-  const logged = new Map(loggedRows.map((r) => [r.date, r.m]));
+  const [scoreRows, loggedRows] = await Promise.all([
+    q<{ score: number }>(
+      "select score from days where date between $1 and $2 and score is not null",
+      [from, to],
+    ),
+    pre?.logged
+      ? Promise.resolve([...pre.logged.entries()].map(([date, m]) => ({ date, m })))
+      : q<{ date: DateStr; m: number }>(
+          `select l.date, sum(l.minutes)::int as m from time_logs l join tasks t on t.id = l.task_id
+           where l.date between $1 and $2 and not t.is_personal group by l.date`,
+          [from, to],
+        ),
+  ]);
+  const logged = pre?.logged ?? new Map(loggedRows.map((r) => [r.date, r.m]));
   const workedDays = dates.filter((d) => (worked.get(d) ?? 0) > 0);
   const totalWorked = workedDays.reduce((a, d) => a + (worked.get(d) ?? 0), 0);
   const totalUnacc = workedDays.reduce((a, d) => a + Math.max(0, (worked.get(d) ?? 0) - (logged.get(d) ?? 0)), 0);
@@ -185,23 +193,27 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
   const dates = dateRange(from, to);
   const len = dates.length;
   const prevRange = { from: addDays(from, -len), to: addDays(from, -1) };
-  const worked = await workedByDay(ctx, from, to);
+  const [worked, dayRows, loggedRows] = await Promise.all([
+    workedByDay(ctx, from, to),
+    q<{ date: DateStr; score: number | null; steps: number | null }>(
+      "select date, score, steps from days where date between $1 and $2",
+      [from, to],
+    ),
+    q<{ date: DateStr; m: number }>(
+      `select l.date, sum(l.minutes)::int as m from time_logs l join tasks t on t.id = l.task_id
+       where l.date between $1 and $2 and not t.is_personal group by l.date`,
+      [from, to],
+    ),
+  ]);
+  const logged = new Map(loggedRows.map((r) => [r.date, r.m]));
 
-  const current = await periodMetrics(ctx, f);
-  const previous = await periodMetrics(ctx, { ...f, ...prevRange });
+  const [current, previous] = await Promise.all([
+    periodMetrics(ctx, f, { worked, logged }),
+    periodMetrics(ctx, { ...f, ...prevRange }),
+  ]);
 
   // ---- per-day facts
-  const dayRows = await q<{ date: DateStr; score: number | null; steps: number | null }>(
-    "select date, score, steps from days where date between $1 and $2",
-    [from, to],
-  );
   const dayMap = new Map(dayRows.map((r) => [r.date, r]));
-  const loggedRows = await q<{ date: DateStr; m: number }>(
-    `select l.date, sum(l.minutes)::int as m from time_logs l join tasks t on t.id = l.task_id
-     where l.date between $1 and $2 and not t.is_personal group by l.date`,
-    [from, to],
-  );
-  const logged = new Map(loggedRows.map((r) => [r.date, r.m]));
   const mustRows = await q<{ date: DateStr; n: number }>(
     "select date, count(*)::int as n from day_entries where date between $1 and $2 and must_do and status <> 'dropped' group by date",
     [from, to],
@@ -307,26 +319,35 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
     p7,
   );
   const cadence: Stats["cadence"] = [];
-  for (const c of cadTasks) {
-    const done = await q<{ date: DateStr }>(
-      "select date from day_entries where task_id = $1 and status = 'done' and date between $2 and $3 order by date",
-      [c.id, from, to],
+  if (cadTasks.length > 0) {
+    const cadIds = cadTasks.map((c) => c.id);
+    const allDoneRows = await q<{ task_id: number; date: DateStr }>(
+      "select task_id, date from day_entries where task_id = any($1) and status = 'done' and date between $2 and $3 order by task_id, date",
+      [cadIds, from, to],
     );
-    const ds = done.map((r) => r.date);
-    let avgInterval: number | null = null;
-    if (ds.length >= 2) {
-      const gaps = ds.slice(1).map((d, i) => diffDays(d, ds[i]));
-      avgInterval = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+    const doneByTask = new Map<number, DateStr[]>();
+    for (const r of allDoneRows) {
+      const arr = doneByTask.get(r.task_id) ?? [];
+      arr.push(r.date);
+      doneByTask.set(r.task_id, arr);
     }
-    const lastDone = c.last_done_at ? zonedDay(ctx, c.last_done_at) : null;
-    cadence.push({
-      id: c.id,
-      title: c.title,
-      target: c.cadence_days,
-      avgInterval,
-      doneCount: ds.length,
-      daysSince: lastDone ? Math.max(0, diffDays(ctx.today, lastDone)) : null,
-    });
+    for (const c of cadTasks) {
+      const ds = doneByTask.get(c.id) ?? [];
+      let avgInterval: number | null = null;
+      if (ds.length >= 2) {
+        const gaps = ds.slice(1).map((d, i) => diffDays(d, ds[i]));
+        avgInterval = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+      }
+      const lastDone = c.last_done_at ? zonedDay(ctx, c.last_done_at) : null;
+      cadence.push({
+        id: c.id,
+        title: c.title,
+        target: c.cadence_days,
+        avgInterval,
+        doneCount: ds.length,
+        daysSince: lastDone ? Math.max(0, diffDays(ctx.today, lastDone)) : null,
+      });
+    }
   }
 
   // ---- health

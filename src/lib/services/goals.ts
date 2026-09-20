@@ -235,8 +235,11 @@ export async function reorderSomeday(id: number, direction: "up" | "down"): Prom
     const i = ids.indexOf(id);
     const j = direction === "up" ? i - 1 : i + 1;
     if (i < 0 || j < 0 || j >= ids.length) return;
-    [ids[i], ids[j]] = [ids[j], ids[i]];
-    for (let k = 0; k < ids.length; k++) await db.query("update tasks set sort = $2 where id = $1", [ids[k], k + 1]);
+    // swap only the two affected rows — their sort values are i+1 and j+1
+    await Promise.all([
+      db.query("update tasks set sort = $2 where id = $1", [ids[i], j + 1]),
+      db.query("update tasks set sort = $2 where id = $1", [ids[j], i + 1]),
+    ]);
   });
 }
 
