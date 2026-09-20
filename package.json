@@ -1,0 +1,47 @@
+{
+  "name": "daybook",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/run-next.mjs dev",
+    "build": "node scripts/run-next.mjs build",
+    "start": "node scripts/run-next.mjs start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "db:start": "node scripts/dev-db.mjs",
+    "db:migrate": "node --env-file=.env scripts/migrate.mjs",
+    "db:seed": "node --env-file=.env scripts/seed.mjs",
+    "dev:cron": "node --env-file=.env scripts/dev-cron.mjs",
+    "telegram:webhook": "node --env-file=.env scripts/set-webhook.mjs",
+    "up": "node scripts/start-all.mjs",
+    "cron:sql": "node --env-file=.env scripts/print-cron-sql.mjs"
+  },
+  "dependencies": {
+    "@date-fns/tz": "^1.2.0",
+    "@radix-ui/react-dialog": "^1.1.2",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.46.1",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.454.0",
+    "next": "^15.1.0",
+    "pg": "^8.13.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "recharts": "^2.13.3",
+    "tailwind-merge": "^2.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "embedded-postgres": "^17.2.0-beta.15",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  }
+}

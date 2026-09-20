@@ -1,0 +1,128 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 42 30% 96%;
+  --surface: 0 0% 100%;
+  --muted: 40 22% 92%;
+  --border: 38 16% 84%;
+  --fg: 28 18% 12%;
+  --subtle: 28 8% 40%;
+  --accent: 160 55% 24%;
+  --accent-fg: 0 0% 100%;
+  --good: 152 55% 30%;
+  --warn: 32 92% 42%;
+  --bad: 0 68% 46%;
+  --hl: 92 78% 82%;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: 30 12% 8%;
+    --surface: 30 9% 12%;
+    --muted: 30 8% 17%;
+    --border: 30 8% 24%;
+    --fg: 40 22% 92%;
+    --subtle: 35 9% 66%;
+    --accent: 152 48% 58%;
+    --accent-fg: 30 14% 8%;
+    --good: 152 50% 58%;
+    --warn: 38 90% 60%;
+    --bad: 0 78% 68%;
+    --hl: 148 34% 22%;
+    color-scheme: dark;
+  }
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: hsl(var(--bg));
+  color: hsl(var(--fg));
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+.font-display {
+  font-family: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  letter-spacing: -0.01em;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* the notebook's green highlighter, for must-do rows */
+.highlighter {
+  background: linear-gradient(to right, hsl(var(--hl)), hsl(var(--hl) / 0.55));
+}
+
+/* safe areas for the installed PWA */
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+.pt-safe {
+  padding-top: max(env(safe-area-inset-top), 0px);
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid hsl(var(--accent));
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  button,
+  [role="button"],
+  a {
+    touch-action: manipulation;
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.sheet-content {
+  animation: sheet-in 160ms ease-out;
+}
+.sheet-overlay {
+  animation: fade-in 140ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-content,
+  .sheet-overlay {
+    animation: none;
+  }
+}
