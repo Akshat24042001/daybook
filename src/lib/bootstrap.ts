@@ -182,18 +182,20 @@ async function scheduleCron(client: pg.Client) {
     `select cron.unschedule(jobid) from cron.job where jobname = 'daybook-tick'`,
   ).catch(() => {});
 
+  const safeUrl = tickUrl.replace(/'/g, "''");
+  const safeSecret = cronSecret.replace(/'/g, "''");
   await client.query(
     `select cron.schedule(
       'daybook-tick',
       '* * * * *',
-      $$select net.http_post(
-        url    := $1$${tickUrl}$1$,
+      'select net.http_post(
+        url    := ''${safeUrl}'',
         headers := jsonb_build_object(
-          'Content-Type', 'application/json',
-          'Authorization', 'Bearer $2$${cronSecret}$2$'
+          ''Content-Type'', ''application/json'',
+          ''x-cron-secret'', ''${safeSecret}''
         ),
-        body   := '{}'::jsonb
-      )$$
+        body   := ''{}''::jsonb
+      )'
     )`,
   );
   console.log(`[bootstrap] Supabase cron scheduled → ${tickUrl}`);
