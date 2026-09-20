@@ -145,58 +145,7 @@ export async function bootstrap() {
   await registerWebhook().catch((e: Error) =>
     console.warn("[bootstrap] webhook step failed:", e.message),
   );
-
-  // Schedule the every-minute tick in Supabase pg_cron (requires pg_cron + pg_net enabled
-  // in Supabase dashboard → Database → Extensions).
-  if (process.env.DATABASE_URL && appBaseUrl().startsWith("https://")) {
-    const client2 = dbClient();
-    try {
-      await client2.connect();
-      await scheduleCron(client2);
-    } catch (e) {
-      console.warn("[bootstrap] cron scheduling failed:", (e as Error).message);
-    } finally {
-      await client2.end().catch(() => {});
-    }
-  }
+  // pg_cron job is a one-time manual setup in Supabase — do NOT touch it here.
+  // Recreating it on every cold start would break the running job.
 }
 
-async function scheduleCron(client: pg.Client) {
-  const cronSecret = process.env.CRON_SECRET;
-  const base = appBaseUrl();
-  if (!cronSecret || !base.startsWith("https://")) return;
-
-  // Check extensions are present
-  const { rows } = await client.query(
-    `select count(*) as n from pg_extension where extname in ('pg_cron', 'pg_net')`,
-  );
-  if (parseInt(rows[0].n, 10) < 2) {
-    console.warn("[bootstrap] pg_cron or pg_net not enabled — enable in Supabase → Database → Extensions");
-    return;
-  }
-
-  const tickUrl = `${base}/api/cron/tick`;
-
-  // Unschedule old job if it exists, then reschedule (handles URL changes on redeploy)
-  await client.query(
-    `select cron.unschedule(jobid) from cron.job where jobname = 'daybook-tick'`,
-  ).catch(() => {});
-
-  const safeUrl = tickUrl.replace(/'/g, "''");
-  const safeSecret = cronSecret.replace(/'/g, "''");
-  await client.query(
-    `select cron.schedule(
-      'daybook-tick',
-      '* * * * *',
-      'select net.http_post(
-        url    := ''${safeUrl}'',
-        headers := jsonb_build_object(
-          ''Content-Type'', ''application/json'',
-          ''x-cron-secret'', ''${safeSecret}''
-        ),
-        body   := ''{}''::jsonb
-      )'
-    )`,
-  );
-  console.log(`[bootstrap] Supabase cron scheduled → ${tickUrl}`);
-}
