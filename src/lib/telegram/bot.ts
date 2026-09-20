@@ -230,17 +230,18 @@ async function tryTextCommand(ctx: Ctx, chat: number, text: string): Promise<boo
     return true;
   }
 
-  // steps <n>
-  const stepsM = text.match(/^steps?\s+(\d+)$/i);
+  // steps <n> — "steps 8000", "steps: 9500", "walked 6000 steps"
+  const stepsM = text.match(/(?:^|\s)steps?\s*:?\s*(\d[\d,]+)|(\d[\d,]+)\s+steps/i);
   if (stepsM) {
-    const val = parseInt(stepsM[1], 10);
+    const raw = (stepsM[1] ?? stepsM[2]).replace(/,/g, "");
+    const val = parseInt(raw, 10);
     await setSteps(ctx.today, val);
-    await sendMessage(chat, `👣 Steps logged: <b>${val.toLocaleString("en-US")}</b>.`);
+    await sendMessage(chat, `👣 Steps logged: <b>${val.toLocaleString("en-US")}</b> for today.`);
     return true;
   }
 
-  // plan / today
-  if (/^plan$/i.test(text)) {
+  // plan / today — show today's list
+  if (/^(plan|today|list)$/i.test(text)) {
     const m = await todayList(ctx);
     await sendMessage(chat, m.text, m.markup);
     return true;
@@ -604,18 +605,20 @@ async function handleCallback(ctx: Ctx, chat: number, cb: TgCallback): Promise<s
       if (parts[1] === "m") {
         const date = unpackDate(parts[3]);
         if (mid) await editMarkup(chat, mid, inline([...scoreDecimals(date, Number(parts[2]))]));
-        return undefined;
+        return `${parts[2]} — pick decimal`;
       }
       if (parts[1] === "s") {
         const date = unpackDate(parts[3]);
-        await setScore(date, Number(parts[2]));
+        const val = Number(parts[2]);
+        await setScore(date, val);
         if (mid) await editMarkup(chat, mid, await recapMarkup(ctx, date));
-        return `Score ${parts[2]}`;
+        await sendMessage(chat, `🙂 Score set to <b>${val}</b> for ${date}.`);
+        return `Score ${val} ✓`;
       }
       if (parts[1] === "c") {
         const date = unpackDate(parts[2]);
         if (mid) await editMarkup(chat, mid, await recapMarkup(ctx, date, { scoreGrid: true }));
-        return undefined;
+        return "Change score";
       }
       break;
     }
@@ -626,7 +629,8 @@ async function handleCallback(ctx: Ctx, chat: number, cb: TgCallback): Promise<s
       const value = Number(parts[1]);
       await setSteps(date, value);
       if (mid) await editMarkup(chat, mid, await recapMarkup(ctx, date));
-      return `${value.toLocaleString("en-US")} steps`;
+      await sendMessage(chat, `👣 Steps set to <b>${value.toLocaleString("en-US")}</b> for ${date}.`);
+      return `${value.toLocaleString("en-US")} steps ✓`;
     }
 
     // ---- cadence nudge: cd:<t|s>:<taskId>
