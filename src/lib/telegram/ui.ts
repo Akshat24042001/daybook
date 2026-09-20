@@ -275,6 +275,57 @@ export async function scoreReminder(ctx: Ctx, date: DateStr): Promise<Msg | null
   };
 }
 
+/** Evening reminder if tomorrow has no planned entries yet. */
+export async function planTomorrowReminder(ctx: Ctx): Promise<Msg | null> {
+  const tomorrow = addDays(ctx.today, 1);
+  const rows = await q<{ n: number }>(
+    "select count(*)::int as n from day_entries where date = $1 and status = 'open'",
+    [tomorrow],
+  );
+  if ((rows[0]?.n ?? 0) > 0) return null;
+  return {
+    text: `📅 <b>Tomorrow isn't planned yet.</b>\nAdd at least one task so you wake up with a direction.`,
+    markup: inline([[urlBtn("Plan tomorrow", `/plan?date=${tomorrow}`)]]),
+  };
+}
+
+/** Alert if any must-dos for today are still open near end of working hours. */
+export async function mustDoOpenReminder(ctx: Ctx): Promise<Msg | null> {
+  const rows = await q<{ title: string }>(
+    `select t.title from day_entries e join tasks t on t.id = e.task_id
+     where e.date = $1 and e.must_do and e.status = 'open' and t.state = 'active'
+     order by e.id limit 5`,
+    [ctx.today],
+  );
+  if (rows.length === 0) return null;
+  const list = rows.map((r) => `• ${esc(r.title)}`).join("\n");
+  return {
+    text: `⚠️ <b>${rows.length} must-do${rows.length === 1 ? "" : "s"} still open</b>\n${list}`,
+    markup: inline([[urlBtn("Open Today", "/today")]]),
+  };
+}
+
+/** Reminder to log task time if worked > 0 but logged minutes = 0 for today. */
+export async function timeLogReminder(ctx: Ctx): Promise<Msg | null> {
+  const [workedRow, loggedRow] = await Promise.all([
+    q<{ n: number }>(
+      "select count(*)::int as n from work_segments where start_at::date = $1 and kind = 'work'",
+      [ctx.today],
+    ),
+    q<{ m: number }>(
+      "select coalesce(sum(minutes),0)::int as m from time_logs where date = $1",
+      [ctx.today],
+    ),
+  ]);
+  const worked = (workedRow[0]?.n ?? 0) > 0;
+  const logged = (loggedRow[0]?.m ?? 0) > 0;
+  if (!worked || logged) return null;
+  return {
+    text: `⏱ <b>No task time logged today.</b>\nYou worked but didn't log minutes against any task. Takes 30 seconds.`,
+    markup: inline([[urlBtn("Log time", "/today")]]),
+  };
+}
+
 // ---------------------------------------------------------------- exercise
 
 export const SLOT_STEP = 5;

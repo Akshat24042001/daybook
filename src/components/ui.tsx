@@ -7,21 +7,26 @@ import * as React from "react";
 import { cn } from "@/lib/cn";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-1.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none select-none",
+  "inline-flex items-center justify-center gap-1.5 rounded-xl text-sm font-medium transition-all duration-150 disabled:opacity-40 disabled:pointer-events-none select-none",
   {
     variants: {
       variant: {
-        primary: "bg-accent text-accent-fg hover:opacity-90",
-        soft: "bg-muted text-fg hover:bg-border",
-        outline: "border border-border bg-surface text-fg hover:bg-muted",
-        ghost: "text-subtle hover:bg-muted hover:text-fg",
-        danger: "bg-bad text-white hover:opacity-90",
+        primary:
+          "bg-accent text-accent-fg shadow-[0_1px_3px_hsl(var(--accent)/0.4)] hover:opacity-90 hover:shadow-[0_2px_8px_hsl(var(--accent)/0.45)] active:scale-[0.97]",
+        soft:
+          "bg-muted text-fg hover:bg-border active:scale-[0.97]",
+        outline:
+          "border border-border bg-surface text-fg hover:bg-muted hover:border-accent/40 active:scale-[0.97]",
+        ghost:
+          "text-subtle hover:bg-muted hover:text-fg active:scale-[0.97]",
+        danger:
+          "bg-bad text-white shadow-[0_1px_3px_hsl(var(--bad)/0.35)] hover:opacity-90 active:scale-[0.97]",
       },
       size: {
-        sm: "h-8 px-3",
-        md: "h-10 px-4",
-        lg: "h-12 px-5 text-base",
-        icon: "h-10 w-10",
+        sm:   "h-8 px-3 text-xs",
+        md:   "h-10 px-4",
+        lg:   "h-11 px-5 text-base",
+        icon: "h-9 w-9",
       },
     },
     defaultVariants: { variant: "soft", size: "md" },
@@ -146,7 +151,7 @@ export function Field({
 }
 
 export const inputClass =
-  "h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none placeholder:text-subtle/70 focus:border-accent focus:ring-1 focus:ring-accent";
+  "h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none transition-colors placeholder:text-subtle/60 focus:border-accent/60 focus:ring-2 focus:ring-accent/20";
 
 export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(function Input(
   { className, ...props },
@@ -171,7 +176,7 @@ export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLS
 }
 
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("rounded-2xl border border-border bg-surface", className)} {...props} />;
+  return <div className={cn("rounded-2xl border border-border bg-surface shadow-[var(--shadow-sm)]", className)} {...props} />;
 }
 
 export function Empty({ children }: { children: React.ReactNode }) {

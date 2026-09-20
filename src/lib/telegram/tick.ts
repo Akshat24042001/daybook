@@ -13,7 +13,7 @@ import {
   claim, claimScheduled, fallbackInstant, inQuietHours, markFailed, markSent, markSuppressed, sendRecapOnce,
 } from "./notify";
 import {
-  cadenceNudge, exercisePing, inline, morningBrief, openSegmentPrompt, scoreReminder, taskAction, urlBtn, type Msg,
+  cadenceNudge, exercisePing, inline, morningBrief, mustDoOpenReminder, openSegmentPrompt, planTomorrowReminder, scoreReminder, taskAction, timeLogReminder, urlBtn, type Msg,
 } from "./ui";
 import { weeklyReviewMessage } from "./weekly";
 
@@ -191,7 +191,22 @@ function candidates(ctx: Ctx, work: {
       kind: "score_reminder", ref: today, at: at(ctx.s.score_reminder), graceMin: 120,
       build: () => scoreReminder(ctx, today),
     });
+    // Must-dos still open 30 min before score reminder
+    out.push({
+      kind: "mustdo_open", ref: today, at: new Date(at(ctx.s.score_reminder).getTime() - 30 * MIN), graceMin: 60,
+      build: () => mustDoOpenReminder(ctx),
+    });
+    // Time log missing: fire alongside score reminder
+    out.push({
+      kind: "time_log_missing", ref: today, at: at(ctx.s.score_reminder), graceMin: 120,
+      build: () => timeLogReminder(ctx),
+    });
   }
+  // Plan tomorrow: fire at evening_fallback time if tomorrow is empty
+  out.push({
+    kind: "plan_tomorrow", ref: today, at: at(ctx.s.evening_fallback), graceMin: 120,
+    build: () => planTomorrowReminder(ctx),
+  });
   out.push({
     kind: "open_segment", ref: today, at: at(ctx.s.open_segment_check), graceMin: 60,
     build: async () => {
