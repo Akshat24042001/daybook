@@ -1,13 +1,47 @@
 "use client";
 
-import { BarChart3, ClipboardList, HeartPulse, Settings, Sun, Target } from "lucide-react";
+import { BarChart3, ClipboardList, HeartPulse, Moon, Settings, Sun, Target } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { cn } from "@/lib/cn";
 import { QuickAdd } from "./quick-add";
 import { StaleBanner } from "./stale-banner";
 import { ToastProvider } from "./toast";
+
+type Theme = "system" | "light" | "dark";
+
+function useTheme() {
+  const [theme, setTheme] = useState<Theme>("system");
+  useEffect(() => {
+    const stored = (localStorage.getItem("daybook-theme") as Theme) ?? "system";
+    setTheme(stored);
+    document.documentElement.dataset.theme = stored === "system" ? "" : stored;
+  }, []);
+  const cycle = () => {
+    const next: Theme = theme === "system" ? "light" : theme === "light" ? "dark" : "system";
+    setTheme(next);
+    localStorage.setItem("daybook-theme", next);
+    document.documentElement.dataset.theme = next === "system" ? "" : next;
+  };
+  return { theme, cycle };
+}
+
+function ThemeToggle() {
+  const { theme, cycle } = useTheme();
+  const label = theme === "light" ? "Light" : theme === "dark" ? "Dark" : "Auto";
+  const Icon = theme === "dark" ? Moon : Sun;
+  return (
+    <button
+      onClick={cycle}
+      title={`Theme: ${label}. Click to cycle.`}
+      className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-subtle hover:bg-muted hover:text-fg transition-colors"
+    >
+      <Icon className="h-4 w-4" />
+      <span>{label}</span>
+    </button>
+  );
+}
 
 const NAV = [
   { href: "/today", label: "Today", Icon: Sun },
@@ -58,17 +92,20 @@ export function AppShell({
               </Link>
             ))}
           </nav>
-          <Link
-            href="/settings"
-            aria-current={active("/settings") ? "page" : undefined}
-            className={cn(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium",
-              active("/settings") ? "bg-accent text-accent-fg" : "text-subtle hover:bg-muted hover:text-fg",
-            )}
-          >
-            <Settings className="h-[18px] w-[18px]" />
-            Settings
-          </Link>
+          <div className="flex items-center justify-between">
+            <Link
+              href="/settings"
+              aria-current={active("/settings") ? "page" : undefined}
+              className={cn(
+                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium",
+                active("/settings") ? "bg-accent text-accent-fg" : "text-subtle hover:bg-muted hover:text-fg",
+              )}
+            >
+              <Settings className="h-[18px] w-[18px]" />
+              Settings
+            </Link>
+            <ThemeToggle />
+          </div>
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -77,13 +114,16 @@ export function AppShell({
               <Link href="/today" className="font-display text-xl">
                 Daybook
               </Link>
-              <Link
-                href="/settings"
-                aria-label="Settings"
-                className={cn("rounded-xl p-2 text-subtle hover:bg-muted hover:text-fg", active("/settings") && "bg-muted text-fg")}
-              >
-                <Settings className="h-5 w-5" />
-              </Link>
+              <div className="flex items-center gap-1">
+                <ThemeToggle />
+                <Link
+                  href="/settings"
+                  aria-label="Settings"
+                  className={cn("rounded-xl p-2 text-subtle hover:bg-muted hover:text-fg", active("/settings") && "bg-muted text-fg")}
+                >
+                  <Settings className="h-5 w-5" />
+                </Link>
+              </div>
             </div>
             <div className="px-4 pb-3 pt-1 md:px-6 md:pt-5">
               <Suspense fallback={<div className="h-[52px] rounded-2xl border border-border bg-surface" />}>

@@ -201,8 +201,111 @@ async function handleText(ctx: Ctx, chat: number, text: string, opts: TextOpts =
       return;
     }
     default:
+      if (await tryTextCommand(ctx, chat, text)) return;
       await routeFreeText(ctx, chat, text, false);
   }
+}
+
+/**
+ * Natural language text commands so you never need to touch a button.
+ * Returns true if the text was handled as a command.
+ *
+ * Supported:
+ *   done <name>        — mark matching open task as done
+ *   skip <name>        — mark matching open task as skipped
+ *   prog[ressed] <name>— mark as progressed
+ *   score <n>          — set today's score (1–10)
+ *   steps <n>          — log step count for today
+ *   log <n>m <name>    — log N minutes on matching task
+ *   plan               — show today's plan (same as "Today" button)
+ */
+async function tryTextCommand(ctx: Ctx, chat: number, text: string): Promise<boolean> {
+  // score <n>
+  const scoreM = text.match(/^score\s+(\d+(?:\.\d+)?)$/i);
+  if (scoreM) {
+    const val = parseFloat(scoreM[1]);
+    if (val < 1 || val > 10) { await sendMessage(chat, "⚠️ Score must be between 1 and 10."); return true; }
+    await setScore(ctx.today, val);
+    await sendMessage(chat, `🙂 Score for today set to <b>${val}</b>.`);
+    return true;
+  }
+
+  // steps <n>
+  const stepsM = text.match(/^steps?\s+(\d+)$/i);
+  if (stepsM) {
+    const val = parseInt(stepsM[1], 10);
+    await setSteps(ctx.today, val);
+    await sendMessage(chat, `👣 Steps logged: <b>${val.toLocaleString("en-US")}</b>.`);
+    return true;
+  }
+
+  // plan / today
+  if (/^plan$/i.test(text)) {
+    const m = await todayList(ctx);
+    await sendMessage(chat, m.text, m.markup);
+    return true;
+  }
+
+  // done <name> | skip <name> | prog <name> | progressed <name>
+  const actionM = text.match(/^(done|skip(?:ped)?|prog(?:ressed)?)\s+(.+)$/i);
+  if (actionM) {
+    const rawAction = actionM[1].toLowerCase();
+    const status: EntryStatus =
+      rawAction === "done" ? "done"
+      : rawAction.startsWith("skip") ? "skipped"
+      : "progressed";
+    const query = actionM[2].trim().toLowerCase();
+    const entries = await entriesForDate(ctx.today);
+    const match = entries.find(
+      (e) => e.status === "open" && e.task_state === "active" && e.title.toLowerCase().includes(query),
+    );
+    if (!match) {
+      await sendMessage(
+        chat,
+        `⚠️ No open task matching "<b>${esc(query)}</b>" today.\nSend "plan" to see today's list.`,
+      );
+      return true;
+    }
+    const r = await setEntryStatus(ctx, match.id, status);
+    await sendMessage(
+      chat,
+      `${STATUS_EMOJI[status]} <b>${esc(r.entry.title)}</b>: ${STATUS_WORD[status]}.`,
+      status === "done" || status === "progressed" ? minutesPrompt(r.entry, status).markup : undefined,
+    );
+    return true;
+  }
+
+  // log <n>m[in] [on] <name>   e.g. "log 45m workout" or "log 1h gym"
+  const logM = text.match(/^log\s+(\d+(?:\.\d+)?)\s*(h|hr|hour|m|min|mins|minutes)(?:\s+(?:on\s+)?(.+))?$/i);
+  if (logM) {
+    const raw = parseFloat(logM[1]);
+    const unit = logM[2].toLowerCase();
+    const minutes = Math.round(unit === "h" || unit === "hr" || unit === "hour" ? raw * 60 : raw);
+    const query = (logM[3] ?? "").trim().toLowerCase();
+    const entries = await entriesForDate(ctx.today);
+    const candidates = entries.filter((e) => e.task_state === "active");
+    const match = query
+      ? candidates.find((e) => e.title.toLowerCase().includes(query))
+      : candidates.find((e) => e.status !== "open"); // last touched task
+    if (!match) {
+      await sendMessage(
+        chat,
+        query
+          ? `⚠️ No task matching "<b>${esc(query)}</b>" today.`
+          : "⚠️ Tell me which task: <i>log 30m workout</i>",
+      );
+      return true;
+    }
+    await logMinutes(ctx, match.task_id, ctx.today, minutes, "telegram");
+    const fresh = await getEntry(match.id);
+    await sendMessage(
+      chat,
+      `⏱ <b>${esc(match.title)}</b>: ${fmtDuration(minutes)} logged (${fmtDuration(fresh?.minutes_today ?? minutes)} today).`,
+    );
+    return true;
+  }
+
+  return false;
 }
 
 /** Free text is either a manual time entry ("office 10:45 to 1:30") or a quick-add task line. */
