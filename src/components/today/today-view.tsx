@@ -2,11 +2,12 @@
 
 import { Building2, ChevronDown, Coffee, Flag, Car } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { setScoreAction, setStatusAction, setStepsAction, switchStateAction } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import { SECTION_LABEL, SECTION_ORDER, type SectionKey } from "@/lib/sections";
 import { fmtDuration, type DateStr } from "@/lib/time";
+import type { EntryStatus } from "@/lib/types";
 import type { RowData, SegmentData } from "@/lib/view-types";
 import { useToast } from "../toast";
 import { Button, Card, Empty, Input } from "../ui";
@@ -43,6 +44,10 @@ export function TodayView(props: {
   const router = useRouter();
   const { toast } = useToast();
   const [pending, start] = useTransition();
+  const [optimisticScore, setOptimisticScore] = useOptimistic<number | null>(props.score);
+  const [optimisticKind, setOptimisticKind] = useOptimistic<Kind>(props.state.kind);
+  // Optimistic entry status: entryId → status, cleared on router.refresh()
+  const [optimisticStatus, setOptimisticStatus] = useOptimistic<Record<number, EntryStatus>>({});
   const [selected, setSelected] = useState<number | null>(null);
   const [segmentsOpen, setSegmentsOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ personal: true, done: true });
@@ -54,13 +59,13 @@ export function TodayView(props: {
     loadedAt.current = Date.now();
     setTick(0);
   }, [props.workedAtLoad, state.kind]);
-  const working = state.kind === "office" || state.kind === "outside";
   useEffect(() => {
-    if (!working) return;
+    if (optimisticKind !== "office" && optimisticKind !== "outside") return;
     const id = setInterval(() => setTick((n) => n + 1), 15_000);
     return () => clearInterval(id);
-  }, [working]);
+  }, [optimisticKind]);
   void tick;
+  const working = optimisticKind === "office" || optimisticKind === "outside";
   const worked = props.workedAtLoad + (working ? (Date.now() - loadedAt.current) / 60000 : 0);
 
   const all = SECTION_ORDER.flatMap((k) => sections[k]);
@@ -69,6 +74,7 @@ export function TodayView(props: {
 
   function switchTo(kind: Kind) {
     start(async () => {
+      setOptimisticKind(kind);
       const r = await switchStateAction(kind);
       if (!r.ok) toast(r.error, "error");
       else router.refresh();
@@ -76,15 +82,17 @@ export function TodayView(props: {
   }
 
   function quick(row: RowData) {
+    const next: EntryStatus = row.type === "ongoing" ? "progressed" : "done";
     start(async () => {
-      const r = await setStatusAction(row.id, row.type === "ongoing" ? "progressed" : "done");
+      setOptimisticStatus((prev) => ({ ...prev, [row.id]: next }));
+      const r = await setStatusAction(row.id, next);
       if (!r.ok) toast(r.error, "error");
       else router.refresh();
     });
   }
 
   const empty = all.length === 0;
-  const stateLabel = STATES.find((s) => s.kind === state.kind)?.label ?? "Off";
+  const stateLabel = STATES.find((s) => s.kind === optimisticKind)?.label ?? "Off";
 
   return (
     <div className="space-y-5">
@@ -108,7 +116,7 @@ export function TodayView(props: {
 
         <div className="mt-3 grid grid-cols-4 gap-2" role="group" aria-label="Current state">
           {STATES.map(({ kind, label, Icon }) => {
-            const on = state.kind === kind;
+            const on = optimisticKind === kind;
             return (
               <button
                 key={kind}
@@ -128,8 +136,8 @@ export function TodayView(props: {
           })}
         </div>
         <p className="mt-2 flex items-center gap-2 text-xs text-subtle">
-          <span className={cn("inline-block h-2 w-2 rounded-full", working ? "bg-good" : state.kind === "break" ? "bg-warn" : "bg-subtle/50")} style={working ? { animation: "pulse-dot 2s infinite" } : undefined} />
-          {state.kind === "off" ? "Off" : `${stateLabel} since ${state.sinceLabel}`}
+          <span className={cn("inline-block h-2 w-2 rounded-full", working ? "bg-good" : optimisticKind === "break" ? "bg-warn" : "bg-subtle/50")} style={working ? { animation: "pulse-dot 2s infinite" } : undefined} />
+          {optimisticKind === "off" ? "Off" : `${stateLabel} since ${state.sinceLabel}`}
           {props.score !== null ? <span className="ml-auto font-medium text-fg">Score {props.score}</span> : null}
         </p>
       </section>
@@ -170,9 +178,11 @@ export function TodayView(props: {
             </h2>
             {!isCollapsed ? (
               <ul className="space-y-1.5">
-                {rows.map((r) => (
-                  <EntryRow key={r.id} row={r} onOpen={() => setSelected(r.id)} onQuickAction={() => quick(r)} />
-                ))}
+                {rows.map((r) => {
+                  const optStatus = optimisticStatus[r.id];
+                  const rowWithOpt = optStatus ? { ...r, status: optStatus } : r;
+                  return <EntryRow key={r.id} row={rowWithOpt} onOpen={() => setSelected(r.id)} onQuickAction={() => quick(r)} />;
+                })}
               </ul>
             ) : null}
           </section>
@@ -185,17 +195,18 @@ export function TodayView(props: {
         <p className="mt-2 text-sm text-subtle">Score the day out of 10</p>
         <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Score">
           {SCORES.map((n) => {
-            const on = props.score !== null && Math.floor(props.score) === n;
+            const on = optimisticScore !== null && Math.floor(optimisticScore) === n;
             return (
               <button
                 key={n}
                 type="button"
                 aria-pressed={on}
-                disabled={pending}
                 onClick={() =>
                   start(async () => {
-                    const half = props.score !== null && Math.floor(props.score) === n && Number.isInteger(props.score) && n < 10;
-                    const r = await setScoreAction(date, half ? n + 0.5 : n);
+                    const half = optimisticScore !== null && Math.floor(optimisticScore) === n && Number.isInteger(optimisticScore) && n < 10;
+                    const next = half ? n + 0.5 : n;
+                    setOptimisticScore(next);
+                    const r = await setScoreAction(date, next);
                     if (!r.ok) toast(r.error, "error");
                     else router.refresh();
                   })
@@ -209,13 +220,13 @@ export function TodayView(props: {
               </button>
             );
           })}
-          {props.score !== null ? (
-            <Button size="sm" variant="ghost" onClick={() => start(async () => { await setScoreAction(date, null); router.refresh(); })}>
+          {optimisticScore !== null ? (
+            <Button size="sm" variant="ghost" onClick={() => start(async () => { setOptimisticScore(null); await setScoreAction(date, null); router.refresh(); })}>
               Clear
             </Button>
           ) : null}
         </div>
-        <p className="mt-1 text-xs text-subtle">Tap the same number again for a half point.{props.score !== null ? ` Now ${props.score}.` : ""}</p>
+        <p className="mt-1 text-xs text-subtle">Tap the same number again for a half point.{optimisticScore !== null ? ` Now ${optimisticScore}.` : ""}</p>
         <form
           className="mt-3 flex items-center gap-2"
           onSubmit={(e) => {
