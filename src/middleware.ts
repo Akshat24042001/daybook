@@ -20,8 +20,24 @@ export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (isPublicPath(pathname)) return NextResponse.next();
 
-  const session = req.cookies.get(SESSION_COOKIE)?.value ?? "";
   const password = process.env.ADMIN_PASSWORD ?? "";
+  const session = req.cookies.get(SESSION_COOKIE)?.value ?? "";
+
+  // ?auth=<password> in URL — used by Telegram deep links to auto-authenticate
+  // in Telegram's WebView where the session cookie doesn't exist.
+  const authParam = req.nextUrl.searchParams.get("auth");
+  if (authParam && password && authParam === password) {
+    const dest = req.nextUrl.clone();
+    dest.searchParams.delete("auth");
+    const res = NextResponse.redirect(dest);
+    res.cookies.set(SESSION_COOKIE, password, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365, // 1 year
+    });
+    return res;
+  }
 
   if (!password || !session.includes(password)) {
     if (pathname.startsWith("/api/")) {

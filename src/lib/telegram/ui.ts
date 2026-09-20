@@ -21,13 +21,17 @@ export function isHttpsBase(): boolean {
   return /^https:\/\//i.test(process.env.APP_BASE_URL ?? "");
 }
 
-export function appUrl(path: string): string {
-  return `${(process.env.APP_BASE_URL ?? "").replace(/\/$/, "")}${path}`;
+export function appUrl(path: string, auth = false): string {
+  const base = (process.env.APP_BASE_URL ?? "").replace(/\/$/, "");
+  const password = auth ? (process.env.ADMIN_PASSWORD ?? "") : "";
+  const sep = path.includes("?") ? "&" : "?";
+  return password ? `${base}${path}${sep}auth=${encodeURIComponent(password)}` : `${base}${path}`;
 }
 
-/** Telegram only accepts https URLs on buttons, so URL buttons are dropped for http://localhost. */
+/** Telegram only accepts https URLs on buttons, so URL buttons are dropped for http://localhost.
+ *  All URLs include ?auth= so they work in Telegram's WebView without a session cookie. */
 export function urlBtn(text: string, path: string): Button | null {
-  return isHttpsBase() ? { text, url: appUrl(path) } : null;
+  return isHttpsBase() ? { text, url: appUrl(path, true) } : null;
 }
 
 export function inline(rows: (Button | null | undefined)[][]): InlineMarkup {
