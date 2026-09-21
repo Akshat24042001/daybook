@@ -142,10 +142,10 @@ export function TodayView(props: {
         </p>
       </section>
 
-      {/* must-do cap hint */}
+      {/* must-do count hint */}
       {sections.must.length > 0 ? (
         <p className="-mb-2 text-xs text-subtle">
-          {sections.must.length} of {props.mustCap} must-dos open
+          {sections.must.length} must-do{sections.must.length === 1 ? "" : "s"} open
         </p>
       ) : null}
 

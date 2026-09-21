@@ -62,7 +62,7 @@ const HM_FIELDS = [
 const NUM_FIELDS: Record<string, [number, number]> = {
   exercise_interval_min: [5, 240],
   task_lead_min: [0, 240],
-  must_do_cap: [1, 5],
+  must_do_cap: [1, 100],
   available_hours: [1, 24],
   rot_threshold: [1, 50],
   step_goal: [0, 100000],

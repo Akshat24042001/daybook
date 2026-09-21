@@ -36,19 +36,14 @@ export async function mustDoCount(date: DateStr, excludeEntryId: number | null, 
   return row!.n;
 }
 
-/** Throws when adding one more must-do would exceed the cap (PRD 4.4). */
+/** No-op: must-do cap enforcement is disabled. Kept as a call site so callers need no changes. */
 export async function assertMustDoRoom(
-  ctx: Ctx,
-  date: DateStr,
-  excludeEntryId: number | null,
-  db: Db = getPool(),
+  _ctx: Ctx,
+  _date: DateStr,
+  _excludeEntryId: number | null,
+  _db: Db = getPool(),
 ): Promise<void> {
-  const n = await mustDoCount(date, excludeEntryId, db);
-  if (n >= ctx.s.must_do_cap) {
-    throw new UserError(
-      `Must-do cap is ${ctx.s.must_do_cap} for this day. Demote another must-do first.`,
-    );
-  }
+  // cap removed — any number of must-dos is allowed
 }
 
 export interface AddEntryOptions {

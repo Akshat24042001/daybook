@@ -168,7 +168,7 @@ export function PlanClient(props: {
             {capacity.message ? <p role="alert" className="mt-2 text-sm font-medium text-bad">{capacity.message}</p> : null}
             {capacity.level === "amber" ? <p className="mt-2 text-sm text-warn">You are close to your limit.</p> : null}
             <p className="mt-2 text-xs text-subtle">
-              Must-dos: <span className="font-medium text-fg">{props.mustDoCount}</span> of {props.mustCap}. Tasks without an estimate count as zero, so add estimates with ~30m or ~2h.
+              Must-dos: <span className="font-medium text-fg">{props.mustDoCount}</span>. Tasks without an estimate count as zero, so add estimates with ~30m or ~2h.
             </p>
           </Card>
 
