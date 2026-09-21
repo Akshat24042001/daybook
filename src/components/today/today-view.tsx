@@ -52,8 +52,6 @@ export function TodayView(props: {
   const [selected, setSelected] = useState<number | null>(null);
   const [segmentsOpen, setSegmentsOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ personal: true, done: true });
-  const [editingHours, setEditingHours] = useState(false);
-  const [hoursInput, setHoursInput] = useState("");
 
   // live worked time: server snapshot plus minutes elapsed since it was rendered
   const loadedAt = useRef(Date.now());
@@ -110,49 +108,17 @@ export function TodayView(props: {
             <p className="mt-1 text-sm text-subtle">{props.dateLabel.split(", ").slice(1).join(", ")}</p>
           </div>
           <div className="text-right">
-            {editingHours ? (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const h = parseFloat(hoursInput);
-                  if (!Number.isFinite(h) || h < 0) { setEditingHours(false); return; }
-                  const mins = Math.round(h * 60);
-                  start(async () => {
-                    await setWorkedOverrideAction(date, mins);
-                    setEditingHours(false);
-                    router.refresh();
-                  });
-                }}
-                className="flex items-center gap-1"
-              >
-                <Input
-                  autoFocus
-                  type="number"
-                  step="0.25"
-                  min="0"
-                  max="24"
-                  placeholder="hrs"
-                  value={hoursInput}
-                  onChange={(e) => setHoursInput(e.target.value)}
-                  className="h-8 w-20 text-right text-sm"
-                  aria-label="Hours worked"
-                />
-                <Button type="submit" size="sm" variant="primary" disabled={pending}>Save</Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => setEditingHours(false)}>✕</Button>
-              </form>
-            ) : (
-              <button
-                type="button"
-                onClick={() => { setHoursInput(String(Math.round(worked / 60 * 4) / 4)); setEditingHours(true); }}
-                className="rounded-xl px-2 py-1 text-right transition-colors hover:bg-muted"
-                aria-label="Worked time today. Click to set manually"
-              >
-                <span className="block text-[11px] font-medium uppercase tracking-wide text-subtle">
-                  Worked{props.workedOverride !== null ? " ✎" : ""}
-                </span>
-                <span className="tabular block text-2xl font-medium leading-tight">{fmtDuration(worked)}</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setSegmentsOpen(true)}
+              className="rounded-xl px-2 py-1 text-right transition-colors hover:bg-muted"
+              aria-label="Worked time today. Click to view and edit time segments"
+            >
+              <span className="block text-[11px] font-medium uppercase tracking-wide text-subtle">
+                Worked{props.workedOverride !== null ? " ✎" : ""}
+              </span>
+              <span className="tabular block text-2xl font-medium leading-tight">{fmtDuration(worked)}</span>
+            </button>
             {props.workedOverride !== null ? (
               <button
                 type="button"
@@ -305,7 +271,9 @@ export function TodayView(props: {
         onClose={() => setSegmentsOpen(false)}
         segments={props.segments}
         workedMin={worked}
+        workedOverride={props.workedOverride}
         newDefault={props.newSegmentDefault}
+        date={date}
       />
     </div>
   );

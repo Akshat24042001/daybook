@@ -3,8 +3,8 @@
 import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { createSegmentAction, deleteSegmentAction, updateSegmentAction, type SegmentForm } from "@/app/actions";
-import { fmtDuration } from "@/lib/time";
+import { createSegmentAction, deleteSegmentAction, setWorkedOverrideAction, updateSegmentAction, type SegmentForm } from "@/app/actions";
+import { fmtDuration, type DateStr } from "@/lib/time";
 import type { SegmentData } from "@/lib/view-types";
 import { useToast } from "../toast";
 import { Button, ErrorNote, Field, Input, Select, Sheet } from "../ui";
@@ -65,19 +65,24 @@ export function SegmentsSheet({
   onClose,
   segments,
   workedMin,
+  workedOverride,
   newDefault,
+  date,
 }: {
   open: boolean;
   onClose: () => void;
   segments: SegmentData[];
   workedMin: number;
+  workedOverride: number | null;
   newDefault: string;
+  date: DateStr;
 }) {
   const router = useRouter();
   const { toast } = useToast();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<number | "new" | null>(null);
+  const [hoursInput, setHoursInput] = useState("");
 
   function run(fn: () => Promise<{ ok: boolean; error?: string }>, done?: string) {
     setError(null);
@@ -148,8 +153,55 @@ export function SegmentsSheet({
             />
           </div>
         ) : (
-          <Button variant="outline" size="sm" onClick={() => setEditing("new")}>Add a segment</Button>
+          <Button variant="outline" size="sm" onClick={() => setEditing("new")}>+ Add a segment</Button>
         )}
+
+        <div className="border-t border-border pt-3">
+          <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-subtle">
+            Set hours manually {workedOverride !== null ? <span className="ml-1 text-accent">✎ override active</span> : null}
+          </p>
+          <form
+            className="flex items-center gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const h = parseFloat(hoursInput);
+              if (!Number.isFinite(h) || h < 0) return;
+              const mins = Math.round(h * 60);
+              start(async () => {
+                await setWorkedOverrideAction(date, mins);
+                toast("Worked hours set.");
+                setHoursInput("");
+                router.refresh();
+              });
+            }}
+          >
+            <Input
+              type="number"
+              step="0.25"
+              min="0"
+              max="24"
+              placeholder={workedOverride !== null ? String(Math.round(workedOverride / 60 * 4) / 4) : "hours, e.g. 7.5"}
+              value={hoursInput}
+              onChange={(e) => setHoursInput(e.target.value)}
+              className="h-9 flex-1"
+              aria-label="Hours worked override"
+            />
+            <Button type="submit" size="sm" variant="outline" disabled={pending || !hoursInput}>Set</Button>
+            {workedOverride !== null ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={pending}
+                onClick={() => start(async () => { await setWorkedOverrideAction(date, null); toast("Reset to auto."); router.refresh(); })}
+              >
+                Reset
+              </Button>
+            ) : null}
+          </form>
+          <p className="mt-1 text-xs text-subtle">Overrides the segment total. Use when you track time elsewhere.</p>
+        </div>
+
         <ErrorNote message={error} />
       </div>
     </Sheet>
