@@ -46,7 +46,7 @@ export const STATUS_EMOJI: Record<EntryStatus, string> = {
   open: "▫️",
   done: "✅",
   progressed: "↗️",
-  attempted: "📞",
+  attempted: "↩️",
   skipped: "✗",
   dropped: "🗑",
 };

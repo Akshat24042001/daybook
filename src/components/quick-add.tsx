@@ -1,9 +1,9 @@
 "use client";
 
-import { Clock, CornerDownLeft, Plus } from "lucide-react";
+import { Clock, CornerDownLeft, Plus, Sparkles } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { duplicatesAction, quickAddAction, timeSaveAction, type QuickAddMode } from "@/app/actions";
+import { aiInterpretAction, duplicatesAction, quickAddAction, timeSaveAction, type QuickAddMode } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import type { Match } from "@/lib/fuzzy";
 import { describeParsed, parseQuickAdd } from "@/lib/parser";
@@ -19,7 +19,7 @@ import { VoiceButton } from "./voice-button";
  * ("Vector: Insights !! @5pm ~2h"), shows how the line was understood before saving, guards against
  * duplicates, and also takes manual time entries ("office 10:45 to 1:30"), typed or spoken.
  */
-export function QuickAdd({ tz, boundaryMin, voiceEnabled }: { tz: string; boundaryMin: number; voiceEnabled: boolean }) {
+export function QuickAdd({ tz, boundaryMin, voiceEnabled, aiEnabled }: { tz: string; boundaryMin: number; voiceEnabled: boolean; aiEnabled: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
@@ -28,6 +28,7 @@ export function QuickAdd({ tz, boundaryMin, voiceEnabled }: { tz: string; bounda
   const [matches, setMatches] = useState<Match[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const [aiPending, setAiPending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const defaultDate = pathname.startsWith("/plan") ? (search.get("date") ?? undefined) : undefined;
@@ -57,6 +58,23 @@ export function QuickAdd({ tz, boundaryMin, voiceEnabled }: { tz: string; bounda
     }, 300);
     return () => clearTimeout(t);
   }, [taskTitle, taskProject]);
+
+  async function interpretWithAI() {
+    if (!text.trim() || aiPending) return;
+    setAiPending(true);
+    setError(null);
+    try {
+      const r = await aiInterpretAction(text.trim());
+      if (r.ok) {
+        setText(r.syntax);
+        inputRef.current?.focus();
+      } else {
+        setError(r.error);
+      }
+    } finally {
+      setAiPending(false);
+    }
+  }
 
   function submit(mode: QuickAddMode, existingTaskId?: number) {
     if (!text.trim()) return;
@@ -125,6 +143,23 @@ export function QuickAdd({ tz, boundaryMin, voiceEnabled }: { tz: string; bounda
             inputRef.current?.focus();
           }}
         />
+        {aiEnabled ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 w-11 px-0"
+            disabled={aiPending || !text.trim()}
+            aria-label="Interpret with AI"
+            title="Let AI understand what you typed"
+            onClick={interpretWithAI}
+          >
+            {aiPending ? (
+              <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+          </Button>
+        ) : null}
         <Button type="submit" variant="primary" className="h-11 w-11 px-0" disabled={pending || blocked || showDup} aria-label="Add">
           <Plus className="h-5 w-5" />
         </Button>

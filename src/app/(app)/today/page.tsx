@@ -40,7 +40,8 @@ export default async function TodayPage() {
       dateLabel={fmtDateLong(ctx.today)}
       sections={sections}
       state={{ kind: state.kind, sinceLabel: state.since ? fmtHM(state.since, ctx.tz) : null }}
-      workedAtLoad={worked}
+      workedAtLoad={day?.worked_minutes_override ?? worked}
+      workedOverride={day?.worked_minutes_override ?? null}
       score={day?.score ?? null}
       steps={day?.steps ?? null}
       stepGoal={ctx.s.step_goal}

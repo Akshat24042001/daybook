@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronRight, Minus, Phone, X } from "lucide-react";
+import { Check, ChevronRight, Minus, RotateCcw, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { fmtDuration } from "@/lib/time";
@@ -28,7 +28,7 @@ export function StatusGlyph({ status, className }: { status: EntryStatus; classN
     case "attempted":
       return (
         <span className={cn(base, "border-warn text-warn", className)}>
-          <Phone className="h-3.5 w-3.5" />
+          <RotateCcw className="h-3.5 w-3.5" />
         </span>
       );
     case "skipped":

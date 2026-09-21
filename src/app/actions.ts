@@ -11,7 +11,7 @@ import {
   addEntry, clearMinutes, getEntry, logMinutes, moveEntry, removeEntry, RETRY_HOURS, scheduleTaskPing,
   setEntryStatus, setMustDo,
 } from "@/lib/services/entries";
-import { setScore, setSteps } from "@/lib/services/days";
+import { setScore, setSteps, setWorkedOverride } from "@/lib/services/days";
 import { reorderSomeday, snoozeCadence } from "@/lib/services/goals";
 import {
   createExerciseType, logExercise, updateExerciseType, type ExerciseTypeInput,
@@ -27,6 +27,7 @@ import {
 } from "@/lib/services/tasks";
 import { sendMessage, telegramConfigured } from "@/lib/telegram/api";
 import { inline, urlBtn } from "@/lib/telegram/ui";
+import { aiConfigured, interpretTaskInput } from "@/lib/ai";
 
 type Ok<T> = { ok: true } & T;
 type Fail = { ok: false; error: string };
@@ -86,6 +87,17 @@ export async function quickAddAction(text: string, opts: { defaultDate?: DateStr
     const where = created.entry ? (created.entry.date === ctx.today ? "today" : created.entry.date) : opts.mode === "someday" || created.task.type === "someday" ? "the Someday pool" : "your list";
     return { taskId: created.task.id, message: `Added "${created.task.title}" to ${where}.` };
   }, ["/today", "/goals"]);
+}
+
+/** Converts natural language to Daybook quick-add syntax using AI (OpenRouter). */
+export async function aiInterpretAction(text: string): Promise<ActionResult<{ syntax: string }>> {
+  try {
+    if (!aiConfigured()) return { ok: false, error: "AI is not configured. Add OPENROUTER_API_KEY to your environment." };
+    const syntax = await interpretTaskInput(text);
+    return { ok: true, syntax };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 }
 
 /** Explains a typed/spoken line as a time entry, with the calculated hours, without saving anything. */
@@ -222,6 +234,11 @@ export async function setScoreAction(date: DateStr, score: number | null) {
 export async function setStepsAction(date: DateStr, steps: number | null) {
   return run(async () => {
     await setSteps(date, steps);
+  }, ["/today"]);
+}
+export async function setWorkedOverrideAction(date: DateStr, minutes: number | null) {
+  return run(async () => {
+    await setWorkedOverride(date, minutes);
   }, ["/today"]);
 }
 

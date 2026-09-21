@@ -97,21 +97,42 @@ export async function logExercise(
   if (status === "done" && (typeId === null || amount === null || amount < 1)) {
     throw new UserError("Pick an exercise and an amount.");
   }
-  const row = await one<ExerciseLog>(
-    `insert into exercise_logs (date, slot_at, exercise_type_id, amount, status, telegram_message_id)
-     values ($1, $2, $3, $4, $5, $6)
-     on conflict (slot_at) do update
-       set exercise_type_id = excluded.exercise_type_id, amount = excluded.amount, status = excluded.status,
-           telegram_message_id = coalesce(excluded.telegram_message_id, exercise_logs.telegram_message_id)
-       where exercise_logs.status <> 'done' or excluded.status = 'done'
+  const date = logicalDate(slotAt, ctx.tz, ctx.boundaryMin);
+
+  // Step 1: update an existing row that matches this slot + type (handles re-logging).
+  // IS NOT DISTINCT FROM treats NULL = NULL correctly.
+  const upd = await q<ExerciseLog>(
+    `update exercise_logs
+     set amount = $3, status = $4,
+         telegram_message_id = coalesce($5, telegram_message_id)
+     where slot_at = $1
+       and exercise_type_id is not distinct from $2
+       and (status <> 'done' or $4 = 'done')
      returning *`,
-    [logicalDate(slotAt, ctx.tz, ctx.boundaryMin), slotAt, typeId, amount, status, messageId],
+    [slotAt, typeId, amount, status, messageId],
     db,
   );
-  if (!row) {
-    return (await one<ExerciseLog>("select * from exercise_logs where slot_at = $1", [slotAt], db))!;
-  }
-  return row;
+  if (upd.length > 0) return upd[0];
+
+  // Step 2: no existing row matched; insert a new one.
+  // ON CONFLICT DO NOTHING avoids errors on either schema (old unique(slot_at) or
+  // new unique(slot_at, exercise_type_id)) when a different conflict fires.
+  const ins = await q<ExerciseLog>(
+    `insert into exercise_logs (date, slot_at, exercise_type_id, amount, status, telegram_message_id)
+     values ($1, $2, $3, $4, $5, $6)
+     on conflict do nothing
+     returning *`,
+    [date, slotAt, typeId, amount, status, messageId],
+    db,
+  );
+  if (ins.length > 0) return ins[0];
+
+  // Row already exists but the WHERE clause blocked the update (e.g. can't downgrade 'done').
+  return (await one<ExerciseLog>(
+    `select * from exercise_logs where slot_at = $1 and exercise_type_id is not distinct from $2 limit 1`,
+    [slotAt, typeId],
+    db,
+  ))!;
 }
 
 export async function exerciseCounts(date: DateStr, db: Db = getPool()) {
@@ -148,19 +169,42 @@ export type SlotCell = {
   typeName: string | null;
   unit: "reps" | "seconds" | null;
   amount: number | null;
+  extraNames?: string[]; // additional exercise names logged at the same slot
 };
 
 export async function exerciseGrid(ctx: Ctx, date: DateStr): Promise<SlotCell[]> {
   const slots = exerciseSlots(ctx, date);
   const logs = await q<ExerciseLog & { name: string | null; unit: "reps" | "seconds" | null }>(
     `select l.*, t.name, t.unit from exercise_logs l
-     left join exercise_types t on t.id = l.exercise_type_id where l.date = $1`,
+     left join exercise_types t on t.id = l.exercise_type_id where l.date = $1 order by l.slot_at, l.id`,
     [date],
   );
-  const byTime = new Map(logs.map((l) => [l.slot_at.getTime(), l]));
+  // Group all logs by slot time; a slot may have multiple "done" entries (one per exercise type)
+  const byTime = new Map<number, typeof logs>();
+  for (const l of logs) {
+    const t = l.slot_at.getTime();
+    const existing = byTime.get(t) ?? [];
+    existing.push(l);
+    byTime.set(t, existing);
+  }
   return slots.map((slot) => {
-    const l = byTime.get(slot.getTime());
-    if (l) return { slot, status: l.status, typeName: l.name, unit: l.unit, amount: l.amount };
+    const slotLogs = byTime.get(slot.getTime()) ?? [];
+    const skipped = slotLogs.find((l) => l.status === "skipped");
+    const done = slotLogs.filter((l) => l.status === "done");
+    if (skipped && !done.length) return { slot, status: "skipped", typeName: null, unit: null, amount: null };
+    if (done.length > 0) {
+      // Primary: last logged; summary line shows all
+      const primary = done[done.length - 1];
+      const extra = done.length > 1 ? done.slice(0, -1).map((d) => d.name ?? "exercise") : [];
+      return {
+        slot,
+        status: "done",
+        typeName: primary.name,
+        unit: primary.unit,
+        amount: primary.amount,
+        extraNames: extra,
+      };
+    }
     return {
       slot,
       status: slot.getTime() > ctx.now.getTime() ? "upcoming" : "pending",

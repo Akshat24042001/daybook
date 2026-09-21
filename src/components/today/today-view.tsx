@@ -3,7 +3,7 @@
 import { Building2, ChevronDown, Coffee, Flag, Car } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
-import { setScoreAction, setStatusAction, setStepsAction, switchStateAction } from "@/app/actions";
+import { setScoreAction, setStatusAction, setStepsAction, setWorkedOverrideAction, switchStateAction } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import { SECTION_LABEL, SECTION_ORDER, type SectionKey } from "@/lib/sections";
 import { fmtDuration, type DateStr } from "@/lib/time";
@@ -32,6 +32,7 @@ export function TodayView(props: {
   sections: Record<SectionKey, RowData[]>;
   state: { kind: Kind; sinceLabel: string | null };
   workedAtLoad: number;
+  workedOverride: number | null;
   score: number | null;
   steps: number | null;
   stepGoal: number;
@@ -51,6 +52,8 @@ export function TodayView(props: {
   const [selected, setSelected] = useState<number | null>(null);
   const [segmentsOpen, setSegmentsOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ personal: true, done: true });
+  const [editingHours, setEditingHours] = useState(false);
+  const [hoursInput, setHoursInput] = useState("");
 
   // live worked time: server snapshot plus minutes elapsed since it was rendered
   const loadedAt = useRef(Date.now());
@@ -66,7 +69,10 @@ export function TodayView(props: {
   }, [optimisticKind]);
   void tick;
   const working = optimisticKind === "office" || optimisticKind === "outside";
-  const worked = props.workedAtLoad + (working ? (Date.now() - loadedAt.current) / 60000 : 0);
+  // If user set hours manually, use that; otherwise use segment-based live calculation
+  const worked = props.workedOverride !== null
+    ? props.workedOverride
+    : props.workedAtLoad + (working ? (Date.now() - loadedAt.current) / 60000 : 0);
 
   const all = SECTION_ORDER.flatMap((k) => sections[k]);
   const selectedRow = all.find((r) => r.id === selected) ?? null;
@@ -103,15 +109,60 @@ export function TodayView(props: {
             <h1 className="font-display text-3xl leading-none">{props.dateLabel.split(",")[0]}</h1>
             <p className="mt-1 text-sm text-subtle">{props.dateLabel.split(", ").slice(1).join(", ")}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setSegmentsOpen(true)}
-            className="rounded-xl px-2 py-1 text-right transition-colors hover:bg-muted"
-            aria-label="Worked time today. Open time details"
-          >
-            <span className="block text-[11px] font-medium uppercase tracking-wide text-subtle">Worked</span>
-            <span className="tabular block text-2xl font-medium leading-tight">{fmtDuration(worked)}</span>
-          </button>
+          <div className="text-right">
+            {editingHours ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const h = parseFloat(hoursInput);
+                  if (!Number.isFinite(h) || h < 0) { setEditingHours(false); return; }
+                  const mins = Math.round(h * 60);
+                  start(async () => {
+                    await setWorkedOverrideAction(date, mins);
+                    setEditingHours(false);
+                    router.refresh();
+                  });
+                }}
+                className="flex items-center gap-1"
+              >
+                <Input
+                  autoFocus
+                  type="number"
+                  step="0.25"
+                  min="0"
+                  max="24"
+                  placeholder="hrs"
+                  value={hoursInput}
+                  onChange={(e) => setHoursInput(e.target.value)}
+                  className="h-8 w-20 text-right text-sm"
+                  aria-label="Hours worked"
+                />
+                <Button type="submit" size="sm" variant="primary" disabled={pending}>Save</Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setEditingHours(false)}>✕</Button>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setHoursInput(String(Math.round(worked / 60 * 4) / 4)); setEditingHours(true); }}
+                className="rounded-xl px-2 py-1 text-right transition-colors hover:bg-muted"
+                aria-label="Worked time today. Click to set manually"
+              >
+                <span className="block text-[11px] font-medium uppercase tracking-wide text-subtle">
+                  Worked{props.workedOverride !== null ? " ✎" : ""}
+                </span>
+                <span className="tabular block text-2xl font-medium leading-tight">{fmtDuration(worked)}</span>
+              </button>
+            )}
+            {props.workedOverride !== null ? (
+              <button
+                type="button"
+                className="text-[10px] text-subtle underline-offset-2 hover:underline"
+                onClick={() => start(async () => { await setWorkedOverrideAction(date, null); router.refresh(); })}
+              >
+                reset to auto
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <div className="mt-3 grid grid-cols-4 gap-2" role="group" aria-label="Current state">

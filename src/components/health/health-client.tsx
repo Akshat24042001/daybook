@@ -15,6 +15,7 @@ interface Cell {
   typeName: string | null;
   unit: "reps" | "seconds" | null;
   amount: number | null;
+  extraNames?: string[];
 }
 
 const STYLE: Record<Cell["status"], string> = {
@@ -88,7 +89,14 @@ export function HealthClient(props: {
             >
               <span className="tabular text-sm font-medium">{c.label}</span>
               <span className="text-[11px] leading-tight">
-                {c.status === "done" ? `${c.unit === "seconds" ? `${c.amount}s` : c.amount} ${c.typeName}` : WORD[c.status]}
+                {c.status === "done" ? (
+                  <>
+                    {c.unit === "seconds" ? `${c.amount}s` : c.amount} {c.typeName}
+                    {c.extraNames && c.extraNames.length > 0 && (
+                      <span className="block text-subtle">+{c.extraNames.join(", ")}</span>
+                    )}
+                  </>
+                ) : WORD[c.status]}
               </span>
             </button>
           ))}

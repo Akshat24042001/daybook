@@ -27,4 +27,23 @@ if (info.ok) {
   console.log(`Registered URL: ${url}`);
   console.log(`Pending updates: ${pending_update_count}${last_error_message ? `, last error: ${last_error_message}` : ""}`);
 }
+
+// Register bot commands so Telegram shows the command menu.
+const cmds = await fetch(`${api}/bot${token}/setMyCommands`, {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    commands: [
+      { command: "today",   description: "Today's task list" },
+      { command: "score",   description: "Set day score — /score 8 or /score 8.5" },
+      { command: "steps",   description: "Log step count — /steps 8500" },
+      { command: "worked",  description: "Set hours worked — /worked 7.5h" },
+      { command: "pause",   description: "Toggle exercise pings on/off" },
+      { command: "help",    description: "All commands and quick text shortcuts" },
+      { command: "start",   description: "Link this chat to your Daybook" },
+    ],
+  }),
+}).then((r) => r.json());
+console.log(cmds.ok ? "Bot commands registered." : `Commands failed: ${cmds.description}`);
+
 process.exit(json.ok ? 0 : 1);

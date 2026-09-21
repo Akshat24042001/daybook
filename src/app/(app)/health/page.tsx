@@ -28,6 +28,7 @@ export default async function HealthPage() {
         typeName: c.typeName,
         unit: c.unit,
         amount: c.amount,
+        extraNames: c.extraNames,
       }))}
       types={types.map((t) => ({ id: t.id, name: t.name, defaultAmount: t.default_amount, unit: t.unit, active: t.active }))}
       steps={day?.steps ?? null}

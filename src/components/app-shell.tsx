@@ -55,11 +55,13 @@ export function AppShell({
   tz,
   boundaryMin,
   voiceEnabled,
+  aiEnabled,
   children,
 }: {
   tz: string;
   boundaryMin: number;
   voiceEnabled: boolean;
+  aiEnabled: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -125,7 +127,7 @@ export function AppShell({
             </div>
             <div className="px-4 pb-3 pt-1 md:px-6 md:pt-5">
               <Suspense fallback={<div className="h-[52px] rounded-2xl border border-border bg-surface" />}>
-                <QuickAdd tz={tz} boundaryMin={boundaryMin} voiceEnabled={voiceEnabled} />
+                <QuickAdd tz={tz} boundaryMin={boundaryMin} voiceEnabled={voiceEnabled} aiEnabled={aiEnabled} />
               </Suspense>
             </div>
           </header>

@@ -8,6 +8,7 @@ export interface DayRow {
   date: DateStr;
   score: number | null;
   steps: number | null;
+  worked_minutes_override: number | null;
   planned_at: Date | null;
   closed_at: Date | null;
   rollover_at: Date | null;
@@ -15,6 +16,17 @@ export interface DayRow {
 
 export async function getDay(date: DateStr, db: Db = getPool()): Promise<DayRow | null> {
   return one<DayRow>("select * from days where date = $1", [date], db);
+}
+
+export async function setWorkedOverride(date: DateStr, minutes: number | null): Promise<void> {
+  if (minutes !== null && (!Number.isFinite(minutes) || minutes < 0 || minutes > 1440)) {
+    throw new UserError("Hours must be between 0 and 24.");
+  }
+  await q(
+    `insert into days (date, worked_minutes_override) values ($1, $2)
+     on conflict (date) do update set worked_minutes_override = excluded.worked_minutes_override`,
+    [date, minutes],
+  );
 }
 
 export async function setScore(date: DateStr, score: number | null): Promise<void> {
@@ -149,6 +161,6 @@ export async function daysInRange(from: DateStr, to: DateStr, db: Db = getPool()
   const rows = await q<DayRow>("select * from days where date >= $1 and date <= $2", [from, to], db);
   const map = new Map<DateStr, DayRow>();
   for (const r of rows) map.set(r.date, r);
-  for (const d of dateRange(from, to)) if (!map.has(d)) map.set(d, { date: d, score: null, steps: null, planned_at: null, closed_at: null, rollover_at: null });
+  for (const d of dateRange(from, to)) if (!map.has(d)) map.set(d, { date: d, score: null, steps: null, worked_minutes_override: null, planned_at: null, closed_at: null, rollover_at: null });
   return map;
 }
