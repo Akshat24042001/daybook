@@ -263,7 +263,9 @@ Anything else is added as a task — with full quick-add syntax support.`);
 /** All free text is routed through AI. Falls back to quick-add task creation if AI is not configured. */
 async function routeFreeText(ctx: Ctx, chat: number, text: string, fromVoice: boolean): Promise<void> {
   if (aiConfigured()) {
-    const cmd = await interpretTelegramMessage(text);
+    const exerciseTypes = await listExerciseTypes(true);
+    const exerciseTypeNames = exerciseTypes.map((t) => t.name);
+    const cmd = await interpretTelegramMessage(text, exerciseTypeNames);
     switch (cmd.kind) {
       case "add":
         await quickAddPreview(ctx, chat, cmd.syntax);
@@ -347,8 +349,9 @@ async function routeFreeText(ctx: Ctx, chat: number, text: string, fromVoice: bo
         return;
       }
       case "unknown":
-        // Fall through to quick-add — treat as a new task
-        break;
+        // AI couldn't classify it — show as task-add preview so user can confirm or discard
+        await quickAddPreview(ctx, chat, fromVoice ? voiceToQuickAdd(text) : text, true);
+        return;
     }
   }
 
@@ -457,7 +460,7 @@ async function stateSwitch(ctx: Ctx, chat: number, kind: StateKind): Promise<voi
 
 // ---------------------------------------------------------------- free text quick-add
 
-async function quickAddPreview(ctx: Ctx, chat: number, text: string): Promise<void> {
+async function quickAddPreview(ctx: Ctx, chat: number, text: string, aiUnknown = false): Promise<void> {
   const parsed = parseQuickAdd(text, { now: ctx.now, tz: ctx.tz, boundaryMin: ctx.boundaryMin });
   if (parsed.errors.length) {
     await sendMessage(chat, `⚠️ ${esc(parsed.errors[0])}`);
@@ -467,7 +470,8 @@ async function quickAddPreview(ctx: Ctx, chat: number, text: string): Promise<vo
   const pending = await one<{ id: number }>("insert into pending_adds (text) values ($1) returning id", [text]);
   const pid = pending!.id;
   const lines = describeParsed(parsed, { tz: ctx.tz, today: ctx.today });
-  let body = `<b>${esc(parsed.title)}</b>\n${lines.map(esc).join(" · ")}`;
+  const prefix = aiUnknown ? "🤔 Not sure what this is — adding as a task?\n" : "";
+  let body = `${prefix}<b>${esc(parsed.title)}</b>\n${lines.map(esc).join(" · ")}`;
   for (const n of parsed.notes) body += `\n<i>${esc(n)}</i>`;
   const rows: InlineMarkup["inline_keyboard"] = [];
   if (dups.length) {

@@ -95,59 +95,76 @@ export type TgCommand =
   | { kind: "plan" }
   | { kind: "unknown" };
 
-const TG_SYSTEM_PROMPT = `You are the command interpreter for Daybook, a personal productivity app.
-The user sends a casual message from Telegram. Understand the intent naturally — no need for specific keywords or syntax.
-Classify it as one of these commands and return JSON only.
+function buildTgSystemPrompt(exerciseTypes: string[]): string {
+  const exList = exerciseTypes.length
+    ? `\nKnown exercise types in this user's app: ${exerciseTypes.join(", ")}. Any message mentioning one of these names + a quantity is ALWAYS an exercise log, never a task.`
+    : "";
+  return `You are the intent classifier for Daybook, a personal productivity app.
+The user sends a casual message from Telegram. Understand natural language — no rigid keywords needed.
+Return a single JSON object. No markdown, no explanation, just raw JSON.
+
+DISAMBIGUATION RULES (read carefully):
+1. If the message mentions a physical exercise (push-ups, squats, plank, run, walk, etc.) with a quantity → exercise.
+2. "done/finished/completed X" where X is an exercise → exercise (NOT the done-task command).
+3. "done/finished/completed X" where X is a work task → done.
+4. Hours/minutes spent on a SPECIFIC named task → log. Hours worked in general today → worked.
+5. A number out of 10, or "score", "rate", "rating" → score.
+6. Step count, walking distance in steps → steps.
+7. Something to do in the future, a reminder, or "add" → add.
+8. Asking to see today's list → plan.
+9. Anything truly ambiguous or a general observation with no clear action → unknown.${exList}
 
 Commands:
-- {"kind":"add","syntax":"<quick-add syntax>"} — user wants to add a new task or reminder
-- {"kind":"done","query":"<task name words>"} — user completed a task
-- {"kind":"skip","query":"<task name words>"} — user is skipping or won't do a task
-- {"kind":"progressed","query":"<task name words>"} — user made partial progress on a task
-- {"kind":"score","value":<number 0-10>} — user is rating/scoring their day
-- {"kind":"steps","value":<integer>} — user is logging step count or walking distance
-- {"kind":"log","minutes":<integer>,"query":"<task name words>"} — user spent time on a specific task
-- {"kind":"worked","minutes":<integer>} — user is recording total hours worked today (not tied to one task)
-- {"kind":"exercise","amount":<number>,"name":"<exercise name>"} — user did an exercise (push-ups, squats, plank, etc.). Convert word numbers to digits.
-- {"kind":"plan"} — user wants to see today's task list or plan
-- {"kind":"unknown"} — none of the above; treat as a new task to add
+{"kind":"exercise","amount":<number>,"name":"<exercise name>"} — user did a physical exercise. Convert word numbers to digits (five→5, twenty→20, etc.).
+{"kind":"done","query":"<task name>"} — user completed a work/personal task (not a physical exercise).
+{"kind":"skip","query":"<task name>"} — user is skipping a task.
+{"kind":"progressed","query":"<task name>"} — user made partial progress on a task.
+{"kind":"score","value":<0-10 number>} — user is rating their day.
+{"kind":"steps","value":<integer>} — user logged step count.
+{"kind":"log","minutes":<integer>,"query":"<task name>"} — user spent time on a specific named task.
+{"kind":"worked","minutes":<integer>} — user recording total hours worked today (not a specific task).
+{"kind":"add","syntax":"<quick-add syntax>"} — user wants to add a new task or reminder.
+{"kind":"plan"} — user wants to see today's task list.
+{"kind":"unknown"} — genuinely unclear; will be shown as a task-add preview.
 
-Quick-add syntax for "add":
-Title is plain text. Append: ~30m/~2h for estimate, !! for must-do, @today/@tom/@mon for date,
-@3pm/@14:30 for time, ? for someday, >> for ongoing, *7d for cadence, +Person, /p for personal.
-Use "Project: title" prefix when a project name is clearly stated.
+Quick-add syntax for "add": plain title + optional: ~30m ~2h !! @today @tom @mon @3pm ? >> *7d +Person /p
+Use "Project: title" prefix when a project name is stated.
 
 Examples:
-"I finished the report" → {"kind":"done","query":"report"}
-"mark design review as done" → {"kind":"done","query":"design review"}
-"skip the gym today" → {"kind":"skip","query":"gym"}
-"I worked 45 minutes on the proposal" → {"kind":"log","minutes":45,"query":"proposal"}
-"log 2 hours on client project" → {"kind":"log","minutes":120,"query":"client project"}
-"today was a 7 out of 10" → {"kind":"score","value":7}
-"set score to 8.5" → {"kind":"score","value":8.5}
-"I walked 9000 steps" → {"kind":"steps","value":9000}
-"add a task to call mom tomorrow" → {"kind":"add","syntax":"Call mom @tom"}
-"I worked 8 hours today" → {"kind":"worked","minutes":480}
-"worked 7 and a half hours" → {"kind":"worked","minutes":450}
-"today I put in 6h30m" → {"kind":"worked","minutes":390}
-"show me today" → {"kind":"plan"}
-"what's on my list" → {"kind":"plan"}
 "I've done five push-ups" → {"kind":"exercise","amount":5,"name":"push-ups"}
 "just did 20 squats" → {"kind":"exercise","amount":20,"name":"squats"}
 "finished a 30 second plank" → {"kind":"exercise","amount":30,"name":"plank"}
 "did three sets of fifteen push-ups" → {"kind":"exercise","amount":45,"name":"push-ups"}
 "I'm done with my workout — 25 pushups" → {"kind":"exercise","amount":25,"name":"push-ups"}
+"ran 5km" → {"kind":"exercise","amount":5,"name":"run"}
+"I finished the report" → {"kind":"done","query":"report"}
+"mark design review as done" → {"kind":"done","query":"design review"}
+"skip the gym task today" → {"kind":"skip","query":"gym"}
+"I worked 45 minutes on the proposal" → {"kind":"log","minutes":45,"query":"proposal"}
+"log 2 hours on client project" → {"kind":"log","minutes":120,"query":"client project"}
+"today was a 7 out of 10" → {"kind":"score","value":7}
+"I walked 9000 steps" → {"kind":"steps","value":9000}
+"call mom tomorrow" → {"kind":"add","syntax":"Call mom @tom"}
+"add a must-do: review quarterly budget, 1 hour, tomorrow" → {"kind":"add","syntax":"Review quarterly budget @tom ~1h !!"}
+"I worked 8 hours today" → {"kind":"worked","minutes":480}
+"put in 6h30m today" → {"kind":"worked","minutes":390}
+"what's on my list" → {"kind":"plan"}
+"show today" → {"kind":"plan"}`;
+}
 
-Return only valid JSON. No explanation, no markdown fences.`;
-
-/** Interprets a free-form Telegram message and returns a structured command. */
-export async function interpretTelegramMessage(text: string): Promise<TgCommand> {
+/** Interprets a free-form Telegram message and returns a structured command.
+ *  Pass exerciseTypeNames so the AI knows which exercise names exist in the user's app. */
+export async function interpretTelegramMessage(text: string, exerciseTypeNames: string[] = []): Promise<TgCommand> {
   try {
     const raw = await chat(
-      [{ role: "system", content: TG_SYSTEM_PROMPT }, { role: "user", content: text }],
-      "moonshotai/kimi-k2",
+      [
+        { role: "system", content: buildTgSystemPrompt(exerciseTypeNames) },
+        { role: "user", content: text },
+      ],
+      "google/gemini-2.0-flash-exp:free",
     );
-    const cleaned = raw.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
+    // Strip any accidental markdown fences
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
     const parsed = JSON.parse(cleaned) as TgCommand;
     if (!parsed.kind) return { kind: "unknown" };
     return parsed;
