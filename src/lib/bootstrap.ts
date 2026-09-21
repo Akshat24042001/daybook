@@ -19,7 +19,9 @@ function dbClient() {
 
 function appBaseUrl(): string {
   const explicit = process.env.APP_BASE_URL;
-  if (explicit && explicit !== "http://localhost:3000") return explicit;
+  if (explicit && explicit !== "http://localhost:3000") {
+    try { return new URL(explicit).origin; } catch { return explicit; }
+  }
   const vercel = process.env.VERCEL_URL;
   if (vercel) return `https://${vercel}`;
   return explicit ?? "";

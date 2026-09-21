@@ -22,7 +22,9 @@ export function isHttpsBase(): boolean {
 }
 
 export function appUrl(path: string, auth = false): string {
-  const base = (process.env.APP_BASE_URL ?? "").replace(/\/$/, "");
+  const raw = process.env.APP_BASE_URL ?? "";
+  let base: string;
+  try { base = new URL(raw).origin; } catch { base = raw.replace(/\/$/, ""); }
   const password = auth ? (process.env.ADMIN_PASSWORD ?? "") : "";
   const sep = path.includes("?") ? "&" : "?";
   return password ? `${base}${path}${sep}auth=${encodeURIComponent(password)}` : `${base}${path}`;

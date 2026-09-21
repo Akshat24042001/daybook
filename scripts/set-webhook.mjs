@@ -2,7 +2,8 @@
 // Needs TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET and an https APP_BASE_URL (your Vercel URL, or a tunnel while testing).
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
-const base = (process.env.APP_BASE_URL || "").replace(/\/$/, "");
+const rawBase = process.env.APP_BASE_URL || "";
+const base = (() => { try { return new URL(rawBase).origin; } catch { return rawBase.replace(/\/$/, ""); } })();
 const api = (process.env.TELEGRAM_API_BASE || "https://api.telegram.org").replace(/\/$/, "");
 
 if (!token) throw new Error("TELEGRAM_BOT_TOKEN is not set.");
