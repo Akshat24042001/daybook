@@ -48,7 +48,8 @@ export function PlanClient(props: {
   const { date, capacity } = props;
   const triage = props.triage.filter((r) => !optimisticTriaged.has(r.id));
   const entries = props.entries.filter((r) => !optimisticRemoved.has(r.id));
-  const stepOne = triage.length > 0;
+  const [skipTriage, setSkipTriage] = useState(false);
+  const stepOne = triage.length > 0 && !skipTriage;
 
   function removeFromDay(entryId: number) {
     setError(null);
@@ -111,17 +112,34 @@ export function PlanClient(props: {
       </header>
 
       <ol className="flex gap-2 text-xs font-medium" aria-label="Steps">
-        <li className={cn("rounded-full px-3 py-1", stepOne ? "bg-accent text-accent-fg" : "bg-muted text-subtle")}>1 · Triage today</li>
-        <li className={cn("rounded-full px-3 py-1", !stepOne ? "bg-accent text-accent-fg" : "bg-muted text-subtle")}>2 · Build the day</li>
+        <li
+          className={cn("cursor-pointer rounded-full px-3 py-1 transition-colors", stepOne ? "bg-accent text-accent-fg" : "bg-muted text-subtle hover:bg-muted/70")}
+          onClick={() => triage.length > 0 && setSkipTriage(false)}
+          role={triage.length > 0 ? "button" : undefined}
+        >
+          1 · Triage today{triage.length > 0 ? ` (${triage.length})` : ""}
+        </li>
+        <li
+          className={cn("cursor-pointer rounded-full px-3 py-1 transition-colors", !stepOne ? "bg-accent text-accent-fg" : "bg-muted text-subtle hover:bg-muted/70")}
+          onClick={() => setSkipTriage(true)}
+          role="button"
+        >
+          2 · Build the day
+        </li>
       </ol>
 
       <ErrorNote message={error} />
 
       {stepOne ? (
         <section aria-label="Triage" className="space-y-3">
-          <p className="text-sm text-subtle">
-            {triage.length} unresolved {triage.length === 1 ? "task" : "tasks"} from earlier days. Each one needs a single tap before you can plan.
-          </p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-subtle">
+              {triage.length} unresolved {triage.length === 1 ? "task" : "tasks"} from earlier days.
+            </p>
+            <Button size="sm" variant="ghost" onClick={() => setSkipTriage(true)}>
+              Skip for now →
+            </Button>
+          </div>
           <ul className="space-y-2">
             {triage.map((r) => (
               <li key={r.id} className="rounded-2xl border border-border bg-surface p-3">
@@ -156,6 +174,12 @@ export function PlanClient(props: {
         </section>
       ) : (
         <>
+          {skipTriage && triage.length > 0 ? (
+            <div className="flex items-center justify-between rounded-xl border border-warn/40 bg-warn/10 px-3 py-2">
+              <p className="text-sm text-warn">{triage.length} triage {triage.length === 1 ? "item" : "items"} still pending.</p>
+              <Button size="sm" variant="ghost" onClick={() => setSkipTriage(false)}>Triage now</Button>
+            </div>
+          ) : null}
           {/* capacity */}
           <Card className="p-4" aria-label="Capacity">
             <div className="flex items-baseline justify-between">

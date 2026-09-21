@@ -34,6 +34,13 @@ interface Target {
 
 const PERIOD_LABEL: Record<TargetPeriod, string> = { week: "This week", month: "This month", quarter: "This quarter", year: "This year" };
 
+const PERIOD_COLOR: Record<TargetPeriod, { bg: string; text: string; border: string }> = {
+  week:    { bg: "bg-accent/10",  text: "text-accent",  border: "border-l-accent" },
+  month:   { bg: "bg-good/10",   text: "text-good",    border: "border-l-good" },
+  quarter: { bg: "bg-warn/10",   text: "text-warn",    border: "border-l-warn" },
+  year:    { bg: "bg-subtle/10", text: "text-fg",      border: "border-l-fg/40" },
+};
+
 function TargetCard({ t, onAdd, onDone, pending }: { t: Target; onAdd: () => void; onDone: () => void; pending: boolean }) {
   const tone = t.met ? "accent" : t.behind ? "warn" : "accent";
   return (
@@ -151,7 +158,10 @@ export function GoalsClient(props: {
         ) : null}
         {periods.map((p) => (
           <div key={p} className="space-y-2">
-            <h3 className="text-sm font-medium">{PERIOD_LABEL[p]}</h3>
+            <div className={cn("flex items-center gap-2 rounded-xl border-l-4 px-3 py-2", PERIOD_COLOR[p].bg, PERIOD_COLOR[p].border)}>
+              <h3 className={cn("text-sm font-semibold uppercase tracking-wide", PERIOD_COLOR[p].text)}>{PERIOD_LABEL[p]}</h3>
+              <span className="text-xs text-subtle">{props.targets[p].length} target{props.targets[p].length !== 1 ? "s" : ""}</span>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {props.targets[p].map((t) => (
                 <TargetCard

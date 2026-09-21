@@ -8,19 +8,25 @@ import { getDay } from "@/lib/services/days";
 import { entriesForDate } from "@/lib/services/entries";
 import { currentState, segmentsForDate, workedForDate } from "@/lib/services/segments";
 import { toLocalInput, toRow, type RowData, type SegmentData } from "@/lib/view-types";
+import { listTargets } from "@/lib/services/goals";
 
 export const metadata: Metadata = { title: "Today" };
 export const dynamic = "force-dynamic";
 
 export default async function TodayPage() {
   const ctx = await makeCtx();
-  const [entries, state, worked, day, segs] = await Promise.all([
+  const [entries, state, worked, day, segs, allTargets] = await Promise.all([
     entriesForDate(ctx.today),
     currentState(),
     workedForDate(ctx, ctx.today),
     getDay(ctx.today),
     segmentsForDate(ctx, ctx.today),
+    listTargets(ctx),
   ]);
+
+  const activeTargets = [...allTargets.week, ...allTargets.month, ...allTargets.quarter, ...allTargets.year]
+    .filter((t) => t.task.state === "active")
+    .map((t) => ({ id: t.task.id, title: t.task.title, met: t.met, behind: t.behind, hasGoal: t.hasGoal, period: t.task.target_period as string }));
   const sec = sectionize(entries, ctx.tz, ctx.boundaryMin);
   const sections = Object.fromEntries(SECTION_ORDER.map((k) => [k, sec[k].map((e) => toRow(ctx, e))])) as Record<SectionKey, RowData[]>;
 
@@ -49,6 +55,7 @@ export default async function TodayPage() {
       segments={segments}
       newSegmentDefault={toLocalInput(ctx, ctx.now)}
       voiceEnabled={voiceConfigured()}
+      targets={activeTargets}
     />
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { Building2, ChevronDown, Coffee, Flag, Car } from "lucide-react";
+import { Building2, ChevronDown, Coffee, Flag, Car, Target } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { setScoreAction, setStatusAction, setStepsAction, setWorkedOverrideAction, switchStateAction } from "@/app/actions";
@@ -40,6 +41,7 @@ export function TodayView(props: {
   segments: SegmentData[];
   newSegmentDefault: string;
   voiceEnabled: boolean;
+  targets: { id: number; title: string; met: boolean; behind: boolean; hasGoal: boolean; period: string }[];
 }) {
   const { sections, state, date } = props;
   const router = useRouter();
@@ -158,6 +160,36 @@ export function TodayView(props: {
           {props.score !== null ? <span className="ml-auto font-medium text-fg">Score {props.score}</span> : null}
         </p>
       </section>
+
+      {/* targets strip */}
+      {props.targets.length > 0 ? (
+        <section aria-label="Targets">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-subtle">
+              <Target className="h-3.5 w-3.5" /> Targets
+            </h2>
+            <Link href="/goals" className="text-xs text-subtle hover:text-fg underline-offset-2 hover:underline">View all</Link>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {props.targets.map((t) => (
+              <Link
+                key={t.id}
+                href={`/task/${t.id}`}
+                className={cn(
+                  "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                  t.met
+                    ? "bg-good/15 text-good"
+                    : t.behind
+                    ? "bg-warn/15 text-warn"
+                    : "bg-accent/10 text-accent hover:bg-accent/20",
+                )}
+              >
+                {t.met ? "✓ " : t.behind ? "⚠ " : ""}{t.title}
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {/* must-do count hint */}
       {sections.must.length > 0 ? (
