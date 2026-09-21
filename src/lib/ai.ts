@@ -91,23 +91,26 @@ export type TgCommand =
   | { kind: "steps"; value: number }
   | { kind: "log"; minutes: number; query: string }
   | { kind: "worked"; minutes: number }
+  | { kind: "exercise"; amount: number; name: string }
   | { kind: "plan" }
   | { kind: "unknown" };
 
 const TG_SYSTEM_PROMPT = `You are the command interpreter for Daybook, a personal productivity app.
-The user sends a message from Telegram. Classify it as one of these commands and return JSON only.
+The user sends a casual message from Telegram. Understand the intent naturally — no need for specific keywords or syntax.
+Classify it as one of these commands and return JSON only.
 
 Commands:
 - {"kind":"add","syntax":"<quick-add syntax>"} — user wants to add a new task or reminder
 - {"kind":"done","query":"<task name words>"} — user completed a task
-- {"kind":"skip","query":"<task name words>"} — user is skipping a task
-- {"kind":"progressed","query":"<task name words>"} — user made progress on a task
-- {"kind":"score","value":<number 0-10>} — user is scoring their day
-- {"kind":"steps","value":<integer>} — user is logging step count
-- {"kind":"log","minutes":<integer>,"query":"<task name words>"} — user spent time on a task
-- {"kind":"worked","minutes":<integer>} — user is recording total hours worked today (not on a specific task)
-- {"kind":"plan"} — user wants to see today's task list
-- {"kind":"unknown"} — none of the above
+- {"kind":"skip","query":"<task name words>"} — user is skipping or won't do a task
+- {"kind":"progressed","query":"<task name words>"} — user made partial progress on a task
+- {"kind":"score","value":<number 0-10>} — user is rating/scoring their day
+- {"kind":"steps","value":<integer>} — user is logging step count or walking distance
+- {"kind":"log","minutes":<integer>,"query":"<task name words>"} — user spent time on a specific task
+- {"kind":"worked","minutes":<integer>} — user is recording total hours worked today (not tied to one task)
+- {"kind":"exercise","amount":<number>,"name":"<exercise name>"} — user did an exercise (push-ups, squats, plank, etc.). Convert word numbers to digits.
+- {"kind":"plan"} — user wants to see today's task list or plan
+- {"kind":"unknown"} — none of the above; treat as a new task to add
 
 Quick-add syntax for "add":
 Title is plain text. Append: ~30m/~2h for estimate, !! for must-do, @today/@tom/@mon for date,
@@ -124,22 +127,26 @@ Examples:
 "set score to 8.5" → {"kind":"score","value":8.5}
 "I walked 9000 steps" → {"kind":"steps","value":9000}
 "add a task to call mom tomorrow" → {"kind":"add","syntax":"Call mom @tom"}
-"add review quarterly budget as must-do for tomorrow, 1 hour" → {"kind":"add","syntax":"Review quarterly budget @tom ~1h !!"}
 "I worked 8 hours today" → {"kind":"worked","minutes":480}
 "worked 7 and a half hours" → {"kind":"worked","minutes":450}
 "today I put in 6h30m" → {"kind":"worked","minutes":390}
 "show me today" → {"kind":"plan"}
 "what's on my list" → {"kind":"plan"}
+"I've done five push-ups" → {"kind":"exercise","amount":5,"name":"push-ups"}
+"just did 20 squats" → {"kind":"exercise","amount":20,"name":"squats"}
+"finished a 30 second plank" → {"kind":"exercise","amount":30,"name":"plank"}
+"did three sets of fifteen push-ups" → {"kind":"exercise","amount":45,"name":"push-ups"}
+"I'm done with my workout — 25 pushups" → {"kind":"exercise","amount":25,"name":"push-ups"}
 
 Return only valid JSON. No explanation, no markdown fences.`;
 
 /** Interprets a free-form Telegram message and returns a structured command. */
 export async function interpretTelegramMessage(text: string): Promise<TgCommand> {
   try {
-    const raw = await chat([
-      { role: "system", content: TG_SYSTEM_PROMPT },
-      { role: "user", content: text },
-    ]);
+    const raw = await chat(
+      [{ role: "system", content: TG_SYSTEM_PROMPT }, { role: "user", content: text }],
+      "moonshotai/kimi-k2",
+    );
     const cleaned = raw.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
     const parsed = JSON.parse(cleaned) as TgCommand;
     if (!parsed.kind) return { kind: "unknown" };

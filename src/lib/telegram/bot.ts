@@ -256,160 +256,13 @@ Anything else is added as a task — with full quick-add syntax support.`);
       return;
     }
     default:
-      if (await tryTextCommand(ctx, chat, text)) return;
       await routeFreeText(ctx, chat, text, false);
   }
 }
 
-/**
- * Natural language text commands so you never need to touch a button.
- * Returns true if the text was handled as a command.
- *
- * Supported:
- *   done <name>        — mark matching open task as done
- *   skip <name>        — mark matching open task as skipped
- *   prog[ressed] <name>— mark as progressed
- *   score <n>          — set today's score (1–10)
- *   steps <n>          — log step count for today
- *   log <n>m <name>    — log N minutes on matching task
- *   plan               — show today's plan (same as "Today" button)
- */
-async function tryTextCommand(ctx: Ctx, chat: number, text: string): Promise<boolean> {
-  // score <n> — matches "score 8", "score is 8", "today score 8.5", "set score 7", etc.
-  const scoreM = text.match(/(?:^|\s)score(?:\s+is)?\s+(\d+(?:[.,]\d+)?)/i);
-  if (scoreM) {
-    const val = parseFloat(scoreM[1].replace(",", "."));
-    if (val < 0 || val > 10) { await sendMessage(chat, "⚠️ Score must be between 0 and 10."); return true; }
-    await setScore(ctx.today, val);
-    await sendMessage(chat, `🙂 Score for today set to <b>${val}</b>.`);
-    return true;
-  }
-
-  // steps <n> — "steps 8000", "steps: 9500", "walked 6000 steps"
-  const stepsM = text.match(/(?:^|\s)steps?\s*:?\s*(\d[\d,]+)|(\d[\d,]+)\s+steps/i);
-  if (stepsM) {
-    const raw = (stepsM[1] ?? stepsM[2]).replace(/,/g, "");
-    const val = parseInt(raw, 10);
-    await setSteps(ctx.today, val);
-    await sendMessage(chat, `👣 Steps logged: <b>${val.toLocaleString("en-US")}</b> for today.`);
-    return true;
-  }
-
-  // plan / today — show today's list
-  if (/^(plan|today|list)$/i.test(text)) {
-    const m = await todayList(ctx);
-    await sendMessage(chat, m.text, m.markup);
-    return true;
-  }
-
-  // done <name> | skip <name> | prog <name> | progressed <name>
-  const actionM = text.match(/^(done|skip(?:ped)?|prog(?:ressed)?)\s+(.+)$/i);
-  if (actionM) {
-    const rawAction = actionM[1].toLowerCase();
-    const status: EntryStatus =
-      rawAction === "done" ? "done"
-      : rawAction.startsWith("skip") ? "skipped"
-      : "progressed";
-    const query = actionM[2].trim().toLowerCase();
-    const entries = await entriesForDate(ctx.today);
-    const match = entries.find(
-      (e) => e.status === "open" && e.task_state === "active" && e.title.toLowerCase().includes(query),
-    );
-    if (!match) {
-      await sendMessage(
-        chat,
-        `⚠️ No open task matching "<b>${esc(query)}</b>" today.\nSend "plan" to see today's list.`,
-      );
-      return true;
-    }
-    const r = await setEntryStatus(ctx, match.id, status);
-    await sendMessage(
-      chat,
-      `${STATUS_EMOJI[status]} <b>${esc(r.entry.title)}</b>: ${STATUS_WORD[status]}.`,
-      status === "done" || status === "progressed" ? minutesPrompt(r.entry, status).markup : undefined,
-    );
-    return true;
-  }
-
-  // worked <n>h[m] — manually set today's worked hours e.g. "worked 8h", "worked 7.5 hours", "worked 6h30m"
-  const workedM = text.match(/worked?\s+(\d+(?:[.,]\d+)?)\s*(h|hr|hrs|hour|hours)(?:\s*(\d+)\s*m(?:in)?)?/i)
-    ?? text.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*(h|hr|hrs|hour|hours)(?:\s*(\d+)\s*m(?:in)?)?\s+(?:of\s+)?work(?:ed|ing)?/i);
-  if (workedM) {
-    const hrs = parseFloat(workedM[1].replace(",", "."));
-    const extraMin = workedM[3] ? parseInt(workedM[3], 10) : 0;
-    const totalMin = Math.round(hrs * 60) + extraMin;
-    if (totalMin < 0 || totalMin > 1440) { await sendMessage(chat, "⚠️ Hours must be between 0 and 24."); return true; }
-    await setWorkedOverride(ctx.today, totalMin);
-    const hh = Math.floor(totalMin / 60);
-    const mm = totalMin % 60;
-    await sendMessage(chat, `⏱ Worked time set to <b>${hh}h${mm > 0 ? ` ${mm}m` : ""}</b> for today.`);
-    return true;
-  }
-
-  // log <n>m[in] [on] <name>   e.g. "log 45m workout" or "log 1h gym"
-  const logM = text.match(/^log\s+(\d+(?:\.\d+)?)\s*(h|hr|hour|m|min|mins|minutes)(?:\s+(?:on\s+)?(.+))?$/i);
-  if (logM) {
-    const raw = parseFloat(logM[1]);
-    const unit = logM[2].toLowerCase();
-    const minutes = Math.round(unit === "h" || unit === "hr" || unit === "hour" ? raw * 60 : raw);
-    const query = (logM[3] ?? "").trim().toLowerCase();
-    const entries = await entriesForDate(ctx.today);
-    const candidates = entries.filter((e) => e.task_state === "active");
-    const match = query
-      ? candidates.find((e) => e.title.toLowerCase().includes(query))
-      : candidates.find((e) => e.status !== "open"); // last touched task
-    if (!match) {
-      await sendMessage(
-        chat,
-        query
-          ? `⚠️ No task matching "<b>${esc(query)}</b>" today.`
-          : "⚠️ Tell me which task: <i>log 30m workout</i>",
-      );
-      return true;
-    }
-    await logMinutes(ctx, match.task_id, ctx.today, minutes, "telegram");
-    const fresh = await getEntry(match.id);
-    await sendMessage(
-      chat,
-      `⏱ <b>${esc(match.title)}</b>: ${fmtDuration(minutes)} logged (${fmtDuration(fresh?.minutes_today ?? minutes)} today).`,
-    );
-    return true;
-  }
-
-  // log/did/exercise <n> <exercise name>  e.g. "log 15 push-ups", "did 20 squats"
-  // Only fires when the name matches a known exercise type (to avoid stealing task quick-adds).
-  const exLogM = text.match(/^(?:log|did|exercised?|ex)\s+(\d+)\s+(.+)/i);
-  if (exLogM) {
-    const amount = parseInt(exLogM[1], 10);
-    const rawQuery = exLogM[2].trim().toLowerCase().replace(/[-_]/g, " ").replace(/s\b/g, "");
-    const types = await listExerciseTypes(true);
-    const matchType = types.find((t) => {
-      const n = t.name.toLowerCase().replace(/s\b/g, "");
-      return n.includes(rawQuery) || rawQuery.includes(n);
-    });
-    if (matchType) {
-      const slots = exerciseSlots(ctx, ctx.today);
-      const slot = slots.find((s) => s.getTime() >= ctx.now.getTime()) ?? slots[slots.length - 1];
-      await logExercise(ctx, slot, "done", matchType.id, amount, null);
-      await sendMessage(chat, `✅ ${fmtHM(slot, ctx.tz)}: <b>${amount} ${esc(matchType.name)}</b> logged. Today: ${await exerciseCountsLine(ctx.today)}.`);
-      return true;
-    }
-  }
-
-  return false;
-}
-
-/** Free text is either a manual time entry, a structured quick-add, or natural language interpreted by AI. */
+/** All free text is routed through AI. Falls back to quick-add task creation if AI is not configured. */
 async function routeFreeText(ctx: Ctx, chat: number, text: string, fromVoice: boolean): Promise<void> {
-  if (looksLikeTimeLog(text)) {
-    await timeLogPreview(ctx, chat, text);
-    return;
-  }
-
-  // For voice notes or when AI is available, interpret as natural language.
-  // Skip AI for text that already looks like structured quick-add syntax.
-  const looksStructured = /[@~!?*+/]|>>/. test(text);
-  if (aiConfigured() && (fromVoice || !looksStructured)) {
+  if (aiConfigured()) {
     const cmd = await interpretTelegramMessage(text);
     switch (cmd.kind) {
       case "add":
@@ -424,10 +277,7 @@ async function routeFreeText(ctx: Ctx, chat: number, text: string, fromVoice: bo
           (e) => e.status === "open" && e.task_state === "active" && e.title.toLowerCase().includes(cmd.query.toLowerCase()),
         );
         if (!match) {
-          await sendMessage(
-            chat,
-            `⚠️ No open task matching "<b>${esc(cmd.query)}</b>" today.\nSend "plan" to see today's list.`,
-          );
+          await sendMessage(chat, `⚠️ No open task matching "<b>${esc(cmd.query)}</b>" today.\nSend /today to see today's list.`);
           return;
         }
         const r = await setEntryStatus(ctx, match.id, status);
@@ -457,7 +307,7 @@ async function routeFreeText(ctx: Ctx, chat: number, text: string, fromVoice: bo
           ? entries.filter((e) => e.task_state === "active").find((e) => e.title.toLowerCase().includes(query))
           : entries.filter((e) => e.task_state === "active").find((e) => e.status !== "open");
         if (!match) {
-          await sendMessage(chat, query ? `⚠️ No task matching "<b>${esc(query)}</b>" today.` : "⚠️ Tell me which task: <i>log 30m workout</i>");
+          await sendMessage(chat, query ? `⚠️ No task matching "<b>${esc(query)}</b>" today.` : "⚠️ Tell me which task.");
           return;
         }
         await logMinutes(ctx, match.task_id, ctx.today, cmd.minutes, "telegram");
@@ -470,9 +320,25 @@ async function routeFreeText(ctx: Ctx, chat: number, text: string, fromVoice: bo
       }
       case "worked": {
         await setWorkedOverride(ctx.today, cmd.minutes);
-        const hh = Math.floor(cmd.minutes / 60);
-        const mm = cmd.minutes % 60;
+        const hh = Math.floor(cmd.minutes / 60), mm = cmd.minutes % 60;
         await sendMessage(chat, `⏱ Worked time set to <b>${hh}h${mm > 0 ? ` ${mm}m` : ""}</b> for today.`);
+        return;
+      }
+      case "exercise": {
+        const types = await listExerciseTypes(true);
+        const rawQ = cmd.name.toLowerCase().replace(/[-_]/g, " ").replace(/s\b/g, "");
+        const matchType = types.find((t) => {
+          const n = t.name.toLowerCase().replace(/s\b/g, "");
+          return n.includes(rawQ) || rawQ.includes(n);
+        });
+        if (!matchType) {
+          await sendMessage(chat, `⚠️ No exercise type matching "<b>${esc(cmd.name)}</b>". Add it in Settings → Exercise Types.`);
+          return;
+        }
+        const slots = exerciseSlots(ctx, ctx.today);
+        const slot = slots.find((s) => s.getTime() >= ctx.now.getTime()) ?? slots[slots.length - 1];
+        await logExercise(ctx, slot, "done", matchType.id, cmd.amount, null);
+        await sendMessage(chat, `✅ <b>${cmd.amount} ${esc(matchType.name)}</b> logged. Today: ${await exerciseCountsLine(ctx.today)}.`);
         return;
       }
       case "plan": {
@@ -480,7 +346,9 @@ async function routeFreeText(ctx: Ctx, chat: number, text: string, fromVoice: bo
         await sendMessage(chat, m.text, m.markup);
         return;
       }
-      // "unknown" — fall through to quick-add
+      case "unknown":
+        // Fall through to quick-add — treat as a new task
+        break;
     }
   }
 
