@@ -190,10 +190,10 @@ export function parseQuickAdd(input: string, ctx: ParseContext): ParsedQuickAdd 
       out.errors.push("Cadence must be at least 1 day.");
     }
   });
-  s = extract(s, /(^|\s)#([wmq])(?=\s|$)/i, (m, first) => {
+  s = extract(s, /(^|\s)#([wmqy])(?=\s|$)/i, (m, first) => {
     if (!first) return;
     const c = m[2].toLowerCase();
-    out.targetPeriod = c === "w" ? "week" : c === "m" ? "month" : "quarter";
+    out.targetPeriod = c === "w" ? "week" : c === "m" ? "month" : c === "q" ? "quarter" : "year";
   });
 
   // every mon / every 1st

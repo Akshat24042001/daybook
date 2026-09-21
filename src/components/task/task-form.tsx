@@ -29,7 +29,7 @@ export interface TaskFormData {
   leadMin: number | null;
   cadenceDays: number | null;
   rrule: string;
-  targetPeriod: "week" | "month" | "quarter" | null;
+  targetPeriod: import("@/lib/time").TargetPeriod | null;
   goalMin: number | null;
   goalCount: number | null;
   state: "active" | "done" | "dropped";
@@ -239,10 +239,11 @@ export function TaskForm({
         {f.type === "target" ? (
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Period">
-              <Select value={f.targetPeriod ?? "week"} onChange={(e) => set("targetPeriod", e.target.value as "week" | "month" | "quarter")}>
+              <Select value={f.targetPeriod ?? "week"} onChange={(e) => set("targetPeriod", e.target.value as import("@/lib/time").TargetPeriod)}>
                 <option value="week">This week</option>
                 <option value="month">This month</option>
                 <option value="quarter">This quarter</option>
+                <option value="year">This year</option>
               </Select>
             </Field>
             <Field label="Hours goal" hint="Optional">

@@ -195,12 +195,13 @@ export function weekStart(date: DateStr): DateStr {
   return addDays(date, -(isoDow(date) - 1));
 }
 
-export type TargetPeriod = "week" | "month" | "quarter";
+export type TargetPeriod = "week" | "month" | "quarter" | "year";
 
 export function periodStart(date: DateStr, period: TargetPeriod): DateStr {
   const { y, m } = parseDateStr(date);
   if (period === "week") return weekStart(date);
   if (period === "month") return toDateStr(y, m, 1);
+  if (period === "year") return toDateStr(y, 1, 1);
   const qm = Math.floor((m - 1) / 3) * 3 + 1;
   return toDateStr(y, qm, 1);
 }
@@ -210,6 +211,7 @@ export function periodEnd(start: DateStr, period: TargetPeriod): DateStr {
   const { y, m } = parseDateStr(start);
   if (period === "week") return addDays(start, 6);
   if (period === "month") return toDateStr(y, m, daysInMonth(y, m));
+  if (period === "year") return toDateStr(y, 12, 31);
   const lastMonth = m + 2;
   return toDateStr(y, lastMonth, daysInMonth(y, lastMonth));
 }

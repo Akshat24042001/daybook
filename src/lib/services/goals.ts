@@ -128,7 +128,7 @@ export async function listTargets(ctx: Ctx, db: Db = getPool()): Promise<Record<
     const { start, end } = targetBounds(ctx, t);
     return ctx.today >= start && ctx.today <= end;
   });
-  if (active.length === 0) return { week: [], month: [], quarter: [] };
+  if (active.length === 0) return { week: [], month: [], quarter: [], year: [] };
 
   // Batch-fetch minutes and counts for all targets in one query each
   const ids = active.map((t) => t.id);
@@ -159,7 +159,7 @@ export async function listTargets(ctx: Ctx, db: Db = getPool()): Promise<Record<
   const minuteMap = new Map(minuteRows.map((r) => [r.task_id, r.minutes]));
   const countMap  = new Map(countRows.map((r) => [r.task_id, r.n]));
 
-  const out: Record<TargetPeriod, TargetProgress[]> = { week: [], month: [], quarter: [] };
+  const out: Record<TargetPeriod, TargetProgress[]> = { week: [], month: [], quarter: [], year: [] };
   for (const t of active) {
     const { start, end } = bounds[t.id];
     const minutes = minuteMap.get(t.id) ?? 0;
@@ -177,7 +177,7 @@ export async function listTargets(ctx: Ctx, db: Db = getPool()): Promise<Record<
 
 export async function targetsBehind(ctx: Ctx, db: Db = getPool()): Promise<TargetProgress[]> {
   const all = await listTargets(ctx, db);
-  return [...all.week, ...all.month, ...all.quarter].filter((p) => p.task.state === "active" && p.behind);
+  return [...all.week, ...all.month, ...all.quarter, ...all.year].filter((p) => p.task.state === "active" && p.behind);
 }
 
 export interface CadenceStatus {

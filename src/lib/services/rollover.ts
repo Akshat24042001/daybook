@@ -55,7 +55,7 @@ export async function rolloverIfNeeded(ctx: Ctx): Promise<RolloverResult> {
     );
     let targetsClosed = 0;
     for (const t of closed) {
-      const end = periodEnd(t.period_start, t.target_period as "week" | "month" | "quarter");
+      const end = periodEnd(t.period_start, t.target_period as import("../time").TargetPeriod);
       if (end >= today) continue;
       const m = await one<{ minutes: number }>(
         "select coalesce(sum(minutes),0)::int as minutes from time_logs where task_id = $1 and date between $2 and $3",

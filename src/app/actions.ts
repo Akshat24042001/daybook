@@ -429,6 +429,13 @@ export async function testNotificationAction() {
   });
 }
 
+/** Mark a target task as done (completed). */
+export async function markTargetDoneAction(id: number) {
+  return run(async (ctx) => {
+    await q("update tasks set state = 'done', closed_at = $2 where id = $1 and state = 'active'", [id, ctx.now]);
+  }, ["/goals"]);
+}
+
 /** Close a task as dropped (keeps its history) or bring it back. */
 export async function setTaskStateAction(id: number, state: "active" | "dropped") {
   return run(async (ctx) => {

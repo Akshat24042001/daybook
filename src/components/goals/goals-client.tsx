@@ -4,17 +4,19 @@ import { ArrowDown, ArrowUp, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { addToDayAction, reorderSomedayAction, snoozeCadenceAction } from "@/app/actions";
+import { addToDayAction, markTargetDoneAction, reorderSomedayAction, snoozeCadenceAction } from "@/app/actions";
 import { cn } from "@/lib/cn";
-import { fmtDuration, type DateStr } from "@/lib/time";
+import { fmtDuration, type DateStr, type TargetPeriod } from "@/lib/time";
 import { useToast } from "../toast";
 import { Button, Card, Chip, Empty, ErrorNote, Progress } from "../ui";
+
+import { Check } from "lucide-react";
 
 interface Target {
   id: number;
   title: string;
   project: string | null;
-  period: "week" | "month" | "quarter" | null;
+  period: TargetPeriod | null;
   range: string;
   minutes: number;
   count: number;
@@ -30,9 +32,9 @@ interface Target {
   done: boolean;
 }
 
-const PERIOD_LABEL = { week: "This week", month: "This month", quarter: "This quarter" } as const;
+const PERIOD_LABEL: Record<TargetPeriod, string> = { week: "This week", month: "This month", quarter: "This quarter", year: "This year" };
 
-function TargetCard({ t, onAdd, pending }: { t: Target; onAdd: () => void; pending: boolean }) {
+function TargetCard({ t, onAdd, onDone, pending }: { t: Target; onAdd: () => void; onDone: () => void; pending: boolean }) {
   const tone = t.met ? "accent" : t.behind ? "warn" : "accent";
   return (
     <Card className="p-3.5">
@@ -81,13 +83,22 @@ function TargetCard({ t, onAdd, pending }: { t: Target; onAdd: () => void; pendi
           </div>
         ) : null}
       </div>
-      <div className="mt-3 flex items-center justify-between">
+      <div className="mt-3 flex items-center justify-between gap-2">
         <p className="text-xs text-subtle">The tick mark shows where you should be by now.</p>
-        {!t.done ? (
-          <Button size="sm" variant="outline" disabled={pending} onClick={onAdd}>
-            <Plus className="h-3.5 w-3.5" /> Today
-          </Button>
-        ) : null}
+        <div className="flex shrink-0 gap-2">
+          {!t.done ? (
+            <>
+              <Button size="sm" variant="outline" disabled={pending} onClick={onAdd}>
+                <Plus className="h-3.5 w-3.5" /> Today
+              </Button>
+              <Button size="sm" variant="primary" disabled={pending} onClick={onDone}>
+                <Check className="h-3.5 w-3.5" /> Done
+              </Button>
+            </>
+          ) : (
+            <span className="text-xs font-medium text-good">✓ Completed</span>
+          )}
+        </div>
       </div>
     </Card>
   );
@@ -96,7 +107,7 @@ function TargetCard({ t, onAdd, pending }: { t: Target; onAdd: () => void; pendi
 export function GoalsClient(props: {
   today: DateStr;
   tomorrow: DateStr;
-  targets: Record<"week" | "month" | "quarter", Target[]>;
+  targets: Record<TargetPeriod, Target[]>;
   cadence: { id: number; title: string; project: string | null; daysSince: number; limit: number; overdue: boolean; snoozed: boolean }[];
   someday: { id: number; title: string; project: string | null; estimate: number | null }[];
 }) {
@@ -117,7 +128,7 @@ export function GoalsClient(props: {
     });
   }
 
-  const periods = (["week", "month", "quarter"] as const).filter((p) => props.targets[p].length > 0);
+  const periods = (["week", "month", "quarter", "year"] as const).filter((p) => props.targets[p].length > 0);
 
   return (
     <div className="space-y-8">
@@ -131,8 +142,11 @@ export function GoalsClient(props: {
         <h2 className="text-xs font-semibold uppercase tracking-wider text-subtle">Targets</h2>
         {periods.length === 0 ? (
           <Empty>
-            No targets yet. Add one from the bar above, for example <span className="font-mono text-fg">Finish proposal #w ~6h</span> (week),{" "}
-            <span className="font-mono text-fg">#m</span> (month) or <span className="font-mono text-fg">#q</span> (quarter).
+            No targets yet. Add one from the quick-add bar, e.g.{" "}
+            <span className="font-mono text-fg">Finish proposal #w ~6h</span> (week),{" "}
+            <span className="font-mono text-fg">#m</span> (month),{" "}
+            <span className="font-mono text-fg">#q</span> (quarter), or{" "}
+            <span className="font-mono text-fg">#y</span> (year).
           </Empty>
         ) : null}
         {periods.map((p) => (
@@ -140,7 +154,13 @@ export function GoalsClient(props: {
             <h3 className="text-sm font-medium">{PERIOD_LABEL[p]}</h3>
             <div className="grid gap-3 sm:grid-cols-2">
               {props.targets[p].map((t) => (
-                <TargetCard key={t.id} t={t} pending={pending} onAdd={() => act(() => addToDayAction(t.id, props.today), "Added to today.")} />
+                <TargetCard
+                  key={t.id}
+                  t={t}
+                  pending={pending}
+                  onAdd={() => act(() => addToDayAction(t.id, props.today), "Added to today.")}
+                  onDone={() => act(() => markTargetDoneAction(t.id), "Target marked as done! 🎉")}
+                />
               ))}
             </div>
           </div>

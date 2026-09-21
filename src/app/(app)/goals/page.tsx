@@ -34,7 +34,7 @@ export default async function GoalsPage() {
     <GoalsClient
       today={ctx.today}
       tomorrow={addDays(ctx.today, 1)}
-      targets={{ week: targets.week.map(shape), month: targets.month.map(shape), quarter: targets.quarter.map(shape) }}
+      targets={{ week: targets.week.map(shape), month: targets.month.map(shape), quarter: targets.quarter.map(shape), year: targets.year.map(shape) }}
       cadence={cadence.map((c) => ({
         id: c.task.id,
         title: c.task.title,
