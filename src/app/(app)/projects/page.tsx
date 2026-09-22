@@ -1,23 +1,45 @@
 import type { Metadata } from "next";
 import { ProjectsClient } from "@/components/projects/projects-client";
-import { listProjectSummaries, listTasksForProject } from "@/lib/services/projects";
+import { listTasksForProject } from "@/lib/services/projects";
 import { q } from "@/lib/db";
 
 export const metadata: Metadata = { title: "Projects" };
 export const dynamic = "force-dynamic";
 
 export default async function ProjectsPage() {
-  const [summaries, managed] = await Promise.all([
-    listProjectSummaries(),
-    q<{ id: number; name: string; color: string; archived: boolean }>(
-      "select id, name, color, archived from projects order by archived, lower(name)",
-    ),
-  ]);
+  // fetch all projects (including archived) with task counts
+  const rows = await q<{
+    id: number; name: string; color: string; archived: boolean;
+    active: number; done: number; dropped: number;
+  }>(
+    `select p.id, p.name, p.color, p.archived,
+       count(*) filter (where t.state = 'active')::int as active,
+       count(*) filter (where t.state = 'done')::int as done,
+       count(*) filter (where t.state = 'dropped')::int as dropped
+     from projects p
+     left join tasks t on t.project_id = p.id and t.type <> 'someday'
+     group by p.id
+     order by p.archived, lower(p.name)`,
+  );
+
   const tasksByProject: Record<number, Awaited<ReturnType<typeof listTasksForProject>>> = {};
   await Promise.all(
-    summaries.map(async (p) => {
-      tasksByProject[p.id] = await listTasksForProject(p.id);
+    rows.filter((r) => !r.archived).map(async (r) => {
+      tasksByProject[r.id] = await listTasksForProject(r.id);
     }),
   );
-  return <ProjectsClient projects={summaries} managed={managed} tasksByProject={tasksByProject} />;
+
+  const projects = rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    color: r.color,
+    archived: r.archived,
+    activeTasks: r.active,
+    doneTasks: r.done,
+    droppedTasks: r.dropped,
+    completionPct:
+      r.active + r.done === 0 ? null : Math.round((r.done / (r.active + r.done)) * 100),
+  }));
+
+  return <ProjectsClient projects={projects} tasksByProject={tasksByProject} />;
 }
