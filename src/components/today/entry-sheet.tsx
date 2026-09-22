@@ -6,14 +6,14 @@ import { useRouter } from "next/navigation";
 import { useOptimistic, useState, useTransition } from "react";
 import {
   appendNoteAction, clearMinutesAction, logMinutesAction, moveEntryAction, retryAction, setStatusAction,
-  toggleMustAction,
+  toggleMustAction, updateTaskAction,
 } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import { addDays, fmtDuration, type DateStr } from "@/lib/time";
 import type { EntryStatus } from "@/lib/types";
 import type { RowData } from "@/lib/view-types";
 import { useToast } from "../toast";
-import { Button, Chip, ErrorNote, Input, Sheet, Textarea } from "../ui";
+import { Button, Chip, ErrorNote, Input, Select, Sheet, Textarea } from "../ui";
 import { VoiceButton } from "../voice-button";
 import { StatusGlyph } from "./entry-row";
 
@@ -31,11 +31,13 @@ export function EntrySheet({
   onClose,
   today,
   voiceEnabled,
+  projects = [],
 }: {
   row: RowData | null;
   onClose: () => void;
   today: DateStr;
   voiceEnabled: boolean;
+  projects?: { id: number; name: string }[];
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -202,6 +204,25 @@ export function EntrySheet({
             <ArrowRight className="h-4 w-4" /> Move to tomorrow
           </Button>
         </div>
+        {projects.length > 0 ? (
+          <div>
+            <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-subtle">Project</p>
+            <Select
+              value={row.projectName ? String(projects.find((p) => p.name === row.projectName)?.id ?? "") : ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                const name = val === "" ? null : projects.find((p) => String(p.id) === val)?.name ?? null;
+                act(() => updateTaskAction(row.taskId, { project: name }), undefined);
+              }}
+            >
+              <option value="">No project</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </Select>
+          </div>
+        ) : null}
+
         <Link
           href={`/task/${row.taskId}`}
           className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium hover:bg-muted transition-colors"

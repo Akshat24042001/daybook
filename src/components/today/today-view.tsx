@@ -42,6 +42,7 @@ export function TodayView(props: {
   newSegmentDefault: string;
   voiceEnabled: boolean;
   targets: { id: number; title: string; met: boolean; behind: boolean; hasGoal: boolean; period: string }[];
+  projects: { id: number; name: string }[];
 }) {
   const { sections, state, date } = props;
   const router = useRouter();
@@ -297,7 +298,7 @@ export function TodayView(props: {
         </form>
       </Card>
 
-      <EntrySheet row={selectedRow} onClose={() => setSelected(null)} today={date} voiceEnabled={props.voiceEnabled} />
+      <EntrySheet row={selectedRow} onClose={() => setSelected(null)} today={date} voiceEnabled={props.voiceEnabled} projects={props.projects} />
       <SegmentsSheet
         open={segmentsOpen}
         onClose={() => setSegmentsOpen(false)}

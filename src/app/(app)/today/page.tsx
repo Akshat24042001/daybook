@@ -9,19 +9,21 @@ import { entriesForDate } from "@/lib/services/entries";
 import { currentState, segmentsForDate, workedForDate } from "@/lib/services/segments";
 import { toLocalInput, toRow, type RowData, type SegmentData } from "@/lib/view-types";
 import { listTargets } from "@/lib/services/goals";
+import { q } from "@/lib/db";
 
 export const metadata: Metadata = { title: "Today" };
 export const dynamic = "force-dynamic";
 
 export default async function TodayPage() {
   const ctx = await makeCtx();
-  const [entries, state, worked, day, segs, allTargets] = await Promise.all([
+  const [entries, state, worked, day, segs, allTargets, projects] = await Promise.all([
     entriesForDate(ctx.today),
     currentState(),
     workedForDate(ctx, ctx.today),
     getDay(ctx.today),
     segmentsForDate(ctx, ctx.today),
     listTargets(ctx),
+    q<{ id: number; name: string }>("select id, name from projects where archived = false order by lower(name)"),
   ]);
 
   const activeTargets = [...allTargets.week, ...allTargets.month, ...allTargets.quarter, ...allTargets.year]
@@ -56,6 +58,7 @@ export default async function TodayPage() {
       newSegmentDefault={toLocalInput(ctx, ctx.now)}
       voiceEnabled={voiceConfigured()}
       targets={activeTargets}
+      projects={projects}
     />
   );
 }
