@@ -447,3 +447,25 @@ export async function setTaskStateAction(id: number, state: "active" | "dropped"
     }
   }, ["/goals", "/today"]);
 }
+
+import { createContact, updateContact, deleteContact, type Contact } from "@/lib/services/contacts";
+
+export async function createContactAction(data: Omit<Contact, "id" | "created_at">) {
+  return run(async () => {
+    if (!data.name.trim()) throw new UserError("Name cannot be empty.");
+    await createContact({ ...data, name: data.name.trim() });
+  }, ["/contacts"]);
+}
+
+export async function updateContactAction(id: number, data: Partial<Omit<Contact, "id" | "created_at">>) {
+  return run(async () => {
+    if (data.name !== undefined && !data.name.trim()) throw new UserError("Name cannot be empty.");
+    await updateContact(id, data);
+  }, ["/contacts"]);
+}
+
+export async function deleteContactAction(id: number) {
+  return run(async () => {
+    await deleteContact(id);
+  }, ["/contacts"]);
+}
