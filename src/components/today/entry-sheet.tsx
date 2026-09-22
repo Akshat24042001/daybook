@@ -65,7 +65,7 @@ export function EntrySheet({
 
   if (!row) return <Sheet open={false} onOpenChange={onClose} title="Task">{null}</Sheet>;
   const isToday = row.date === today;
-  const tomorrow = addDays(row.date, 1);
+  const tomorrow = addDays(today, 1);
   const displayStatus = optimisticStatus ?? row.status;
 
   return (
@@ -200,6 +200,11 @@ export function EntrySheet({
           >
             <Star className={cn("h-4 w-4", row.mustDo && "fill-current")} /> {row.mustDo ? "Must-do" : "Make must-do"}
           </Button>
+          {!isToday ? (
+            <Button variant="outline" size="sm" disabled={pending} onClick={() => act(() => moveEntryAction(row.id, today), onClose)}>
+              <ArrowRight className="h-4 w-4" /> Move to today
+            </Button>
+          ) : null}
           <Button variant="outline" size="sm" disabled={pending} onClick={() => act(() => moveEntryAction(row.id, tomorrow), onClose)}>
             <ArrowRight className="h-4 w-4" /> Move to tomorrow
           </Button>
