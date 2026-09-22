@@ -2,10 +2,12 @@
 
 import { CheckCircle2, Circle, Clock, FolderOpen } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { createProjectAction, updateProjectAction } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import { fmtDuration } from "@/lib/time";
-import { Card, Chip, Empty, Progress } from "../ui";
+import { Button, Card, Chip, Empty, Input, Progress } from "../ui";
 import type { ProjectSummary, ProjectTask } from "@/lib/services/projects";
 
 function statusColor(state: string) {
@@ -124,18 +126,68 @@ function ProjectCard({
   );
 }
 
+function ManageProjectRow({
+  p,
+  pending,
+  onSave,
+}: {
+  p: { id: number; name: string; color: string; archived: boolean };
+  pending: boolean;
+  onSave: (patch: { name?: string; color?: string; archived?: boolean }) => void;
+}) {
+  const [name, setName] = useState(p.name);
+  const [color, setColor] = useState(p.color);
+  const dirty = name !== p.name || color !== p.color;
+  return (
+    <li className="flex items-center gap-2 rounded-xl border border-border bg-surface p-2">
+      <input
+        type="color"
+        value={color}
+        onChange={(e) => setColor(e.target.value)}
+        aria-label={`Colour for ${p.name}`}
+        className="h-9 w-10 shrink-0 cursor-pointer rounded-lg border border-border bg-transparent p-0.5"
+      />
+      <Input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        aria-label="Project name"
+        className={p.archived ? "opacity-60" : ""}
+      />
+      <Button size="sm" variant="primary" disabled={pending || !dirty} onClick={() => onSave({ name, color })}>
+        Save
+      </Button>
+      <Button size="sm" variant="ghost" disabled={pending} onClick={() => onSave({ archived: !p.archived })}>
+        {p.archived ? "Restore" : "Archive"}
+      </Button>
+    </li>
+  );
+}
+
 export function ProjectsClient({
   projects,
+  managed,
   tasksByProject,
 }: {
   projects: ProjectSummary[];
+  managed: { id: number; name: string; color: string; archived: boolean }[];
   tasksByProject: Record<number, ProjectTask[]>;
 }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [newProject, setNewProject] = useState("");
+
+  function call(fn: () => Promise<{ ok: boolean; error?: string }>) {
+    start(async () => {
+      await fn();
+      router.refresh();
+    });
+  }
+
   const active = projects.filter((p) => p.activeTasks > 0 || p.doneTasks > 0);
   const empty = projects.filter((p) => p.activeTasks === 0 && p.doneTasks === 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <header>
         <h1 className="font-display text-3xl">Projects</h1>
         <p className="mt-1 text-sm text-subtle">
@@ -143,11 +195,46 @@ export function ProjectsClient({
         </p>
       </header>
 
-      {projects.length === 0 ? (
-        <Empty>
-          No projects yet. Type a project name in the project field when adding a task — it is created automatically.
-        </Empty>
-      ) : (
+      {/* manage: rename, recolour, archive */}
+      <section className="space-y-3">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-subtle">Manage</h2>
+        {managed.length === 0 ? (
+          <p className="text-sm text-subtle">No projects yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {managed.map((p) => (
+              <ManageProjectRow
+                key={`${p.id}-${p.name}-${p.color}-${p.archived}`}
+                p={p}
+                pending={pending}
+                onSave={(patch) => call(() => updateProjectAction(p.id, patch))}
+              />
+            ))}
+          </ul>
+        )}
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!newProject.trim()) return;
+            call(() => createProjectAction(newProject));
+            setNewProject("");
+          }}
+        >
+          <Input
+            value={newProject}
+            onChange={(e) => setNewProject(e.target.value)}
+            placeholder="New project name"
+            aria-label="New project"
+          />
+          <Button type="submit" variant="outline" disabled={pending || !newProject.trim()}>
+            Add
+          </Button>
+        </form>
+      </section>
+
+      {/* progress overview */}
+      {projects.length > 0 ? (
         <>
           {active.length > 0 ? (
             <section className="space-y-3">
@@ -156,11 +243,7 @@ export function ProjectsClient({
               </h2>
               <div className="grid gap-3 sm:grid-cols-2">
                 {active.map((p) => (
-                  <ProjectCard
-                    key={p.id}
-                    project={p}
-                    tasks={tasksByProject[p.id] ?? []}
-                  />
+                  <ProjectCard key={p.id} project={p} tasks={tasksByProject[p.id] ?? []} />
                 ))}
               </div>
             </section>
@@ -185,6 +268,10 @@ export function ProjectsClient({
             </section>
           ) : null}
         </>
+      ) : (
+        <Empty>
+          No projects yet. Add one above or type <code>Name:</code> in the quick-add bar — it creates the project automatically.
+        </Empty>
       )}
     </div>
   );

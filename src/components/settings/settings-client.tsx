@@ -4,7 +4,7 @@ import { CheckCircle2, CircleAlert, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
-  createPersonAction, createProjectAction, testNotificationAction, updatePersonAction, updateProjectAction,
+  createPersonAction, testNotificationAction, updatePersonAction,
   updateSettingsAction,
 } from "@/app/actions";
 import type { SettingsPatch } from "@/lib/settings";
@@ -41,10 +41,9 @@ function Status({ ok, label, detail }: { ok: boolean; label: string; detail: str
 }
 
 export function SettingsClient({
-  settings, projects, people, types, status,
+  settings, people, types, status,
 }: {
   settings: S;
-  projects: { id: number; name: string; color: string; archived: boolean }[];
   people: { id: number; name: string; relation: string | null }[];
   types: ExerciseTypeData[];
   status: {
@@ -58,7 +57,6 @@ export function SettingsClient({
   const [error, setError] = useState<string | null>(null);
   const [s, setS] = useState<S>(settings);
   const set = <K extends keyof S>(k: K, v: S[K]) => setS((cur) => ({ ...cur, [k]: v }));
-  const [newProject, setNewProject] = useState("");
   const [newPerson, setNewPerson] = useState("");
   const [newRelation, setNewRelation] = useState("");
 
@@ -203,18 +201,6 @@ export function SettingsClient({
         <ExerciseTypes types={types} />
       </Block>
 
-      <Block title="Projects" hint="A project is created the first time you type Name: in the quick-add bar.">
-        <ul className="space-y-2">
-          {projects.map((p) => (
-            <ProjectRow key={`${p.id}-${p.name}-${p.color}-${p.archived}`} p={p} onSave={(patch) => call(() => updateProjectAction(p.id, patch), "Project updated.")} pending={pending} />
-          ))}
-        </ul>
-        <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); call(() => createProjectAction(newProject), "Project added."); setNewProject(""); }}>
-          <Input value={newProject} onChange={(e) => setNewProject(e.target.value)} placeholder="New project" aria-label="New project" />
-          <Button type="submit" variant="outline" disabled={pending || !newProject.trim()}>Add</Button>
-        </form>
-      </Block>
-
       <Block title="People" hint="Used for follow-ups (with) and personal requests (requested by).">
         <ul className="space-y-2">
           {people.map((p) => (
@@ -228,20 +214,6 @@ export function SettingsClient({
         </form>
       </Block>
     </div>
-  );
-}
-
-function ProjectRow({ p, onSave, pending }: { p: { id: number; name: string; color: string; archived: boolean }; onSave: (patch: { name?: string; color?: string; archived?: boolean }) => void; pending: boolean }) {
-  const [name, setName] = useState(p.name);
-  const [color, setColor] = useState(p.color);
-  const dirty = name !== p.name || color !== p.color;
-  return (
-    <li className="flex items-center gap-2 rounded-xl border border-border bg-surface p-2">
-      <input type="color" value={color} onChange={(e) => setColor(e.target.value)} aria-label={`Colour for ${p.name}`} className="h-9 w-10 shrink-0 cursor-pointer rounded-lg border border-border bg-transparent p-0.5" />
-      <Input value={name} onChange={(e) => setName(e.target.value)} aria-label="Project name" className={p.archived ? "opacity-60" : ""} />
-      <Button size="sm" variant="primary" disabled={pending || !dirty} onClick={() => onSave({ name, color })}>Save</Button>
-      <Button size="sm" variant="ghost" disabled={pending} onClick={() => onSave({ archived: !p.archived })}>{p.archived ? "Restore" : "Archive"}</Button>
-    </li>
   );
 }
 

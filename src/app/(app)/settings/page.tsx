@@ -12,8 +12,7 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const ctx = await makeCtx();
-  const [projects, people, types] = await Promise.all([
-    q<{ id: number; name: string; color: string; archived: boolean }>("select id, name, color, archived from projects order by archived, lower(name)"),
+  const [people, types] = await Promise.all([
     q<{ id: number; name: string; relation: string | null }>("select id, name, relation from people order by lower(name)"),
     listExerciseTypes(false),
   ]);
@@ -45,7 +44,6 @@ export default async function SettingsPage() {
         quiet_start: s.quiet_start,
         quiet_end: s.quiet_end,
       }}
-      projects={projects}
       people={people}
       types={types.map((t) => ({ id: t.id, name: t.name, defaultAmount: t.default_amount, unit: t.unit, active: t.active }))}
       status={{
