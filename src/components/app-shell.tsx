@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, ClipboardList, HeartPulse, Moon, Settings, Sun, Target } from "lucide-react";
+import { BarChart3, ClipboardList, FolderOpen, HeartPulse, Moon, Settings, Sun, Target } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -51,6 +51,10 @@ const NAV = [
   { href: "/stats", label: "Stats", Icon: BarChart3 },
 ] as const;
 
+const NAV_EXTRA = [
+  { href: "/projects", label: "Projects", Icon: FolderOpen },
+] as const;
+
 export function AppShell({
   tz,
   boundaryMin,
@@ -78,6 +82,21 @@ export function AppShell({
           </Link>
           <nav className="mt-6 flex flex-1 flex-col gap-1" aria-label="Main">
             {NAV.map(({ href, label, Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                aria-current={active(href) ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                  active(href) ? "bg-accent text-accent-fg" : "text-subtle hover:bg-muted hover:text-fg",
+                )}
+              >
+                <Icon className="h-[18px] w-[18px]" />
+                {label}
+              </Link>
+            ))}
+            <div className="my-1 border-t border-border/50" />
+            {NAV_EXTRA.map(({ href, label, Icon }) => (
               <Link
                 key={href}
                 href={href}

@@ -7,6 +7,7 @@ import type { TaskType } from "../types";
 import { mustDoStreak, planningStreak } from "./days";
 import { listExerciseTypes } from "./health";
 import { listCadence, targetsBehind } from "./goals";
+import { projectProgressForStats } from "./projects";
 
 export interface StatsFilters {
   from: DateStr;
@@ -170,6 +171,7 @@ export interface Stats {
   }[];
   weekday: { dow: number; label: string; avgScore: number | null; avgDone: number | null; avgHours: number | null; days: number }[];
   hoursByProject: { id: number | null; name: string; color: string; minutes: number }[];
+  projectProgress: { id: number; name: string; color: string; totalTasks: number; doneTasks: number; completionPct: number }[];
   drill: { date: DateStr; taskId: number; title: string; minutes: number }[];
   estimateVsActual: { taskId: number; title: string; estimate: number; actual: number }[];
   rotting: { id: number; title: string; carry: number; project: string | null }[];
@@ -267,6 +269,8 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
   });
 
   // ---- filtered task-derived tables
+  const [projectProgress] = await Promise.all([projectProgressForStats(from, to)]);
+
   const p3: unknown[] = [from, to];
   const tf3 = taskFilter(f, p3);
   const byProject = await q<{ id: number | null; name: string; color: string | null; minutes: number }>(
@@ -482,6 +486,7 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
     series,
     weekday,
     hoursByProject: byProject.map((r) => ({ id: r.id, name: r.name, color: r.color ?? "#94a3b8", minutes: r.minutes })),
+    projectProgress,
     drill,
     estimateVsActual: est,
     rotting: rot,

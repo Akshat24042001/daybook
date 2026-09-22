@@ -282,6 +282,32 @@ export function StatsView({
         ) : null}
       </Section>
 
+      <Section title="Project progress" hint="Task completion per project. Done count is tasks closed in this date range; total includes active tasks." id="project-progress">
+        {stats.projectProgress.length === 0 ? (
+          <Empty>No projects with tasks yet. Assign a project when creating a task.</Empty>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {stats.projectProgress.map((p) => (
+              <Card key={p.id} className="p-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: p.color }} />
+                    <Link href={`/projects`} className="truncate text-sm font-medium hover:underline">{p.name}</Link>
+                  </div>
+                  <span className={cn("shrink-0 text-xs font-semibold tabular", p.completionPct === 100 ? "text-good" : p.completionPct >= 50 ? "text-accent" : "text-subtle")}>
+                    {p.completionPct}%
+                  </span>
+                </div>
+                <Progress className="mt-2" value={p.completionPct / 100} tone={p.completionPct >= 80 ? "accent" : p.completionPct >= 40 ? "accent" : "warn"} />
+                <p className="mt-1.5 text-xs text-subtle">
+                  {p.doneTasks} done in period · {p.totalTasks} total tasks
+                </p>
+              </Card>
+            ))}
+          </div>
+        )}
+      </Section>
+
       <Section title="Estimate vs actual" hint="Tasks with an estimate that had time logged in this range.">
         {stats.estimateVsActual.length === 0 ? (
           <Empty>Add estimates with <span className="font-mono text-fg">~2h</span> and log minutes to compare.</Empty>
