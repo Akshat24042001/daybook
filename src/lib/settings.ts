@@ -59,6 +59,8 @@ const HM_FIELDS = [
   "quiet_start", "quiet_end",
 ] as const;
 
+const NULLABLE_HM_FIELDS = ["lunch_start", "lunch_end"] as const;
+
 const NUM_FIELDS: Record<string, [number, number]> = {
   exercise_interval_min: [5, 240],
   task_lead_min: [0, 240],
@@ -111,6 +113,16 @@ export async function updateSettings(patch: SettingsPatch): Promise<Settings> {
     add("working_days", days);
   }
   if (patch.exercise_paused !== undefined) add("exercise_paused", !!patch.exercise_paused);
+  for (const f of NULLABLE_HM_FIELDS) {
+    const v = (patch as Record<string, unknown>)[f];
+    if (v === undefined) continue;
+    if (v === null || v === "") { add(f, null); continue; }
+    const s = String(v);
+    if (!/^\d{1,2}:\d{2}$/.test(s)) throw new UserError(`${f.replace(/_/g, " ")} must look like HH:MM.`);
+    const [h, m] = s.split(":").map(Number);
+    if (h > 23 || m > 59) throw new UserError(`${f.replace(/_/g, " ")} is not a valid time.`);
+    add(f, `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+  }
   if (sets.length) await q(`update settings set ${sets.join(", ")} where id = 1`, vals);
   return getSettings();
 }

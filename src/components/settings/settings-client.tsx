@@ -87,6 +87,15 @@ export function SettingsClient({
       <Input type="time" value={String(s[k])} onChange={(e) => set(k, e.target.value as S[typeof k])} />
     </Field>
   );
+  const nullableTime = (label: string, k: "lunch_start" | "lunch_end", hint?: string) => (
+    <Field label={label} hint={hint}>
+      <Input
+        type="time"
+        value={s[k] ?? ""}
+        onChange={(e) => setS((cur) => ({ ...cur, [k]: e.target.value || null }))}
+      />
+    </Field>
+  );
   const number = (label: string, k: keyof S, hint?: string) => (
     <Field label={label} hint={hint}>
       <Input inputMode="decimal" value={String(s[k])} onChange={(e) => set(k, e.target.value.replace(/[^\d.]/g, "") as unknown as S[typeof k])} />
@@ -181,6 +190,10 @@ export function SettingsClient({
             {time("First ping", "exercise_start")}
             {time("Last ping", "exercise_end")}
             {number("Every (minutes)", "exercise_interval_min")}
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {nullableTime("Lunch break start", "lunch_start", "Pings are skipped during this window. Clear to disable.")}
+            {nullableTime("Lunch break end", "lunch_end")}
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={s.exercise_paused} onChange={(e) => set("exercise_paused", e.target.checked)} className="h-4 w-4 accent-[hsl(var(--accent))]" />

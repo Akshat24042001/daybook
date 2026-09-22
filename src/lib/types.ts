@@ -30,6 +30,8 @@ export interface Settings {
   step_goal: number;
   quiet_start: string;
   quiet_end: string;
+  lunch_start: string | null;
+  lunch_end: string | null;
   telegram_chat_id: number | null;
   owner_user_id: string | null;
   last_tick_at: Date | null;

@@ -43,6 +43,8 @@ export default async function SettingsPage() {
         step_goal: s.step_goal,
         quiet_start: s.quiet_start,
         quiet_end: s.quiet_end,
+        lunch_start: s.lunch_start,
+        lunch_end: s.lunch_end,
       }}
       people={people}
       types={types.map((t) => ({ id: t.id, name: t.name, defaultAmount: t.default_amount, unit: t.unit, active: t.active }))}

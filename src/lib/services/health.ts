@@ -67,13 +67,19 @@ export async function updateExerciseType(id: number, input: ExerciseTypeInput & 
   );
 }
 
-/** Slot instants for a logical day, from the exercise window and interval in settings. */
+/** Slot instants for a logical day, from the exercise window and interval in settings.
+ *  Slots that fall within the lunch break window (inclusive start, exclusive end) are skipped. */
 export function exerciseSlots(ctx: Ctx, date: DateStr): Date[] {
   const start = parseHM(ctx.s.exercise_start);
   const end = parseHM(ctx.s.exercise_end);
   const step = ctx.s.exercise_interval_min;
+  const lunchStart = ctx.s.lunch_start ? parseHM(ctx.s.lunch_start) : null;
+  const lunchEnd = ctx.s.lunch_end ? parseHM(ctx.s.lunch_end) : null;
   const out: Date[] = [];
-  for (let m = start; m <= end; m += step) out.push(atLogical(date, m, ctx.tz, ctx.boundaryMin));
+  for (let m = start; m <= end; m += step) {
+    if (lunchStart !== null && lunchEnd !== null && m >= lunchStart && m < lunchEnd) continue;
+    out.push(atLogical(date, m, ctx.tz, ctx.boundaryMin));
+  }
   return out;
 }
 
