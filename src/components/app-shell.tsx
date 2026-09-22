@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, ClipboardList, FolderOpen, HeartPulse, Moon, Settings, Sun, Target, Users } from "lucide-react";
+import { BarChart3, BookMarked, ClipboardList, FolderOpen, HeartPulse, Moon, Settings, Sun, Target, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -54,6 +54,7 @@ const NAV = [
 const NAV_EXTRA = [
   { href: "/projects", label: "Projects", Icon: FolderOpen },
   { href: "/contacts", label: "Contacts", Icon: Users },
+  { href: "/refs", label: "References", Icon: BookMarked },
 ] as const;
 
 export function AppShell({

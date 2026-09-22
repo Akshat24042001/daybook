@@ -469,3 +469,25 @@ export async function deleteContactAction(id: number) {
     await deleteContact(id);
   }, ["/contacts"]);
 }
+
+import { createRef, updateRef, deleteRef, type Ref } from "@/lib/services/refs";
+
+export async function createRefAction(data: Omit<Ref, "id" | "created_at">) {
+  return run(async () => {
+    if (!data.title.trim()) throw new UserError("Title cannot be empty.");
+    await createRef(data);
+  }, ["/refs"]);
+}
+
+export async function updateRefAction(id: number, data: Partial<Omit<Ref, "id" | "created_at">>) {
+  return run(async () => {
+    if (data.title !== undefined && !data.title.trim()) throw new UserError("Title cannot be empty.");
+    await updateRef(id, data);
+  }, ["/refs"]);
+}
+
+export async function deleteRefAction(id: number) {
+  return run(async () => {
+    await deleteRef(id);
+  }, ["/refs"]);
+}
