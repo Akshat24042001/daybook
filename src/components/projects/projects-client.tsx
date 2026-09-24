@@ -1,11 +1,11 @@
 "use client";
 
 import {
-  Archive, CheckCircle2, ChevronDown, Circle, Clock, FolderOpen, Plus, RotateCcw,
+  Archive, CheckCircle2, ChevronDown, Circle, Clock, FolderOpen, Plus, RotateCcw, Search, X,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { createProjectAction, updateProjectAction } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import { fmtDuration } from "@/lib/time";
@@ -199,24 +199,77 @@ export function ProjectsClient({
   const [pending, start] = useTransition();
   const [newProject, setNewProject] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // "/" jumps to search, like most apps; ignored while typing in another field
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (e.key !== "/" || t.closest("input, textarea, select, [contenteditable=true]")) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   function call(fn: () => Promise<{ ok: boolean; error?: string }>) {
     start(async () => { await fn(); router.refresh(); });
   }
 
-  const active = projects.filter((p) => !p.archived);
-  const archived = projects.filter((p) => p.archived);
+  const q = query.trim().toLowerCase();
+  // a project matches on its own name or on any of its task titles
+  const matches = (p: Project) =>
+    !q || p.name.toLowerCase().includes(q) || (tasksByProject[p.id] ?? []).some((t) => t.title.toLowerCase().includes(q));
+  const active = projects.filter((p) => !p.archived && matches(p));
+  const archived = projects.filter((p) => p.archived && matches(p));
+  const archivedOpen = showArchived || !!q;
+  const shown = active.length + archived.length;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl">Projects</h1>
           <p className="mt-1 text-sm text-subtle">
             Type <code className="rounded bg-muted px-1 py-0.5 text-xs">Name:</code> in the quick-add bar to create a project automatically.
           </p>
         </div>
+        {projects.length > 0 ? (
+          <div className="relative w-full sm:w-80">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" aria-hidden />
+            <Input
+              ref={searchRef}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Escape" && setQuery("")}
+              placeholder="Search projects and tasks"
+              aria-label="Search projects and tasks"
+              className="pl-9 pr-16 [&::-webkit-search-cancel-button]:hidden"
+            />
+            {query ? (
+              <button
+                type="button"
+                onClick={() => { setQuery(""); searchRef.current?.focus(); }}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-subtle hover:bg-muted hover:text-fg"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            ) : (
+              <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded border border-border px-1.5 text-[10px] font-medium text-subtle">/</kbd>
+            )}
+          </div>
+        ) : null}
       </div>
+
+      {q ? (
+        <p className="-mt-2 text-sm text-subtle">
+          {shown === 0 ? <>No project or task matches <strong className="text-fg">{query.trim()}</strong>.</> : <>{shown} of {projects.length} project{projects.length === 1 ? "" : "s"} match</>}
+        </p>
+      ) : null}
 
       {projects.length === 0 ? (
         <Empty>
@@ -273,10 +326,10 @@ export function ProjectsClient({
             onClick={() => setShowArchived((v) => !v)}
             className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-subtle hover:text-fg transition-colors"
           >
-            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showArchived && "rotate-180")} />
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", archivedOpen && "rotate-180")} />
             Archived · {archived.length}
           </button>
-          {showArchived ? (
+          {archivedOpen ? (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {archived.map((p) => (
                 <ProjectCard

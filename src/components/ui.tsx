@@ -2,8 +2,9 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
-import { X } from "lucide-react";
+import { Check, ChevronDown, X } from "lucide-react";
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 
 const buttonVariants = cva(
@@ -166,12 +167,251 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTML
   },
 );
 
-export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+interface SelectOption {
+  value: string;
+  label: React.ReactNode;
+  text: string;
+  disabled: boolean;
+}
+
+function textOf(node: React.ReactNode): string {
+  if (node === null || node === undefined || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join("");
+  if (React.isValidElement<{ children?: React.ReactNode }>(node)) return textOf(node.props.children);
+  return "";
+}
+
+/** Flattens <option> children (including fragments and mapped arrays) into plain data. */
+function readOptions(children: React.ReactNode): SelectOption[] {
+  const out: SelectOption[] = [];
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement<{ value?: string | number; children?: React.ReactNode; disabled?: boolean }>(child)) return;
+    if (child.type === React.Fragment) {
+      out.push(...readOptions(child.props.children));
+      return;
+    }
+    if (child.type !== "option") return;
+    const text = textOf(child.props.children);
+    out.push({
+      value: child.props.value === undefined ? text : String(child.props.value),
+      label: child.props.children,
+      text,
+      disabled: !!child.props.disabled,
+    });
+  });
+  return out;
+}
+
+/**
+ * A themed dropdown with the same API as a native <select> (value, onChange(e.target.value), <option> children),
+ * so it drops in anywhere. The list renders inside the nearest open dialog so Radix's focus trap keeps it usable.
+ */
+export function Select({
+  className,
+  children,
+  value,
+  defaultValue,
+  onChange,
+  disabled,
+  name,
+  id,
+  "aria-label": ariaLabel,
+}: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  const options = React.useMemo(() => readOptions(children), [children]);
+  const [inner, setInner] = React.useState(defaultValue === undefined ? options[0]?.value ?? "" : String(defaultValue));
+  const current = value === undefined ? inner : String(value);
+  const selected = options.find((o) => o.value === current) ?? null;
+
+  const [open, setOpen] = React.useState(false);
+  const [active, setActive] = React.useState(0);
+  const [pos, setPos] = React.useState<{ left: number; top: number; width: number; maxHeight: number; up: boolean } | null>(null);
+  const [host, setHost] = React.useState<HTMLElement | null>(null);
+  const trigger = React.useRef<HTMLButtonElement>(null);
+  const list = React.useRef<HTMLUListElement>(null);
+  const typed = React.useRef({ text: "", at: 0 });
+  const listId = React.useId();
+
+  const place = React.useCallback(() => {
+    const el = trigger.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const below = window.innerHeight - r.bottom - 12;
+    const above = r.top - 12;
+    const up = below < 180 && above > below;
+    setPos({
+      left: Math.min(r.left, window.innerWidth - Math.max(r.width, 176) - 8),
+      top: up ? r.top - 6 : r.bottom + 6,
+      width: Math.max(r.width, 176),
+      maxHeight: Math.min(288, up ? above : below),
+      up,
+    });
+  }, []);
+
+  function show() {
+    if (disabled) return;
+    const idx = Math.max(0, options.findIndex((o) => o.value === current));
+    setActive(idx);
+    setHost((trigger.current?.closest('[role="dialog"]') as HTMLElement | null) ?? document.body);
+    place();
+    setOpen(true);
+  }
+
+  function choose(o: SelectOption) {
+    if (o.disabled) return;
+    setOpen(false);
+    trigger.current?.focus();
+    if (o.value === current) return;
+    if (value === undefined) setInner(o.value);
+    onChange?.({ target: { value: o.value, name }, currentTarget: { value: o.value, name } } as unknown as React.ChangeEvent<HTMLSelectElement>);
+  }
+
+  function move(from: number, step: number) {
+    for (let i = 1; i <= options.length; i++) {
+      const n = (from + step * i + options.length) % options.length;
+      if (!options[n].disabled) return n;
+    }
+    return from;
+  }
+
+  function onKey(e: React.KeyboardEvent) {
+    if (!open) {
+      if (["ArrowDown", "ArrowUp", "Enter", " "].includes(e.key)) {
+        e.preventDefault();
+        show();
+      }
+      return;
+    }
+    if (e.key === "Escape" || e.key === "Tab") {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation(); // close the list, not the surrounding dialog
+      }
+      setOpen(false);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActive((a) => move(a, 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActive((a) => move(a, -1));
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setActive(move(-1, 1));
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setActive(move(options.length, -1));
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      if (options[active]) choose(options[active]);
+    } else if (e.key.length === 1) {
+      const now = Date.now();
+      typed.current = { text: (now - typed.current.at < 600 ? typed.current.text : "") + e.key.toLowerCase(), at: now };
+      const hit = options.findIndex((o) => !o.disabled && o.text.toLowerCase().startsWith(typed.current.text));
+      if (hit >= 0) setActive(hit);
+    }
+  }
+
+  React.useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (!trigger.current?.contains(t) && !list.current?.contains(t)) setOpen(false);
+    };
+    // follow the trigger when the page scrolls; close only once it has left the screen
+    const onScroll = (e: Event) => {
+      if (list.current?.contains(e.target as Node)) return;
+      const r = trigger.current?.getBoundingClientRect();
+      if (!r || r.bottom < 0 || r.top > window.innerHeight) setOpen(false);
+      else place();
+    };
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, place]);
+
+  React.useEffect(() => {
+    if (open) list.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [open, active]);
+
   return (
-    <select
-      className={cn(inputClass, "styled-select appearance-none cursor-pointer", className)}
-      {...props}
-    />
+    <>
+      <button
+        ref={trigger}
+        id={id}
+        type="button"
+        role="combobox"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        aria-activedescendant={open ? `${listId}-${active}` : undefined}
+        aria-label={ariaLabel}
+        disabled={disabled}
+        onClick={() => (open ? setOpen(false) : show())}
+        onKeyDown={onKey}
+        className={cn(
+          inputClass,
+          "relative flex cursor-pointer items-center gap-2 pr-9 text-left disabled:cursor-not-allowed disabled:opacity-50",
+          open && "border-accent/60 ring-2 ring-accent/20",
+          className,
+        )}
+      >
+        <span className={cn("min-w-0 flex-1 truncate", !selected && "text-subtle")}>{selected?.label ?? "Select…"}</span>
+        <ChevronDown className={cn("absolute right-3 h-4 w-4 shrink-0 text-subtle transition-transform", open && "rotate-180")} aria-hidden />
+      </button>
+      {name ? <input type="hidden" name={name} value={current} /> : null}
+      {open && pos && host
+        ? createPortal(
+            <ul
+              ref={list}
+              id={listId}
+              role="listbox"
+              aria-label={ariaLabel}
+              onKeyDown={onKey}
+              style={{
+                position: "fixed",
+                left: pos.left,
+                width: pos.width,
+                maxHeight: pos.maxHeight,
+                ...(pos.up ? { bottom: window.innerHeight - pos.top } : { top: pos.top }),
+                pointerEvents: "auto",
+              }}
+              className="dropdown-in z-[60] overflow-y-auto rounded-xl border border-border bg-surface p-1 text-sm shadow-[var(--shadow-lg)]"
+            >
+              {options.map((o, i) => {
+                const isSel = o.value === current;
+                return (
+                  <li
+                    key={`${o.value}-${i}`}
+                    id={`${listId}-${i}`}
+                    data-index={i}
+                    role="option"
+                    aria-selected={isSel}
+                    aria-disabled={o.disabled || undefined}
+                    onPointerMove={() => !o.disabled && setActive(i)}
+                    onPointerDown={(e) => e.preventDefault()}
+                    onClick={() => choose(o)}
+                    className={cn(
+                      "flex cursor-pointer select-none items-center gap-2 rounded-lg px-2.5 py-2",
+                      i === active && "bg-muted",
+                      isSel ? "font-medium text-accent" : "text-fg",
+                      o.disabled && "cursor-not-allowed opacity-40",
+                    )}
+                  >
+                    <span className="min-w-0 flex-1 truncate">{o.label}</span>
+                    {isSel ? <Check className="h-4 w-4 shrink-0" aria-hidden /> : null}
+                  </li>
+                );
+              })}
+            </ul>,
+            host,
+          )
+        : null}
+    </>
   );
 }
 

@@ -34,11 +34,12 @@ interface Target {
 
 const PERIOD_LABEL: Record<TargetPeriod, string> = { week: "This week", month: "This month", quarter: "This quarter", year: "This year" };
 
-const PERIOD_COLOR: Record<TargetPeriod, { bg: string; text: string; border: string }> = {
-  week:    { bg: "bg-accent/10",  text: "text-accent",  border: "border-l-accent" },
-  month:   { bg: "bg-good/10",   text: "text-good",    border: "border-l-good" },
-  quarter: { bg: "bg-warn/10",   text: "text-warn",    border: "border-l-warn" },
-  year:    { bg: "bg-subtle/10", text: "text-fg",      border: "border-l-fg/40" },
+// A small dot identifies each period; the heading itself stays in normal text colour.
+const PERIOD_DOT: Record<TargetPeriod, string> = {
+  week: "bg-accent",
+  month: "bg-good",
+  quarter: "bg-warn",
+  year: "bg-subtle",
 };
 
 function TargetCard({ t, onAdd, onDone, pending }: { t: Target; onAdd: () => void; onDone: () => void; pending: boolean }) {
@@ -158,9 +159,11 @@ export function GoalsClient(props: {
         ) : null}
         {periods.map((p) => (
           <div key={p} className="space-y-2">
-            <div className={cn("flex items-center gap-2 rounded-xl border-l-4 px-3 py-2", PERIOD_COLOR[p].bg, PERIOD_COLOR[p].border)}>
-              <h3 className={cn("text-sm font-semibold uppercase tracking-wide", PERIOD_COLOR[p].text)}>{PERIOD_LABEL[p]}</h3>
-              <span className="text-xs text-subtle">{props.targets[p].length} target{props.targets[p].length !== 1 ? "s" : ""}</span>
+            <div className="flex items-center gap-2.5">
+              <span className={cn("h-2 w-2 shrink-0 rounded-full", PERIOD_DOT[p])} aria-hidden />
+              <h3 className="text-sm font-semibold text-fg">{PERIOD_LABEL[p]}</h3>
+              <span className="tabular rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-subtle">{props.targets[p].length}</span>
+              <span className="h-px flex-1 bg-border" aria-hidden />
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {props.targets[p].map((t) => (
