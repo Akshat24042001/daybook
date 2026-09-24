@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import type { Stats } from "@/lib/services/stats";
 import { fmtDateShort, fmtDuration, type DateStr } from "@/lib/time";
 import { Card, Chip, Empty, Input, Progress, Select } from "../ui";
-import { DoneChart, Heatmap, ProjectBars, ScoreHoursChart, SetsChart, StepsChart, WeekdayChart } from "./charts";
+import { DoneChart, Heatmap, ProjectBars, ScoreHoursChart, SetsChart, StepsChart, UnaccountedChart, WeekdayChart } from "./charts";
 
 const TYPE_OPTIONS = [
   ["one_off", "One-off"], ["ongoing", "Ongoing"], ["follow_up", "Follow-up"], ["cadence", "Cadence"],
@@ -226,15 +226,33 @@ export function StatsView({
         </Section>
       </div>
 
-      <Section title="Score and hours worked" hint="The gut score next to measurable reality. The dashed line is the 7-day average.">
-        <Card className="p-3"><ScoreHoursChart series={stats.series} /></Card>
+      {/* ── Daily trends ─────────────────────────────────────────── */}
+      <Section title="Daily trends" hint="Score, hours, unaccounted time, and tasks done over the selected range.">
+        <div className="space-y-3">
+          <Card className="p-3">
+            <p className="mb-1 text-xs font-medium text-subtle">Score and hours worked</p>
+            <ScoreHoursChart series={stats.series} />
+          </Card>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Card className="p-3">
+              <p className="mb-1 text-xs font-medium text-subtle">Unaccounted time per day</p>
+              <p className="mb-2 text-[11px] text-subtle">Worked time not logged on any task. Bars above 20% are amber.</p>
+              <UnaccountedChart series={stats.series} />
+            </Card>
+            <Card className="p-3">
+              <p className="mb-1 text-xs font-medium text-subtle">Tasks completed per day</p>
+              <DoneChart series={stats.series} />
+            </Card>
+          </div>
+          <Card className="p-3">
+            <p className="mb-1 text-xs font-medium text-subtle">Score heatmap — one square per day, darker is higher</p>
+            <Heatmap data={stats.heatmap} />
+          </Card>
+        </div>
       </Section>
 
-      <Section title="Tasks completed" hint="Tasks marked Done each day, with the 7-day trend.">
-        <Card className="p-3"><DoneChart series={stats.series} /></Card>
-      </Section>
-
-      <Section title="Which days work best" hint="Averages by weekday over this range. The darkest bar is the best day.">
+      {/* ── Weekday patterns ─────────────────────────────────────── */}
+      <Section title="Weekday patterns" hint="Averages by weekday over this range. The darkest bar is the best day.">
         <div className="grid gap-3 sm:grid-cols-3">
           <Card className="p-3"><p className="mb-1 text-xs font-medium text-subtle">Average score</p><WeekdayChart data={stats.weekday} metric="avgScore" label="Average score" /></Card>
           <Card className="p-3"><p className="mb-1 text-xs font-medium text-subtle">Tasks done</p><WeekdayChart data={stats.weekday} metric="avgDone" label="Tasks done" /></Card>
@@ -242,11 +260,13 @@ export function StatsView({
         </div>
       </Section>
 
-      <Section title="Hours by project" hint="Click a bar to see every task and the minutes logged, day by day." id="projects">
+      {/* ── Projects ─────────────────────────────────────────────── */}
+      <Section title="Projects" hint="Time logged and task completion per project." id="projects">
         {stats.hoursByProject.length === 0 ? (
           <Empty>No minutes logged in this range.</Empty>
         ) : (
           <Card className="p-3">
+            <p className="mb-1 text-xs font-medium text-subtle">Hours by project — click a bar to drill in</p>
             <ProjectBars
               data={stats.hoursByProject}
               active={drill}
@@ -280,19 +300,14 @@ export function StatsView({
             )}
           </Card>
         ) : null}
-      </Section>
-
-      <Section title="Project progress" hint="Task completion per project. Done count is tasks closed in this date range; total includes active tasks." id="project-progress">
-        {stats.projectProgress.length === 0 ? (
-          <Empty>No projects with tasks yet. Assign a project when creating a task.</Empty>
-        ) : (
+        {stats.projectProgress.length > 0 ? (
           <div className="grid gap-2 sm:grid-cols-2">
             {stats.projectProgress.map((p) => (
               <Card key={p.id} className="p-3.5">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: p.color }} />
-                    <Link href={`/projects`} className="truncate text-sm font-medium hover:underline">{p.name}</Link>
+                    <Link href="/projects" className="truncate text-sm font-medium hover:underline">{p.name}</Link>
                   </div>
                   <span className={cn("shrink-0 text-xs font-semibold tabular", p.completionPct === 100 ? "text-good" : p.completionPct >= 50 ? "text-accent" : "text-subtle")}>
                     {p.completionPct}%
@@ -305,80 +320,81 @@ export function StatsView({
               </Card>
             ))}
           </div>
-        )}
+        ) : null}
       </Section>
 
-      <Section title="Estimate vs actual" hint="Tasks with an estimate that had time logged in this range.">
-        {stats.estimateVsActual.length === 0 ? (
-          <Empty>Add estimates with <span className="font-mono text-fg">~2h</span> and log minutes to compare.</Empty>
-        ) : (
-          <Card className="divide-y divide-border">
-            {stats.estimateVsActual.map((e) => {
-              const ratio = e.actual / e.estimate;
-              const max = Math.max(e.actual, e.estimate);
-              return (
-                <div key={e.taskId} className="p-3">
-                  <div className="flex items-center justify-between gap-3 text-sm">
-                    <Link href={`/task/${e.taskId}`} className="truncate font-medium hover:underline">{e.title}</Link>
-                    <span className={cn("tabular shrink-0 text-xs font-medium", ratio > 1.25 ? "text-bad" : ratio < 0.75 ? "text-good" : "text-subtle")}>{ratio.toFixed(1)}×</span>
-                  </div>
-                  <div className="mt-1.5 space-y-1">
-                    <div className="flex items-center gap-2"><span className="w-14 text-[11px] text-subtle">Estimate</span><Progress className="h-1.5 flex-1" value={e.estimate / max} /><span className="tabular w-14 text-right text-xs">{fmtDuration(e.estimate)}</span></div>
-                    <div className="flex items-center gap-2"><span className="w-14 text-[11px] text-subtle">Actual</span><Progress className="h-1.5 flex-1" tone={ratio > 1.25 ? "bad" : "accent"} value={e.actual / max} /><span className="tabular w-14 text-right text-xs">{fmtDuration(e.actual)}</span></div>
-                  </div>
-                </div>
-              );
-            })}
-          </Card>
-        )}
-      </Section>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Section title="Rotting" hint="Active tasks carried over most often." id="rotting">
-          {stats.rotting.length === 0 ? (
-            <Empty>Nothing is being carried over.</Empty>
-          ) : (
-            <Card className="divide-y divide-border">
-              {stats.rotting.map((r) => (
-                <Link key={r.id} href={`/task/${r.id}`} className="flex items-center justify-between gap-3 p-3 hover:bg-muted">
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium">{r.title}</span>
-                    {r.project ? <span className="text-xs text-subtle">{r.project}</span> : null}
-                  </span>
-                  <span className={cn("tabular shrink-0 rounded-full px-2 py-0.5 text-xs font-medium", r.carry >= 3 ? "bg-bad/15 text-bad" : "bg-warn/15 text-warn")}>{r.carry}×</span>
-                </Link>
-              ))}
-            </Card>
+      {/* ── Task quality ─────────────────────────────────────────── */}
+      <Section title="Task quality" hint="Estimate accuracy, task rot, and cadence habits.">
+        <div className="space-y-3">
+          {stats.estimateVsActual.length === 0 ? null : (
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-subtle">Estimate vs actual</p>
+              <Card className="divide-y divide-border">
+                {stats.estimateVsActual.map((e) => {
+                  const ratio = e.actual / e.estimate;
+                  const max = Math.max(e.actual, e.estimate);
+                  return (
+                    <div key={e.taskId} className="p-3">
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <Link href={`/task/${e.taskId}`} className="truncate font-medium hover:underline">{e.title}</Link>
+                        <span className={cn("tabular shrink-0 text-xs font-medium", ratio > 1.25 ? "text-bad" : ratio < 0.75 ? "text-good" : "text-subtle")}>{ratio.toFixed(1)}×</span>
+                      </div>
+                      <div className="mt-1.5 space-y-1">
+                        <div className="flex items-center gap-2"><span className="w-14 text-[11px] text-subtle">Estimate</span><Progress className="h-1.5 flex-1" value={e.estimate / max} /><span className="tabular w-14 text-right text-xs">{fmtDuration(e.estimate)}</span></div>
+                        <div className="flex items-center gap-2"><span className="w-14 text-[11px] text-subtle">Actual</span><Progress className="h-1.5 flex-1" tone={ratio > 1.25 ? "bad" : "accent"} value={e.actual / max} /><span className="tabular w-14 text-right text-xs">{fmtDuration(e.actual)}</span></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </Card>
+            </div>
           )}
-        </Section>
-
-        <Section title="Cadence adherence" hint="How often each habit was actually done against its target.">
-          {stats.cadence.length === 0 ? (
-            <Empty>No cadence tasks.</Empty>
-          ) : (
-            <Card className="divide-y divide-border">
-              {stats.cadence.map((c) => (
-                <div key={c.id} className="p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <Link href={`/task/${c.id}`} className="truncate text-sm font-medium hover:underline">{c.title}</Link>
-                    <span className="tabular shrink-0 text-xs text-subtle">target every {c.target}d</span>
-                  </div>
-                  <p className="tabular mt-0.5 text-xs text-subtle">
-                    {c.avgInterval === null ? `${c.doneCount} done in range, not enough for an interval` : `actually every ${c.avgInterval.toFixed(1)} days (${c.doneCount} done)`}
-                    {c.daysSince !== null ? ` · last done ${c.daysSince}d ago` : ""}
-                  </p>
-                  {c.avgInterval !== null ? <Progress className="mt-1.5 h-1.5" value={Math.min(1, c.target / c.avgInterval)} tone={c.avgInterval > c.target ? "warn" : "accent"} /> : null}
-                </div>
-              ))}
-            </Card>
-          )}
-        </Section>
-      </div>
-
-      <Section title="Score heatmap" hint="One square per day, darker is higher.">
-        <Card className="p-3"><Heatmap data={stats.heatmap} /></Card>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-subtle">Rotting tasks</p>
+              {stats.rotting.length === 0 ? (
+                <Empty>Nothing is being carried over.</Empty>
+              ) : (
+                <Card className="divide-y divide-border">
+                  {stats.rotting.map((r) => (
+                    <Link key={r.id} href={`/task/${r.id}`} className="flex items-center justify-between gap-3 p-3 hover:bg-muted">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium">{r.title}</span>
+                        {r.project ? <span className="text-xs text-subtle">{r.project}</span> : null}
+                      </span>
+                      <span className={cn("tabular shrink-0 rounded-full px-2 py-0.5 text-xs font-medium", r.carry >= 3 ? "bg-bad/15 text-bad" : "bg-warn/15 text-warn")}>{r.carry}×</span>
+                    </Link>
+                  ))}
+                </Card>
+              )}
+            </div>
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-subtle">Cadence adherence</p>
+              {stats.cadence.length === 0 ? (
+                <Empty>No cadence tasks.</Empty>
+              ) : (
+                <Card className="divide-y divide-border">
+                  {stats.cadence.map((c) => (
+                    <div key={c.id} className="p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <Link href={`/task/${c.id}`} className="truncate text-sm font-medium hover:underline">{c.title}</Link>
+                        <span className="tabular shrink-0 text-xs text-subtle">target every {c.target}d</span>
+                      </div>
+                      <p className="tabular mt-0.5 text-xs text-subtle">
+                        {c.avgInterval === null ? `${c.doneCount} done in range, not enough for an interval` : `actually every ${c.avgInterval.toFixed(1)} days (${c.doneCount} done)`}
+                        {c.daysSince !== null ? ` · last done ${c.daysSince}d ago` : ""}
+                      </p>
+                      {c.avgInterval !== null ? <Progress className="mt-1.5 h-1.5" value={Math.min(1, c.target / c.avgInterval)} tone={c.avgInterval > c.target ? "warn" : "accent"} /> : null}
+                    </div>
+                  ))}
+                </Card>
+              )}
+            </div>
+          </div>
+        </div>
       </Section>
 
+      {/* ── Health ───────────────────────────────────────────────── */}
       <Section title="Health">
         <div className="grid gap-3 sm:grid-cols-2">
           <Card className="p-3"><p className="mb-1 text-xs font-medium text-subtle">Exercise sets per day</p><SetsChart data={stats.health.setsPerDay} /></Card>

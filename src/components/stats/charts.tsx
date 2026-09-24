@@ -151,6 +151,34 @@ export function SetsChart({ data }: { data: Stats["health"]["setsPerDay"] }) {
   );
 }
 
+export function UnaccountedChart({ series }: { series: Stats["series"] }) {
+  const { p, ready } = usePalette();
+  if (!ready) return <div className="h-48" />;
+  const data = series.filter((d) => d.unaccountedPct !== null || d.hours > 0);
+  return (
+    <div className="h-48 w-full" role="img" aria-label="Bar chart of unaccounted time percentage per day">
+      <ResponsiveContainer>
+        <ComposedChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: -16 }}>
+          <CartesianGrid stroke={p.grid} vertical={false} />
+          <XAxis dataKey="date" tickFormatter={dateTick} tick={tick(p)} interval={interval(data.length)} axisLine={false} tickLine={false} />
+          <YAxis domain={[0, 100]} tick={tick(p)} axisLine={false} tickLine={false} unit="%" />
+          <Tooltip
+            contentStyle={tooltipStyle(p)}
+            labelFormatter={(l) => fmtDateShort(String(l))}
+            formatter={(v: unknown) => [v === null ? "no data" : `${Math.round(Number(v))}%`, "Unaccounted"]}
+          />
+          <ReferenceLine y={20} stroke={p.amber} strokeDasharray="5 4" label={{ value: "20% target", fill: p.amber, fontSize: 11, position: "insideTopRight" }} />
+          <Bar dataKey="unaccountedPct" name="Unaccounted %" radius={[3, 3, 0, 0]} maxBarSize={18}>
+            {data.map((d, i) => (
+              <Cell key={i} fill={(d.unaccountedPct ?? 0) > 20 ? p.amber : p.accentSoft} />
+            ))}
+          </Bar>
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 /** Calendar grid coloured by score (0 to 10), weeks as columns. */
 export function Heatmap({ data }: { data: Stats["heatmap"] }) {
   const { p } = usePalette();

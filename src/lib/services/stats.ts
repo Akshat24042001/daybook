@@ -168,6 +168,7 @@ export interface Stats {
     hoursAvg: number | null;
     done: number;
     doneAvg: number | null;
+    unaccountedPct: number | null;
   }[];
   weekday: { dow: number; label: string; avgScore: number | null; avgDone: number | null; avgHours: number | null; days: number }[];
   hoursByProject: { id: number | null; name: string; color: string; minutes: number }[];
@@ -256,6 +257,7 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
     hoursAvg: hoursAvg[i],
     done: doneArr[i],
     doneAvg: doneAvg[i],
+    unaccountedPct: facts[i].unaccountedPct,
   }));
 
   // ---- weekday pattern
