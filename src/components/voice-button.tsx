@@ -19,6 +19,7 @@ export function VoiceButton({
   enabled,
   className,
   label = "Speak",
+  language,
   maxSeconds = MAX_SECONDS,
   showLabel = false,
   onStateChange,
@@ -27,6 +28,8 @@ export function VoiceButton({
   enabled: boolean;
   className?: string;
   label?: string;
+  /** spoken language hint for Deepgram, e.g. "gu" for Gujarati; default is English + Hindi */
+  language?: string;
   maxSeconds?: number;
   /** show the label text next to the icon when idle */
   showLabel?: boolean;
@@ -75,7 +78,7 @@ export function VoiceButton({
         const blob = new Blob(chunks.current, { type });
         setState("sending");
         try {
-          const res = await fetch("/api/voice/transcribe", { method: "POST", headers: { "content-type": type }, body: blob });
+          const res = await fetch(language ? `/api/voice/transcribe?lang=${language}` : "/api/voice/transcribe", { method: "POST", headers: { "content-type": type }, body: blob });
           const json = (await res.json()) as { ok: boolean; text?: string; error?: string };
           if (json.ok && json.text) onText(json.text);
           else toast(json.error ?? "Voice input failed.", "error");

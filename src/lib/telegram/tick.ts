@@ -13,9 +13,11 @@ import {
   claim, claimScheduled, fallbackInstant, inQuietHours, markFailed, markSent, markSuppressed, sendRecapOnce,
 } from "./notify";
 import {
-  cadenceNudge, exercisePing, inline, morningBrief, mustDoOpenReminder, openSegmentPrompt, planTomorrowReminder, scoreReminder, taskAction, timeLogReminder, urlBtn, type Msg,
+  cadenceNudge, diaryPrompt, exercisePing, inline, morningBrief, mustDoOpenReminder, openSegmentPrompt, planTomorrowReminder, scoreReminder, taskAction, timeLogReminder, urlBtn, type Msg,
 } from "./ui";
 import { weeklyReviewMessage } from "./weekly";
+import { aiConfigured } from "../ai";
+import { autoSummarize } from "../services/diary";
 
 const MIN = 60_000;
 
@@ -63,13 +65,38 @@ async function dispatch(ctx: Ctx, chat: number, c: Candidate, report: TickReport
       await markSuppressed(id);
       return;
     }
-    const mid = await sendMessage(chat, msg.text, msg.markup);
+    const mid = await sendMessage(chat, msg.text, msg.forceReply ?? msg.markup);
     await markSent(id, mid);
     report.sent.push(label);
   } catch (e) {
     await markFailed(id);
     report.failed.push(label);
     report.errors.push(`${label}: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Nightly diary summary for the day that just ended, notes or not. Runs after the tick has answered (it can take
+ * up to a minute with free AI models), once per day via the notification ledger, which retries failures up to
+ * three times on later ticks. Works without Telegram.
+ */
+export async function runNightlyDiary(now: Date = new Date()): Promise<string> {
+  if (!aiConfigured()) return "ai-off";
+  const ctx = buildCtx(await getSettings(), now);
+  const yesterday = addDays(ctx.today, -1);
+  // half an hour into the new logical day, then any later tick that day
+  const at = atLogical(ctx.today, Math.min(ctx.boundaryMin + 30, 1439), ctx.tz, ctx.boundaryMin);
+  if (ctx.now.getTime() < at.getTime()) return "not-yet";
+  const id = await claim("diary_autosum", yesterday, at);
+  if (!id) return "done-already";
+  try {
+    const r = await autoSummarize(ctx, yesterday);
+    if (r === "summarized") await markSent(id, null);
+    else await markSuppressed(id);
+    return r;
+  } catch (e) {
+    await markFailed(id);
+    return `failed: ${(e as Error).message}`;
   }
 }
 
@@ -202,6 +229,11 @@ function candidates(ctx: Ctx, work: {
       build: () => timeLogReminder(ctx),
     });
   }
+  // Diary: 10 minutes after the score reminder, only if nothing was written today. Replies land in the diary.
+  out.push({
+    kind: "diary_prompt", ref: today, at: new Date(at(ctx.s.score_reminder).getTime() + 10 * MIN), graceMin: 90,
+    build: () => diaryPrompt(today),
+  });
   // Plan tomorrow: fire at evening_fallback time if tomorrow is empty
   out.push({
     kind: "plan_tomorrow", ref: today, at: at(ctx.s.evening_fallback), graceMin: 120,

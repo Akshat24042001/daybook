@@ -4,7 +4,7 @@ import {
   ArrowRight, BookOpen, Check, Keyboard, Loader2, Mic, Pencil, RefreshCw, Smile, Sparkles, Trash2, TrendingDown, Trophy,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import {
   addDiaryEntryAction, deleteDiaryEntryAction, summarizeDiaryAction, updateDiaryEntryAction,
 } from "@/app/diary-actions";
@@ -175,6 +175,23 @@ export function DiaryPanel({
   const [typing, setTyping] = useState(!voiceEnabled);
   const [busy, setBusy] = useState<null | "saving" | "summarizing">(null);
   const [recState, setRecState] = useState<"idle" | "recording" | "sending">("idle");
+  // English + Hindi is automatic; Gujarati has to be picked (Deepgram cannot detect it). Remembered per device.
+  const [lang, setLang] = useState<"multi" | "gu">("multi");
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("daybook-voice-lang") === "gu") setLang("gu");
+    } catch {
+      /* storage blocked */
+    }
+  }, []);
+  function pickLang(l: "multi" | "gu") {
+    setLang(l);
+    try {
+      localStorage.setItem("daybook-voice-lang", l);
+    } catch {
+      /* ignore */
+    }
+  }
 
   const save = useCallback(async (body: string, source: "voice" | "text") => {
     setBusy(aiEnabled ? "summarizing" : "saving");
@@ -230,6 +247,7 @@ export function DiaryPanel({
             <VoiceButton
               enabled={voiceEnabled}
               maxSeconds={600}
+              language={lang}
               label={recording ? "Stop" : "Record"}
               showLabel
               onStateChange={setRecState}
@@ -240,6 +258,20 @@ export function DiaryPanel({
                 recording && "animate-pulse",
               )}
             />
+            <div className="inline-flex rounded-lg bg-muted p-0.5 text-[11px] font-semibold" role="group" aria-label="Spoken language">
+              {([["multi", "English / हिंदी"], ["gu", "ગુજરાતી"]] as const).map(([k, l]) => (
+                <button
+                  key={k}
+                  type="button"
+                  aria-pressed={lang === k}
+                  disabled={recording || transcribing}
+                  onClick={() => pickLang(k)}
+                  className={cn("rounded-md px-2.5 py-1 transition-colors", lang === k ? "bg-surface text-fg shadow-sm" : "text-subtle hover:text-fg")}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
             <p className="text-xs text-subtle">
               {recording
                 ? "Recording. Tap to stop (10 minute limit)."

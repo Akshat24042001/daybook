@@ -183,6 +183,8 @@ export interface Stats {
     amountByType: { name: string; unit: string; amount: number }[];
     stepsPerDay: { date: DateStr; steps: number | null }[];
     stepGoal: number;
+    /** hours slept into each day, and quality 1-5 */
+    sleepPerDay: { date: DateStr; hours: number | null; quality: number | null }[];
   };
   attention: AttentionItem[];
   insights: string[];
@@ -198,8 +200,8 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
   const prevRange = { from: addDays(from, -len), to: addDays(from, -1) };
   const [worked, dayRows, loggedRows] = await Promise.all([
     workedByDay(ctx, from, to),
-    q<{ date: DateStr; score: number | null; steps: number | null }>(
-      "select date, score, steps from days where date between $1 and $2",
+    q<{ date: DateStr; score: number | null; steps: number | null; sleep_minutes: number | null; sleep_quality: number | null }>(
+      "select date, score, steps, sleep_minutes, sleep_quality from days where date between $1 and $2",
       [from, to],
     ),
     q<{ date: DateStr; m: number }>(
@@ -501,6 +503,10 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
         return { name: t?.name ?? "Removed exercise", unit: t?.unit ?? "reps", amount };
       }),
       stepsPerDay: dates.map((d) => ({ date: d, steps: dayMap.get(d)?.steps ?? null })),
+      sleepPerDay: dates.map((d) => {
+        const r = dayMap.get(d);
+        return { date: d, hours: r?.sleep_minutes == null ? null : Math.round((r.sleep_minutes / 60) * 10) / 10, quality: r?.sleep_quality ?? null };
+      }),
       stepGoal: ctx.s.step_goal,
     },
     attention,

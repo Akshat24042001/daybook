@@ -11,7 +11,7 @@ import {
   addEntry, clearMinutes, getEntry, logMinutes, moveEntry, removeEntry, RETRY_HOURS, scheduleTaskPing,
   setEntryStatus, setMustDo,
 } from "@/lib/services/entries";
-import { setScore, setSteps, setWorkedOverride } from "@/lib/services/days";
+import { setScore, setSleep, setSteps, setWorkedOverride } from "@/lib/services/days";
 import { reorderSomeday, snoozeCadence } from "@/lib/services/goals";
 import {
   createExerciseType, logExercise, updateExerciseType, type ExerciseTypeInput,
@@ -231,6 +231,12 @@ export async function setScoreAction(date: DateStr, score: number | null) {
     await setScore(date, score);
   }, ["/today"]);
 }
+export async function setSleepAction(date: DateStr, minutes: number | null, quality?: number | null) {
+  return run(async () => {
+    await setSleep(date, minutes, quality);
+  }, ["/today", "/health", "/stats"]);
+}
+
 export async function setStepsAction(date: DateStr, steps: number | null) {
   return run(async () => {
     await setSteps(date, steps);

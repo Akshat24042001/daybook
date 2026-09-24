@@ -5,13 +5,14 @@ import { describeTimeLog, looksLikeTimeLog, parseTimeLog, resolveSegments } from
 import { describeParsed, parseQuickAdd } from "../parser";
 import { buildCtx, getSettings, type Ctx } from "../settings";
 import { aiConfigured, interpretTelegramMessage } from "../ai";
+import { addEntry as addDiaryEntry, summarizeDay } from "../services/diary";
 import { atLogical, addDays, fmtDuration, fmtHM, parseHM } from "../time";
 import type { EntryStatus, EntryView } from "../types";
 import {
   addEntry, getEntry, logMinutes, moveEntry, scheduleTaskPing, setEntryStatus, setMustDo, entriesForDate,
   RETRY_HOURS,
 } from "../services/entries";
-import { setScore, setSteps, setWorkedOverride } from "../services/days";
+import { getDay, setScore, setSleep, setSteps, setWorkedOverride } from "../services/days";
 import { cadenceToNudge, listCadence, listSomeday, snoozeCadence } from "../services/goals";
 import { createSegments, endOpenSegment, KIND_LABEL, switchState, workedForDate, type StateKind } from "../services/segments";
 import {
@@ -25,7 +26,7 @@ import {
 import { sendRecapOnce } from "./notify";
 import {
   exerciseCountsLine, exercisePing, exerciseTypePicker, inline, minutesPrompt, recapMarkup, retryPrompt, scoreDecimals,
-  slotFromCode, taskAction, todayList, unpackDate, urlBtn, STATUS_EMOJI, STATUS_WORD, type Msg,
+  sleepQualityKeyboard, slotFromCode, taskAction, todayList, unpackDate, urlBtn, STATUS_EMOJI, STATUS_WORD, type Msg,
 } from "./ui";
 
 // ---------------------------------------------------------------- types
@@ -156,6 +157,26 @@ async function handleText(ctx: Ctx, chat: number, text: string, opts: TextOpts =
       await sendMessage(chat, `📝 Note saved to <b>${esc(task.title)}</b>.`);
       return;
     }
+    // A reply to the evening "How did today go?" prompt goes into that day's diary.
+    const diary = await one<{ ref_id: string }>(
+      "select ref_id from notifications where kind = 'diary_prompt' and telegram_message_id = $1",
+      [opts.replyToId],
+    );
+    if (diary) {
+      await saveDiaryFromTelegram(ctx, chat, diary.ref_id, text);
+      return;
+    }
+  }
+  // "diary: ..." or "/diary ..." adds a note to today's diary at any time
+  const diaryCmd = text.match(/^\/?diary\b[:\s-]*([\s\S]*)$/i);
+  if (diaryCmd) {
+    const body = diaryCmd[1].trim();
+    if (!body) {
+      await sendMessage(chat, "📔 Send <code>diary</code> followed by your note, or reply to the evening prompt with a voice note.");
+      return;
+    }
+    await saveDiaryFromTelegram(ctx, chat, ctx.today, body);
+    return;
   }
   if (opts.voice) {
     await routeFreeText(ctx, chat, text, true);
@@ -224,6 +245,7 @@ async function handleText(ctx: Ctx, chat: number, text: string, opts: TextOpts =
 <code>score 8.5</code> — set day score
 <code>steps 9000</code> — log steps
 <code>worked 8h</code> — set hours worked
+<code>diary had a great client call…</code> — add to today's diary (or reply to the evening prompt with a voice note)
 <code>plan</code> or <code>today</code> — see today's list
 
 Anything else is added as a task — with full quick-add syntax support.`);
@@ -267,6 +289,12 @@ Anything else is added as a task — with full quick-add syntax support.`);
 async function routeFreeText(ctx: Ctx, chat: number, text: string, fromVoice: boolean): Promise<void> {
   if (looksLikeTimeLog(text)) {
     await timeLogPreview(ctx, chat, text);
+    return;
+  }
+  const sleepMin = parseSleep(text);
+  if (sleepMin !== null) {
+    await setSleep(ctx.today, sleepMin);
+    await sendMessage(chat, `😴 <b>${fmtDuration(sleepMin)}</b> of sleep logged for today. How well did you sleep?`, inline(sleepQualityKeyboard(ctx.today)));
     return;
   }
   if (aiConfigured()) {
@@ -363,6 +391,42 @@ async function routeFreeText(ctx: Ctx, chat: number, text: string, fromVoice: bo
   }
 
   await quickAddPreview(ctx, chat, fromVoice ? voiceToQuickAdd(text) : text);
+}
+
+/**
+ * "slept 7h", "sleep 6.5", "slept 7 hours 30 min", "7h sleep", "I slept 6h30m". Needs a number, so a task like
+ * "sleep early" is not caught. Returns minutes or null.
+ */
+export function parseSleep(text: string): number | null {
+  const t = text.trim().toLowerCase();
+  const m =
+    t.match(/^(?:i\s+)?(?:slept|sleep)\s*(?:for|:|-)?\s*(\d+(?:[.,]\d+)?)\s*(?:h|hr|hrs|hour|hours)?\s*(?:(\d+)\s*(?:m|min|mins|minutes))?\s*$/) ??
+    t.match(/^(\d+(?:[.,]\d+)?)\s*(?:h|hr|hrs|hour|hours)\s*(?:(\d+)\s*(?:m|min|mins|minutes))?\s*(?:of\s+)?sleep$/);
+  if (!m) return null;
+  const minutes = Math.round(parseFloat(m[1].replace(",", ".")) * 60) + (m[2] ? parseInt(m[2], 10) : 0);
+  return minutes > 0 && minutes <= 1440 ? minutes : null;
+}
+
+// ---------------------------------------------------------------- diary
+
+/** Saves a diary note from Telegram, then answers with the refreshed AI read of the day (or just a receipt). */
+async function saveDiaryFromTelegram(ctx: Ctx, chat: number, date: string, body: string): Promise<void> {
+  await addDiaryEntry(date, body, "telegram");
+  if (!aiConfigured()) {
+    await sendMessage(chat, "📔 Saved to your diary.", inline([[urlBtn("Open diary", `/diary?date=${date}`)]]));
+    return;
+  }
+  try {
+    // the webhook has a 30 s limit, so give the model 20 s; the nightly job finishes it otherwise
+    const s = await summarizeDay(ctx, date, undefined, 20_000);
+    await sendMessage(
+      chat,
+      `📔 Saved. ${s.rating !== null ? `<b>${s.rating}/10</b> · ` : ""}<b>${esc(s.headline)}</b>\n${esc(s.summary)}`,
+      inline([[urlBtn("Open diary", `/diary?date=${date}`)]]),
+    );
+  } catch {
+    await sendMessage(chat, "📔 Saved to your diary. The summary will be written later tonight.");
+  }
 }
 
 // ---------------------------------------------------------------- voice notes
@@ -649,6 +713,31 @@ async function handleCallback(ctx: Ctx, chat: number, cb: TgCallback): Promise<s
       return exerciseAction(ctx, chat, mid, parts);
 
     // ---- score: sc:m:<n>:<d> | sc:s:<val>:<d> | sc:c:<d>
+    // ---- sleep: sl:<minutes>:<d> then sq:<1-5>:<d>
+    case "sl": {
+      const date = unpackDate(parts[2]);
+      const min = Number(parts[1]);
+      await setSleep(date, min);
+      // the brief keeps its other buttons; the sleep rows go away
+      if (mid) await editMarkup(chat, mid, inline([[urlBtn("Open Today", "/today"), { text: "🏢 At office", callback_data: "sw:office" }]]));
+      await sendMessage(chat, `😴 <b>${fmtDuration(min)}</b> of sleep logged. How well did you sleep?`, inline(sleepQualityKeyboard(date)));
+      return `${fmtDuration(min)} ✓`;
+    }
+    case "sq": {
+      const date = unpackDate(parts[2]);
+      const quality = Number(parts[1]);
+      const day = await getDay(date);
+      await setSleep(date, day?.sleep_minutes ?? null, quality);
+      const face = ["😫", "😕", "😐", "🙂", "😄"][quality - 1] ?? "";
+      if (mid) {
+        await editMessage(
+          chat,
+          mid,
+          `😴 ${day?.sleep_minutes != null ? `<b>${fmtDuration(day.sleep_minutes)}</b> of sleep, ` : "Sleep "}quality ${face} ${quality}/5.`,
+        );
+      }
+      return "Saved";
+    }
     case "sc": {
       if (parts[1] === "m") {
         const date = unpackDate(parts[3]);

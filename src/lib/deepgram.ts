@@ -17,7 +17,21 @@ export function voiceConfigured(): boolean {
 
 const MAX_BYTES = 12 * 1024 * 1024;
 
-export async function transcribe(audio: ArrayBuffer | Uint8Array, contentType: string): Promise<string> {
+/**
+ * Spoken languages the app asks Deepgram (nova-3) for:
+ * - "multi": English and Hindi, including switching mid-sentence (nova-3 code-switching). The default.
+ * - "gu": Gujarati. Deepgram cannot auto-detect Gujarati, so it has to be chosen explicitly.
+ * - "en" / "hi": a single language, if ever needed.
+ */
+export const VOICE_LANGUAGES = ["multi", "gu", "en", "hi"] as const;
+export type VoiceLanguage = (typeof VOICE_LANGUAGES)[number];
+
+export function voiceLanguage(requested?: string | null): string {
+  if (requested && (VOICE_LANGUAGES as readonly string[]).includes(requested)) return requested;
+  return process.env.DEEPGRAM_LANGUAGE || "multi";
+}
+
+export async function transcribe(audio: ArrayBuffer | Uint8Array, contentType: string, language?: string | null): Promise<string> {
   const key = process.env.DEEPGRAM_API_KEY;
   if (!key) throw new VoiceError("Voice input is not set up yet: DEEPGRAM_API_KEY is missing.");
   const size = audio.byteLength;
@@ -27,7 +41,7 @@ export async function transcribe(audio: ArrayBuffer | Uint8Array, contentType: s
   const base = (process.env.DEEPGRAM_API_BASE || "https://api.deepgram.com").replace(/\/$/, "");
   const params = new URLSearchParams({
     model: process.env.DEEPGRAM_MODEL || "nova-3",
-    language: process.env.DEEPGRAM_LANGUAGE || "en",
+    language: voiceLanguage(language),
     smart_format: "true",
     punctuate: "true",
   });

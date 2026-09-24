@@ -178,6 +178,14 @@ async function dayContext(ctx: Ctx, date: DateStr, db: Db = getPool()): Promise<
   lines.push(`Time worked: ${recap.worked > 0 ? fmtDuration(recap.worked) : "none recorded"}; logged on tasks: ${fmtDuration(recap.logged)}`);
   if (recap.mustDoTotal > 0) lines.push(`Must-dos: ${recap.mustDoHit} of ${recap.mustDoTotal} done or progressed`);
   lines.push(`Steps: ${recap.steps ?? "not recorded"}`);
+  const sleep = await one<{ sleep_minutes: number | null; sleep_quality: number | null }>(
+    "select sleep_minutes, sleep_quality from days where date = $1",
+    [date],
+    db,
+  ).catch(() => null);
+  if (sleep?.sleep_minutes != null) {
+    lines.push(`Sleep the night before: ${fmtDuration(sleep.sleep_minutes)}${sleep.sleep_quality ? `, quality ${sleep.sleep_quality}/5` : ""}`);
+  } else lines.push("Sleep: not recorded");
   if (exercise.length) {
     lines.push(`Exercise: ${exercise.map((x) => `${x.name ?? "exercise"} ${x.amount}${x.unit === "seconds" ? "s" : ""} over ${x.sets} sets`).join("; ")}`);
   } else lines.push("Exercise: none logged");
@@ -198,7 +206,7 @@ async function dayContext(ctx: Ctx, date: DateStr, db: Db = getPool()): Promise<
 }
 
 const SYSTEM = `You are the owner's personal chief of staff, writing their end-of-day diary summary.
-You get (1) the day's facts from their tracking app and (2) their own diary notes, usually voice transcripts that may be messy, mix Hindi and English, or contain filler words.
+You get (1) the day's facts from their tracking app and (2) their own diary notes, usually voice transcripts that may be messy, contain filler words, or be in English, Hindi or Gujarati (often mixed, in Latin, Devanagari or Gujarati script). Understand all of them, but always write your answer in English; keep names and quoted phrases as spoken.
 
 Write for the owner in second person ("You ..."). Be warm but honest, concrete and brief. Never invent anything: every claim must come from the facts or the notes. Prefer specifics (names, numbers, places, decisions, ideas) over generic praise. If there are no notes, say the summary is based on tracked data only.
 
@@ -244,7 +252,35 @@ export function parseSummaryJson(raw: string): Omit<DiarySummary, "date" | "mode
   };
 }
 
-export async function summarizeDay(ctx: Ctx, date: DateStr, db: Db = getPool()): Promise<DiarySummary> {
+/** Anything worth summarising: diary notes, planned tasks, logged time, work segments, a score or steps. */
+export async function dayHasActivity(date: DateStr, db: Db = getPool()): Promise<boolean> {
+  await ensureTables(db);
+  const r = await one<{ yes: boolean }>(
+    `select exists (select 1 from diary_entries where date = $1)
+         or exists (select 1 from day_entries where date = $1 and status <> 'dropped')
+         or exists (select 1 from time_logs where date = $1)
+         or exists (select 1 from work_segments where date = $1)
+         or exists (select 1 from days where date = $1 and (score is not null or steps is not null or worked_minutes_override is not null))
+       as yes`,
+    [date],
+    db,
+  );
+  return !!r?.yes;
+}
+
+/**
+ * The nightly job: summarise a finished day even when no diary note was recorded, and refresh a summary that
+ * predates the latest notes. Skips empty days (holidays) and days that are already up to date.
+ */
+export async function autoSummarize(ctx: Ctx, date: DateStr): Promise<"summarized" | "up-to-date" | "empty"> {
+  const [summary, entries] = await Promise.all([getSummary(date), listEntries(date)]);
+  if (summary && summary.entry_count >= entries.length) return "up-to-date";
+  if (!(await dayHasActivity(date))) return "empty";
+  await summarizeDay(ctx, date);
+  return "summarized";
+}
+
+export async function summarizeDay(ctx: Ctx, date: DateStr, db: Db = getPool(), budgetMs = 45_000): Promise<DiarySummary> {
   if (!aiConfigured()) throw new UserError("AI summaries need OPENROUTER_API_KEY in the environment.");
   const [entries, facts] = await Promise.all([listEntries(date, db), dayContext(ctx, date, db)]);
   const notes = entries.length
@@ -260,7 +296,7 @@ export async function summarizeDay(ctx: Ctx, date: DateStr, db: Db = getPool()):
           { role: "system", content: SYSTEM },
           { role: "user", content: attempt === 0 ? user : `${user}\n\nReply with the JSON object only.` },
         ],
-        { maxTokens: 1500, timeoutMs: 35_000, totalMs: 45_000, temperature: 0.3 },
+        { maxTokens: 1500, timeoutMs: Math.min(35_000, budgetMs), totalMs: budgetMs, temperature: 0.3 },
       );
       const s = parseSummaryJson(text);
       return (await one<DiarySummary>(

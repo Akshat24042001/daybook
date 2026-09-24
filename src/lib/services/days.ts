@@ -9,6 +9,8 @@ export interface DayRow {
   score: number | null;
   steps: number | null;
   worked_minutes_override: number | null;
+  sleep_minutes: number | null;
+  sleep_quality: number | null;
   planned_at: Date | null;
   closed_at: Date | null;
   rollover_at: Date | null;
@@ -39,6 +41,30 @@ export async function setScore(date: DateStr, score: number | null): Promise<voi
      on conflict (date) do update set score = excluded.score`,
     [date, score],
   );
+}
+
+/** Sleep that led into this day. Pass null minutes to clear; quality 1-5 is optional. */
+export async function setSleep(date: DateStr, minutes: number | null, quality?: number | null): Promise<void> {
+  if (minutes !== null && (!Number.isFinite(minutes) || minutes < 0 || minutes > 1440)) {
+    throw new UserError("Sleep must be between 0 and 24 hours.");
+  }
+  if (quality !== undefined && quality !== null && (!Number.isInteger(quality) || quality < 1 || quality > 5)) {
+    throw new UserError("Sleep quality is 1 to 5.");
+  }
+  const m = minutes === null ? null : Math.round(minutes);
+  if (quality === undefined) {
+    await q(
+      `insert into days (date, sleep_minutes) values ($1, $2)
+       on conflict (date) do update set sleep_minutes = excluded.sleep_minutes`,
+      [date, m],
+    );
+  } else {
+    await q(
+      `insert into days (date, sleep_minutes, sleep_quality) values ($1, $2, $3)
+       on conflict (date) do update set sleep_minutes = excluded.sleep_minutes, sleep_quality = excluded.sleep_quality`,
+      [date, m, quality],
+    );
+  }
 }
 
 export async function setSteps(date: DateStr, steps: number | null): Promise<void> {
@@ -161,6 +187,6 @@ export async function daysInRange(from: DateStr, to: DateStr, db: Db = getPool()
   const rows = await q<DayRow>("select * from days where date >= $1 and date <= $2", [from, to], db);
   const map = new Map<DateStr, DayRow>();
   for (const r of rows) map.set(r.date, r);
-  for (const d of dateRange(from, to)) if (!map.has(d)) map.set(d, { date: d, score: null, steps: null, worked_minutes_override: null, planned_at: null, closed_at: null, rollover_at: null });
+  for (const d of dateRange(from, to)) if (!map.has(d)) map.set(d, { date: d, score: null, steps: null, worked_minutes_override: null, sleep_minutes: null, sleep_quality: null, planned_at: null, closed_at: null, rollover_at: null });
   return map;
 }

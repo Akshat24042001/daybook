@@ -194,7 +194,7 @@ function DetailDialog({ open, onClose, title, subtitle, children }: {
 // ------------------------------------------------------------------ page
 
 type Panel =
-  | "score" | "hours" | "done" | "unaccounted" | "projects" | "consistency" | "weekday" | "steps" | "exercise" | "diary"
+  | "score" | "hours" | "done" | "unaccounted" | "projects" | "consistency" | "weekday" | "steps" | "exercise" | "sleep" | "diary"
   | "completion" | "mustdo" | "logged" | "planstreak" | "mustdostreak"
   | "rotting" | "estimates" | "cadence" | "progress" | "attention" | "insights";
 
@@ -249,7 +249,14 @@ export function StatsView({
     const byDate = new Map(diary.map((s) => [s.date, s.rating]));
     const diarySeries = series.map((s) => ({ date: s.date, rating: byDate.get(s.date) ?? null }));
     const diaryAvg = avgOf(diary.map((s) => s.rating));
-    return { scored, best, worst, worked, longest, busiest, overTarget, stepAvg, stepHit, stepDays, setsTotal, setDays, bestDow, worstDow, diarySeries, diaryAvg };
+    const sleep = stats.health.sleepPerDay;
+    const sleepNights = sleep.filter((n) => n.hours !== null);
+    const sleepAvg = avgOf(sleep.map((n) => n.hours));
+    const sleepQ = avgOf(sleep.map((n) => n.quality));
+    const shortNights = sleepNights.filter((n) => (n.hours ?? 0) < 7).length;
+    const bestNight = sleepNights.reduce<(typeof sleep)[number] | null>((b, n) => (!b || (n.hours ?? 0) > (b.hours ?? 0) ? n : b), null);
+    const worstNight = sleepNights.reduce<(typeof sleep)[number] | null>((b, n) => (!b || (n.hours ?? 99) < (b.hours ?? 99) ? n : b), null);
+    return { scored, best, worst, worked, longest, busiest, overTarget, stepAvg, stepHit, stepDays, setsTotal, setDays, bestDow, worstDow, diarySeries, diaryAvg, sleepNights, sleepAvg, sleepQ, shortNights, bestNight, worstNight };
   }, [series, stats, diary]);
 
   const activeFilters = [
@@ -493,13 +500,23 @@ export function StatsView({
           <TrendChart data={stats.health.setsPerDay} y="sets" kind="bar" name="Sets" height={TILE_H} />
         </Tile>
 
+        <Tile
+          title="Sleep"
+          value={d.sleepAvg === null ? "–" : `${d.sleepAvg.toFixed(1)}h`}
+          sub={d.sleepNights.length ? `avg · ${d.shortNights} night${d.shortNights === 1 ? "" : "s"} under 7h` : "log sleep on Today"}
+          warn={d.sleepAvg !== null && d.sleepAvg < 6.5}
+          onOpen={() => setOpen("sleep")}
+        >
+          <TrendChart data={stats.health.sleepPerDay} y="hours" kind="bar" name="Sleep" unit="h" height={TILE_H} target={{ value: 7, label: "7h" }} flag="under" />
+        </Tile>
+
         {/* Diary: AI rating trend + the latest day's headline */}
         <Tile
           title="Diary · AI day rating"
           value={d.diaryAvg === null ? "–" : d.diaryAvg.toFixed(1)}
           sub={diary.length ? `avg over ${diary.length} summarised day${diary.length === 1 ? "" : "s"}` : "no summaries yet"}
           onOpen={() => setOpen("diary")}
-          className="sm:col-span-2 xl:col-span-3"
+          className="sm:col-span-2 xl:col-span-2"
           action={
             <Link href="/diary" className="inline-flex items-center gap-1 rounded-lg bg-accent-muted px-2 py-1 text-[11px] font-semibold text-accent hover:bg-accent/20">
               <BookOpen className="h-3 w-3" /> Write today
@@ -717,6 +734,17 @@ export function StatsView({
             ))}
           </div>
         ) : null}
+      </DetailDialog>
+
+      <DetailDialog open={open === "sleep"} onClose={close} title="Sleep" subtitle={periodLabel}>
+        <Facts>
+          <Fact label="Average" value={d.sleepAvg === null ? "–" : `${d.sleepAvg.toFixed(1)}h`} tone={d.sleepAvg !== null && d.sleepAvg < 7 ? "warn" : "good"} />
+          <Fact label="Nights under 7h" value={`${d.shortNights} of ${d.sleepNights.length}`} tone={d.shortNights ? "warn" : undefined} />
+          <Fact label="Longest / shortest" value={d.bestNight && d.worstNight ? `${d.bestNight.hours}h / ${d.worstNight.hours}h` : "–"} />
+          <Fact label="Quality" value={d.sleepQ === null ? "–" : `${d.sleepQ.toFixed(1)} / 5`} />
+        </Facts>
+        <TrendChart data={stats.health.sleepPerDay} y="hours" kind="bar" name="Sleep" unit="h" height={BIG_H} target={{ value: 7, label: "7h" }} flag="under" large />
+        <Note>Amber bars are nights under 7 hours. Log sleep each morning on Today or in Telegram ("slept 7h"); with a few weeks of data, compare it with your day score.</Note>
       </DetailDialog>
 
       <DetailDialog open={open === "diary"} onClose={close} title="Diary" subtitle={`${diary.length} summarised day${diary.length === 1 ? "" : "s"} in ${periodLabel}`}>

@@ -14,8 +14,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Send audio." }, { status: 415 });
   }
   const audio = await req.arrayBuffer();
+  const lang = new URL(req.url).searchParams.get("lang"); // validated in voiceLanguage()
   try {
-    const text = await transcribe(audio, type);
+    const text = await transcribe(audio, type, lang);
     return NextResponse.json({ ok: true, text });
   } catch (e) {
     if (e instanceof VoiceError) return NextResponse.json({ ok: false, error: e.message }, { status: 422 });

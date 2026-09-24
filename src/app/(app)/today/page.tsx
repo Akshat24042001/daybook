@@ -12,6 +12,7 @@ import { listTargets } from "@/lib/services/goals";
 import { q } from "@/lib/db";
 import { aiConfigured } from "@/lib/ai";
 import { DiaryPanel } from "@/components/diary/diary-panel";
+import { SleepCard } from "@/components/today/sleep-card";
 import { getSummary, listEntries, toSummaryView } from "@/lib/services/diary";
 
 export const metadata: Metadata = { title: "Today" };
@@ -67,6 +68,8 @@ export default async function TodayPage() {
       targets={activeTargets}
       projects={projects}
       aside={
+        <>
+        <SleepCard date={ctx.today} minutes={day?.sleep_minutes ?? null} quality={day?.sleep_quality ?? null} />
         <DiaryPanel
           compact
           date={ctx.today}
@@ -75,6 +78,7 @@ export default async function TodayPage() {
           voiceEnabled={voiceConfigured()}
           aiEnabled={aiConfigured()}
         />
+        </>
       }
     />
     </div>

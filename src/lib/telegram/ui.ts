@@ -10,11 +10,14 @@ import { getDay, recapFor } from "../services/days";
 import { cadenceToNudge, listCadence, targetsBehind } from "../services/goals";
 import { exerciseCounts, lastExercise, listExerciseTypes, type ExerciseType } from "../services/health";
 import { unresolvedEntries } from "../services/plan";
-import { esc, type Button, type InlineMarkup } from "./api";
+import { esc, type Button, type ForceReply, type InlineMarkup } from "./api";
+import { getSummary, listEntries } from "../services/diary";
 
 export interface Msg {
   text: string;
   markup?: InlineMarkup;
+  /** ask Telegram to open a reply box instead of showing buttons (the reply is routed by the message id) */
+  forceReply?: ForceReply;
 }
 
 const btn = (text: string, callback_data: string): Button => ({ text, callback_data });
@@ -165,6 +168,20 @@ export async function todayList(ctx: Ctx): Promise<Msg> {
   };
 }
 
+// ---------------------------------------------------------------- diary
+
+/** Evening "how did today go?" prompt. Sent only when nothing has been written for the day yet. */
+export async function diaryPrompt(date: DateStr): Promise<Msg | null> {
+  if ((await listEntries(date)).length > 0) return null;
+  return {
+    text:
+      "📔 <b>How did today go?</b>\n" +
+      "Reply to this message with a voice note or a few lines: what happened, who you met, how you felt. " +
+      "I'll add it to your diary and write the day's summary.",
+    forceReply: { force_reply: true, input_field_placeholder: "Speak or type about your day" },
+  };
+}
+
 // ---------------------------------------------------------------- morning brief
 
 export async function morningBrief(ctx: Ctx): Promise<Msg> {
@@ -181,6 +198,9 @@ export async function morningBrief(ctx: Ctx): Promise<Msg> {
   yBits.push(`${fmtDuration(y.worked)} worked`);
   yBits.push(`${y.counts.done} done`);
   lines.push(`Yesterday: ${yBits.join(" · ")}`);
+  // the nightly diary summary, when it exists
+  const ySummary = await getSummary(yesterday).catch(() => null);
+  if (ySummary) lines.push(`📔 ${ySummary.rating !== null ? `<b>${ySummary.rating}/10</b> · ` : ""}<i>${esc(ySummary.headline)}</i>`);
 
   const planned = !!day?.planned_at && day.planned_at.getTime() < ctx.now.getTime();
   const autoCarried = entries.filter((e) => e.source === "auto" && e.carried_from).length;
@@ -222,12 +242,36 @@ export async function morningBrief(ctx: Ctx): Promise<Msg> {
     for (const r of rotting) lines.push(`• ${esc(r.title)}: ${r.carry_count}×`);
   }
 
+  const askSleep = day?.sleep_minutes == null;
+  if (askSleep) lines.push("\n😴 <b>How long did you sleep?</b> Tap below, or type <code>slept 7h</code>.");
+
   return {
     text: lines.join("\n"),
     markup: inline([
+      ...(askSleep ? sleepKeyboard(today) : []),
       [planned ? urlBtn("Open Today", "/today") : urlBtn("Plan now", `/plan?date=${today}`), btn("🏢 At office", "sw:office")],
     ]),
   };
+}
+
+// ---------------------------------------------------------------- sleep
+
+const SLEEP_PRESETS_MIN = [300, 360, 390, 420, 450, 480, 540];
+
+/** One tap per common duration: sl:<minutes>:<yymmdd> */
+export function sleepKeyboard(date: DateStr): Button[][] {
+  const d = packDate(date);
+  const label = (m: number) => `${Math.floor(m / 60)}${m % 60 ? "½" : ""}h`;
+  return [
+    SLEEP_PRESETS_MIN.slice(0, 4).map((m) => btn(label(m), `sl:${m}:${d}`)),
+    SLEEP_PRESETS_MIN.slice(4).map((m) => btn(label(m), `sl:${m}:${d}`)),
+  ];
+}
+
+/** How well: sq:<1-5>:<yymmdd> */
+export function sleepQualityKeyboard(date: DateStr): Button[][] {
+  const d = packDate(date);
+  return [[1, 2, 3, 4, 5].map((n) => btn(["😫", "😕", "😐", "🙂", "😄"][n - 1], `sq:${n}:${d}`))];
 }
 
 // ---------------------------------------------------------------- recap, score, steps
