@@ -3,11 +3,11 @@ import { q, one } from "@/lib/db";
 export interface Contact {
   id: number;
   name: string;
-  city: string | null;
-  company: string | null;
-  role: string | null;
-  phone: string | null;
-  email: string | null;
+  cities: string[];
+  companies: string[];
+  roles: string[];
+  phones: string[];
+  emails: string[];
   linkedin: string | null;
   notes: string | null;
   tags: string[];
@@ -24,10 +24,10 @@ export async function getContact(id: number): Promise<Contact | null> {
 
 export async function createContact(data: Omit<Contact, "id" | "created_at">) {
   const [row] = await q<{ id: number }>(
-    `insert into contacts (name, city, company, role, phone, email, linkedin, notes, tags)
+    `insert into contacts (name, cities, companies, roles, phones, emails, linkedin, notes, tags)
      values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id`,
-    [data.name, data.city || null, data.company || null, data.role || null,
-     data.phone || null, data.email || null, data.linkedin || null,
+    [data.name, data.cities, data.companies, data.roles,
+     data.phones, data.emails, data.linkedin || null,
      data.notes || null, data.tags],
   );
   return row.id;

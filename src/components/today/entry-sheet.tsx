@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useOptimistic, useState, useTransition } from "react";
 import {
-  appendNoteAction, clearMinutesAction, logMinutesAction, moveEntryAction, retryAction, setStatusAction,
+  createRemarkAction, clearMinutesAction, logMinutesAction, moveEntryAction, retryAction, setStatusAction,
   toggleMustAction, updateTaskAction,
 } from "@/app/actions";
 import { cn } from "@/lib/cn";
@@ -250,7 +250,7 @@ export function EntrySheet({
             size="sm"
             variant="outline"
             disabled={pending || !note.trim()}
-            onClick={() => act(() => appendNoteAction(row.taskId, note), () => { setNote(""); toast("Note saved."); })}
+            onClick={() => act(() => createRemarkAction(row.taskId, note), () => { setNote(""); toast("Remark saved."); })}
           >
             Save note
           </Button>

@@ -5,7 +5,7 @@ import { q } from "@/lib/db";
 import { deepgramReady } from "@/lib/voice-config";
 import { makeCtx } from "@/lib/settings";
 import { fmtDateShort, fmtHM, logicalDate } from "@/lib/time";
-import { getTask } from "@/lib/services/tasks";
+import { getTask, listRemarks, type TaskRemark } from "@/lib/services/tasks";
 
 export const metadata: Metadata = { title: "Task" };
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   const task = await getTask(taskId);
   if (!task) notFound();
 
-  const [history, totals, projects, people] = await Promise.all([
+  const [history, totals, projects, people, remarks] = await Promise.all([
     q<{ date: string; status: string; must_do: boolean }>(
       "select date, status, must_do from day_entries where task_id = $1 order by date desc limit 12",
       [taskId],
@@ -29,6 +29,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
     ),
     q<{ name: string }>("select name from projects where not archived order by lower(name)"),
     q<{ name: string }>("select name from people order by lower(name)"),
+    listRemarks(taskId),
   ]);
 
   return (
@@ -40,6 +41,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
       today={ctx.today}
       history={history.map((h) => ({ date: fmtDateShort(h.date), status: h.status, mustDo: h.must_do }))}
       totals={totals[0]}
+      remarks={remarks.map((r) => ({ id: r.id, body: r.body, createdAt: r.created_at.toISOString() }))}
       task={{
         id: task.id,
         title: task.title,

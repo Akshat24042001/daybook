@@ -9,6 +9,7 @@ import { createRefAction, deleteRefAction, updateRefAction } from "@/app/actions
 import { cn } from "@/lib/cn";
 import type { Ref, RefKind } from "@/lib/services/refs";
 import { Button, Card, Empty, Input, Sheet, Textarea } from "../ui";
+import { VoiceButton } from "../voice-button";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -56,12 +57,14 @@ function RefForm({
   initial,
   pending,
   allTags,
+  voiceEnabled,
   onSubmit,
   onCancel,
 }: {
   initial: FormData;
   pending: boolean;
   allTags: string[];
+  voiceEnabled: boolean;
   onSubmit: (data: FormData) => void;
   onCancel: () => void;
 }) {
@@ -156,16 +159,18 @@ function RefForm({
           <label className="mb-1 block text-xs font-medium text-subtle">
             {f.kind === "link" ? "Description (optional)" : "Content *"}
           </label>
-          <Textarea
-            value={f.body ?? ""}
-            onChange={(e) => set("body", e.target.value || null)}
-            placeholder={
-              f.kind === "link"
-                ? "What is this link about?"
-                : "Write your note here…"
-            }
-            className="min-h-[80px]"
-          />
+          <div className="flex items-start gap-2">
+            <Textarea
+              value={f.body ?? ""}
+              onChange={(e) => set("body", e.target.value || null)}
+              placeholder={f.kind === "link" ? "What is this link about?" : "Write your note here…"}
+              className="min-h-[80px]"
+            />
+            <VoiceButton
+              enabled={voiceEnabled}
+              onText={(t) => set("body", f.body ? `${f.body} ${t}` : t)}
+            />
+          </div>
         </div>
       ) : null}
 
@@ -349,7 +354,7 @@ function RefCard({
 
 // ─── main ─────────────────────────────────────────────────────────────────────
 
-export function RefsClient({ refs, allTags }: { refs: Ref[]; allTags: string[] }) {
+export function RefsClient({ refs, allTags, voiceEnabled }: { refs: Ref[]; allTags: string[]; voiceEnabled: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [search, setSearch] = useState("");
@@ -526,6 +531,7 @@ export function RefsClient({ refs, allTags }: { refs: Ref[]; allTags: string[] }
           initial={{ ...BLANK, kind: addKind }}
           pending={pending}
           allTags={allTags}
+          voiceEnabled={voiceEnabled}
           onSubmit={(data) => {
             call(() => createRefAction(data));
             setAddOpen(false);
@@ -549,6 +555,7 @@ export function RefsClient({ refs, allTags }: { refs: Ref[]; allTags: string[] }
             }}
             pending={pending}
             allTags={allTags}
+            voiceEnabled={voiceEnabled}
             onSubmit={(data) => {
               call(() => updateRefAction(editing.id, data));
               setEditing(null);

@@ -1,11 +1,11 @@
 "use client";
 
-import { ArrowLeft, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, MessageSquarePlus, Save, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
-  createTaskAction, deleteTaskAction, setTaskStateAction, updateTaskAction, type NewTaskForm,
+  createTaskAction, createRemarkAction, deleteRemarkAction, deleteTaskAction, setTaskStateAction, updateTaskAction, type NewTaskForm,
 } from "@/app/actions";
 import { TASK_TYPE_LABEL, type TaskType } from "@/lib/parser";
 import { fmtDuration } from "@/lib/time";
@@ -50,7 +50,7 @@ function parseRule(rrule: string): { kind: "weekly" | "monthly"; day: string; mo
 const num = (v: string): number | null => (v.trim() === "" ? null : Math.max(0, Math.round(Number(v))) || null);
 
 export function TaskForm({
-  mode, task, projects, people, voiceEnabled, history, totals, pendingId = null, today,
+  mode, task, projects, people, voiceEnabled, history, totals, pendingId = null, today, remarks = [],
 }: {
   mode: "new" | "edit";
   task: TaskFormData;
@@ -61,6 +61,7 @@ export function TaskForm({
   totals: { minutes: number; days: number };
   pendingId?: number | null;
   today: string;
+  remarks?: { id: number; body: string; createdAt: string }[];
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -77,6 +78,8 @@ export function TaskForm({
   const [goalHours, setGoalHours] = useState(task.goalMin === null ? "" : String(Math.round((task.goalMin / 60) * 10) / 10));
   const [goalCount, setGoalCount] = useState(task.goalCount === null ? "" : String(task.goalCount));
   const [mustDo, setMustDo] = useState(!!task.mustDo);
+  const [remarkList, setRemarkList] = useState(remarks);
+  const [newRemark, setNewRemark] = useState("");
   const set = <K extends keyof TaskFormData>(k: K, v: TaskFormData[K]) => setF((cur) => ({ ...cur, [k]: v }));
 
   const rrule = f.type === "recurring" ? (ruleKind === "weekly" ? `FREQ=WEEKLY;BYDAY=${ruleDay}` : `FREQ=MONTHLY;BYMONTHDAY=${Math.min(31, Math.max(1, Number(ruleMonthDay) || 1))}`) : "";
@@ -257,12 +260,80 @@ export function TaskForm({
           </div>
         ) : null}
 
-        <Field label="Notes" hint="Type, or tap the mic and speak. Spoken text is added to what is already there.">
-          <div className="flex items-start gap-2">
-            <Textarea value={f.notes} onChange={(e) => set("notes", e.target.value)} placeholder="Anything worth remembering" className="min-h-[110px]" />
-            <VoiceButton enabled={voiceEnabled} onText={(t) => set("notes", f.notes ? `${f.notes}\n${t}` : t)} />
+        {mode === "edit" ? (
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-subtle">Remarks</p>
+            {remarkList.length === 0 ? (
+              <p className="text-sm text-subtle">No remarks yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {remarkList.map((r) => {
+                  const dt = new Date(r.createdAt);
+                  const label = `${dt.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })} · ${dt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`;
+                  return (
+                    <li key={r.id} className="rounded-xl border border-border bg-surface p-3 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-subtle tabular-nums">{label}</span>
+                        <button
+                          type="button"
+                          aria-label="Delete remark"
+                          className="text-subtle hover:text-fg"
+                          onClick={() =>
+                            start(async () => {
+                              const res = await deleteRemarkAction(r.id, f.id);
+                              if (!res.ok) { toast(res.error ?? "Could not delete.", "error"); return; }
+                              setRemarkList((cur) => cur.filter((x) => x.id !== r.id));
+                            })
+                          }
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <p className="text-sm whitespace-pre-wrap">{r.body}</p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <div className="flex items-start gap-2">
+              <Textarea
+                value={newRemark}
+                onChange={(e) => setNewRemark(e.target.value)}
+                placeholder="Add a remark…"
+                className="min-h-[72px]"
+              />
+              <div className="flex flex-col gap-1">
+                <VoiceButton enabled={voiceEnabled} onText={(t) => setNewRemark((cur) => cur ? `${cur}\n${t}` : t)} />
+                <button
+                  type="button"
+                  disabled={pending || !newRemark.trim()}
+                  title="Save remark"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-surface text-subtle hover:text-fg disabled:opacity-40"
+                  onClick={() =>
+                    start(async () => {
+                      const body = newRemark.trim();
+                      if (!body) return;
+                      const res = await createRemarkAction(f.id, body);
+                      if (!res.ok) { toast(res.error ?? "Could not save.", "error"); return; }
+                      setNewRemark("");
+                      setRemarkList((cur) => [{ id: Date.now(), body, createdAt: new Date().toISOString() }, ...cur]);
+                      toast("Remark saved.");
+                    })
+                  }
+                >
+                  <MessageSquarePlus className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
           </div>
-        </Field>
+        ) : (
+          <Field label="Notes" hint="Shown after the task is created.">
+            <div className="flex items-start gap-2">
+              <Textarea value={f.notes} onChange={(e) => set("notes", e.target.value)} placeholder="Anything worth remembering" className="min-h-[110px]" />
+              <VoiceButton enabled={voiceEnabled} onText={(t) => set("notes", f.notes ? `${f.notes}\n${t}` : t)} />
+            </div>
+          </Field>
+        )}
 
         <ErrorNote message={error} />
         <div className="flex flex-wrap gap-2">

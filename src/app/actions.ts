@@ -22,7 +22,7 @@ import {
   type StateKind,
 } from "@/lib/services/segments";
 import {
-  appendNote, createFromParsed, deleteTask, ensurePerson, ensureProject, findDuplicates, getTask, updateTask,
+  appendNote, createRemark, deleteRemark, createFromParsed, deleteTask, ensurePerson, ensureProject, findDuplicates, getTask, updateTask,
   type TaskPatch,
 } from "@/lib/services/tasks";
 import { sendMessage, telegramConfigured } from "@/lib/telegram/api";
@@ -309,7 +309,19 @@ export async function deleteTaskAction(id: number) {
 export async function appendNoteAction(taskId: number, text: string) {
   return run(async (ctx) => {
     await appendNote(ctx, taskId, text);
-  }, []);
+  }, [`/task/${taskId}`]);
+}
+
+export async function createRemarkAction(taskId: number, body: string) {
+  return run(async () => {
+    await createRemark(taskId, body);
+  }, [`/task/${taskId}`]);
+}
+
+export async function deleteRemarkAction(id: number, taskId: number) {
+  return run(async () => {
+    await deleteRemark(id);
+  }, [`/task/${taskId}`]);
 }
 
 export interface NewTaskForm {

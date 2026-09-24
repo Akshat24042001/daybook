@@ -250,13 +250,35 @@ export function loggedDay(ctx: Ctx, at: Date): DateStr {
   return logicalDate(at, ctx.tz, ctx.boundaryMin);
 }
 
-/** Adds a dated line to a task's notes (voice or typed). */
-export async function appendNote(ctx: Ctx, taskId: number, text: string): Promise<TaskRow> {
-  const clean = text.trim();
-  if (!clean) throw new UserError("The note is empty.");
-  const t = await getTask(taskId);
+export interface TaskRemark {
+  id: number;
+  task_id: number;
+  body: string;
+  created_at: Date;
+}
+
+export async function listRemarks(taskId: number, db: Db = getPool()): Promise<TaskRemark[]> {
+  return q<TaskRemark>("select * from task_remarks where task_id = $1 order by created_at desc", [taskId], db);
+}
+
+export async function createRemark(taskId: number, body: string, db: Db = getPool()): Promise<TaskRemark> {
+  const clean = body.trim();
+  if (!clean) throw new UserError("The remark is empty.");
+  const t = await getTask(taskId, db);
   if (!t) throw new UserError("Task not found.");
-  const line = `[${ctx.today}] ${clean}`;
-  await q("update tasks set notes = case when notes is null or notes = '' then $2 else notes || E'\n' || $2 end where id = $1", [taskId, line]);
+  return (await one<TaskRemark>(
+    "insert into task_remarks (task_id, body) values ($1, $2) returning *",
+    [taskId, clean],
+    db,
+  ))!;
+}
+
+export async function deleteRemark(id: number, db: Db = getPool()): Promise<void> {
+  await q("delete from task_remarks where id = $1", [id], db);
+}
+
+/** @deprecated Use createRemark. Kept for Telegram bot compatibility. */
+export async function appendNote(ctx: Ctx, taskId: number, text: string): Promise<TaskRow> {
+  await createRemark(taskId, text);
   return (await getTask(taskId))!;
 }
