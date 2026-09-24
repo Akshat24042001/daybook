@@ -14,10 +14,31 @@ function needsSsl(url: string): boolean {
   return /supabase\.(co|com)|pooler\.supabase/.test(url);
 }
 
+/**
+ * Development and tests must never touch real data. Outside Vercel and outside `next start`, a database that is not
+ * on this machine is refused unless ALLOW_REMOTE_DB=1 is set on purpose.
+ */
+export function assertSafeDatabase(url: string): void {
+  if (process.env.VERCEL || process.env.NODE_ENV === "production" || process.env.ALLOW_REMOTE_DB === "1") return;
+  let host = "";
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    return;
+  }
+  if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(host)) {
+    throw new Error(
+      `Refusing to use the remote database ${host} in development. Point DATABASE_URL at the local one ` +
+        "(npm run db:start) or set ALLOW_REMOTE_DB=1 if you really mean it.",
+    );
+  }
+}
+
 export function getPool(): pg.Pool {
   if (!g.__daybookPool) {
     const url = process.env.DATABASE_URL;
     if (!url) throw new Error("DATABASE_URL is not set");
+    assertSafeDatabase(url);
     g.__daybookPool = new pg.Pool({
       connectionString: url,
       max: process.env.VERCEL ? 3 : 8,

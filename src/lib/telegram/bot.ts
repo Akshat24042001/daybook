@@ -260,8 +260,15 @@ Anything else is added as a task — with full quick-add syntax support.`);
   }
 }
 
-/** All free text is routed through AI. Falls back to quick-add task creation if AI is not configured. */
+/**
+ * Free text: a manual time entry ("office 10:45 to 1:30") goes to the exact time parser first, because an AI guess
+ * at clock times is worse than the parser. Everything else is routed through AI, falling back to quick-add.
+ */
 async function routeFreeText(ctx: Ctx, chat: number, text: string, fromVoice: boolean): Promise<void> {
+  if (looksLikeTimeLog(text)) {
+    await timeLogPreview(ctx, chat, text);
+    return;
+  }
   if (aiConfigured()) {
     const exerciseTypes = await listExerciseTypes(true);
     const exerciseTypeNames = exerciseTypes.map((t) => t.name);

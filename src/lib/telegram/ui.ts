@@ -1,4 +1,6 @@
+import { createHmac } from "node:crypto";
 import { q } from "../db";
+import { LINK_PARAM, LINK_TTL_SEC, tokenSecret } from "../session-token";
 import { SECTION_LABEL, SECTION_ORDER, dueFor, sectionize } from "../sections";
 import type { Ctx } from "../settings";
 import { fmtDateLong, fmtDuration, fmtHM, addDays, type DateStr, weekdayName, fmtDateShort } from "../time";
@@ -21,17 +23,26 @@ export function isHttpsBase(): boolean {
   return /^https:\/\//i.test(process.env.APP_BASE_URL ?? "");
 }
 
+/** Same token as makeToken("link") in session-token.ts, computed synchronously for message builders. */
+export function linkToken(nowMs = Date.now()): string | null {
+  const key = tokenSecret();
+  if (!key) return null;
+  const exp = Math.floor(nowMs / 1000) + LINK_TTL_SEC;
+  return `${exp}.${createHmac("sha256", key).update(`link.${exp}`).digest("base64url")}`;
+}
+
 export function appUrl(path: string, auth = false): string {
   const raw = process.env.APP_BASE_URL ?? "";
   let base: string;
   try { base = new URL(raw).origin; } catch { base = raw.replace(/\/$/, ""); }
-  const password = auth ? (process.env.ADMIN_PASSWORD ?? "") : "";
+  const token = auth ? linkToken() : null;
   const sep = path.includes("?") ? "&" : "?";
-  return password ? `${base}${path}${sep}auth=${encodeURIComponent(password)}` : `${base}${path}`;
+  return token ? `${base}${path}${sep}${LINK_PARAM}=${token}` : `${base}${path}`;
 }
 
 /** Telegram only accepts https URLs on buttons, so URL buttons are dropped for http://localhost.
- *  All URLs include ?auth= so they work in Telegram's WebView without a session cookie. */
+ *  URLs carry a signed link token (session-token.ts) so they open signed in inside Telegram's WebView without a
+ *  session cookie. The token expires after two weeks and never contains the password. */
 export function urlBtn(text: string, path: string): Button | null {
   return isHttpsBase() ? { text, url: appUrl(path, true) } : null;
 }
@@ -227,7 +238,11 @@ const STEP_PRESETS = [2000, 4000, 6000, 8000, 10000];
 
 export function scoreKeyboard(date: DateStr, score: number | null): Button[][] {
   const d = packDate(date);
-  if (score !== null) return [[btn(`Score ${score} ✓ (change)`, `sc:c:${d}`)]];
+  if (score !== null) {
+    // a whole score gets a one-tap half point, like tapping the same number twice on the web
+    const half = Number.isInteger(score) && score < 10 ? [btn(`${score}.5`, `sc:s:${score}.5:${d}`)] : [];
+    return [[btn(`Score ${score} ✓ (change)`, `sc:c:${d}`), ...half]];
+  }
   const mk = (n: number) => btn(String(n), `sc:s:${n}:${d}`);
   return [SCORE_ROW_1.map(mk), SCORE_ROW_2.map(mk)];
 }

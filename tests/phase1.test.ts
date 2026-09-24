@@ -87,29 +87,18 @@ describe("Phase 1: a task added on day 1 appears on day 2 without retyping", () 
   });
 });
 
-describe("Phase 1: must-do cap", () => {
-  it("allows 3 by default and rejects a 4th until another is demoted", async () => {
+// The owner removed the must-do cap on purpose (commit d865bdc): any number of must-dos per day.
+describe("Phase 1: must-dos", () => {
+  it("allows any number of must-dos, and they can be turned on and off", async () => {
     const ctx = await ctxAt("2026-09-19 09:00");
-    await add(ctx, "One !!");
-    await add(ctx, "Two !!");
-    const three = await add(ctx, "Three !!");
-    await expect(add(ctx, "Four !!")).rejects.toThrow(/cap is 3/);
-    // the rejected task was not created at all
-    expect((await q("select * from tasks where title = 'Four'")).length).toBe(0);
+    for (const t of ["One", "Two", "Three", "Four", "Five"]) await add(ctx, `${t} !!`);
+    expect((await entriesForDate("2026-09-19")).filter((e) => e.must_do).length).toBe(5);
 
-    const four = (await add(ctx, "Four")).entry!;
-    await expect(setMustDo(ctx, four.id, true)).rejects.toBeInstanceOf(UserError);
-    await setMustDo(ctx, three.entry!.id, false);
-    await setMustDo(ctx, four.id, true);
-    expect((await entriesForDate("2026-09-19")).filter((e) => e.must_do).length).toBe(3);
-  });
-
-  it("respects a configurable cap, max 5", async () => {
-    await updateSettings({ must_do_cap: 5 });
-    const ctx = await ctxAt("2026-09-19 09:00");
-    for (let i = 1; i <= 5; i++) await add(ctx, `Task ${i} !!`);
-    await expect(add(ctx, "Task 6 !!")).rejects.toThrow(/cap is 5/);
-    await expect(updateSettings({ must_do_cap: 6 })).rejects.toThrow(/between 1 and 5/);
+    const six = (await add(ctx, "Six")).entry!;
+    await setMustDo(ctx, six.id, true);
+    expect((await entriesForDate("2026-09-19")).filter((e) => e.must_do).length).toBe(6);
+    await setMustDo(ctx, six.id, false);
+    expect((await entriesForDate("2026-09-19")).filter((e) => e.must_do).length).toBe(5);
   });
 
   it("dropped must-dos free up room", async () => {
@@ -181,41 +170,29 @@ describe("Phase 1: status rules", () => {
 });
 
 describe("Phase 1: Plan with triage and capacity bar", () => {
-  it("must triage every unresolved entry before planning can finish", async () => {
+  // Plan carries unresolved tasks forward automatically (owner's choice); the per-task triage actions still work.
+  it("carries every unresolved entry to the plan date automatically, counting each carry once", async () => {
     const today = await ctxAt("2026-09-19 21:00");
     const a = await add(today, "Task A");
     const b = await add(today, "Task B");
-    const c = await add(today, "Task C");
-    const d = await add(today, "Task D");
-    const e = await add(today, "Task E");
+    const done = await add(today, "Task Done");
+    await setEntryStatus(today, done.entry!.id, "done");
     const tomorrow = "2026-09-20";
 
     let plan = await planView(today, tomorrow);
-    expect(plan.triage.length).toBe(5);
-    await expect(finishPlan(today, tomorrow)).rejects.toThrow(/Triage first: 5/);
-
-    await triageEntry(today, a.entry!.id, "carry", tomorrow);
-    await triageEntry(today, b.entry!.id, "carry_must", tomorrow);
-    await triageEntry(today, c.entry!.id, "pick", tomorrow, "2026-09-25");
-    await triageEntry(today, d.entry!.id, "someday", tomorrow);
-    await triageEntry(today, e.entry!.id, "drop", tomorrow);
-    await triageEntry(today, a.entry!.id, "carry", tomorrow); // double tap is harmless
-
-    expect((await unresolvedEntries(tomorrow)).length).toBe(0);
-    expect((await getTask(a.task.id))!.carry_count).toBe(1); // counted once
-    expect((await getTask(d.task.id))!.type).toBe("someday");
-    expect((await getTask(e.task.id))!.state).toBe("dropped");
-    expect((await entryForTask(c.task.id, "2026-09-25"))!.source).toBe("carried");
-    expect((await entryForTask(b.task.id, tomorrow))!.must_do).toBe(true);
-
-    await finishPlan(today, tomorrow);
-    const day = await getDay(tomorrow);
-    expect(day!.planned_at).not.toBeNull();
-
-    plan = await planView(today, tomorrow);
     expect(plan.triage.length).toBe(0);
     expect(plan.entries.map((x) => x.title).sort()).toEqual(["Task A", "Task B"]);
-    expect(plan.suggestions.someday.map((t) => t.title)).toEqual(["Task D"]);
+    expect((await entryForTask(a.task.id, tomorrow))!.source).toBe("carried");
+    expect((await unresolvedEntries(tomorrow)).length).toBe(0);
+
+    // opening Plan again must not carry or count twice
+    plan = await planView(today, tomorrow);
+    expect(plan.entries.length).toBe(2);
+    expect((await getTask(a.task.id))!.carry_count).toBe(1);
+    expect((await getTask(b.task.id))!.carry_count).toBe(1);
+
+    await finishPlan(today, tomorrow);
+    expect((await getDay(tomorrow))!.planned_at).not.toBeNull();
   });
 
   it("pre-fills tomorrow with Ongoing, Recurring and overdue Cadence items", async () => {

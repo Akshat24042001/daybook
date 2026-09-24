@@ -18,7 +18,9 @@ export function LoginForm() {
       body: JSON.stringify({ password }),
     });
     if (res.ok) {
-      window.location.href = "/today";
+      // go back to the page that asked for the login; only same-site paths
+      const next = new URLSearchParams(window.location.search).get("next") ?? "";
+      window.location.href = /^\/(?!\/)/.test(next) ? next : "/today";
     } else {
       setError("Wrong password.");
       setLoading(false);

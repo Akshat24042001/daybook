@@ -6,10 +6,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import pg from "pg";
+import { assertSafeDatabase } from "./db";
 
 function dbClient() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL not set");
+  assertSafeDatabase(url);
   return new pg.Client({
     connectionString: url,
     ssl: /supabase\.(co|com)|pooler\.supabase/.test(url) ? { rejectUnauthorized: false } : undefined,

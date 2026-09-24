@@ -174,21 +174,15 @@ describe("free-text quick-add over the bot", () => {
     expect((await q("select * from tasks")).length).toBe(1);
   });
 
-  it("reports the must-do cap and lets the user demote one from the same message", async () => {
+  // No must-do cap any more (commit d865bdc): a fourth must-do is simply added.
+  it("adds any number of must-dos from Telegram", async () => {
     await link();
-    for (const t of ["A !!", "B !!", "C !!"]) {
+    for (const t of ["A !!", "B !!", "C !!", "D !!"]) {
       await say(t, "2026-09-19 10:00");
       await tap("✅ Add", "2026-09-19 10:00");
     }
-    await say("D !!", "2026-09-19 10:01");
-    await tap("✅ Add", "2026-09-19 10:01");
-    const msg = [...mock.messages.values()].at(-1)!;
-    expect(msg.text).toMatch(/Must-do cap is 3/);
-    expect((await q("select * from tasks where title = 'D'")).length).toBe(0);
-    await tap("Demote: A", "2026-09-19 10:02");
-    await say("D !!", "2026-09-19 10:03");
-    await tap("✅ Add", "2026-09-19 10:03");
-    expect((await q("select * from day_entries where must_do")).length).toBe(3);
+    expect([...mock.messages.values()].at(-1)!.text).toMatch(/D.*added to today/);
+    expect((await q("select * from day_entries where must_do")).length).toBe(4);
   });
 
   it("every button stays under Telegram's 64-byte callback_data limit (the mock enforces it)", async () => {

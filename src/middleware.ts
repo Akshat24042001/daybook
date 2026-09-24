@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-
-const SESSION_COOKIE = "daybook_session";
+import {
+  LINK_PARAM, SESSION_COOKIE, SESSION_TTL_SEC, makeToken, sessionCookieOptions, verifyToken,
+} from "@/lib/session-token";
 
 function isPublicPath(pathname: string): boolean {
   return (
@@ -16,34 +17,39 @@ function isPublicPath(pathname: string): boolean {
   );
 }
 
-export function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
-  if (isPublicPath(pathname)) return NextResponse.next();
+export async function middleware(req: NextRequest) {
+  const { pathname, searchParams } = req.nextUrl;
 
-  const password = process.env.ADMIN_PASSWORD ?? "";
-  const session = req.cookies.get(SESSION_COOKIE)?.value ?? "";
-
-  // ?auth=<password> in URL — used by Telegram deep links to auto-authenticate
-  // in Telegram's WebView where the session cookie doesn't exist.
-  const authParam = req.nextUrl.searchParams.get("auth");
-  if (authParam && password && authParam === password) {
+  // Telegram buttons carry a signed, expiring link token (never the password). Swap it for a session
+  // cookie and drop it from the address so it does not linger in history.
+  const link = searchParams.get(LINK_PARAM);
+  if (link !== null) {
     const dest = req.nextUrl.clone();
-    dest.searchParams.delete("auth");
+    dest.searchParams.delete(LINK_PARAM);
+    dest.searchParams.delete("auth"); // links from before this change
     const res = NextResponse.redirect(dest);
-    res.cookies.set(SESSION_COOKIE, password, {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 365, // 1 year
-    });
+    if (await verifyToken("link", link)) {
+      const session = await makeToken("session", SESSION_TTL_SEC);
+      if (session) res.cookies.set(SESSION_COOKIE, session, sessionCookieOptions);
+    }
     return res;
   }
+  // Old links put the password in the URL. Never honour them; just strip it.
+  if (searchParams.has("auth")) {
+    const dest = req.nextUrl.clone();
+    dest.searchParams.delete("auth");
+    return NextResponse.redirect(dest);
+  }
 
-  if (!password || !session.includes(password)) {
+  if (isPublicPath(pathname)) return NextResponse.next();
+
+  if (!(await verifyToken("session", req.cookies.get(SESSION_COOKIE)?.value))) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
-    return NextResponse.redirect(new URL("/login", req.url));
+    const login = new URL("/login", req.url);
+    if (pathname !== "/") login.searchParams.set("next", pathname + req.nextUrl.search);
+    return NextResponse.redirect(login);
   }
 
   return NextResponse.next();

@@ -164,12 +164,13 @@ describe("Telegram voice notes (Deepgram)", () => {
     await tap("📝 Note", "2026-09-19 10:01");
     const prompt = last();
     expect(prompt.reply_markup).toMatchObject({ force_reply: true });
+    // notes are stored as dated task remarks (commit 574d2c2)
     await voice("Ask about the pricing revision and the new deadline.", "2026-09-19 10:02", prompt.message_id);
-    const t = await one<{ notes: string }>("select notes from tasks");
-    expect(t!.notes).toBe("[2026-09-19] Ask about the pricing revision and the new deadline.");
+    const r1 = await q<{ body: string }>("select body from task_remarks order by id");
+    expect(r1.map((r) => r.body)).toEqual(["Ask about the pricing revision and the new deadline."]);
     await say("also bring the contract", "2026-09-19 10:03", prompt.message_id);
-    const t2 = await one<{ notes: string }>("select notes from tasks");
-    expect(t2!.notes).toBe("[2026-09-19] Ask about the pricing revision and the new deadline.\n[2026-09-19] also bring the contract");
+    const r2 = await q<{ body: string }>("select body from task_remarks order by id");
+    expect(r2.map((r) => r.body)).toEqual(["Ask about the pricing revision and the new deadline.", "also bring the contract"]);
   });
 
   it("explains missing keys and speech-service failures instead of failing silently", async () => {

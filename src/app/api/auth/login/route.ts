@@ -8,6 +8,8 @@ export async function POST(req: Request) {
   const { password } = await req.json() as { password?: string };
   const expected = process.env.ADMIN_PASSWORD?.trim() ?? "";
   if (!expected || !safeEqual(password ?? "", expected)) {
+    // slow down guessing
+    await new Promise((r) => setTimeout(r, 800));
     return NextResponse.json({ ok: false }, { status: 401 });
   }
   const cookie = await createSession();
