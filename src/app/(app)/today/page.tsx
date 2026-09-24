@@ -10,13 +10,17 @@ import { currentState, segmentsForDate, workedForDate } from "@/lib/services/seg
 import { toLocalInput, toRow, type RowData, type SegmentData } from "@/lib/view-types";
 import { listTargets } from "@/lib/services/goals";
 import { q } from "@/lib/db";
+import { aiConfigured } from "@/lib/ai";
+import { DiaryPanel } from "@/components/diary/diary-panel";
+import { getSummary, listEntries, toSummaryView } from "@/lib/services/diary";
 
 export const metadata: Metadata = { title: "Today" };
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export default async function TodayPage() {
   const ctx = await makeCtx();
-  const [entries, state, worked, day, segs, allTargets, projects] = await Promise.all([
+  const [entries, state, worked, day, segs, allTargets, projects, diaryEntries, diarySummary] = await Promise.all([
     entriesForDate(ctx.today),
     currentState(),
     workedForDate(ctx, ctx.today),
@@ -24,6 +28,8 @@ export default async function TodayPage() {
     segmentsForDate(ctx, ctx.today),
     listTargets(ctx),
     q<{ id: number; name: string }>("select id, name from projects where archived = false order by lower(name)"),
+    listEntries(ctx.today).catch(() => []),
+    getSummary(ctx.today).catch(() => null),
   ]);
 
   const activeTargets = [...allTargets.week, ...allTargets.month, ...allTargets.quarter, ...allTargets.year]
@@ -43,6 +49,7 @@ export default async function TodayPage() {
   }));
 
   return (
+    <div className="mx-auto max-w-6xl">
     <TodayView
       date={ctx.today}
       dateLabel={fmtDateLong(ctx.today)}
@@ -59,6 +66,17 @@ export default async function TodayPage() {
       voiceEnabled={voiceConfigured()}
       targets={activeTargets}
       projects={projects}
+      aside={
+        <DiaryPanel
+          compact
+          date={ctx.today}
+          entries={diaryEntries.map((e) => ({ id: e.id, body: e.body, source: e.source, timeLabel: fmtHM(e.created_at, ctx.tz) }))}
+          summary={diarySummary ? toSummaryView(diarySummary) : null}
+          voiceEnabled={voiceConfigured()}
+          aiEnabled={aiConfigured()}
+        />
+      }
     />
+    </div>
   );
 }

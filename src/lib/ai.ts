@@ -12,7 +12,31 @@ interface Message {
   content: string;
 }
 
-async function chat(messages: Message[], model = "openai/gpt-4o-mini"): Promise<string> {
+/**
+ * Free, open-weight models on OpenRouter, best first. Free models come and go, so a request walks the list until
+ * one answers. Override with AI_MODELS="vendor/model:free,vendor/other:free".
+ */
+export const OPEN_MODELS = [
+  "z-ai/glm-5.2:free",
+  "nvidia/nemotron-3-super-120b-a12b:free",
+  "qwen/qwen3.8-27b:free",
+  "google/gemma-4-31b-it:free",
+];
+
+export function openModels(): string[] {
+  const env = (process.env.AI_MODELS ?? "").split(",").map((m) => m.trim()).filter(Boolean);
+  return env.length ? env : OPEN_MODELS;
+}
+
+interface ChatOptions {
+  maxTokens?: number;
+  timeoutMs?: number;
+  temperature?: number;
+  /** budget across all fallback attempts */
+  totalMs?: number;
+}
+
+async function chatOnce(messages: Message[], model: string, o: ChatOptions): Promise<string> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error("OPENROUTER_API_KEY is not set");
 
@@ -24,8 +48,15 @@ async function chat(messages: Message[], model = "openai/gpt-4o-mini"): Promise<
       "HTTP-Referer": process.env.APP_BASE_URL ?? "https://daybook.app",
       "X-Title": "Daybook",
     },
-    body: JSON.stringify({ model, messages, temperature: 0.2, max_tokens: 512 }),
-    signal: AbortSignal.timeout(15_000),
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: o.temperature ?? 0.2,
+      max_tokens: o.maxTokens ?? 512,
+      // reasoning models: think briefly and keep the thinking out of the answer
+      reasoning: { effort: "low", exclude: true },
+    }),
+    signal: AbortSignal.timeout(o.timeoutMs ?? 15_000),
   });
 
   if (!res.ok) {
@@ -34,7 +65,30 @@ async function chat(messages: Message[], model = "openai/gpt-4o-mini"): Promise<
   }
 
   const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  return json.choices?.[0]?.message?.content?.trim() ?? "";
+  const out = json.choices?.[0]?.message?.content?.trim() ?? "";
+  if (!out) throw new Error(`OpenRouter ${model}: empty answer`);
+  return out;
+}
+
+/** Tries each open model in turn; returns the first answer and which model gave it. */
+export async function chatWithModel(messages: Message[], o: ChatOptions = {}): Promise<{ text: string; model: string }> {
+  let last: Error | null = null;
+  const deadline = Date.now() + (o.totalMs ?? 40_000);
+  for (const model of openModels()) {
+    const left = deadline - Date.now();
+    if (left < 3_000) break;
+    try {
+      return { text: await chatOnce(messages, model, { ...o, timeoutMs: Math.min(o.timeoutMs ?? 15_000, left) }), model };
+    } catch (e) {
+      last = e as Error;
+      console.warn("[ai] model failed, trying next:", model, last.message.slice(0, 120));
+    }
+  }
+  throw last ?? new Error("No AI model available");
+}
+
+async function chat(messages: Message[], o: ChatOptions = {}): Promise<string> {
+  return (await chatWithModel(messages, o)).text;
 }
 
 const SYSTEM_PROMPT = `You are a task assistant for Daybook, a personal productivity app.
@@ -161,7 +215,7 @@ export async function interpretTelegramMessage(text: string, exerciseTypeNames: 
         { role: "system", content: buildTgSystemPrompt(exerciseTypeNames) },
         { role: "user", content: text },
       ],
-      "google/gemini-2.0-flash-exp:free",
+      { timeoutMs: 12_000, totalMs: 20_000 },
     );
     // Strip any accidental markdown fences
     const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();

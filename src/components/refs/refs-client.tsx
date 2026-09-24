@@ -502,7 +502,7 @@ export function RefsClient({ refs, allTags, voiceEnabled }: { refs: Ref[]; allTa
       ) : filtered.length === 0 ? (
         <Empty>No results match your search or filters.</Empty>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((r) => (
             <RefCard
               key={r.id}

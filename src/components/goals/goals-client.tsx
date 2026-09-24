@@ -162,7 +162,7 @@ export function GoalsClient(props: {
               <h3 className={cn("text-sm font-semibold uppercase tracking-wide", PERIOD_COLOR[p].text)}>{PERIOD_LABEL[p]}</h3>
               <span className="text-xs text-subtle">{props.targets[p].length} target{props.targets[p].length !== 1 ? "s" : ""}</span>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {props.targets[p].map((t) => (
                 <TargetCard
                   key={t.id}

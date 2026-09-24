@@ -41,6 +41,8 @@ export function TodayView(props: {
   segments: SegmentData[];
   newSegmentDefault: string;
   voiceEnabled: boolean;
+  /** extra cards for the right rail (the diary) */
+  aside?: React.ReactNode;
   targets: { id: number; title: string; met: boolean; behind: boolean; hasGoal: boolean; period: string }[];
   projects: { id: number; name: string }[];
 }) {
@@ -102,7 +104,8 @@ export function TodayView(props: {
   const stateLabel = STATES.find((s) => s.kind === optimisticKind)?.label ?? "Off";
 
   return (
-    <div className="space-y-5">
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start">
+    <div className="min-w-0 space-y-5">
       {/* header */}
       <section aria-label="Today">
         <div className="flex items-end justify-between gap-3">
@@ -239,10 +242,13 @@ export function TodayView(props: {
         );
       })}
 
-      {/* end of day: score and steps */}
+    </div>
+
+    {/* right rail on wide screens, below the list on phones */}
+    <aside className="space-y-4 xl:sticky xl:top-4" aria-label="End of day">
       <Card className="p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-subtle">End of day</h2>
-        <p className="mt-2 text-sm text-subtle">Score the day out of 10</p>
+        <p className="mt-2 text-sm font-medium">How was today, out of 10?</p>
         <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Score">
           {SCORES.map((n) => {
             const on = optimisticScore !== null && Math.floor(optimisticScore) === n;
@@ -277,8 +283,23 @@ export function TodayView(props: {
           ) : null}
         </div>
         <p className="mt-1 text-xs text-subtle">Tap the same number again for a half point.{optimisticScore !== null ? ` Now ${optimisticScore}.` : ""}</p>
+        <div className="mt-4 flex items-baseline justify-between gap-2">
+          <label htmlFor="today-steps" className="text-sm font-medium">Steps</label>
+          <span className="tabular text-xs text-subtle">
+            {props.steps !== null ? `${props.steps.toLocaleString("en-US")} of ` : "goal "}
+            {props.stepGoal.toLocaleString("en-US")}
+          </span>
+        </div>
+        {props.steps !== null ? (
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
+            <div
+              className={cn("h-full rounded-full", props.steps >= props.stepGoal ? "bg-good" : "bg-accent")}
+              style={{ width: `${Math.min(100, (props.steps / Math.max(1, props.stepGoal)) * 100)}%` }}
+            />
+          </div>
+        ) : null}
         <form
-          className="mt-3 flex items-center gap-2"
+          className="mt-2 flex items-center gap-2"
           onSubmit={(e) => {
             e.preventDefault();
             const v = new FormData(e.currentTarget).get("steps");
@@ -293,10 +314,12 @@ export function TodayView(props: {
             });
           }}
         >
-          <Input name="steps" type="number" inputMode="numeric" min={0} defaultValue={props.steps ?? ""} key={props.steps ?? "none"} placeholder={`Steps (goal ${props.stepGoal.toLocaleString("en-US")})`} className="h-10" aria-label="Steps" />
+          <Input id="today-steps" name="steps" type="number" inputMode="numeric" min={0} defaultValue={props.steps ?? ""} key={props.steps ?? "none"} placeholder="e.g. 8000" className="h-10" />
           <Button type="submit" variant="outline" disabled={pending}>Save</Button>
         </form>
       </Card>
+      {props.aside}
+    </aside>
 
       <EntrySheet row={selectedRow} onClose={() => setSelected(null)} today={date} voiceEnabled={props.voiceEnabled} projects={props.projects} />
       <SegmentsSheet

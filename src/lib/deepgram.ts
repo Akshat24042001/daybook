@@ -22,7 +22,7 @@ export async function transcribe(audio: ArrayBuffer | Uint8Array, contentType: s
   if (!key) throw new VoiceError("Voice input is not set up yet: DEEPGRAM_API_KEY is missing.");
   const size = audio.byteLength;
   if (size < 800) throw new VoiceError("That recording was too short to hear anything.");
-  if (size > MAX_BYTES) throw new VoiceError("That recording is too long. Keep voice notes under a couple of minutes.");
+  if (size > MAX_BYTES) throw new VoiceError("That recording is too long. Keep voice notes under 10 minutes.");
 
   const base = (process.env.DEEPGRAM_API_BASE || "https://api.deepgram.com").replace(/\/$/, "");
   const params = new URLSearchParams({
@@ -38,7 +38,7 @@ export async function transcribe(audio: ArrayBuffer | Uint8Array, contentType: s
       method: "POST",
       headers: { Authorization: `Token ${key}`, "content-type": contentType || "application/octet-stream" },
       body: audio as BodyInit,
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(50_000),
     });
   } catch {
     throw new VoiceError("Could not reach the speech service. Try again.");

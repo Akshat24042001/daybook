@@ -1,11 +1,11 @@
 "use client";
 
-import { ArrowRight, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Star, X } from "lucide-react";
+import { ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, Star, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useOptimistic, useState, useTransition } from "react";
 import {
-  addToDayAction, finishPlanAction, removeEntryAction, toggleMustAction, triageAction,
+  addToDayAction, finishPlanAction, removeEntryAction, toggleMustAction,
 } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import { addDays, fmtDuration, type DateStr } from "@/lib/time";
@@ -40,32 +40,15 @@ export function PlanClient(props: {
   const { toast } = useToast();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [pickFor, setPickFor] = useState<number | null>(null);
-  const [pickDate, setPickDate] = useState("");
-  // Optimistic sets of IDs: triaged entries removed from list, entries removed from day
-  const [optimisticTriaged, setOptimisticTriaged] = useOptimistic<Set<number>>(new Set());
   const [optimisticRemoved, setOptimisticRemoved] = useOptimistic<Set<number>>(new Set());
   const { date, capacity } = props;
-  const triage = props.triage.filter((r) => !optimisticTriaged.has(r.id));
   const entries = props.entries.filter((r) => !optimisticRemoved.has(r.id));
-  const [skipTriage, setSkipTriage] = useState(false);
-  const stepOne = triage.length > 0 && !skipTriage;
 
   function removeFromDay(entryId: number) {
     setError(null);
     start(async () => {
       setOptimisticRemoved((s) => new Set([...s, entryId]));
       const r = await removeEntryAction(entryId);
-      if (!r.ok) setError(r.error ?? "That did not work.");
-      else router.refresh();
-    });
-  }
-
-  function doTriage(entryId: number, action: Parameters<typeof triageAction>[1], pd?: string) {
-    setError(null);
-    start(async () => {
-      setOptimisticTriaged((s) => new Set([...s, entryId]));
-      const r = await triageAction(entryId, action, date, pd);
       if (!r.ok) setError(r.error ?? "That did not work.");
       else router.refresh();
     });
@@ -111,76 +94,10 @@ export function PlanClient(props: {
         </p>
       </header>
 
-      <ol className="flex gap-2 text-xs font-medium" aria-label="Steps">
-        <li
-          className={cn("cursor-pointer rounded-full px-3 py-1 transition-colors", stepOne ? "bg-accent text-accent-fg" : "bg-muted text-subtle hover:bg-muted/70")}
-          onClick={() => triage.length > 0 && setSkipTriage(false)}
-          role={triage.length > 0 ? "button" : undefined}
-        >
-          1 · Triage today{triage.length > 0 ? ` (${triage.length})` : ""}
-        </li>
-        <li
-          className={cn("cursor-pointer rounded-full px-3 py-1 transition-colors", !stepOne ? "bg-accent text-accent-fg" : "bg-muted text-subtle hover:bg-muted/70")}
-          onClick={() => setSkipTriage(true)}
-          role="button"
-        >
-          2 · Build the day
-        </li>
-      </ol>
-
       <ErrorNote message={error} />
 
-      {stepOne ? (
-        <section aria-label="Triage" className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-subtle">
-              {triage.length} unresolved {triage.length === 1 ? "task" : "tasks"} from earlier days.
-            </p>
-            <Button size="sm" variant="ghost" onClick={() => setSkipTriage(true)}>
-              Skip for now →
-            </Button>
-          </div>
-          <ul className="space-y-2">
-            {triage.map((r) => (
-              <li key={r.id} className="rounded-2xl border border-border bg-surface p-3">
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="font-medium">{r.title}</span>
-                  {r.projectName ? <Chip color={r.projectColor}>{r.projectName}</Chip> : null}
-                  <span className="text-xs text-subtle">from {r.date}</span>
-                  {r.carry >= 2 ? <span className={cn("rounded-full px-1.5 py-0.5 text-xs font-medium", r.carry >= 3 ? "bg-bad/15 text-bad" : "bg-warn/15 text-warn")}>carried {r.carry}×</span> : null}
-                </div>
-                <div className="mt-2.5 flex flex-wrap gap-1.5">
-                  <Button size="sm" variant="primary" onClick={() => doTriage(r.id, "carry")}>Carry</Button>
-                  <Button size="sm" variant="outline" onClick={() => doTriage(r.id, "carry_must")}><Star className="h-3.5 w-3.5" /> Carry as must-do</Button>
-                  <Button size="sm" variant="outline" disabled={pending} onClick={() => setPickFor(pickFor === r.id ? null : r.id)}><CalendarDays className="h-3.5 w-3.5" /> Pick date</Button>
-                  <Button size="sm" variant="outline" onClick={() => doTriage(r.id, "someday")}>Someday</Button>
-                  <Button size="sm" variant="ghost" onClick={() => doTriage(r.id, "drop")}><X className="h-3.5 w-3.5" /> Drop</Button>
-                </div>
-                {pickFor === r.id ? (
-                  <form
-                    className="mt-2 flex gap-2"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (pickDate) doTriage(r.id, "pick", pickDate);
-                    }}
-                  >
-                    <Input type="date" min={addDays(r.date, 1)} value={pickDate} onChange={(e) => setPickDate(e.target.value)} className="h-9" aria-label="Date" />
-                    <Button type="submit" size="sm" variant="primary" disabled={pending || !pickDate}>Set</Button>
-                  </form>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : (
-        <>
-          {skipTriage && triage.length > 0 ? (
-            <div className="flex items-center justify-between rounded-xl border border-warn/40 bg-warn/10 px-3 py-2">
-              <p className="text-sm text-warn">{triage.length} triage {triage.length === 1 ? "item" : "items"} still pending.</p>
-              <Button size="sm" variant="ghost" onClick={() => setSkipTriage(false)}>Triage now</Button>
-            </div>
-          ) : null}
-          {/* capacity */}
+      <>
+        {/* capacity */}
           <Card className="p-4" aria-label="Capacity">
             <div className="flex items-baseline justify-between">
               <p className="text-xs font-semibold uppercase tracking-wider text-subtle">Capacity</p>
@@ -294,8 +211,7 @@ export function PlanClient(props: {
               </div>
             </Card>
           </div>
-        </>
-      )}
+      </>
     </div>
   );
 }

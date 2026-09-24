@@ -18,6 +18,7 @@ export default async function HealthPage() {
     lastExercise(),
   ]);
   return (
+    <div className="mx-auto max-w-5xl">
     <HealthClient
       date={ctx.today}
       dateLabel={fmtDateLong(ctx.today)}
@@ -38,5 +39,6 @@ export default async function HealthPage() {
       defaultAmount={last?.amount ?? types.find((t) => t.active)?.default_amount ?? 20}
       paused={ctx.s.exercise_paused}
     />
+    </div>
   );
 }

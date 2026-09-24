@@ -555,7 +555,7 @@ export function ContactsClient({
       ) : filtered.length === 0 ? (
         <Empty>No contacts match your search or filters.</Empty>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((c) => (
             <ContactCard
               key={c.id}

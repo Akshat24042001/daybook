@@ -8,5 +8,5 @@ export const dynamic = "force-dynamic";
 
 export default async function RefsPage() {
   const [refs, tags] = await Promise.all([listRefs(), allTags()]);
-  return <RefsClient refs={refs} allTags={tags} voiceEnabled={deepgramReady()} />;
+  return <div className="mx-auto max-w-6xl"><RefsClient refs={refs} allTags={tags} voiceEnabled={deepgramReady()} /></div>;
 }

@@ -77,7 +77,7 @@ export function HealthClient(props: {
 
       <section aria-label="Exercise slots" className="space-y-3">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-subtle">Today&apos;s slots</h2>
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8">
           {props.cells.map((c) => (
             <button
               key={c.iso}

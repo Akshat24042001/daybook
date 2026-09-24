@@ -5,6 +5,7 @@ import { makeCtx } from "@/lib/settings";
 import { addDays, type DateStr } from "@/lib/time";
 import type { TaskType } from "@/lib/types";
 import { computeStats, type StatsFilters } from "@/lib/services/stats";
+import { summariesInRange, toSummaryView } from "@/lib/services/diary";
 
 export const metadata: Metadata = { title: "Stats" };
 export const dynamic = "force-dynamic";
@@ -46,11 +47,12 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
     via: one(sp.via)?.trim() || null,
   };
 
-  const [stats, projects, people, vias] = await Promise.all([
+  const [stats, projects, people, vias, diary] = await Promise.all([
     computeStats(ctx, filters, one(sp.drill) ?? null),
     q<{ id: number; name: string }>("select id, name from projects order by lower(name)"),
     q<{ id: number; name: string }>("select id, name from people order by lower(name)"),
     q<{ via: string }>("select distinct via from tasks where via is not null and via <> '' order by via"),
+    summariesInRange(from, to).catch(() => []),
   ]);
 
   return (
@@ -62,6 +64,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
       vias={vias.map((v) => v.via)}
       drill={one(sp.drill) ?? null}
       today={ctx.today}
+      diary={diary.map(toSummaryView)}
     />
   );
 }

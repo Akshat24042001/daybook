@@ -41,5 +41,5 @@ export default async function ProjectsPage() {
       r.active + r.done === 0 ? null : Math.round((r.done / (r.active + r.done)) * 100),
   }));
 
-  return <ProjectsClient projects={projects} tasksByProject={tasksByProject} />;
+  return <div className="mx-auto max-w-6xl"><ProjectsClient projects={projects} tasksByProject={tasksByProject} /></div>;
 }

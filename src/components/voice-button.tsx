@@ -7,6 +7,8 @@ import { useToast } from "./toast";
 
 const MIME_CANDIDATES = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
 const MAX_SECONDS = 90;
+// ~4 KB a second: a 10 minute diary note stays well under the 4.5 MB request limit on Vercel.
+const BITS_PER_SECOND = 32_000;
 
 /**
  * Tap to record, tap again to stop. The audio goes to our own /api/voice/transcribe (the Deepgram key stays
@@ -17,11 +19,18 @@ export function VoiceButton({
   enabled,
   className,
   label = "Speak",
+  maxSeconds = MAX_SECONDS,
+  showLabel = false,
+  onStateChange,
 }: {
   onText: (text: string) => void;
   enabled: boolean;
   className?: string;
   label?: string;
+  maxSeconds?: number;
+  /** show the label text next to the icon when idle */
+  showLabel?: boolean;
+  onStateChange?: (state: "idle" | "recording" | "sending") => void;
 }) {
   const { toast } = useToast();
   const [state, setState] = useState<"idle" | "recording" | "sending">("idle");
@@ -38,6 +47,7 @@ export function VoiceButton({
     stream.current = null;
   }, []);
   useEffect(() => cleanup, [cleanup]);
+  useEffect(() => onStateChange?.(state), [state, onStateChange]);
 
   const stop = useCallback(() => {
     if (recorder.current && recorder.current.state !== "inactive") recorder.current.stop();
@@ -56,7 +66,7 @@ export function VoiceButton({
       const s = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.current = s;
       const mime = MIME_CANDIDATES.find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
-      const rec = new MediaRecorder(s, mime ? { mimeType: mime } : undefined);
+      const rec = new MediaRecorder(s, { ...(mime ? { mimeType: mime } : {}), audioBitsPerSecond: BITS_PER_SECOND });
       chunks.current = [];
       rec.ondataavailable = (e) => e.data.size > 0 && chunks.current.push(e.data);
       rec.onstop = async () => {
@@ -81,7 +91,7 @@ export function VoiceButton({
       setState("recording");
       timer.current = setInterval(() => {
         setSeconds((n) => {
-          if (n + 1 >= MAX_SECONDS) stop();
+          if (n + 1 >= maxSeconds) stop();
           return n + 1;
         });
       }, 1000);
@@ -111,10 +121,13 @@ export function VoiceButton({
       ) : recording ? (
         <>
           <Square className="h-3.5 w-3.5 fill-current" />
-          <span className="tabular text-xs">{seconds}s</span>
+          <span className="tabular text-xs">{seconds >= 60 ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}` : `${seconds}s`}</span>
         </>
       ) : (
-        <Mic className="h-4 w-4" />
+        <>
+          <Mic className="h-4 w-4" />
+          {showLabel ? <span>{label}</span> : null}
+        </>
       )}
     </button>
   );

@@ -150,9 +150,14 @@ export interface PlanView {
 }
 
 export async function planView(ctx: Ctx, date: DateStr): Promise<PlanView> {
-  const triage = await unresolvedEntries(date);
-  // Build (step 2) is only pre-filled once triage is done, so triage shows every unresolved entry honestly.
-  if (triage.length === 0) await materializeDay(ctx, date, { cadence: true });
+  // Auto-carry all unresolved entries to the plan date without asking.
+  const stale = await unresolvedEntries(date);
+  for (const e of stale) {
+    await addEntry(ctx, e.task_id, date, { source: "carried", carriedFrom: e.date });
+    if (e.status === "open") await getPool().query("update tasks set carry_count = carry_count + 1 where id = $1", [e.task_id]);
+  }
+  await materializeDay(ctx, date, { cadence: true });
+  const triage: EntryView[] = [];
   const entries = await entriesForDate(date);
   const onDay = new Set(entries.map((e) => e.task_id));
   const someday = (await listSomeday()).filter((t) => !onDay.has(t.id));
@@ -170,10 +175,6 @@ export async function planView(ctx: Ctx, date: DateStr): Promise<PlanView> {
 }
 
 export async function finishPlan(ctx: Ctx, date: DateStr): Promise<void> {
-  const triage = await unresolvedEntries(date);
-  if (triage.length > 0) {
-    throw new UserError(`Triage first: ${triage.length} unresolved ${triage.length === 1 ? "task" : "tasks"} left.`);
-  }
   await markPlanned(ctx, date);
 }
 

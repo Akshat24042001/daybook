@@ -20,6 +20,7 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
   const view = await planView(ctx, date);
   const streak = await planningStreak(ctx);
   return (
+    <div className="mx-auto max-w-4xl">
     <PlanClient
       date={date}
       today={ctx.today}
@@ -40,5 +41,6 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
       streak={streak}
       availableHours={ctx.s.available_hours}
     />
+    </div>
   );
 }

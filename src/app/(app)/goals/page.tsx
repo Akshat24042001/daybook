@@ -31,6 +31,7 @@ export default async function GoalsPage() {
     done: p.task.state === "done",
   });
   return (
+    <div className="mx-auto max-w-6xl">
     <GoalsClient
       today={ctx.today}
       tomorrow={addDays(ctx.today, 1)}
@@ -46,5 +47,6 @@ export default async function GoalsPage() {
       }))}
       someday={someday.map((t) => ({ id: t.id, title: t.title, project: t.project_name ?? null, estimate: t.estimate_min }))}
     />
+    </div>
   );
 }

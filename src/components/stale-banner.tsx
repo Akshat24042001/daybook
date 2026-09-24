@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface Health {
@@ -17,6 +17,14 @@ const INITIAL: Health = { stale: false, ageSec: null, lastTickAt: null };
  */
 export function StaleBanner() {
   const [h, setH] = useState<Health>(INITIAL);
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => {
+    try {
+      setDismissed(sessionStorage.getItem("daybook-stale-dismissed") === "1");
+    } catch {
+      /* storage blocked: keep showing */
+    }
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -40,17 +48,32 @@ export function StaleBanner() {
     };
   }, []);
 
-  if (!h.stale) return null;
+  if (!h.stale || dismissed) return null;
   const mins = h.ageSec === null ? null : Math.round(h.ageSec / 60);
   return (
-    <div role="alert" className="flex items-start gap-2 bg-bad px-4 py-2 text-sm text-white">
+    <div role="alert" className="flex items-start gap-2 border-b border-warn/30 bg-warn-muted px-4 py-2 text-xs text-warn md:text-sm">
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-      <p>
+      <p className="flex-1">
         {mins === null
           ? "The scheduler has never run."
           : `The scheduler has not run for ${mins >= 120 ? `${Math.round(mins / 60)} hours` : `${mins} minutes`}.`}{" "}
         Telegram reminders and the morning brief may not arrive. Check the Supabase Cron job.
       </p>
+      <button
+        type="button"
+        aria-label="Hide for this session"
+        className="-my-1 rounded-md p-1 hover:bg-warn/15"
+        onClick={() => {
+          setDismissed(true);
+          try {
+            sessionStorage.setItem("daybook-stale-dismissed", "1");
+          } catch {
+            /* ignore */
+          }
+        }}
+      >
+        <X className="h-4 w-4" />
+      </button>
     </div>
   );
 }

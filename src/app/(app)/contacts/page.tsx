@@ -8,5 +8,5 @@ export const dynamic = "force-dynamic";
 
 export default async function ContactsPage() {
   const contacts = await listContacts();
-  return <ContactsClient contacts={contacts} voiceEnabled={deepgramReady()} />;
+  return <div className="mx-auto max-w-6xl"><ContactsClient contacts={contacts} voiceEnabled={deepgramReady()} /></div>;
 }

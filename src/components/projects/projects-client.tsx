@@ -230,7 +230,7 @@ export function ProjectsClient({
           <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-subtle">
             <FolderOpen className="h-3.5 w-3.5" /> Active · {active.length}
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {active.map((p) => (
               <ProjectCard
                 key={`${p.id}-${p.name}-${p.color}`}
@@ -277,7 +277,7 @@ export function ProjectsClient({
             Archived · {archived.length}
           </button>
           {showArchived ? (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {archived.map((p) => (
                 <ProjectCard
                   key={`${p.id}-${p.name}`}

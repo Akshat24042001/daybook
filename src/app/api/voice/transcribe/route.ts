@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { transcribe, VoiceError, voiceConfigured } from "@/lib/deepgram";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 /** Browser mic button -> Deepgram. Behind the login; the Deepgram key never reaches the browser. */
 export async function POST(req: Request) {
