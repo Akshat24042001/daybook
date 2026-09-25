@@ -10,7 +10,7 @@ import {
 import { TASK_TYPE_LABEL, type TaskType } from "@/lib/parser";
 import { fmtDuration, fmtDay } from "@/lib/time";
 import { useToast } from "../toast";
-import { Button, Card, Chip, ErrorNote, Field, Input, Select, Textarea } from "../ui";
+import { Button, Card, Chip, ErrorNote, Field, Input, Select, Textarea, ComboInput } from "../ui";
 import { VoiceButton } from "../voice-button";
 
 export interface TaskFormData {
@@ -170,12 +170,10 @@ export function TaskForm({
             </Select>
           </Field>
           <Field label="Project" hint="Typing a new name creates it.">
-            <Input list="projects" value={f.project} onChange={(e) => set("project", e.target.value)} placeholder="None" />
-            <datalist id="projects">{projects.map((p) => <option key={p} value={p} />)}</datalist>
+            <ComboInput value={f.project} onChange={(v) => set("project", v)} suggestions={projects} placeholder="None" aria-label="Project" newHint="new project" />
           </Field>
           <Field label="Person">
-            <Input list="people" value={f.person} onChange={(e) => set("person", e.target.value)} placeholder="None" />
-            <datalist id="people">{people.map((p) => <option key={p} value={p} />)}</datalist>
+            <ComboInput value={f.person} onChange={(v) => set("person", v)} suggestions={people} placeholder="None" aria-label="Person" newHint="new person" />
           </Field>
           <Field label="Person is">
             <Select value={f.personRole} onChange={(e) => set("personRole", e.target.value as "with" | "requested_by")} disabled={!f.person}>

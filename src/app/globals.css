@@ -223,3 +223,43 @@ select.styled-select {
   .skeleton { animation: none; }
   .nav-progress { animation: none; transform: scaleX(0.6); }
 }
+
+/* ── Native date and time fields, themed ──────────────────────────────── */
+/* accent-color also recolours the browser's date picker selection and checkboxes */
+html { accent-color: hsl(var(--accent)); }
+input[type="date"], input[type="time"], input[type="datetime-local"] {
+  font-variant-numeric: tabular-nums;
+  cursor: text;
+}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 3px;
+  opacity: 0.55;
+  transition: opacity 120ms, background-color 120ms;
+}
+input[type="date"]:hover::-webkit-calendar-picker-indicator,
+input[type="time"]:hover::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]:hover::-webkit-calendar-picker-indicator {
+  opacity: 1;
+  background-color: hsl(var(--accent) / 0.12);
+}
+/* the icon is drawn dark by the browser: lighten it on dark surfaces */
+:root[data-theme="dark"] input::-webkit-calendar-picker-indicator { filter: invert(0.85); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) input::-webkit-calendar-picker-indicator { filter: invert(0.85); }
+}
+input::-webkit-datetime-edit-fields-wrapper { padding: 0; }
+input::-webkit-datetime-edit-text { color: hsl(var(--subtle)); padding: 0 1px; }
+input::-webkit-datetime-edit-month-field:focus,
+input::-webkit-datetime-edit-day-field:focus,
+input::-webkit-datetime-edit-year-field:focus,
+input::-webkit-datetime-edit-hour-field:focus,
+input::-webkit-datetime-edit-minute-field:focus,
+input::-webkit-datetime-edit-ampm-field:focus {
+  background: hsl(var(--accent) / 0.18);
+  color: hsl(var(--fg));
+  border-radius: 4px;
+}

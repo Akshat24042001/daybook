@@ -2,7 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
-import { Check, ChevronDown, X } from "lucide-react";
+import { Check, ChevronDown, Search, X } from "lucide-react";
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
@@ -203,9 +203,80 @@ function readOptions(children: React.ReactNode): SelectOption[] {
   return out;
 }
 
+type Placement = { left: number; top: number; width: number; maxHeight: number; up: boolean };
+
+/** Where a floating menu goes: under the anchor, or above it when there is no room, never off screen. */
+function usePlacement(anchor: React.RefObject<HTMLElement | null>, minWidth = 200) {
+  const [pos, setPos] = React.useState<Placement | null>(null);
+  const place = React.useCallback(() => {
+    const el = anchor.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const below = window.innerHeight - r.bottom - 12;
+    const above = r.top - 12;
+    const up = below < 220 && above > below;
+    const width = Math.max(r.width, minWidth);
+    setPos({
+      left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)),
+      top: up ? r.top - 6 : r.bottom + 6,
+      width,
+      maxHeight: Math.min(340, up ? above : below),
+      up,
+    });
+  }, [anchor, minWidth]);
+  return { pos, place };
+}
+
+/** Closes on outside press; follows the anchor on scroll and closes once it leaves the screen. */
+function useFloatingDismiss(
+  open: boolean,
+  anchor: React.RefObject<HTMLElement | null>,
+  panel: React.RefObject<HTMLElement | null>,
+  place: () => void,
+  close: () => void,
+) {
+  React.useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (!anchor.current?.contains(t) && !panel.current?.contains(t)) close();
+    };
+    const onScroll = (e: Event) => {
+      if (panel.current?.contains(e.target as Node)) return;
+      const r = anchor.current?.getBoundingClientRect();
+      if (!r || r.bottom < 0 || r.top > window.innerHeight) close();
+      else place();
+    };
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, anchor, panel, place, close]);
+}
+
+const panelClass =
+  "dropdown-in z-[60] flex flex-col overflow-hidden rounded-2xl border border-border/80 bg-surface/95 text-sm shadow-[var(--shadow-lg)] ring-1 ring-black/5 backdrop-blur-xl";
+
+function optionClass(activeRow: boolean, selectedRow: boolean, disabledRow: boolean) {
+  return cn(
+    "group/opt relative flex cursor-pointer select-none items-center gap-2.5 rounded-xl px-3 py-2 transition-colors",
+    activeRow && !selectedRow && "bg-muted",
+    selectedRow && "bg-accent-muted font-semibold text-accent",
+    !selectedRow && "text-fg",
+    disabledRow && "cursor-not-allowed opacity-40",
+  );
+}
+
+const SEARCH_FROM = 8;
+
 /**
  * A themed dropdown with the same API as a native <select> (value, onChange(e.target.value), <option> children),
- * so it drops in anywhere. The list renders inside the nearest open dialog so Radix's focus trap keeps it usable.
+ * so it drops in anywhere. Long lists get a filter box. The menu renders inside the nearest open dialog so Radix's
+ * focus trap keeps it usable.
  */
 export function Select({
   className,
@@ -224,42 +295,45 @@ export function Select({
   const selected = options.find((o) => o.value === current) ?? null;
 
   const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
   const [active, setActive] = React.useState(0);
-  const [pos, setPos] = React.useState<{ left: number; top: number; width: number; maxHeight: number; up: boolean } | null>(null);
   const [host, setHost] = React.useState<HTMLElement | null>(null);
   const trigger = React.useRef<HTMLButtonElement>(null);
-  const list = React.useRef<HTMLUListElement>(null);
+  const panel = React.useRef<HTMLDivElement>(null);
+  const search = React.useRef<HTMLInputElement>(null);
   const typed = React.useRef({ text: "", at: 0 });
   const listId = React.useId();
+  const { pos, place } = usePlacement(trigger);
+  const searchable = options.length >= SEARCH_FROM;
 
-  const place = React.useCallback(() => {
-    const el = trigger.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const below = window.innerHeight - r.bottom - 12;
-    const above = r.top - 12;
-    const up = below < 180 && above > below;
-    setPos({
-      left: Math.min(r.left, window.innerWidth - Math.max(r.width, 176) - 8),
-      top: up ? r.top - 6 : r.bottom + 6,
-      width: Math.max(r.width, 176),
-      maxHeight: Math.min(288, up ? above : below),
-      up,
-    });
+  const visible = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? options.filter((o) => o.text.toLowerCase().includes(q)) : options;
+  }, [options, query]);
+
+  const close = React.useCallback(() => {
+    setOpen(false);
+    setQuery("");
   }, []);
+  useFloatingDismiss(open, trigger, panel, place, close);
 
   function show() {
     if (disabled) return;
-    const idx = Math.max(0, options.findIndex((o) => o.value === current));
-    setActive(idx);
+    setQuery("");
+    setActive(Math.max(0, options.findIndex((o) => o.value === current)));
     setHost((trigger.current?.closest('[role="dialog"]') as HTMLElement | null) ?? document.body);
     place();
     setOpen(true);
   }
 
+  // the filter box exists only after the menu has rendered: focus it then
+  React.useEffect(() => {
+    if (open && searchable) search.current?.focus();
+  }, [open, searchable]);
+
   function choose(o: SelectOption) {
     if (o.disabled) return;
-    setOpen(false);
+    close();
     trigger.current?.focus();
     if (o.value === current) return;
     if (value === undefined) setInner(o.value);
@@ -267,9 +341,9 @@ export function Select({
   }
 
   function move(from: number, step: number) {
-    for (let i = 1; i <= options.length; i++) {
-      const n = (from + step * i + options.length) % options.length;
-      if (!options[n].disabled) return n;
+    for (let i = 1; i <= visible.length; i++) {
+      const n = (from + step * i + visible.length) % visible.length;
+      if (!visible[n].disabled) return n;
     }
     return from;
   }
@@ -282,60 +356,44 @@ export function Select({
       }
       return;
     }
-    if (e.key === "Escape" || e.key === "Tab") {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation(); // close the list, not the surrounding dialog
-      }
-      setOpen(false);
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation(); // close the menu, not the surrounding dialog
+      close();
+      trigger.current?.focus();
+    } else if (e.key === "Tab") {
+      close();
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
       setActive((a) => move(a, 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActive((a) => move(a, -1));
-    } else if (e.key === "Home") {
+    } else if (e.key === "Home" && !searchable) {
       e.preventDefault();
       setActive(move(-1, 1));
-    } else if (e.key === "End") {
+    } else if (e.key === "End" && !searchable) {
       e.preventDefault();
-      setActive(move(options.length, -1));
-    } else if (e.key === "Enter" || e.key === " ") {
+      setActive(move(visible.length, -1));
+    } else if (e.key === "Enter" || (e.key === " " && !searchable)) {
       e.preventDefault();
-      if (options[active]) choose(options[active]);
-    } else if (e.key.length === 1) {
+      if (visible[active]) choose(visible[active]);
+    } else if (searchable && e.key.length === 1 && e.target !== search.current && !e.ctrlKey && !e.metaKey) {
+      // typed while the trigger still had focus: send it to the filter
+      e.preventDefault();
+      setQuery((q) => q + e.key);
+      search.current?.focus();
+    } else if (!searchable && e.key.length === 1) {
       const now = Date.now();
       typed.current = { text: (now - typed.current.at < 600 ? typed.current.text : "") + e.key.toLowerCase(), at: now };
-      const hit = options.findIndex((o) => !o.disabled && o.text.toLowerCase().startsWith(typed.current.text));
+      const hit = visible.findIndex((o) => !o.disabled && o.text.toLowerCase().startsWith(typed.current.text));
       if (hit >= 0) setActive(hit);
     }
   }
 
+  React.useEffect(() => setActive((a) => Math.min(a, Math.max(0, visible.length - 1))), [visible.length]);
   React.useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => {
-      const t = e.target as Node;
-      if (!trigger.current?.contains(t) && !list.current?.contains(t)) setOpen(false);
-    };
-    // follow the trigger when the page scrolls; close only once it has left the screen
-    const onScroll = (e: Event) => {
-      if (list.current?.contains(e.target as Node)) return;
-      const r = trigger.current?.getBoundingClientRect();
-      if (!r || r.bottom < 0 || r.top > window.innerHeight) setOpen(false);
-      else place();
-    };
-    window.addEventListener("pointerdown", onDown, true);
-    window.addEventListener("scroll", onScroll, true);
-    window.addEventListener("resize", place);
-    return () => {
-      window.removeEventListener("pointerdown", onDown, true);
-      window.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", place);
-    };
-  }, [open, place]);
-
-  React.useEffect(() => {
-    if (open) list.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
+    if (open) panel.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
   }, [open, active]);
 
   return (
@@ -348,29 +406,34 @@ export function Select({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
-        aria-activedescendant={open ? `${listId}-${active}` : undefined}
+        aria-activedescendant={open && visible[active] ? `${listId}-${active}` : undefined}
         aria-label={ariaLabel}
         disabled={disabled}
-        onClick={() => (open ? setOpen(false) : show())}
+        onClick={() => (open ? close() : show())}
         onKeyDown={onKey}
         className={cn(
           inputClass,
-          "relative flex cursor-pointer items-center gap-2 pr-9 text-left disabled:cursor-not-allowed disabled:opacity-50",
+          "group relative flex cursor-pointer items-center gap-2 pr-10 text-left font-medium shadow-[var(--shadow-sm)] hover:border-accent/40 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border",
           open && "border-accent/60 ring-2 ring-accent/20",
           className,
         )}
       >
-        <span className={cn("min-w-0 flex-1 truncate", !selected && "text-subtle")}>{selected?.label ?? "Select…"}</span>
-        <ChevronDown className={cn("absolute right-3 h-4 w-4 shrink-0 text-subtle transition-transform", open && "rotate-180")} aria-hidden />
+        <span className={cn("min-w-0 flex-1 truncate", !selected && "font-normal text-subtle")}>{selected?.label ?? "Select…"}</span>
+        <span
+          className={cn(
+            "absolute right-1.5 flex h-6 w-6 items-center justify-center rounded-lg text-subtle transition-colors group-hover:bg-muted group-hover:text-fg",
+            open && "bg-accent-muted text-accent",
+          )}
+          aria-hidden
+        >
+          <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", open && "rotate-180")} />
+        </span>
       </button>
       {name ? <input type="hidden" name={name} value={current} /> : null}
       {open && pos && host
         ? createPortal(
-            <ul
-              ref={list}
-              id={listId}
-              role="listbox"
-              aria-label={ariaLabel}
+            <div
+              ref={panel}
               onKeyDown={onKey}
               style={{
                 position: "fixed",
@@ -380,34 +443,208 @@ export function Select({
                 ...(pos.up ? { bottom: window.innerHeight - pos.top } : { top: pos.top }),
                 pointerEvents: "auto",
               }}
-              className="dropdown-in z-[60] overflow-y-auto rounded-xl border border-border bg-surface p-1 text-sm shadow-[var(--shadow-lg)]"
+              className={panelClass}
             >
-              {options.map((o, i) => {
-                const isSel = o.value === current;
-                return (
-                  <li
-                    key={`${o.value}-${i}`}
-                    id={`${listId}-${i}`}
-                    data-index={i}
-                    role="option"
-                    aria-selected={isSel}
-                    aria-disabled={o.disabled || undefined}
-                    onPointerMove={() => !o.disabled && setActive(i)}
-                    onPointerDown={(e) => e.preventDefault()}
-                    onClick={() => choose(o)}
-                    className={cn(
-                      "flex cursor-pointer select-none items-center gap-2 rounded-lg px-2.5 py-2",
-                      i === active && "bg-muted",
-                      isSel ? "font-medium text-accent" : "text-fg",
-                      o.disabled && "cursor-not-allowed opacity-40",
-                    )}
-                  >
-                    <span className="min-w-0 flex-1 truncate">{o.label}</span>
-                    {isSel ? <Check className="h-4 w-4 shrink-0" aria-hidden /> : null}
+              {searchable ? (
+                <div className="flex items-center gap-2 border-b border-border/70 px-3">
+                  <Search className="h-3.5 w-3.5 shrink-0 text-subtle" aria-hidden />
+                  <input
+                    ref={search}
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Type to filter…"
+                    aria-label="Filter options"
+                    aria-controls={listId}
+                    className="h-10 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-subtle/70"
+                  />
+                </div>
+              ) : null}
+              <ul id={listId} role="listbox" aria-label={ariaLabel} className="min-h-0 flex-1 overflow-y-auto p-1.5">
+                {visible.length === 0 ? (
+                  <li className="px-3 py-3 text-center text-xs text-subtle">No match for &ldquo;{query}&rdquo;</li>
+                ) : (
+                  visible.map((o, i) => {
+                    const isSel = o.value === current;
+                    return (
+                      <li
+                        key={`${o.value}-${i}`}
+                        id={`${listId}-${i}`}
+                        data-index={i}
+                        role="option"
+                        aria-selected={isSel}
+                        aria-disabled={o.disabled || undefined}
+                        onPointerMove={() => !o.disabled && setActive(i)}
+                        onPointerDown={(e) => e.preventDefault()}
+                        onClick={() => choose(o)}
+                        className={optionClass(i === active, isSel, o.disabled)}
+                      >
+                        {i === active ? <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-accent" aria-hidden /> : null}
+                        <span className="min-w-0 flex-1 truncate">{o.label}</span>
+                        {isSel ? (
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-accent-fg">
+                            <Check className="h-3 w-3" strokeWidth={3} aria-hidden />
+                          </span>
+                        ) : null}
+                      </li>
+                    );
+                  })
+                )}
+              </ul>
+            </div>,
+            host,
+          )
+        : null}
+    </>
+  );
+}
+
+/**
+ * A text input with themed suggestions (replaces the browser's plain <datalist>). Free text is allowed: typing a
+ * new name keeps it. Arrows move, Enter/Tab pick, Esc closes.
+ */
+export function ComboInput({
+  value,
+  onChange,
+  suggestions,
+  placeholder,
+  newHint = "new",
+  className,
+  "aria-label": ariaLabel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  suggestions: string[];
+  placeholder?: string;
+  /** label shown next to a typed value that is not in the list */
+  newHint?: string;
+  className?: string;
+  "aria-label"?: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [active, setActive] = React.useState(0);
+  const [host, setHost] = React.useState<HTMLElement | null>(null);
+  const input = React.useRef<HTMLInputElement>(null);
+  const panel = React.useRef<HTMLDivElement>(null);
+  const listId = React.useId();
+  const { pos, place } = usePlacement(input);
+
+  const matches = React.useMemo(() => {
+    const q = value.trim().toLowerCase();
+    const list = q ? suggestions.filter((s) => s.toLowerCase().includes(q)) : suggestions;
+    return list.sort((a, b) => Number(!a.toLowerCase().startsWith(q)) - Number(!b.toLowerCase().startsWith(q))).slice(0, 8);
+  }, [value, suggestions]);
+  const exact = suggestions.some((s) => s.toLowerCase() === value.trim().toLowerCase());
+  const showList = open && (matches.length > 0 || (!!value.trim() && !exact));
+
+  const close = React.useCallback(() => setOpen(false), []);
+  useFloatingDismiss(open, input, panel, place, close);
+
+  function openList() {
+    setHost((input.current?.closest('[role="dialog"]') as HTMLElement | null) ?? document.body);
+    place();
+    setOpen(true);
+  }
+  function pick(s: string) {
+    onChange(s);
+    setOpen(false);
+  }
+
+  React.useEffect(() => setActive(0), [value]);
+
+  return (
+    <>
+      <div className="relative">
+        <input
+          ref={input}
+          value={value}
+          placeholder={placeholder}
+          aria-label={ariaLabel}
+          role="combobox"
+          aria-expanded={showList}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          autoComplete="off"
+          onFocus={openList}
+          onChange={(e) => {
+            onChange(e.target.value);
+            if (!open) openList();
+          }}
+          onKeyDown={(e) => {
+            if (!showList) {
+              if (e.key === "ArrowDown") openList();
+              return;
+            }
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              setActive((a) => (matches.length ? (a + (e.key === "ArrowDown" ? 1 : matches.length - 1)) % matches.length : 0));
+            } else if ((e.key === "Enter" || e.key === "Tab") && matches[active] && value.trim().toLowerCase() !== matches[active].toLowerCase()) {
+              e.preventDefault();
+              pick(matches[active]);
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
+              setOpen(false);
+            }
+          }}
+          className={cn(inputClass, "pr-9 shadow-[var(--shadow-sm)] hover:border-accent/40", className)}
+        />
+        {value ? (
+          <button
+            type="button"
+            aria-label="Clear"
+            onClick={() => {
+              onChange("");
+              input.current?.focus();
+            }}
+            className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-lg text-subtle hover:bg-muted hover:text-fg"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        ) : (
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-subtle" aria-hidden />
+        )}
+      </div>
+      {showList && pos && host
+        ? createPortal(
+            <div
+              ref={panel}
+              style={{
+                position: "fixed",
+                left: pos.left,
+                width: pos.width,
+                maxHeight: pos.maxHeight,
+                ...(pos.up ? { bottom: window.innerHeight - pos.top } : { top: pos.top }),
+                pointerEvents: "auto",
+              }}
+              className={panelClass}
+            >
+              <ul id={listId} role="listbox" aria-label={ariaLabel} className="min-h-0 flex-1 overflow-y-auto p-1.5">
+                {matches.map((s, i) => {
+                  const isSel = s.toLowerCase() === value.trim().toLowerCase();
+                  return (
+                    <li
+                      key={s}
+                      role="option"
+                      aria-selected={isSel}
+                      onPointerMove={() => setActive(i)}
+                      onPointerDown={(e) => e.preventDefault()}
+                      onClick={() => pick(s)}
+                      className={optionClass(i === active, isSel, false)}
+                    >
+                      {i === active ? <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-accent" aria-hidden /> : null}
+                      <span className="min-w-0 flex-1 truncate">{s}</span>
+                      {isSel ? <Check className="h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
+                    </li>
+                  );
+                })}
+                {value.trim() && !exact ? (
+                  <li className="flex items-center gap-2 px-3 py-2 text-xs text-subtle" aria-hidden>
+                    <span className="rounded-md bg-accent-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-accent">{newHint}</span>
+                    <span className="truncate">&ldquo;{value.trim()}&rdquo; will be created</span>
                   </li>
-                );
-              })}
-            </ul>,
+                ) : null}
+              </ul>
+            </div>,
             host,
           )
         : null}
