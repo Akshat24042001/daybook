@@ -1,14 +1,14 @@
 "use client";
 
 import {
-  Building2, Mail, MapPin, Pencil, Phone, Plus, Search, Tag, Trash2, X, ExternalLink,
+  Building2, Mail, MapPin, Pencil, Phone, Plus, Search, Tag, Trash2, X, ExternalLink, Users,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { createContactAction, deleteContactAction, updateContactAction } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import type { Contact } from "@/lib/services/contacts";
-import { Button, Card, Empty, Input, Sheet, Textarea, inputClass } from "../ui";
+import { Button, Card, Empty, Input, Sheet, Textarea, inputClass, EmptyState } from "../ui";
 import { VoiceButton } from "../voice-button";
 import type { TouchState } from "@/lib/services/keep-in-touch";
 import { ReachOut, TouchFooter } from "./keep-in-touch";
@@ -563,7 +563,9 @@ export function ContactsClient({
 
       {/* contact list – flat alphabetical, no grouping */}
       {contacts.length === 0 ? (
-        <Empty>No contacts yet. Hit Add to save your first one.</Empty>
+        <EmptyState icon={Users} title="No contacts yet" actions={[{ label: "Add a contact", onClick: () => setAddOpen(true) }]}>
+          Keep the people who matter in one place. Daybook nudges you when you have not been in touch for a while.
+        </EmptyState>
       ) : filtered.length === 0 ? (
         <Empty>No contacts match your search or filters.</Empty>
       ) : (

@@ -10,6 +10,7 @@ import { describeParsed, parseQuickAdd } from "@/lib/parser";
 import { logicalDate, fmtDuration } from "@/lib/time";
 import { describeTimeLog, looksLikeTimeLog, parseTimeLog } from "@/lib/timelog";
 import { voiceToQuickAdd } from "@/lib/voice";
+import { applySuggestion, insertChip, suggestionsFor, SYNTAX_CHIPS, type Suggestion } from "@/lib/quick-add-hints";
 import { useToast } from "./toast";
 import { Button, Chip, ErrorNote } from "./ui";
 import { VoiceButton } from "./voice-button";
@@ -30,6 +31,55 @@ export function QuickAdd({ tz, boundaryMin, voiceEnabled, aiEnabled }: { tz: str
   const [pending, start] = useTransition();
   const [aiPending, setAiPending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // helper: syntax chips while focused, autocomplete for the word at the caret
+  const [focused, setFocused] = useState(false);
+  const [caret, setCaret] = useState(0);
+  const [names, setNames] = useState<{ projects: string[]; people: string[] } | null>(null);
+  const [sugIndex, setSugIndex] = useState(0);
+  const [dismissedAt, setDismissedAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!focused || names) return;
+    fetch("/api/quick-add/lookup")
+      .then((r) => r.json())
+      .then((j: { projects: string[]; people: string[] }) => setNames({ projects: j.projects ?? [], people: j.people ?? [] }))
+      .catch(() => setNames({ projects: [], people: [] }));
+  }, [focused, names]);
+
+  const suggestions: Suggestion[] = useMemo(
+    () => (focused && names && dismissedAt !== text ? suggestionsFor(text, caret, names) : []),
+    [focused, names, text, caret, dismissedAt],
+  );
+  useEffect(() => setSugIndex(0), [suggestions.length, text]);
+
+  function accept(sg: Suggestion) {
+    const r = applySuggestion(text, caret, sg);
+    setText(r.text);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(r.caret, r.caret);
+      setCaret(r.caret);
+    });
+  }
+  const syncCaret = () => setCaret(inputRef.current?.selectionStart ?? text.length);
+
+  // empty states elsewhere prefill the bar ("daybook:quickadd"), caret at the start for the title
+  useEffect(() => {
+    const onPrefill = (e: Event) => {
+      const t = (e as CustomEvent<string>).detail ?? "";
+      setText(t);
+      requestAnimationFrame(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        el.focus();
+        el.setSelectionRange(0, 0);
+        setCaret(0);
+      });
+    };
+    window.addEventListener("daybook:quickadd", onPrefill);
+    return () => window.removeEventListener("daybook:quickadd", onPrefill);
+  }, []);
 
   const defaultDate = pathname.startsWith("/plan") ? (search.get("date") ?? undefined) : undefined;
 
@@ -115,8 +165,35 @@ export function QuickAdd({ tz, boundaryMin, voiceEnabled, aiEnabled }: { tz: str
             ref={inputRef}
             id="quick-add-input"
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              setText(e.target.value);
+              setCaret(e.target.selectionStart ?? e.target.value.length);
+            }}
+            onSelect={syncCaret}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setTimeout(() => setFocused(false), 150)}
+            role="combobox"
+            aria-expanded={suggestions.length > 0}
+            aria-controls="quick-add-suggestions"
+            aria-autocomplete="list"
             onKeyDown={(e) => {
+              if (suggestions.length) {
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setSugIndex((i) => (i + (e.key === "ArrowDown" ? 1 : suggestions.length - 1)) % suggestions.length);
+                  return;
+                }
+                if (e.key === "Tab" || (e.key === "Enter" && !e.nativeEvent.isComposing)) {
+                  e.preventDefault();
+                  accept(suggestions[sugIndex]);
+                  return;
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setDismissedAt(text);
+                  return;
+                }
+              }
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 if (!pending && !showDup && !blocked) submit("add");
@@ -133,6 +210,31 @@ export function QuickAdd({ tz, boundaryMin, voiceEnabled, aiEnabled }: { tz: str
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-subtle">
               <CornerDownLeft className="h-4 w-4" />
             </span>
+          ) : null}
+          {suggestions.length ? (
+            <ul
+              id="quick-add-suggestions"
+              role="listbox"
+              className="dropdown-in absolute left-0 right-0 top-full z-40 mt-1.5 overflow-hidden rounded-xl border border-border bg-surface p-1 shadow-[var(--shadow-lg)]"
+            >
+              {suggestions.map((sg, i) => (
+                <li
+                  key={sg.replace}
+                  role="option"
+                  aria-selected={i === sugIndex}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    accept(sg);
+                  }}
+                  onPointerMove={() => setSugIndex(i)}
+                  className={cn("flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm", i === sugIndex ? "bg-accent-muted" : "hover:bg-muted")}
+                >
+                  <span className="min-w-0 flex-1 truncate font-medium">{sg.label}</span>
+                  {sg.hint ? <span className="shrink-0 text-xs text-subtle">{sg.hint}</span> : null}
+                  {i === sugIndex ? <kbd className="shrink-0 rounded border border-border px-1 text-[10px] text-subtle">Tab</kbd> : null}
+                </li>
+              ))}
+            </ul>
           ) : null}
         </div>
         <VoiceButton
@@ -165,6 +267,31 @@ export function QuickAdd({ tz, boundaryMin, voiceEnabled, aiEnabled }: { tz: str
           <Plus className="h-5 w-5" />
         </Button>
       </form>
+
+      {focused && !suggestions.length ? (
+        <div className="mt-2 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]" aria-label="Quick-add syntax">
+          {SYNTAX_CHIPS.map((c) => (
+            <button
+              key={c.insert}
+              type="button"
+              title={c.hint}
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => {
+                const next = insertChip(text, c);
+                setText(next);
+                requestAnimationFrame(() => {
+                  inputRef.current?.focus();
+                  inputRef.current?.setSelectionRange(next.length, next.length);
+                  setCaret(next.length);
+                });
+              }}
+              className="shrink-0 whitespace-nowrap rounded-lg border border-border bg-bg px-2 py-1 font-mono text-[11px] text-subtle transition-colors hover:border-accent/40 hover:bg-accent-muted hover:text-accent"
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {view ? (
         <div className="mt-2 space-y-2 px-1 pb-1">

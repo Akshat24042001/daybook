@@ -95,6 +95,7 @@ export function CommandPalette() {
 
   const go = useCallback((href: string) => {
     setOpen(false);
+    window.dispatchEvent(new CustomEvent("daybook:nav"));
     router.push(href);
   }, [router]);
 
@@ -113,6 +114,7 @@ export function CommandPalette() {
         const hit = NAV_SHORTCUTS.find((s) => s.keys === `g ${e.key.toLowerCase()}`);
         if (hit) {
           e.preventDefault();
+          if (hit.href !== pathname) window.dispatchEvent(new CustomEvent("daybook:nav"));
           router.push(hit.href);
         }
         return;

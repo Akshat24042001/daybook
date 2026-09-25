@@ -10,6 +10,7 @@ import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { cn } from "@/lib/cn";
 import { CommandPalette } from "./command-palette";
+import { NavProgress } from "./nav-progress";
 import { QuickAdd } from "./quick-add";
 import { StaleBanner } from "./stale-banner";
 import { ToastProvider } from "./toast";
@@ -268,6 +269,9 @@ export function AppShell({
         </Dialog.Portal>
       </Dialog.Root>
       <CommandPalette />
+      <Suspense fallback={null}>
+        <NavProgress />
+      </Suspense>
     </ToastProvider>
   );
 }

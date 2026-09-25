@@ -11,7 +11,7 @@ import { cn } from "@/lib/cn";
 import { fmtDay, fmtDuration } from "@/lib/time";
 import { setProjectTimeGoalAction } from "@/app/review-actions";
 import { usePageSearch } from "../use-page-search";
-import { Button, Chip, Empty, Input, Progress } from "../ui";
+import { Button, Chip, Empty, Input, Progress, EmptyState } from "../ui";
 import type { ProjectTask } from "@/lib/services/projects";
 
 interface Project {
@@ -349,9 +349,13 @@ export function ProjectsClient({
       ) : null}
 
       {projects.length === 0 ? (
-        <Empty>
-          No projects yet. Add one below or type <code>Name:</code> in the quick-add bar.
-        </Empty>
+        <EmptyState
+          icon={FolderOpen}
+          title="No projects yet"
+          actions={[{ label: "Create a project", onClick: () => document.getElementById("new-project-input")?.focus() }]}
+        >
+          Group tasks by client or area. Tip: typing "Aivaura: call Rahul" in the quick-add bar creates the project too.
+        </EmptyState>
       ) : null}
 
       {/* active projects */}
@@ -388,6 +392,7 @@ export function ProjectsClient({
         <Input
           value={newProject}
           onChange={(e) => setNewProject(e.target.value)}
+          id="new-project-input"
           placeholder="New project name…"
           aria-label="New project"
         />

@@ -419,6 +419,52 @@ export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
   return <div className={cn("rounded-2xl border border-border bg-surface shadow-[var(--shadow-sm)]", className)} {...props} />;
 }
 
+/** A shimmering placeholder block for loading states. */
+export function Skeleton({ className }: { className?: string }) {
+  return <div className={cn("skeleton rounded-xl", className)} aria-hidden />;
+}
+
+/** Put text in the quick-add bar and focus it, with the caret at the start so the title goes first. */
+export function prefillQuickAdd(text: string) {
+  window.dispatchEvent(new CustomEvent("daybook:quickadd", { detail: text }));
+}
+
+/** A friendly empty state: what this place is for, and one or two ways to start. */
+export function EmptyState({
+  icon: Icon,
+  title,
+  children,
+  actions,
+  className,
+}: {
+  icon?: React.ComponentType<{ className?: string }>;
+  title: string;
+  children?: React.ReactNode;
+  actions?: { label: string; onClick: () => void; primary?: boolean }[];
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex flex-col items-center rounded-2xl border border-dashed border-border px-6 py-8 text-center", className)}>
+      {Icon ? (
+        <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-accent-muted text-accent">
+          <Icon className="h-5 w-5" />
+        </span>
+      ) : null}
+      <p className="text-sm font-semibold">{title}</p>
+      {children ? <p className="mt-1 max-w-sm text-xs leading-relaxed text-subtle">{children}</p> : null}
+      {actions?.length ? (
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {actions.map((a) => (
+            <Button key={a.label} size="sm" variant={a.primary === false ? "outline" : "primary"} onClick={a.onClick}>
+              {a.label}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function Empty({ children }: { children: React.ReactNode }) {
   return <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-subtle">{children}</p>;
 }

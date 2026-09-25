@@ -1,6 +1,8 @@
 "use client";
 
-import { Building2, ChevronDown, Coffee, Flag, Car, Target } from "lucide-react";
+import {
+  Building2, ChevronDown, Coffee, Flag, Car, Target, Sparkles,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
@@ -11,7 +13,7 @@ import { fmtDuration, type DateStr } from "@/lib/time";
 import type { EntryStatus } from "@/lib/types";
 import type { RowData, SegmentData } from "@/lib/view-types";
 import { useToast } from "../toast";
-import { Button, Card, Empty, Input } from "../ui";
+import { Button, Card, Empty, Input, EmptyState, prefillQuickAdd } from "../ui";
 import { EntryRow } from "./entry-row";
 import { EntrySheet } from "./entry-sheet";
 import { SegmentsSheet } from "./segments-sheet";
@@ -139,73 +141,64 @@ export function TodayView(props: {
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-4 gap-2" role="group" aria-label="Current state">
-          {STATES.map(({ kind, label, Icon }) => {
-            const on = optimisticKind === kind;
-            return (
+        {/* where you are right now: a compact status bar; ending the day is a separate action, not a place */}
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-surface p-1.5 shadow-[var(--shadow-sm)]">
+          <span className="flex items-center gap-2 px-2 text-xs text-subtle">
+            <span
+              className={cn("inline-block h-2 w-2 rounded-full", working ? "bg-good" : optimisticKind === "break" ? "bg-warn" : "bg-subtle/50")}
+              style={working ? { animation: "pulse-dot 2s infinite" } : undefined}
+              aria-hidden
+            />
+            <span className="whitespace-nowrap">
+              {optimisticKind === "off" ? "Not working" : `${stateLabel} since ${state.sinceLabel}`}
+            </span>
+          </span>
+          <div className="ml-auto flex items-center gap-1" role="group" aria-label="Where are you working">
+            {STATES.filter((s) => s.kind !== "off").map(({ kind, label, Icon }) => {
+              const on = optimisticKind === kind;
+              return (
+                <button
+                  key={kind}
+                  type="button"
+                  disabled={pending}
+                  aria-pressed={on}
+                  onClick={() => switchTo(kind)}
+                  className={cn(
+                    "inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition-colors",
+                    on ? "bg-accent text-accent-fg shadow-sm" : "text-fg hover:bg-muted",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="hidden sm:inline">{label}</span>
+                  <span className="sm:hidden">{label.split(" ")[0] === "At" ? "Office" : label.split(" ")[0] === "Out" ? "Outside" : label}</span>
+                </button>
+              );
+            })}
+            {optimisticKind !== "off" ? (
               <button
-                key={kind}
                 type="button"
                 disabled={pending}
-                aria-pressed={on}
-                onClick={() => switchTo(kind)}
-                className={cn(
-                  "flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-2xl border px-1 text-xs font-medium transition-colors",
-                  on ? "border-accent bg-accent text-accent-fg shadow-sm" : "border-border bg-surface text-fg hover:bg-muted",
-                )}
+                onClick={() => switchTo("off")}
+                className="ml-1 inline-flex h-9 items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-semibold text-subtle transition-colors hover:border-bad/40 hover:bg-bad-muted hover:text-bad"
               >
-                <Icon className="h-5 w-5" />
-                {label}
+                <Flag className="h-4 w-4" /> End day
               </button>
-            );
-          })}
+            ) : null}
+          </div>
         </div>
-        <p className="mt-2 flex items-center gap-2 text-xs text-subtle">
-          <span className={cn("inline-block h-2 w-2 rounded-full", working ? "bg-good" : optimisticKind === "break" ? "bg-warn" : "bg-subtle/50")} style={working ? { animation: "pulse-dot 2s infinite" } : undefined} />
-          {optimisticKind === "off" ? "Off" : `${stateLabel} since ${state.sinceLabel}`}
-          {props.score !== null ? <span className="ml-auto font-medium text-fg">Score {props.score}</span> : null}
-        </p>
       </section>
 
-      {/* targets strip */}
-      {props.targets.length > 0 ? (
-        <section aria-label="Targets">
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-subtle">
-              <Target className="h-3.5 w-3.5" /> Targets
-            </h2>
-            <Link href="/goals" className="text-xs text-subtle hover:text-fg underline-offset-2 hover:underline">View all</Link>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {props.targets.map((t) => (
-              <Link
-                key={t.id}
-                href={`/task/${t.id}`}
-                className={cn(
-                  "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                  t.met
-                    ? "bg-good/15 text-good"
-                    : t.behind
-                    ? "bg-warn/15 text-warn"
-                    : "bg-accent/10 text-accent hover:bg-accent/20",
-                )}
-              >
-                {t.met ? "✓ " : t.behind ? "⚠ " : ""}{t.title}
-              </Link>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {/* must-do count hint */}
-      {sections.must.length > 0 ? (
-        <p className="-mb-2 text-xs text-subtle">
-          {sections.must.length} must-do{sections.must.length === 1 ? "" : "s"} open
-        </p>
-      ) : null}
-
       {empty ? (
-        <Empty>Nothing planned for today. Add a task above, or open Plan to build the day from what is already on your list.</Empty>
+        <EmptyState
+          icon={Sparkles}
+          title="A clear day"
+          actions={[
+            { label: "Add a task", onClick: () => prefillQuickAdd("") },
+            { label: "Plan from your lists", onClick: () => router.push("/plan"), primary: false },
+          ]}
+        >
+          Add what matters most today, or pull in tasks you already have on Plan.
+        </EmptyState>
       ) : null}
 
       {SECTION_ORDER.map((key) => {
@@ -243,6 +236,37 @@ export function TodayView(props: {
           </section>
         );
       })}
+
+
+      {/* targets: after the day's tasks */}
+      {props.targets.length > 0 ? (
+        <section aria-label="Targets">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-subtle">
+              <Target className="h-3.5 w-3.5" /> Targets
+            </h2>
+            <Link href="/goals" className="text-xs text-subtle hover:text-fg underline-offset-2 hover:underline">View all</Link>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {props.targets.map((t) => (
+              <Link
+                key={t.id}
+                href={`/task/${t.id}`}
+                className={cn(
+                  "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                  t.met
+                    ? "bg-good/15 text-good"
+                    : t.behind
+                    ? "bg-warn/15 text-warn"
+                    : "bg-accent/10 text-accent hover:bg-accent/20",
+                )}
+              >
+                {t.met ? "✓ " : t.behind ? "⚠ " : ""}{t.title}
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
     </div>
 

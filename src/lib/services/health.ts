@@ -1,6 +1,6 @@
 import { one, q, UserError, type Db, getPool } from "../db";
 import { type Ctx, isWorkingDay } from "../settings";
-import { type DateStr, atLogical, logicalDate, parseHM } from "../time";
+import { type DateStr, addDays, atLogical, dateRange, logicalDate, parseHM } from "../time";
 
 export interface ExerciseType {
   id: number;
@@ -150,6 +150,68 @@ export async function exerciseCounts(date: DateStr, db: Db = getPool()) {
   const c = { done: 0, skipped: 0, missed: 0 };
   for (const r of rows) c[r.status as keyof typeof c] = r.n;
   return c;
+}
+
+export interface HealthWeekDay {
+  date: DateStr;
+  sets: number;
+  steps: number | null;
+  sleepMin: number | null;
+}
+
+/**
+ * The last `days` days (oldest first), today's totals per exercise, and the active-day streak.
+ * An active day has at least one exercise set or reached the step goal. Today only extends the streak once it is
+ * active, so the streak never "breaks" in the morning before you have moved.
+ */
+export async function healthOverview(today: DateStr, stepGoal: number, days = 7, db: Db = getPool()) {
+  const from = addDays(today, -(days - 1));
+  const streakFrom = addDays(today, -365);
+  const [sets, dayRows, totals, activeRows] = await Promise.all([
+    q<{ date: DateStr; n: number }>(
+      "select date, count(*)::int as n from exercise_logs where status = 'done' and date between $1 and $2 group by date",
+      [from, today],
+      db,
+    ),
+    q<{ date: DateStr; steps: number | null; sleep_minutes: number | null }>(
+      "select date, steps, sleep_minutes from days where date between $1 and $2",
+      [from, today],
+      db,
+    ).catch(() => q<{ date: DateStr; steps: number | null; sleep_minutes: number | null }>(
+      "select date, steps, null::int as sleep_minutes from days where date between $1 and $2",
+      [from, today],
+      db,
+    )),
+    q<{ name: string; unit: "reps" | "seconds"; amount: number; sets: number }>(
+      `select t.name, t.unit, coalesce(sum(l.amount), 0)::int as amount, count(*)::int as sets
+       from exercise_logs l join exercise_types t on t.id = l.exercise_type_id
+       where l.date = $1 and l.status = 'done' group by t.name, t.unit order by 4 desc`,
+      [today],
+      db,
+    ),
+    q<{ date: DateStr }>(
+      `select date from exercise_logs where status = 'done' and date between $1 and $2
+       union select date from days where steps >= $3 and date between $1 and $2`,
+      [streakFrom, today, stepGoal],
+      db,
+    ),
+  ]);
+  const setMap = new Map(sets.map((r) => [r.date, r.n]));
+  const dayMap = new Map(dayRows.map((r) => [r.date, r]));
+  const week: HealthWeekDay[] = dateRange(from, today).map((d) => ({
+    date: d,
+    sets: setMap.get(d) ?? 0,
+    steps: dayMap.get(d)?.steps ?? null,
+    sleepMin: dayMap.get(d)?.sleep_minutes ?? null,
+  }));
+  const active = new Set(activeRows.map((r) => r.date));
+  let streak = 0;
+  let d = active.has(today) ? today : addDays(today, -1);
+  while (active.has(d)) {
+    streak++;
+    d = addDays(d, -1);
+  }
+  return { week, totals, streak, activeToday: active.has(today) };
 }
 
 /** The exercise and amount to pre-select: whatever was logged last (PRD 9.3). */

@@ -1,6 +1,8 @@
 "use client";
 
-import { ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, Star, X } from "lucide-react";
+import {
+  ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, Star, X, ClipboardList,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useOptimistic, useState, useTransition } from "react";
@@ -11,7 +13,7 @@ import { cn } from "@/lib/cn";
 import { addDays, fmtDuration, type DateStr } from "@/lib/time";
 import type { RowData } from "@/lib/view-types";
 import { useToast } from "../toast";
-import { Button, Card, Chip, Empty, ErrorNote, Input, Progress } from "../ui";
+import { Button, Card, Chip, Empty, ErrorNote, Input, Progress, EmptyState, prefillQuickAdd } from "../ui";
 
 interface Capacity {
   plannedMin: number;
@@ -115,7 +117,11 @@ export function PlanClient(props: {
 
           <section aria-label="The day" className="space-y-2">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-subtle">On the list ({entries.length})</h2>
-            {entries.length === 0 ? <Empty>Nothing on this day yet. Type a task in the bar above, or add from the lists below.</Empty> : null}
+            {entries.length === 0 ? (
+              <EmptyState icon={ClipboardList} title="Nothing on this day yet" actions={[{ label: "Add a task", onClick: () => prefillQuickAdd("") }]}>
+                Add new tasks, or pick from Someday and cadence suggestions below.
+              </EmptyState>
+            ) : null}
             <ul className="space-y-1.5">
               {entries.map((r) => {
                 const label =

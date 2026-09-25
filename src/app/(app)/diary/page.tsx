@@ -7,7 +7,7 @@ import { aiConfigured } from "@/lib/ai";
 import { cn } from "@/lib/cn";
 import { voiceConfigured } from "@/lib/deepgram";
 import { makeCtx } from "@/lib/settings";
-import { addDays, fmtDateLong, fmtDateShort, fmtHM, weekdayName, type DateStr } from "@/lib/time";
+import { addDays, fmtDateLong, fmtDay, fmtHM, weekdayName, type DateStr } from "@/lib/time";
 import {
   entryCountsInRange, getSummary, listEntries, summariesInRange, toSummaryView,
 } from "@/lib/services/diary";
@@ -81,7 +81,7 @@ export default async function DiaryPage({ searchParams }: { searchParams: Promis
               <li key={d} className={i < 14 ? "hidden md:block" : undefined}>
                 <Link
                   href={d === ctx.today ? "/diary" : `/diary?date=${d}`}
-                  title={s ? `${fmtDateShort(d)}: ${s.headline}` : fmtDateShort(d)}
+                  title={s ? `${fmtDay(d)}: ${s.headline}` : fmtDay(d)}
                   className={cn(
                     "flex flex-col items-center gap-1 rounded-xl border py-1.5 transition-colors",
                     active ? "border-accent bg-accent-muted" : "border-transparent hover:bg-muted",

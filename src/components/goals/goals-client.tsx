@@ -1,6 +1,8 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Plus } from "lucide-react";
+import {
+  ArrowDown, ArrowUp, Plus, Target, Repeat, Lightbulb,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -8,7 +10,7 @@ import { addToDayAction, markTargetDoneAction, reorderSomedayAction, snoozeCaden
 import { cn } from "@/lib/cn";
 import { fmtDuration, type DateStr, type TargetPeriod } from "@/lib/time";
 import { useToast } from "../toast";
-import { Button, Card, Chip, Empty, ErrorNote, Progress } from "../ui";
+import { Button, Card, Chip, Empty, ErrorNote, Progress, EmptyState, prefillQuickAdd } from "../ui";
 
 import { Check } from "lucide-react";
 
@@ -153,13 +155,20 @@ export function GoalsClient(props: {
       <section aria-label="Targets" className="space-y-4">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-subtle">Targets</h2>
         {periods.length === 0 ? (
-          <Empty>
-            No targets yet. Add one from the quick-add bar, e.g.{" "}
+          <EmptyState
+            icon={Target}
+            title="No targets yet"
+            actions={[
+              { label: "Weekly target", onClick: () => prefillQuickAdd(" #w ~5h") },
+              { label: "Monthly target", onClick: () => prefillQuickAdd(" #m"), primary: false },
+            ]}
+          >
+            A target is something to finish or put hours into within a week, month, quarter or year, e.g.{" "}
             <span className="font-mono text-fg">Finish proposal #w ~6h</span> (week),{" "}
             <span className="font-mono text-fg">#m</span> (month),{" "}
             <span className="font-mono text-fg">#q</span> (quarter), or{" "}
             <span className="font-mono text-fg">#y</span> (year).
-          </Empty>
+          </EmptyState>
         ) : null}
         {periods.map((p) => (
           <div key={p} className="space-y-2">
@@ -187,7 +196,9 @@ export function GoalsClient(props: {
       <section aria-label="Cadence" className="space-y-3">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-subtle">Cadence</h2>
         {props.cadence.length === 0 ? (
-          <Empty>No cadence tasks. Add one with <span className="font-mono text-fg">LinkedIn post *7d</span>.</Empty>
+          <EmptyState icon={Repeat} title="No habits on a cadence" actions={[{ label: "Add a habit", onClick: () => prefillQuickAdd(" *7d") }]}>
+            Things to do every few days, like a LinkedIn post every 7 days. You get a nudge when one is due.
+          </EmptyState>
         ) : (
           <ul className="space-y-2">
             {props.cadence.map((c) => (
@@ -220,7 +231,9 @@ export function GoalsClient(props: {
       <section aria-label="Someday" className="space-y-3">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-subtle">Someday pool</h2>
         {props.someday.length === 0 ? (
-          <Empty>Nothing here. Add ideas with a trailing <span className="font-mono text-fg">?</span>, for example <span className="font-mono text-fg">AI companies jumping ?</span>. No nudges, ever.</Empty>
+          <EmptyState icon={Lightbulb} title="Someday is empty" actions={[{ label: "Park an idea", onClick: () => prefillQuickAdd(" ?"), primary: false }]}>
+            A calm place for ideas and nice-to-dos. No dates, no nudges, ever.
+          </EmptyState>
         ) : (
           <ul className="space-y-1.5">
             {props.someday.map((t, i) => (

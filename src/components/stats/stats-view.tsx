@@ -11,7 +11,7 @@ import { useMemo, useState, useTransition } from "react";
 import { cn } from "@/lib/cn";
 import type { DiarySummaryView } from "@/lib/services/diary";
 import type { Stats } from "@/lib/services/stats";
-import { fmtDateLong, fmtDateShort, fmtDuration, type DateStr } from "@/lib/time";
+import { fmtDay, fmtDuration, fmtRange, type DateStr } from "@/lib/time";
 import { ratingTone } from "@/lib/rating-tone";
 import { SummaryCard } from "../diary/diary-panel";
 import { Card, Input, Progress, Select } from "../ui";
@@ -56,13 +56,6 @@ function Delta({ cur, prev, unit = "", digits = 1, lowerIsBetter = false, neutra
   );
 }
 
-function openOnKey(e: React.KeyboardEvent, fn: () => void) {
-  if (e.key === "Enter" || e.key === " ") {
-    e.preventDefault();
-    fn();
-  }
-}
-
 /** A chart card: headline number in the header, chart below, click anywhere for the detail dialog. */
 function Tile({
   title, value, delta, sub, warn, onOpen, children, className, action,
@@ -79,12 +72,9 @@ function Tile({
   action?: React.ReactNode;
 }) {
   return (
+    // a plain container: clicking anywhere opens details with a mouse; keyboard and screen readers use the button
     <Card
-      role="button"
-      tabIndex={0}
-      aria-label={`${title}: open details`}
       onClick={onOpen}
-      onKeyDown={(e) => openOnKey(e, onOpen)}
       className={cn(
         "group flex cursor-pointer flex-col p-4 transition-all hover:border-accent/40 hover:shadow-[var(--shadow-md)]",
         warn && "border-warn/40",
@@ -103,7 +93,17 @@ function Tile({
           ) : null}
         </div>
         {action ? <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>{action}</div> : null}
-        <Maximize2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-subtle opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpen();
+          }}
+          aria-label={`${title}: open details`}
+          className="-mr-1 -mt-1 shrink-0 rounded-lg p-1 text-subtle opacity-50 transition-opacity hover:bg-muted hover:text-fg focus-visible:opacity-100 group-hover:opacity-100"
+        >
+          <Maximize2 className="h-3.5 w-3.5" aria-hidden />
+        </button>
       </div>
       <div className="min-h-0 flex-1">{children}</div>
     </Card>
@@ -130,17 +130,21 @@ function ListTile({ title, count, empty, onOpen, children }: {
   title: string; count: number; empty: string; onOpen: () => void; children: React.ReactNode;
 }) {
   return (
-    <Card
-      role="button"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(e) => openOnKey(e, onOpen)}
-      className="group flex cursor-pointer flex-col p-4 transition-all hover:border-accent/40 hover:shadow-[var(--shadow-md)]"
-    >
+    <Card onClick={onOpen} className="group flex cursor-pointer flex-col p-4 transition-all hover:border-accent/40 hover:shadow-[var(--shadow-md)]">
       <div className="mb-2 flex items-center gap-2">
         <p className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-subtle">{title}</p>
         {count > 0 ? <span className="tabular rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-subtle">{count}</span> : null}
-        <ChevronRight className="h-3.5 w-3.5 text-subtle transition-transform group-hover:translate-x-0.5" aria-hidden />
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpen();
+          }}
+          aria-label={`${title}: show all`}
+          className="rounded-lg p-0.5 text-subtle hover:bg-muted hover:text-fg"
+        >
+          <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />
+        </button>
       </div>
       {count === 0 ? <p className="text-sm text-subtle">{empty}</p> : <div className="space-y-2">{children}</div>}
     </Card>
@@ -273,8 +277,8 @@ export function StatsView({
   const highAttention = stats.attention.filter((a) => a.severity !== "info").length;
   const latestDiary = diary[0] ?? null;
   const unaccountedWarn = (cur.unaccountedPct ?? 0) > 20;
-  const periodLabel = `${fmtDateShort(f.from)} – ${fmtDateShort(f.to)}`;
-  const prevLabel = `${fmtDateShort(stats.previousRange.from)} – ${fmtDateShort(stats.previousRange.to)}`;
+  const periodLabel = fmtRange(f.from, f.to);
+  const prevLabel = fmtRange(stats.previousRange.from, stats.previousRange.to);
   const close = () => {
     if (open === "projects" && drill) setParam({ drill: null });
     setOpen(null);
@@ -452,7 +456,7 @@ export function StatsView({
           <div style={{ minHeight: TILE_H }} className="flex flex-wrap items-center gap-4">
             <Heatmap data={stats.heatmap} cell={series.length > 100 ? 8 : series.length > 42 ? 13 : 17} />
             <div className="space-y-1.5 text-xs">
-              <p className="text-subtle">Best day <span className="block text-sm font-semibold text-fg">{d.best ? `${fmtDateShort(d.best.date)} · ${d.best.score}` : "–"}</span></p>
+              <p className="text-subtle">Best day <span className="block text-sm font-semibold text-fg">{d.best ? `${fmtDay(d.best.date)} · ${d.best.score}` : "–"}</span></p>
               <p className="text-subtle">Best weekday <span className="block text-sm font-semibold text-fg">{d.bestDow ? `${d.bestDow.label} · ${d.bestDow.avgScore}` : "–"}</span></p>
             </div>
           </div>
@@ -531,7 +535,7 @@ export function StatsView({
               <div className="flex flex-col justify-center gap-2 rounded-2xl bg-muted/60 p-4">
                 <div className="flex items-center gap-2">
                   <span className={cn("tabular rounded-lg px-2 py-0.5 text-sm font-bold", ratingTone(latestDiary.rating))}>{latestDiary.rating ?? "–"}</span>
-                  <span className="text-xs text-subtle">{fmtDateLong(latestDiary.date)}</span>
+                  <span className="text-xs text-subtle">{fmtDay(latestDiary.date)}</span>
                 </div>
                 <p className="font-display text-base leading-snug">{latestDiary.headline}</p>
                 <p className="line-clamp-2 text-xs text-subtle">{latestDiary.summary}</p>
@@ -606,8 +610,8 @@ export function StatsView({
         <Facts>
           <Fact label="Average" value={cur.avgScore?.toFixed(1) ?? "–"} />
           <Fact label="Previous period" value={prev.avgScore?.toFixed(1) ?? "–"} />
-          <Fact label="Best day" value={d.best ? `${d.best.score} · ${fmtDateShort(d.best.date)}` : "–"} tone="good" />
-          <Fact label="Lowest day" value={d.worst ? `${d.worst.score} · ${fmtDateShort(d.worst.date)}` : "–"} tone="warn" />
+          <Fact label="Best day" value={d.best ? `${d.best.score} · ${fmtDay(d.best.date)}` : "–"} tone="good" />
+          <Fact label="Lowest day" value={d.worst ? `${d.worst.score} · ${fmtDay(d.worst.date)}` : "–"} tone="warn" />
         </Facts>
         <TrendChart data={series} y="score" avg="scoreAvg" kind="line" name="Score" height={BIG_H} domain={[0, 10]} large />
         <Note>Your own 0 to 10 rating of each day. The dashed line is the 7-day average, so a single bad day does not hide the trend.</Note>
@@ -618,7 +622,7 @@ export function StatsView({
           <Fact label="Per day" value={cur.avgWorkedHours === null ? "–" : `${cur.avgWorkedHours.toFixed(1)}h`} />
           <Fact label="Total" value={`${cur.totalWorkedHours.toFixed(1)}h`} />
           <Fact label="Days worked" value={`${d.worked.length} of ${series.length}`} />
-          <Fact label="Longest day" value={d.longest ? `${d.longest.hours.toFixed(1)}h · ${fmtDateShort(d.longest.date)}` : "–"} />
+          <Fact label="Longest day" value={d.longest ? `${d.longest.hours.toFixed(1)}h · ${fmtDay(d.longest.date)}` : "–"} />
         </Facts>
         <TrendChart data={series} y="hours" avg="hoursAvg" kind="bar" name="Hours" unit="h" height={BIG_H} large />
         <Note>Previous period averaged {prev.avgWorkedHours?.toFixed(1) ?? "–"}h a day. Worked time comes from your office/outside segments or the manual hours you enter on Today.</Note>
@@ -629,7 +633,7 @@ export function StatsView({
           <Fact label="Done" value={cur.tasksDone} />
           <Fact label="Previous period" value={prev.tasksDone} />
           <Fact label="Per worked hour" value={cur.tasksPerHour?.toFixed(2) ?? "–"} />
-          <Fact label="Busiest day" value={d.busiest && d.busiest.done > 0 ? `${d.busiest.done} · ${fmtDateShort(d.busiest.date)}` : "–"} />
+          <Fact label="Busiest day" value={d.busiest && d.busiest.done > 0 ? `${d.busiest.done} · ${fmtDay(d.busiest.date)}` : "–"} />
         </Facts>
         <TrendChart data={series} y="done" avg="doneAvg" kind="bar" name="Done" height={BIG_H} large />
         <Note>Completion rate is {pct(cur.completionRate)} of everything scheduled; must-dos were done or progressed {pct(cur.mustDoHitRate)} of the time.</Note>
@@ -659,7 +663,7 @@ export function StatsView({
               <ul className="divide-y divide-border">
                 {[...drillByDate.entries()].map(([date, rows]) => (
                   <li key={date} className="py-2">
-                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-subtle">{fmtDateLong(date)}</p>
+                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-subtle">{fmtDay(date)}</p>
                     {rows.map((r) => (
                       <div key={r.taskId} className="flex items-center justify-between gap-3 py-0.5 text-sm">
                         <Link href={`/task/${r.taskId}`} className="min-w-0 truncate hover:underline">{r.title}</Link>
@@ -758,7 +762,7 @@ export function StatsView({
                 <summary className="flex cursor-pointer list-none items-center gap-3">
                   <span className={cn("tabular rounded-lg px-2 py-0.5 text-sm font-bold", ratingTone(s.rating))}>{s.rating ?? "–"}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-xs text-subtle">{fmtDateLong(s.date)}</span>
+                    <span className="block text-xs text-subtle">{fmtDay(s.date)}</span>
                     <span className="block truncate font-medium">{s.headline}</span>
                   </span>
                   <ChevronRight className="h-4 w-4 shrink-0 text-subtle transition-transform group-open:rotate-90" />

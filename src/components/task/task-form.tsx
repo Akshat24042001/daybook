@@ -8,7 +8,7 @@ import {
   createTaskAction, createRemarkAction, deleteRemarkAction, deleteTaskAction, setTaskStateAction, updateTaskAction, type NewTaskForm,
 } from "@/app/actions";
 import { TASK_TYPE_LABEL, type TaskType } from "@/lib/parser";
-import { fmtDuration } from "@/lib/time";
+import { fmtDuration, fmtDay } from "@/lib/time";
 import { useToast } from "../toast";
 import { Button, Card, Chip, ErrorNote, Field, Input, Select, Textarea } from "../ui";
 import { VoiceButton } from "../voice-button";
@@ -269,7 +269,8 @@ export function TaskForm({
               <ul className="space-y-2">
                 {remarkList.map((r) => {
                   const dt = new Date(r.createdAt);
-                  const label = `${dt.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })} · ${dt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`;
+                  const local = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+                  const label = `${fmtDay(local)} · ${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
                   return (
                     <li key={r.id} className="rounded-xl border border-border bg-surface p-3 space-y-1">
                       <div className="flex items-center justify-between gap-2">
@@ -382,7 +383,7 @@ export function TaskForm({
           <h2 className="text-xs font-semibold uppercase tracking-wider text-subtle">Recent days</h2>
           <div className="flex flex-wrap gap-1.5">
             {history.map((h) => (
-              <Chip key={h.date + h.status}>{h.date}: {h.status}{h.mustDo ? " ★" : ""}</Chip>
+              <Chip key={h.date + h.status}>{fmtDay(h.date)}: {h.status}{h.mustDo ? " ★" : ""}</Chip>
             ))}
           </div>
         </section>
