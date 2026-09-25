@@ -383,7 +383,7 @@ export function TaskForm({
           <h2 className="text-xs font-semibold uppercase tracking-wider text-subtle">Recent days</h2>
           <div className="flex flex-wrap gap-1.5">
             {history.map((h) => (
-              <Chip key={h.date + h.status}>{fmtDay(h.date)}: {h.status}{h.mustDo ? " ★" : ""}</Chip>
+              <Chip key={h.date + h.status}>{h.date}: {h.status}{h.mustDo ? " ★" : ""}</Chip>
             ))}
           </div>
         </section>

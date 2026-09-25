@@ -195,6 +195,8 @@ export function fmtDateShort(date: DateStr): string {
  * (pass `today` to decide), e.g. "Mon, 5 Jan 2025".
  */
 export function fmtDay(date: DateStr, today?: DateStr): string {
+  // never take a page down over a label: anything that is not YYYY-MM-DD is shown as it is
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
   const { y, m, d } = parseDateStr(date);
   const year = today && today.slice(0, 4) !== String(y) ? ` ${y}` : "";
   return `${weekdayName(date).slice(0, 3)}, ${d} ${MONTHS[m - 1]}${year}`;

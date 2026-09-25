@@ -4,7 +4,7 @@ import { TaskForm } from "@/components/task/task-form";
 import { q } from "@/lib/db";
 import { deepgramReady } from "@/lib/voice-config";
 import { makeCtx } from "@/lib/settings";
-import { fmtDateShort, fmtHM, logicalDate } from "@/lib/time";
+import { fmtDay, fmtHM, logicalDate } from "@/lib/time";
 import { getTask, listRemarks, type TaskRemark } from "@/lib/services/tasks";
 
 export const metadata: Metadata = { title: "Task" };
@@ -39,7 +39,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
       projects={projects.map((p) => p.name)}
       people={people.map((p) => p.name)}
       today={ctx.today}
-      history={history.map((h) => ({ date: fmtDateShort(h.date), status: h.status, mustDo: h.must_do }))}
+      history={history.map((h) => ({ date: fmtDay(h.date), status: h.status, mustDo: h.must_do }))}
       totals={totals[0]}
       remarks={remarks.map((r) => ({ id: r.id, body: r.body, createdAt: r.created_at.toISOString() }))}
       task={{
