@@ -1,14 +1,16 @@
 "use client";
 
 import {
-  Archive, CheckCircle2, ChevronDown, Circle, Clock, FolderOpen, Plus, RotateCcw, Search, X,
+  Archive, CheckCircle2, ChevronDown, Circle, Clock, FolderOpen, Pencil, Plus, RotateCcw, Search, Target, X,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { createProjectAction, updateProjectAction } from "@/app/actions";
 import { cn } from "@/lib/cn";
-import { fmtDuration } from "@/lib/time";
+import { fmtDay, fmtDuration } from "@/lib/time";
+import { setProjectTimeGoalAction } from "@/app/review-actions";
+import { usePageSearch } from "../use-page-search";
 import { Button, Chip, Empty, Input, Progress } from "../ui";
 import type { ProjectTask } from "@/lib/services/projects";
 
@@ -21,134 +23,224 @@ interface Project {
   doneTasks: number;
   droppedTasks: number;
   completionPct: number | null;
+  /** weekly hours budget in minutes, and this week so far */
+  weeklyTargetMin: number | null;
+  weekMin: number;
+  /** 0..1 share of the week gone */
+  weekElapsed: number;
 }
 
-// ─── unified project card ─────────────────────────────────────────────────────
+// ─── project card: read-only by default, edit on demand ─────────────────────────
+
+const SWATCHES = ["#6366f1", "#0ea5e9", "#10b981", "#84cc16", "#f59e0b", "#f97316", "#ef4444", "#ec4899", "#8b5cf6", "#64748b"];
 
 function ProjectCard({
   project,
   tasks,
   pending,
   onSave,
+  onGoal,
 }: {
   project: Project;
   tasks: ProjectTask[];
   pending: boolean;
   onSave: (patch: { name?: string; color?: string; archived?: boolean }) => void;
+  onGoal: (weeklyHours: number | null) => void;
 }) {
+  const [editing, setEditing] = useState(false);
   const [name, setName] = useState(project.name);
   const [color, setColor] = useState(project.color);
+  const [hours, setHours] = useState(project.weeklyTargetMin ? String(project.weeklyTargetMin / 60) : "");
   const [tasksOpen, setTasksOpen] = useState(false);
-  const dirty = name !== project.name || color !== project.color;
 
   const active = tasks.filter((t) => t.state === "active");
   const done = tasks.filter((t) => t.state === "done");
   const pct = project.completionPct ?? 0;
+  const goal = project.weeklyTargetMin;
+  const goalPct = goal ? Math.min(1, project.weekMin / goal) : 0;
+
+  function save() {
+    const h = hours.trim() === "" ? null : Number(hours);
+    if (h !== null && (!Number.isFinite(h) || h <= 0 || h > 168)) return;
+    const patch: { name?: string; color?: string } = {};
+    if (name.trim() && name.trim() !== project.name) patch.name = name.trim();
+    if (color !== project.color) patch.color = color;
+    if (Object.keys(patch).length) onSave(patch);
+    const before = goal ? goal / 60 : null;
+    if (h !== before) onGoal(h);
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <div className="rounded-2xl border border-accent/40 bg-surface p-4 shadow-[var(--shadow-md)]">
+        <form
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save();
+          }}
+        >
+          <label className="block">
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-subtle">Name</span>
+            <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus className="h-9" />
+          </label>
+          <div>
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-subtle">Colour</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {SWATCHES.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  aria-label={`Colour ${c}`}
+                  aria-pressed={color.toLowerCase() === c}
+                  onClick={() => setColor(c)}
+                  className={cn("h-7 w-7 rounded-full transition-transform", color.toLowerCase() === c ? "scale-110 ring-2 ring-fg/60 ring-offset-2 ring-offset-surface" : "hover:scale-110")}
+                  style={{ background: c }}
+                />
+              ))}
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                aria-label="Custom colour"
+                className="h-7 w-9 cursor-pointer rounded-lg border border-border bg-transparent p-0.5"
+              />
+            </div>
+          </div>
+          <label className="block">
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-subtle">Weekly time goal</span>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                max="168"
+                step="0.5"
+                value={hours}
+                onChange={(e) => setHours(e.target.value)}
+                placeholder="e.g. 20"
+                className="h-9 w-28"
+              />
+              <span className="text-sm text-subtle">hours a week</span>
+            </div>
+            <span className="mt-1 block text-xs text-subtle">Leave empty for no goal. Shown on Goals and in your weekly review.</span>
+          </label>
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                onSave({ archived: true });
+                setEditing(false);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-subtle hover:bg-muted hover:text-fg"
+            >
+              <Archive className="h-3.5 w-3.5" /> Archive
+            </button>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setName(project.name);
+                  setColor(project.color);
+                  setHours(goal ? String(goal / 60) : "");
+                  setEditing(false);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button size="sm" variant="primary" type="submit" disabled={pending || !name.trim()}>
+                Save
+              </Button>
+            </div>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  if (project.archived) {
+    return (
+      <div className="flex items-center gap-3 rounded-2xl border border-border/60 bg-surface/60 px-4 py-3">
+        <span className="h-2.5 w-2.5 shrink-0 rounded-full opacity-60" style={{ background: project.color }} aria-hidden />
+        <span className="min-w-0 flex-1 truncate text-sm text-subtle">{project.name}</span>
+        <Button size="sm" variant="ghost" disabled={pending} onClick={() => onSave({ archived: false })}>
+          <RotateCcw className="h-3.5 w-3.5" /> Restore
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div
-      className={cn(
-        "rounded-2xl border bg-surface overflow-hidden transition-opacity",
-        project.archived ? "border-border/50 opacity-60" : "border-border",
-      )}
-    >
-      {/* ── top bar: color + name + save + archive ── */}
-      <div className="flex items-center gap-2 p-3 border-b border-border/50">
-        <input
-          type="color"
-          value={color}
-          onChange={(e) => setColor(e.target.value)}
-          aria-label={`Colour for ${project.name}`}
-          className="h-8 w-9 shrink-0 cursor-pointer rounded-lg border border-border bg-transparent p-0.5"
-          disabled={project.archived}
-        />
-        <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          aria-label="Project name"
-          className="h-8 min-w-0 flex-1 text-sm font-medium"
-          disabled={project.archived}
-        />
-        <Button
-          size="sm"
-          variant="primary"
-          disabled={pending || !dirty || project.archived}
-          onClick={() => onSave({ name: name.trim(), color })}
-          className="shrink-0"
-        >
-          Save
-        </Button>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => onSave({ archived: !project.archived })}
-          title={project.archived ? "Restore project" : "Archive project"}
-          className="shrink-0 rounded-lg p-1.5 text-subtle hover:bg-muted hover:text-fg transition-colors"
-        >
-          {project.archived ? (
-            <RotateCcw className="h-4 w-4" />
-          ) : (
-            <Archive className="h-4 w-4" />
-          )}
-        </button>
-      </div>
+    <div className="group overflow-hidden rounded-2xl border border-border bg-surface shadow-[var(--shadow-sm)] transition-shadow hover:shadow-[var(--shadow-md)]">
+      <div className="h-1" style={{ background: project.color }} aria-hidden />
+      <div className="p-4">
+        <div className="flex items-start gap-2">
+          <h3 className="min-w-0 flex-1 truncate font-display text-lg leading-tight">{project.name}</h3>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label={`Edit ${project.name}`}
+            className="-mr-1 -mt-0.5 rounded-lg p-1.5 text-subtle opacity-100 transition-opacity hover:bg-muted hover:text-fg md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        </div>
 
-      {/* ── progress bar + stats ── */}
-      {!project.archived ? (
-        <div className="px-4 pt-3 pb-2">
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <div className="flex items-center gap-3 text-xs text-subtle">
-              <span className="flex items-center gap-1">
-                <Circle className="h-3 w-3" />
-                {project.activeTasks} active
+        <div className="mt-2 flex items-center gap-3 text-xs text-subtle">
+          <span className="flex items-center gap-1"><Circle className="h-3 w-3" /> {project.activeTasks} active</span>
+          <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-good" /> {project.doneTasks} done</span>
+          <span className="tabular ml-auto font-semibold text-fg">{project.completionPct === null ? "–" : `${pct}%`}</span>
+        </div>
+        <Progress className="mt-1.5 h-1.5" value={pct / 100} tone="accent" />
+
+        {goal ? (
+          <div className="mt-3 rounded-xl bg-muted/60 px-3 py-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-medium">This week</span>
+              <span className="tabular text-subtle">
+                <strong className="text-fg">{fmtDuration(project.weekMin)}</strong> of {fmtDuration(goal)}
               </span>
-              <span className="flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3 text-good" />
-                {project.doneTasks} done
-              </span>
-              {project.droppedTasks > 0 ? (
-                <span>{project.droppedTasks} dropped</span>
+            </div>
+            <div className="relative mt-1.5 h-1.5 overflow-hidden rounded-full bg-border">
+              <div className="h-full rounded-full" style={{ width: `${goalPct * 100}%`, background: project.color }} />
+              {project.weekElapsed > 0 && project.weekElapsed < 1 ? (
+                <div className="absolute top-0 h-full w-0.5 bg-fg/50" style={{ left: `${project.weekElapsed * 100}%` }} title="Even pace by today" />
               ) : null}
             </div>
-            <span
-              className={cn(
-                "shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold tabular",
-                pct === 100
-                  ? "bg-good/15 text-good"
-                  : pct >= 50
-                  ? "bg-accent/15 text-accent"
-                  : "bg-muted text-subtle",
-              )}
-            >
-              {pct}%
-            </span>
           </div>
-          <Progress value={pct / 100} tone="accent" />
-        </div>
-      ) : null}
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline"
+          >
+            <Target className="h-3.5 w-3.5" /> Set a weekly time goal
+          </button>
+        )}
+      </div>
 
-      {/* ── task list toggle ── */}
-      {tasks.length > 0 && !project.archived ? (
+      {tasks.length > 0 ? (
         <>
           <button
             type="button"
             onClick={() => setTasksOpen((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-2 text-xs font-medium text-subtle hover:text-fg hover:bg-muted/50 transition-colors"
+            aria-expanded={tasksOpen}
+            className="flex w-full items-center justify-between border-t border-border/60 px-4 py-2 text-xs font-medium text-subtle transition-colors hover:bg-muted/50 hover:text-fg"
           >
-            <span>{tasks.length} task{tasks.length !== 1 ? "s" : ""}</span>
+            <span>{tasksOpen ? "Hide tasks" : `Show ${tasks.length} task${tasks.length !== 1 ? "s" : ""}`}</span>
             <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", tasksOpen && "rotate-180")} />
           </button>
 
           {tasksOpen ? (
-            <ul className="border-t border-border/50 divide-y divide-border/50">
+            <ul className="max-h-80 divide-y divide-border/50 overflow-y-auto border-t border-border/50">
               {active.map((t) => (
                 <li key={t.id} className="flex items-center gap-3 px-4 py-2.5">
                   <Circle className="h-3.5 w-3.5 shrink-0 text-subtle" />
                   <div className="min-w-0 flex-1">
-                    <Link
-                      href={`/task/${t.id}`}
-                      className="text-sm font-medium hover:underline underline-offset-2 block truncate"
-                    >
+                    <Link href={`/task/${t.id}`} className="block truncate text-sm font-medium underline-offset-2 hover:underline">
                       {t.title}
                     </Link>
                     <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-subtle">
@@ -157,9 +249,9 @@ function ProjectCard({
                           <Clock className="h-3 w-3" /> {fmtDuration(t.estimateMin)}
                         </span>
                       ) : null}
-                      {t.dueDate ? <span>due {t.dueDate}</span> : null}
+                      {t.dueDate ? <span>due {fmtDay(t.dueDate)}</span> : null}
                       {t.carry > 0 ? (
-                        <Chip className={cn("text-[10px]", t.carry >= 3 ? "bg-bad/15 text-bad" : "bg-warn/15 text-warn")}>
+                        <Chip className={cn("text-[10px]", t.carry >= 3 ? "bg-bad-muted text-bad" : "bg-warn-muted text-warn")}>
                           carried {t.carry}×
                         </Chip>
                       ) : null}
@@ -170,10 +262,7 @@ function ProjectCard({
               {done.map((t) => (
                 <li key={t.id} className="flex items-center gap-3 px-4 py-2.5 opacity-50">
                   <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-good" />
-                  <Link
-                    href={`/task/${t.id}`}
-                    className="text-sm text-subtle hover:underline underline-offset-2 line-through block truncate"
-                  >
+                  <Link href={`/task/${t.id}`} className="block truncate text-sm text-subtle line-through underline-offset-2 hover:underline">
                     {t.title}
                   </Link>
                 </li>
@@ -199,20 +288,8 @@ export function ProjectsClient({
   const [pending, start] = useTransition();
   const [newProject, setNewProject] = useState("");
   const [showArchived, setShowArchived] = useState(false);
-  const [query, setQuery] = useState("");
-  const searchRef = useRef<HTMLInputElement>(null);
-
-  // "/" jumps to search, like most apps; ignored while typing in another field
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement;
-      if (e.key !== "/" || t.closest("input, textarea, select, [contenteditable=true]")) return;
-      e.preventDefault();
-      searchRef.current?.focus();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  // starts from ?q= and "/" jumps to it
+  const { query, setQuery, ref: searchRef } = usePageSearch();
 
   function call(fn: () => Promise<{ ok: boolean; error?: string }>) {
     start(async () => { await fn(); router.refresh(); });
@@ -291,6 +368,7 @@ export function ProjectsClient({
                 tasks={tasksByProject[p.id] ?? []}
                 pending={pending}
                 onSave={(patch) => call(() => updateProjectAction(p.id, patch))}
+                onGoal={(h) => call(() => setProjectTimeGoalAction(p.id, h))}
               />
             ))}
           </div>
@@ -338,6 +416,7 @@ export function ProjectsClient({
                   tasks={[]}
                   pending={pending}
                   onSave={(patch) => call(() => updateProjectAction(p.id, patch))}
+                  onGoal={(h) => call(() => setProjectTimeGoalAction(p.id, h))}
                 />
               ))}
             </div>

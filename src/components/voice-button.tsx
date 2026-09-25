@@ -23,6 +23,7 @@ export function VoiceButton({
   maxSeconds = MAX_SECONDS,
   showLabel = false,
   onStateChange,
+  listenFor,
 }: {
   onText: (text: string) => void;
   enabled: boolean;
@@ -34,6 +35,8 @@ export function VoiceButton({
   /** show the label text next to the icon when idle */
   showLabel?: boolean;
   onStateChange?: (state: "idle" | "recording" | "sending") => void;
+  /** a window event name (e.g. "daybook:record") that toggles recording, for keyboard shortcuts */
+  listenFor?: string;
 }) {
   const { toast } = useToast();
   const [state, setState] = useState<"idle" | "recording" | "sending">("idle");
@@ -103,6 +106,19 @@ export function VoiceButton({
       toast("Microphone access was blocked. Allow it in the browser and try again.", "error");
     }
   }
+
+  // keyboard shortcut: the same as tapping the button
+  const toggle = useRef<() => void>(() => {});
+  toggle.current = () => {
+    if (state === "recording") stop();
+    else if (state === "idle") void start();
+  };
+  useEffect(() => {
+    if (!listenFor) return;
+    const on = () => toggle.current();
+    window.addEventListener(listenFor, on);
+    return () => window.removeEventListener(listenFor, on);
+  }, [listenFor]);
 
   const recording = state === "recording";
   return (

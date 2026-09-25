@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ExportCard } from "@/components/settings/export-card";
 import { SettingsClient } from "@/components/settings/settings-client";
 import { q } from "@/lib/db";
 import { makeCtx } from "@/lib/settings";
@@ -61,6 +62,9 @@ export default async function SettingsPage() {
         https: /^https:\/\//i.test(process.env.APP_BASE_URL ?? ""),
       }}
     />
+    <div className="mt-8">
+      <ExportCard />
+    </div>
     </div>
   );
 }

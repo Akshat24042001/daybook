@@ -248,6 +248,7 @@ export function DiaryPanel({
               enabled={voiceEnabled}
               maxSeconds={600}
               language={lang}
+              listenFor="daybook:record"
               label={recording ? "Stop" : "Record"}
               showLabel
               onStateChange={setRecState}

@@ -190,6 +190,34 @@ export function fmtDateShort(date: DateStr): string {
   return `${d} ${MONTHS[m - 1]}`;
 }
 
+/**
+ * The app's one short day format: "Thu, 24 Sep". Add the year only when it is not the current one
+ * (pass `today` to decide), e.g. "Mon, 5 Jan 2025".
+ */
+export function fmtDay(date: DateStr, today?: DateStr): string {
+  const { y, m, d } = parseDateStr(date);
+  const year = today && today.slice(0, 4) !== String(y) ? ` ${y}` : "";
+  return `${weekdayName(date).slice(0, 3)}, ${d} ${MONTHS[m - 1]}${year}`;
+}
+
+/** "Today", "Yesterday", "Tomorrow", otherwise fmtDay. For anything within a day of today. */
+export function fmtRelDay(date: DateStr, today: DateStr): string {
+  const n = diffDays(date, today);
+  if (n === 0) return "Today";
+  if (n === -1) return "Yesterday";
+  if (n === 1) return "Tomorrow";
+  return fmtDay(date, today);
+}
+
+/** A range in one style: "21 – 27 Sep", "28 Sep – 4 Oct", "28 Dec 2025 – 3 Jan 2026". */
+export function fmtRange(from: DateStr, to: DateStr): string {
+  const a = parseDateStr(from);
+  const b = parseDateStr(to);
+  if (a.y !== b.y) return `${a.d} ${MONTHS[a.m - 1]} ${a.y} – ${b.d} ${MONTHS[b.m - 1]} ${b.y}`;
+  if (a.m !== b.m) return `${a.d} ${MONTHS[a.m - 1]} – ${b.d} ${MONTHS[b.m - 1]}`;
+  return `${a.d} – ${b.d} ${MONTHS[b.m - 1]}`;
+}
+
 /** Monday of the week containing the date. */
 export function weekStart(date: DateStr): DateStr {
   return addDays(date, -(isoDow(date) - 1));

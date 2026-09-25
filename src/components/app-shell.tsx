@@ -2,13 +2,14 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import {
-  BarChart3, BookMarked, BookOpen, ClipboardList, FolderOpen, HeartPulse, LayoutGrid, Monitor, Moon, Settings, Sun, Target,
-  Users, X,
+  BarChart3, BookMarked, BookOpen, CalendarCheck, ClipboardList, FolderOpen, HeartPulse, LayoutGrid, Monitor, Moon, Settings, Sun, Target,
+  Search, Users, X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { cn } from "@/lib/cn";
+import { CommandPalette } from "./command-palette";
 import { QuickAdd } from "./quick-add";
 import { StaleBanner } from "./stale-banner";
 import { ToastProvider } from "./toast";
@@ -21,6 +22,10 @@ function useTheme() {
     const stored = (localStorage.getItem("daybook-theme") as Theme) ?? "system";
     setTheme(stored);
     document.documentElement.dataset.theme = stored === "system" ? "" : stored;
+    // the "t" shortcut switches theme too: keep the label in sync
+    const onTheme = (e: Event) => setTheme((e as CustomEvent<Theme>).detail);
+    window.addEventListener("daybook:theme", onTheme);
+    return () => window.removeEventListener("daybook:theme", onTheme);
   }, []);
   const cycle = () => {
     const next: Theme = theme === "system" ? "light" : theme === "light" ? "dark" : "system";
@@ -61,6 +66,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Progress",
     items: [
+      { href: "/review", label: "Review", Icon: CalendarCheck },
       { href: "/stats", label: "Stats", Icon: BarChart3 },
       { href: "/goals", label: "Goals", Icon: Target },
       { href: "/health", label: "Health", Icon: HeartPulse },
@@ -84,6 +90,7 @@ const MOBILE_MAIN: NavItem[] = [
   { href: "/stats", label: "Stats", Icon: BarChart3 },
 ];
 const MOBILE_MORE: NavItem[] = [
+  { href: "/review", label: "Review", Icon: CalendarCheck },
   { href: "/goals", label: "Goals", Icon: Target },
   { href: "/health", label: "Health", Icon: HeartPulse },
   { href: "/projects", label: "Projects", Icon: FolderOpen },
@@ -141,7 +148,16 @@ export function AppShell({
             </span>
             <span className="font-display text-xl">Daybook</span>
           </Link>
-          <nav className="mt-7 flex flex-1 flex-col gap-5 overflow-y-auto" aria-label="Main">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent("daybook:palette"))}
+            className="mt-5 flex items-center gap-2 rounded-xl border border-border bg-bg px-3 py-2 text-sm text-subtle transition-colors hover:border-accent/40 hover:text-fg"
+          >
+            <Search className="h-4 w-4" />
+            <span className="flex-1 text-left">Search</span>
+            <kbd className="rounded border border-border px-1.5 text-[10px] font-medium">Ctrl K</kbd>
+          </button>
+          <nav className="mt-5 flex flex-1 flex-col gap-5 overflow-y-auto" aria-label="Main">
             {NAV_GROUPS.map((g) => (
               <div key={g.label}>
                 <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-subtle/70">{g.label}</p>
@@ -166,7 +182,17 @@ export function AppShell({
                 </span>
                 <span className="font-display text-lg">Daybook</span>
               </Link>
-              <ThemeToggle />
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  aria-label="Search"
+                  onClick={() => window.dispatchEvent(new CustomEvent("daybook:palette"))}
+                  className="rounded-lg p-2 text-subtle hover:bg-muted hover:text-fg"
+                >
+                  <Search className="h-4 w-4" />
+                </button>
+                <ThemeToggle />
+              </div>
             </div>
             <div className="px-4 pb-3 pt-1 md:px-6 md:pt-5 xl:px-8">
               <Suspense fallback={<div className="h-[52px] rounded-2xl border border-border bg-surface" />}>
@@ -241,6 +267,7 @@ export function AppShell({
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+      <CommandPalette />
     </ToastProvider>
   );
 }

@@ -13,6 +13,10 @@ import { q } from "@/lib/db";
 import { aiConfigured } from "@/lib/ai";
 import { DiaryPanel } from "@/components/diary/diary-panel";
 import { SleepCard } from "@/components/today/sleep-card";
+import { IntentionsMini } from "@/components/today/intentions-mini";
+import { ReachOut } from "@/components/contacts/keep-in-touch";
+import { touchStates } from "@/lib/services/keep-in-touch";
+import { getReview, periodBounds } from "@/lib/services/review";
 import { getSummary, listEntries, toSummaryView } from "@/lib/services/diary";
 
 export const metadata: Metadata = { title: "Today" };
@@ -31,6 +35,11 @@ export default async function TodayPage() {
     q<{ id: number; name: string }>("select id, name from projects where archived = false order by lower(name)"),
     listEntries(ctx.today).catch(() => []),
     getSummary(ctx.today).catch(() => null),
+  ]);
+  const weekStart = periodBounds("week", ctx.today).start;
+  const [weekReview, touch] = await Promise.all([
+    getReview("week", weekStart).catch(() => null),
+    touchStates(ctx.today, ctx.tz).catch(() => []),
   ]);
 
   const activeTargets = [...allTargets.week, ...allTargets.month, ...allTargets.quarter, ...allTargets.year]
@@ -67,9 +76,15 @@ export default async function TodayPage() {
       voiceEnabled={voiceConfigured()}
       targets={activeTargets}
       projects={projects}
+      asideTop={
+        <>
+          <SleepCard date={ctx.today} minutes={day?.sleep_minutes ?? null} quality={day?.sleep_quality ?? null} />
+          <IntentionsMini weekStart={weekStart} items={weekReview?.intentions ?? []} />
+          <ReachOut due={touch.filter((t) => t.due)} limit={2} title="Reach out today" compact />
+        </>
+      }
       aside={
         <>
-        <SleepCard date={ctx.today} minutes={day?.sleep_minutes ?? null} quality={day?.sleep_quality ?? null} />
         <DiaryPanel
           compact
           date={ctx.today}

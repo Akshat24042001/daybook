@@ -10,6 +10,9 @@ import { cn } from "@/lib/cn";
 import type { Contact } from "@/lib/services/contacts";
 import { Button, Card, Empty, Input, Sheet, Textarea, inputClass } from "../ui";
 import { VoiceButton } from "../voice-button";
+import type { TouchState } from "@/lib/services/keep-in-touch";
+import { ReachOut, TouchFooter } from "./keep-in-touch";
+import { usePageSearch } from "../use-page-search";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -256,9 +259,9 @@ function ConfirmDelete({
 // ─── contact card ─────────────────────────────────────────────────────────────
 
 function ContactCard({
-  contact, onEdit, onDelete, pending,
+  contact, onEdit, onDelete, pending, touch,
 }: {
-  contact: Contact; onEdit: () => void; onDelete: () => void; pending: boolean;
+  contact: Contact; onEdit: () => void; onDelete: () => void; pending: boolean; touch?: TouchState;
 }) {
   const [expanded, setExpanded] = useState(false);
   return (
@@ -346,6 +349,7 @@ function ContactCard({
           <p className="whitespace-pre-wrap text-sm text-subtle">{contact.notes}</p>
         </div>
       ) : null}
+      <TouchFooter state={touch} />
     </Card>
   );
 }
@@ -380,13 +384,18 @@ function FilterPill({
 export function ContactsClient({
   contacts,
   voiceEnabled,
+  touch = [],
 }: {
   contacts: Contact[];
   voiceEnabled: boolean;
+  /** keep-in-touch state per contact, most overdue first */
+  touch?: TouchState[];
 }) {
+  const touchById = useMemo(() => new Map(touch.map((t) => [t.contactId, t])), [touch]);
+  const due = useMemo(() => touch.filter((t) => t.due), [touch]);
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [search, setSearch] = useState("");
+  const { query: search, setQuery: setSearch, ref: searchRef } = usePageSearch();
   const [cityFilters, setCityFilters] = useState<Set<string>>(new Set());
   const [tagFilters, setTagFilters] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
@@ -476,12 +485,15 @@ export function ContactsClient({
         </Button>
       </div>
 
+      <ReachOut due={due} />
+
       {contacts.length > 0 && (
         <div className="space-y-3">
           {/* search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
             <input
+              ref={searchRef}
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -563,6 +575,7 @@ export function ContactsClient({
               onEdit={() => setEditing(c)}
               onDelete={() => setDeleting(c)}
               pending={pending}
+              touch={touchById.get(c.id)}
             />
           ))}
         </div>

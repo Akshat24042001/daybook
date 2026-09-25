@@ -6,6 +6,7 @@ import { describeParsed, parseQuickAdd } from "../parser";
 import { buildCtx, getSettings, type Ctx } from "../settings";
 import { aiConfigured, interpretTelegramMessage } from "../ai";
 import { addEntry as addDiaryEntry, summarizeDay } from "../services/diary";
+import { logTouch, snoozeTouch } from "../services/keep-in-touch";
 import { atLogical, addDays, fmtDuration, fmtHM, parseHM } from "../time";
 import type { EntryStatus, EntryView } from "../types";
 import {
@@ -26,7 +27,7 @@ import {
 import { sendRecapOnce } from "./notify";
 import {
   exerciseCountsLine, exercisePing, exerciseTypePicker, inline, minutesPrompt, recapMarkup, retryPrompt, scoreDecimals,
-  sleepQualityKeyboard, slotFromCode, taskAction, todayList, unpackDate, urlBtn, STATUS_EMOJI, STATUS_WORD, type Msg,
+  sleepQualityKeyboard, slotFromCode, taskAction, todayList, touchNudge, unpackDate, urlBtn, STATUS_EMOJI, STATUS_WORD, type Msg,
 } from "./ui";
 
 // ---------------------------------------------------------------- types
@@ -713,6 +714,20 @@ async function handleCallback(ctx: Ctx, chat: number, cb: TgCallback): Promise<s
       return exerciseAction(ctx, chat, mid, parts);
 
     // ---- score: sc:m:<n>:<d> | sc:s:<val>:<d> | sc:c:<d>
+    // ---- keep in touch: kt:t:<contactId> (talked today) | kt:z:<contactId> (snooze a week)
+    case "kt": {
+      const id = Number(parts[2]);
+      if (parts[1] === "t") await logTouch(id, ctx.today, "other");
+      else if (parts[1] === "z") await snoozeTouch(id, ctx.today, 7);
+      else break;
+      // the same message now shows whoever is next, or that everyone is covered
+      const next = await touchNudge(ctx);
+      if (mid) {
+        if (next) await editMessage(chat, mid, next.text, next.markup);
+        else await editMessage(chat, mid, "🤝 <b>Keep in touch</b>\nEveryone is covered. Nice.");
+      }
+      return parts[1] === "t" ? "Logged ✓" : "Snoozed for a week";
+    }
     // ---- sleep: sl:<minutes>:<d> then sq:<1-5>:<d>
     case "sl": {
       const date = unpackDate(parts[2]);

@@ -118,6 +118,8 @@ export function GoalsClient(props: {
   targets: Record<TargetPeriod, Target[]>;
   cadence: { id: number; title: string; project: string | null; daysSince: number; limit: number; overdue: boolean; snoozed: boolean }[];
   someday: { id: number; title: string; project: string | null; estimate: number | null }[];
+  /** server-rendered time goals card for this week */
+  timeGoals?: React.ReactNode;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -142,8 +144,10 @@ export function GoalsClient(props: {
     <div className="space-y-8">
       <header>
         <h1 className="font-display text-3xl">Goals</h1>
-        <p className="mt-1 text-sm text-subtle">Targets, habits that need a nudge, and things to do when you are free.</p>
+        <p className="mt-1 text-sm text-subtle">Where your time should go, targets, habits that need a nudge, and things to do when you are free.</p>
       </header>
+
+      {props.timeGoals}
       <ErrorNote message={error} />
 
       <section aria-label="Targets" className="space-y-4">

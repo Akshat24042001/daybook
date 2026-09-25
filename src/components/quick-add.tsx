@@ -113,6 +113,7 @@ export function QuickAdd({ tz, boundaryMin, voiceEnabled, aiEnabled }: { tz: str
         <div className="relative min-w-0 flex-1">
           <input
             ref={inputRef}
+            id="quick-add-input"
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {

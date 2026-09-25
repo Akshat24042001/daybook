@@ -36,7 +36,7 @@ function taskFilter(f: StatsFilters, params: unknown[]): string {
   return sql;
 }
 
-async function workedByDay(ctx: Ctx, from: DateStr, to: DateStr): Promise<Map<DateStr, number>> {
+export async function workedByDay(ctx: Ctx, from: DateStr, to: DateStr): Promise<Map<DateStr, number>> {
   const start = windowOf(ctx, from).start;
   const end = windowOf(ctx, to).end;
   const rows = await q<{ kind: Segment["kind"]; start_at: Date; end_at: Date | null }>(

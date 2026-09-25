@@ -12,6 +12,7 @@ import { exerciseCounts, lastExercise, listExerciseTypes, type ExerciseType } fr
 import { unresolvedEntries } from "../services/plan";
 import { esc, type Button, type ForceReply, type InlineMarkup } from "./api";
 import { getSummary, listEntries } from "../services/diary";
+import { touchStates } from "../services/keep-in-touch";
 
 export interface Msg {
   text: string;
@@ -164,6 +165,24 @@ export async function todayList(ctx: Ctx): Promise<Msg> {
     markup: inline([
       ...openMust.map((e) => [btn(`⭐ ${e.title}`.slice(0, 60), `t:o:${e.id}`)]),
       [urlBtn("Open Today", "/today")],
+    ]),
+  };
+}
+
+// ---------------------------------------------------------------- keep in touch
+
+/** Daily "reach out" nudge: the 3 most overdue contacts, each with Talked / Snooze. Null when nobody is due. */
+export async function touchNudge(ctx: Ctx, heading = "🤝 <b>Keep in touch</b>"): Promise<Msg | null> {
+  const due = (await touchStates(ctx.today, ctx.tz)).filter((s) => s.due);
+  if (!due.length) return null;
+  const top = due.slice(0, 3);
+  const lines = [heading, ...top.map((s) => `• <b>${esc(s.name)}</b>: ${s.lastTouch ? `last touch ${s.sinceDays} days ago` : `no touch in ${s.sinceDays} days`}`)];
+  if (due.length > 3) lines.push(`…and ${due.length - 3} more on the Contacts page.`);
+  return {
+    text: lines.join("\n"),
+    markup: inline([
+      ...top.map((s) => [btn(`✓ Talked to ${s.name}`.slice(0, 40), `kt:t:${s.contactId}`), btn("😴 1 week", `kt:z:${s.contactId}`)]),
+      [urlBtn("Open Contacts", "/contacts")],
     ]),
   };
 }

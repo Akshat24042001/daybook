@@ -43,6 +43,8 @@ export function TodayView(props: {
   voiceEnabled: boolean;
   /** extra cards for the right rail (the diary) */
   aside?: React.ReactNode;
+  /** cards above the end-of-day card (sleep, this week's intentions) */
+  asideTop?: React.ReactNode;
   targets: { id: number; title: string; met: boolean; behind: boolean; hasGoal: boolean; period: string }[];
   projects: { id: number; name: string }[];
 }) {
@@ -245,7 +247,8 @@ export function TodayView(props: {
     </div>
 
     {/* right rail on wide screens, below the list on phones */}
-    <aside className="space-y-4 xl:sticky xl:top-4" aria-label="End of day">
+    <aside className="space-y-4 xl:sticky xl:top-4" aria-label="Your day">
+      {props.asideTop}
       <Card className="p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-subtle">End of day</h2>
         <p className="mt-2 text-sm font-medium">How was today, out of 10?</p>

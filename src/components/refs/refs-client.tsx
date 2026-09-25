@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import type { Ref, RefKind } from "@/lib/services/refs";
 import { Button, Card, Empty, Input, Sheet, Textarea } from "../ui";
 import { VoiceButton } from "../voice-button";
+import { usePageSearch } from "../use-page-search";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -357,7 +358,7 @@ function RefCard({
 export function RefsClient({ refs, allTags, voiceEnabled }: { refs: Ref[]; allTags: string[]; voiceEnabled: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [search, setSearch] = useState("");
+  const { query: search, setQuery: setSearch, ref: searchRef } = usePageSearch();
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [kindFilter, setKindFilter] = useState<RefKind | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -428,6 +429,7 @@ export function RefsClient({ refs, allTags, voiceEnabled }: { refs: Ref[]; allTa
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
             <input
+              ref={searchRef}
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}

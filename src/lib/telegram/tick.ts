@@ -13,11 +13,12 @@ import {
   claim, claimScheduled, fallbackInstant, inQuietHours, markFailed, markSent, markSuppressed, sendRecapOnce,
 } from "./notify";
 import {
-  cadenceNudge, diaryPrompt, exercisePing, inline, morningBrief, mustDoOpenReminder, openSegmentPrompt, planTomorrowReminder, scoreReminder, taskAction, timeLogReminder, urlBtn, type Msg,
+  cadenceNudge, diaryPrompt, exercisePing, inline, touchNudge, morningBrief, mustDoOpenReminder, openSegmentPrompt, planTomorrowReminder, scoreReminder, taskAction, timeLogReminder, urlBtn, type Msg,
 } from "./ui";
 import { weeklyReviewMessage } from "./weekly";
 import { aiConfigured } from "../ai";
 import { autoSummarize } from "../services/diary";
+import { autoReviews } from "../services/review";
 
 const MIN = 60_000;
 
@@ -94,6 +95,28 @@ export async function runNightlyDiary(now: Date = new Date()): Promise<string> {
     if (r === "summarized") await markSent(id, null);
     else await markSuppressed(id);
     return r;
+  } catch (e) {
+    await markFailed(id);
+    return `failed: ${(e as Error).message}`;
+  }
+}
+
+/** Monday: last week's review; the 1st: last month's. An hour after the diary job so they never share a run. */
+export async function runNightlyReview(now: Date = new Date()): Promise<string> {
+  if (!aiConfigured()) return "ai-off";
+  const ctx = buildCtx(await getSettings(), now);
+  const at = atLogical(ctx.today, Math.min(ctx.boundaryMin + 90, 1439), ctx.tz, ctx.boundaryMin);
+  if (ctx.now.getTime() < at.getTime()) return "not-yet";
+  const monday = isoDow(ctx.today) === 1;
+  const first = ctx.today.endsWith("-01");
+  if (!monday && !first) return "not-today";
+  const id = await claim("review_auto", ctx.today, at);
+  if (!id) return "done-already";
+  try {
+    const done = await autoReviews(ctx, 45_000);
+    if (done.length) await markSent(id, null);
+    else await markSuppressed(id);
+    return done.length ? `reviewed ${done.join(", ")}` : "nothing-to-do";
   } catch (e) {
     await markFailed(id);
     return `failed: ${(e as Error).message}`;
@@ -229,6 +252,11 @@ function candidates(ctx: Ctx, work: {
       build: () => timeLogReminder(ctx),
     });
   }
+  // Keep in touch: once a day with the cadence nudges, only when someone is due
+  out.push({
+    kind: "touch_nudge", ref: today, at: at(ctx.s.cadence_nudge), graceMin: 180,
+    build: () => touchNudge(ctx),
+  });
   // Diary: 10 minutes after the score reminder, only if nothing was written today. Replies land in the diary.
   out.push({
     kind: "diary_prompt", ref: today, at: new Date(at(ctx.s.score_reminder).getTime() + 10 * MIN), graceMin: 90,

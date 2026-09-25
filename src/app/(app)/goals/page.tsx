@@ -4,13 +4,19 @@ import { makeCtx } from "@/lib/settings";
 import { fmtDateShort } from "@/lib/time";
 import { addDays } from "@/lib/time";
 import { listCadence, listSomeday, listTargets } from "@/lib/services/goals";
+import { timeGoals } from "@/lib/services/time-goals";
+import { TimeGoalsCard } from "@/components/goals/time-goals-card";
+import { periodBounds } from "@/lib/services/review";
 
 export const metadata: Metadata = { title: "Goals" };
 export const dynamic = "force-dynamic";
 
 export default async function GoalsPage() {
   const ctx = await makeCtx();
-  const [targets, cadence, someday] = await Promise.all([listTargets(ctx), listCadence(ctx), listSomeday()]);
+  const week = periodBounds("week", ctx.today);
+  const [targets, cadence, someday, goals] = await Promise.all([
+    listTargets(ctx), listCadence(ctx), listSomeday(), timeGoals(ctx, week.start, week.end),
+  ]);
   const shape = (p: (typeof targets.week)[number]) => ({
     id: p.task.id,
     title: p.task.title,
@@ -45,6 +51,7 @@ export default async function GoalsPage() {
         overdue: c.overdue,
         snoozed: !!c.task.nudge_snoozed_until && c.task.nudge_snoozed_until >= ctx.today,
       }))}
+      timeGoals={<TimeGoalsCard report={goals} title="Time goals · this week" />}
       someday={someday.map((t) => ({ id: t.id, title: t.title, project: t.project_name ?? null, estimate: t.estimate_min }))}
     />
     </div>
