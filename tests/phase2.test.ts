@@ -219,7 +219,7 @@ describe("task action messages: status, minutes, attempted retry", () => {
     await tap("✅ Done", "2026-09-19 10:32");
     expect(currentText(action.message_id)).toMatch(/How long/);
     expect(allButtons(mock.messages.get(`${CHAT}:${action.message_id}`)!).map((b: Call) => b.text)).toEqual(
-      ["15", "30", "45", "60", "90", "120", "No time"],
+      ["5", "10", "15", "30", "45", "60", "90", "120", "No time"],
     );
     await tap("45", "2026-09-19 10:33");
     expect(currentText(action.message_id)).toMatch(/Done · 45m logged/);

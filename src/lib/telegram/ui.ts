@@ -112,14 +112,14 @@ export function taskAction(ctx: Ctx, e: EntryView, prefix = ""): Msg {
   };
 }
 
-export const MINUTE_CHIPS = [15, 30, 45, 60, 90, 120];
+export const MINUTE_CHIPS = [5, 10, 15, 30, 45, 60, 90, 120];
 
 export function minutesPrompt(e: EntryView, status: EntryStatus): Msg {
   return {
     text: `${STATUS_EMOJI[status]} <b>${titleOf(e)}</b>: ${STATUS_WORD[status]}. How long did you spend?`,
     markup: inline([
-      MINUTE_CHIPS.slice(0, 3).map((m) => btn(String(m), `tm:${e.id}:${m}`)),
-      MINUTE_CHIPS.slice(3).map((m) => btn(String(m), `tm:${e.id}:${m}`)),
+      MINUTE_CHIPS.slice(0, 4).map((m) => btn(String(m), `tm:${e.id}:${m}`)),
+      MINUTE_CHIPS.slice(4).map((m) => btn(String(m), `tm:${e.id}:${m}`)),
       [btn("No time", `tm:${e.id}:0`)],
     ]),
   };
