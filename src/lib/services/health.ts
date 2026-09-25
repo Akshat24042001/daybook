@@ -238,6 +238,8 @@ export type SlotCell = {
   unit: "reps" | "seconds" | null;
   amount: number | null;
   extraNames?: string[]; // additional exercise names logged at the same slot
+  /** every exercise done in this slot, in the order logged */
+  items?: { name: string; unit: "reps" | "seconds"; amount: number }[];
 };
 
 export async function exerciseGrid(ctx: Ctx, date: DateStr): Promise<SlotCell[]> {
@@ -271,6 +273,7 @@ export async function exerciseGrid(ctx: Ctx, date: DateStr): Promise<SlotCell[]>
         unit: primary.unit,
         amount: primary.amount,
         extraNames: extra,
+        items: done.map((d) => ({ name: d.name ?? "exercise", unit: d.unit ?? "reps", amount: d.amount ?? 0 })),
       };
     }
     return {

@@ -1,7 +1,9 @@
 import { one, q, tx, UserError, type Db, getPool } from "../db";
 import { findOverlap, unaccounted, workedMinutes, type Segment, type SegmentKind } from "../hours";
 import { type Ctx, windowOf } from "../settings";
-import { type DateStr, logicalDate } from "../time";
+import { type DateStr, fmtHM, logicalDate } from "../time";
+
+const MINUTE_MS = 60_000;
 
 export interface SegmentRow {
   id: number;
@@ -122,7 +124,13 @@ export interface SegmentInput {
   end: Date | null;
 }
 
-async function assertNoOverlap(input: SegmentInput, ignoreId: number | null, db: Db) {
+/**
+ * Validates a segment against its neighbours and returns it, possibly nudged.
+ * Taps are stored to the second, but forms work in minutes: "15:43" typed next to a segment that ended at 15:43:27
+ * is meant to touch it, not overlap it. So a boundary that lands inside a neighbour by less than a minute snaps to
+ * the neighbour's exact edge. Anything bigger is a real overlap and names the segment in the way.
+ */
+async function fitToNeighbours(ctx: Ctx, input: SegmentInput, ignoreId: number | null, db: Db): Promise<SegmentInput> {
   if (input.end && input.end.getTime() <= input.start.getTime()) {
     throw new UserError("The end time must be after the start time.");
   }
@@ -133,17 +141,36 @@ async function assertNoOverlap(input: SegmentInput, ignoreId: number | null, db:
     [ignoreId, input.start, input.end],
     db,
   );
-  const hit = findOverlap(around.map(toSeg), { start: input.start, end: input.end });
+  const fitted: SegmentInput = { ...input };
+  for (const r of around) {
+    const s = r.start_at.getTime();
+    const e = r.end_at ? r.end_at.getTime() : Infinity;
+    // neighbour ends a few seconds after our start (same minute): start where it ends
+    if (s < fitted.start.getTime() && e > fitted.start.getTime() && e - fitted.start.getTime() < MINUTE_MS) {
+      fitted.start = new Date(e);
+    }
+    // neighbour starts a few seconds before our end (same minute): end where it starts
+    if (fitted.end && s < fitted.end.getTime() && s > fitted.start.getTime() && fitted.end.getTime() - s < MINUTE_MS) {
+      fitted.end = new Date(s);
+    }
+  }
+  if (fitted.end && fitted.end.getTime() <= fitted.start.getTime()) {
+    throw new UserError("The end time must be after the start time.");
+  }
+  const hit = findOverlap(around.map(toSeg), { start: fitted.start, end: fitted.end });
   if (hit) {
+    const other = around.find((r) => r.start_at.getTime() === hit.start.getTime())!;
+    const span = `${fmtHM(other.start_at, ctx.tz)}–${other.end_at ? fmtHM(other.end_at, ctx.tz) : "now"}`;
     throw new UserError(
-      "That overlaps another segment. Segments cannot overlap; adjust the times or edit the other segment first.",
+      `That overlaps ${KIND_LABEL[other.kind]} ${span}. Shorten or move that segment first, then save this one.`,
     );
   }
+  return fitted;
 }
 
-export async function createSegment(ctx: Ctx, input: SegmentInput): Promise<SegmentRow> {
+export async function createSegment(ctx: Ctx, raw: SegmentInput): Promise<SegmentRow> {
   return tx(async (db) => {
-    await assertNoOverlap(input, null, db);
+    const input = await fitToNeighbours(ctx, raw, null, db);
     const row = await one<SegmentRow>(
       "insert into work_segments (date, kind, start_at, end_at) values ($1,$2,$3,$4) returning *",
       [logicalDate(input.start, ctx.tz, ctx.boundaryMin), input.kind, input.start, input.end],
@@ -158,8 +185,8 @@ export async function createSegments(ctx: Ctx, inputs: SegmentInput[]): Promise<
   if (inputs.length === 0) throw new UserError("Nothing to save.");
   return tx(async (db) => {
     const rows: SegmentRow[] = [];
-    for (const input of inputs) {
-      await assertNoOverlap(input, null, db);
+    for (const raw of inputs) {
+      const input = await fitToNeighbours(ctx, raw, null, db);
       const row = await one<SegmentRow>(
         "insert into work_segments (date, kind, start_at, end_at) values ($1,$2,$3,$4) returning *",
         [logicalDate(input.start, ctx.tz, ctx.boundaryMin), input.kind, input.start, input.end],
@@ -171,9 +198,9 @@ export async function createSegments(ctx: Ctx, inputs: SegmentInput[]): Promise<
   });
 }
 
-export async function updateSegment(ctx: Ctx, id: number, input: SegmentInput): Promise<SegmentRow> {
+export async function updateSegment(ctx: Ctx, id: number, raw: SegmentInput): Promise<SegmentRow> {
   return tx(async (db) => {
-    await assertNoOverlap(input, id, db);
+    const input = await fitToNeighbours(ctx, raw, id, db);
     const row = await one<SegmentRow>(
       "update work_segments set date = $2, kind = $3, start_at = $4, end_at = $5 where id = $1 returning *",
       [id, logicalDate(input.start, ctx.tz, ctx.boundaryMin), input.kind, input.start, input.end],

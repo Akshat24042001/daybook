@@ -294,7 +294,7 @@ describe("Phase 1: segments and the hours calculation", () => {
     await createSegment(ctx, { kind: "break", start: ist("2026-09-19 12:00"), end: ist("2026-09-19 13:00") });
     await expect(
       createSegment(ctx, { kind: "office", start: ist("2026-09-19 11:30"), end: ist("2026-09-19 12:30") }),
-    ).rejects.toThrow(/overlaps another segment/);
+    ).rejects.toThrow(/overlaps At office 10:00–12:00/);
     await expect(
       updateSegment(ctx, s1.id, { kind: "office", start: ist("2026-09-19 10:00"), end: ist("2026-09-19 12:30") }),
     ).rejects.toThrow(/overlaps/);

@@ -20,6 +20,7 @@ interface Cell {
   unit: "reps" | "seconds" | null;
   amount: number | null;
   extraNames?: string[];
+  items?: { name: string; unit: "reps" | "seconds"; amount: number }[];
 }
 
 /** Friendly, never guilt-tripping: celebrate what is done, point at the next small step. */
@@ -218,12 +219,15 @@ export function HealthClient(props: {
                     )}
                   >
                     <span className="tabular w-11 shrink-0 text-xs font-semibold text-subtle">{c.label}</span>
-                    <span className="min-w-0 flex-1 truncate">
+                    <span className={cn("min-w-0 flex-1", c.status === "done" ? "flex flex-wrap items-center gap-1.5" : "truncate")}>
                       {c.status === "done" ? (
-                        <>
-                          <strong className="font-semibold">{c.unit === "seconds" ? `${c.amount}s` : c.amount}</strong> {c.typeName}
-                          {c.extraNames?.length ? <span className="text-subtle"> + {c.extraNames.join(", ")}</span> : null}
-                        </>
+                        // every exercise in the slot, each with its own count
+                        (c.items?.length ? c.items : [{ name: c.typeName ?? "exercise", unit: c.unit ?? "reps", amount: c.amount ?? 0 }]).map((it, k) => (
+                          <span key={k} className="inline-flex items-center gap-1 rounded-lg bg-good-muted px-2 py-0.5 text-xs text-good">
+                            <strong className="tabular font-bold">{it.unit === "seconds" ? `${it.amount}s` : it.amount}</strong>
+                            <span className="font-medium text-fg">{it.name}</span>
+                          </span>
+                        ))
                       ) : c.status === "pending" ? (
                         <span className="font-medium text-accent">Tap to log this slot</span>
                       ) : c.status === "upcoming" ? (
