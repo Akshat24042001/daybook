@@ -147,7 +147,7 @@ describe("diary from Telegram", () => {
     await link();
     stubAi();
     await say("/diary shipped the proposal", "2026-09-19 20:00");
-    expect(lastSent().text).toMatch(/6\.5\/10.*Steady day/s);
+    expect(lastSent().text).toMatch(/\b3\/10.*Steady day/s); // AI said 6.5; no work logged caps it at 3
   });
 });
 

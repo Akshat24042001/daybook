@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { closePool, q } from "@/lib/db";
 import { OPEN_MODELS } from "@/lib/ai";
 import {
-  addEntry, deleteEntry, getSummary, listEntries, parseSummaryJson, summarizeDay, summariesInRange,
+  addEntry, deleteEntry, getSummary, listEntries, parseSummaryJson, ratingCeiling, summarizeDay, summariesInRange,
 } from "@/lib/services/diary";
 import { add, ctxAt, resetDb } from "./helpers";
 
@@ -21,6 +21,23 @@ const GOOD = {
 function openRouterReply(content: string, status = 200) {
   return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status, headers: { "content-type": "application/json" } });
 }
+
+describe("ratingCeiling", () => {
+  const counts = { open: 0, done: 5, progressed: 0, attempted: 0, skipped: 0, dropped: 0 };
+  const strong = { worked: 480, unaccountedPct: 5, mustDoTotal: 2, mustDoHit: 2, steps: 10000, counts };
+
+  it("leaves room only below 10 even on a perfect day", () => {
+    expect(ratingCeiling(strong, 4, 8000)).toEqual({ cap: 9.5, reasons: [] });
+  });
+
+  it("takes the harshest applicable cap", () => {
+    expect(ratingCeiling({ ...strong, worked: 0 }, 4, 8000).cap).toBe(3);
+    expect(ratingCeiling({ ...strong, mustDoHit: 1 }, 4, 8000).cap).toBe(6);
+    expect(ratingCeiling(strong, 0, 8000).cap).toBe(7);
+    expect(ratingCeiling({ ...strong, steps: null }, 4, 8000)).toEqual({ cap: 8, reasons: ["step goal not met"] });
+    expect(ratingCeiling({ ...strong, counts: { ...counts, done: 1, open: 4 } }, 4, 8000).cap).toBe(5);
+  });
+});
 
 describe("parseSummaryJson", () => {
   it("reads a clean JSON answer and cleans the lists", () => {

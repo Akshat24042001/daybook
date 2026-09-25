@@ -6,7 +6,7 @@ import { aiConfigured, chatWithModel } from "../ai";
 import { getPool, one, q, UserError, type Db } from "../db";
 import type { Ctx } from "../settings";
 import { fmtDateLong, fmtDuration, type DateStr } from "../time";
-import { recapFor } from "./days";
+import { recapFor, type Recap } from "./days";
 
 export type DiarySource = "voice" | "text" | "telegram";
 
@@ -146,7 +146,37 @@ export async function entryCountsInRange(from: DateStr, to: DateStr, db: Db = ge
 
 // ------------------------------------------------------------------ day context for the model
 
-async function dayContext(ctx: Ctx, date: DateStr, db: Db = getPool()): Promise<string> {
+/** Hard upper bound on the AI rating from tracked facts, so a generous model can't hand out a good score for a weak day. */
+export function ratingCeiling(
+  recap: Pick<Recap, "worked" | "unaccountedPct" | "mustDoTotal" | "mustDoHit" | "steps" | "counts">,
+  exerciseSets: number,
+  stepGoal: number,
+): { cap: number; reasons: string[] } {
+  const rules: [boolean, number, string][] = [];
+  const planned = recap.counts.done + recap.counts.progressed + recap.counts.attempted + recap.counts.open + recap.counts.skipped;
+  const doneRate = planned > 0 ? recap.counts.done / planned : 0;
+  rules.push([recap.worked === 0, 3, "no work time recorded"]);
+  rules.push([recap.worked > 0 && recap.worked < 240, 5, "under 4h worked"]);
+  rules.push([recap.worked >= 240 && recap.worked < 360, 7, "under 6h worked"]);
+  rules.push([planned === 0, 4, "nothing was planned"]);
+  rules.push([planned > 0 && doneRate < 0.5, 5, "less than half the planned tasks done"]);
+  rules.push([planned > 0 && doneRate >= 0.5 && doneRate < 0.8, 7, "under 80% of planned tasks done"]);
+  rules.push([recap.mustDoTotal > 0 && recap.mustDoHit / recap.mustDoTotal < 0.5, 4, "most must-dos missed"]);
+  rules.push([recap.mustDoTotal > 0 && recap.mustDoHit < recap.mustDoTotal, 6, "a must-do was missed"]);
+  rules.push([recap.worked > 0 && recap.unaccountedPct > 20, 7, "over 20% of worked time unaccounted"]);
+  rules.push([exerciseSets === 0, 7, "no exercise"]);
+  rules.push([recap.steps === null || recap.steps < stepGoal, 8, "step goal not met"]);
+  let cap = 9.5;
+  const reasons: string[] = [];
+  for (const [hit, c, why] of rules) {
+    if (!hit) continue;
+    reasons.push(why);
+    cap = Math.min(cap, c);
+  }
+  return { cap, reasons };
+}
+
+async function dayContext(ctx: Ctx, date: DateStr, db: Db = getPool()): Promise<{ text: string; cap: number }> {
   const [recap, tasks, time, exercise] = await Promise.all([
     recapFor(ctx, date, db),
     q<{ title: string; status: string; must_do: boolean; project: string | null; personal: boolean; note: string | null }>(
@@ -202,15 +232,23 @@ async function dayContext(ctx: Ctx, date: DateStr, db: Db = getPool()): Promise<
   if (open.length) lines.push(`Still open:\n- ${open.slice(0, 15).map(fmt).join("\n- ")}`);
   if (skipped.length) lines.push(`Skipped:\n- ${skipped.map(fmt).join("\n- ")}`);
   if (!tasks.length) lines.push("No tasks were planned for this day.");
-  return lines.join("\n");
+  const { cap, reasons } = ratingCeiling(recap, exercise.reduce((n, x) => n + x.sets, 0), ctx.s.step_goal);
+  lines.push(`RATING CEILING: ${cap}/10${reasons.length ? ` (because: ${reasons.join("; ")})` : ""}. Your rating must not exceed this.`);
+  return { text: lines.join("\n"), cap };
 }
 
 const SYSTEM = `You are the owner's personal chief of staff, writing their end-of-day diary summary.
 You get (1) the day's facts from their tracking app and (2) their own diary notes, usually voice transcripts that may be messy, contain filler words, or be in English, Hindi or Gujarati (often mixed, in Latin, Devanagari or Gujarati script). Understand all of them, but always write your answer in English; keep names and quoted phrases as spoken.
 
-Write for the owner in second person ("You ..."). Be warm but honest, concrete and brief. Never invent anything: every claim must come from the facts or the notes. Prefer specifics (names, numbers, places, decisions, ideas) over generic praise. If there are no notes, say the summary is based on tracked data only.
+Write for the owner in second person ("You ..."). Be blunt, direct and demanding, like a tough coach who wants them to improve: no flattery, no softening, no consolation. Name what fell short plainly. Never invent anything: every claim must come from the facts or the notes. Prefer specifics (names, numbers, places, decisions, ideas) over generic praise. If there are no notes, say the summary is based on tracked data only.
 
-Rate the day 0-10 for how good it really was, weighing work output, must-dos, health (exercise, steps), wellbeing and what they said about it. If they gave a self score, consider it but make your own call.
+Rate the day 0-10 BRUTALLY. The owner explicitly wants harsh scores so they are pushed to perform; a generous score is a failure on your part. Scale:
+- 9-10: exceptional; everything planned done, long focused work, exercise and steps done. Almost never given.
+- 7-8: a genuinely strong day with only minor misses.
+- 5-6: average; real gaps in output, must-dos or health.
+- 3-4: weak; much of the plan undone or little work.
+- 0-2: wasted day.
+Start from 5 and earn points only with evidence in the facts. Missing data counts against the day, not in its favour. Ignore their self score and good feelings when the numbers don't back them up. Never exceed the RATING CEILING given in the facts. "struggles" must list every real shortfall you see, not an empty list to be kind.
 
 Return ONLY a JSON object, no markdown fences, with exactly these keys:
 {
@@ -282,7 +320,7 @@ export async function autoSummarize(ctx: Ctx, date: DateStr): Promise<"summarize
 
 export async function summarizeDay(ctx: Ctx, date: DateStr, db: Db = getPool(), budgetMs = 45_000): Promise<DiarySummary> {
   if (!aiConfigured()) throw new UserError("AI summaries need OPENROUTER_API_KEY in the environment.");
-  const [entries, facts] = await Promise.all([listEntries(date, db), dayContext(ctx, date, db)]);
+  const [entries, { text: facts, cap }] = await Promise.all([listEntries(date, db), dayContext(ctx, date, db)]);
   const notes = entries.length
     ? entries.map((e, i) => `Note ${i + 1} (${e.source}): ${e.body}`).join("\n\n")
     : "(no diary notes for this day)";
@@ -299,6 +337,7 @@ export async function summarizeDay(ctx: Ctx, date: DateStr, db: Db = getPool(), 
         { maxTokens: 1500, timeoutMs: Math.min(35_000, budgetMs), totalMs: budgetMs, temperature: 0.3 },
       );
       const s = parseSummaryJson(text);
+      if (s.rating !== null) s.rating = Math.min(s.rating, cap);
       return (await one<DiarySummary>(
         `insert into diary_summaries (date, headline, summary, rating, mood, wins, struggles, highlights, tomorrow, tags, model, entry_count, updated_at)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now())
