@@ -93,7 +93,7 @@ export interface Recap {
 
 export async function recapFor(ctx: Ctx, date: DateStr, db: Db = getPool()): Promise<Recap> {
   const t = await dayTimeSummary(ctx, date, db);
-  const counts: Record<EntryStatus, number> = { open: 0, done: 0, progressed: 0, attempted: 0, skipped: 0, dropped: 0 };
+  const counts: Record<EntryStatus, number> = { open: 0, done: 0, progressed: 0, attempted: 0, skipped: 0, dropped: 0, waiting: 0 };
   const rows = await q<{ status: EntryStatus; n: number }>(
     "select status, count(*)::int as n from day_entries where date = $1 group by status",
     [date],
@@ -103,7 +103,7 @@ export async function recapFor(ctx: Ctx, date: DateStr, db: Db = getPool()): Pro
   const md = await one<{ total: number; hit: number }>(
     `select count(*)::int as total,
             count(*) filter (where status in ('done','progressed'))::int as hit
-     from day_entries where date = $1 and must_do and status <> 'dropped'`,
+     from day_entries where date = $1 and must_do and status not in ('dropped','waiting')`,
     [date],
     db,
   );
@@ -165,7 +165,7 @@ export async function mustDoStreak(ctx: Ctx, db: Db = getPool()): Promise<number
   const from = addDays(ctx.today, -400);
   const rows = await q<{ date: DateStr; total: number; hit: number }>(
     `select date, count(*)::int as total, count(*) filter (where status in ('done','progressed'))::int as hit
-     from day_entries where must_do and status <> 'dropped' and date >= $1 and date < $2 group by date`,
+     from day_entries where must_do and status not in ('dropped','waiting') and date >= $1 and date < $2 group by date`,
     [from, ctx.today],
     db,
   );

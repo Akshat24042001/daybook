@@ -5,25 +5,30 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useOptimistic, useState, useTransition } from "react";
 import {
-  createRemarkAction, clearMinutesAction, logMinutesAction, moveEntryAction, retryAction, setStatusAction,
-  toggleMustAction, updateTaskAction,
+  createRemarkAction, clearMinutesAction, logMinutesAction, moveEntryAction, retryAction, setSkipReasonAction, setStatusAction,
+  setWaitingAction, toggleMustAction, updateTaskAction,
 } from "@/app/actions";
 import { cn } from "@/lib/cn";
-import { addDays, fmtDuration, type DateStr } from "@/lib/time";
-import type { EntryStatus } from "@/lib/types";
+import { addDays, fmtDuration, fmtRelDay, type DateStr } from "@/lib/time";
+import { SKIP_REASONS, type EntryStatus } from "@/lib/types";
 import type { RowData } from "@/lib/view-types";
 import { useToast } from "../toast";
 import { Button, Chip, ErrorNote, Input, Select, Sheet, Textarea } from "../ui";
 import { VoiceButton } from "../voice-button";
 import { StatusGlyph } from "./entry-row";
 
-const STATUSES: { status: EntryStatus; label: string }[] = [
-  { status: "done", label: "Done" },
-  { status: "progressed", label: "Progressed" },
-  { status: "attempted", label: "Attempted" },
-  { status: "skipped", label: "Skipped" },
-  { status: "dropped", label: "Dropped" },
+/** Two questions, two groups: what happened today (the task lives on), and is the task finished. */
+const TODAY_STATUSES: { status: EntryStatus; label: string; hint: string }[] = [
+  { status: "progressed", label: "Progressed", hint: "Worked on it, not finished. Comes back tomorrow, no penalty." },
+  { status: "attempted", label: "Attempted", hint: "Tried but couldn't (no answer, blocked). Pick when to retry, no penalty." },
+  { status: "skipped", label: "Not today", hint: "Put off on purpose. Comes back tomorrow and adds to its carried count." },
+  { status: "waiting", label: "Waiting", hint: "Ball is in someone else's court. Off your list until the check-back date." },
 ];
+const FINISH_STATUSES: { status: EntryStatus; label: string; hint: string }[] = [
+  { status: "done", label: "Done", hint: "Finished. The task closes (repeating tasks come round again)." },
+  { status: "dropped", label: "Dropped", hint: "Not doing it. The task closes and stays in history." },
+];
+const STATUS_HINT = Object.fromEntries([...TODAY_STATUSES, ...FINISH_STATUSES].map((s) => [s.status, s.hint])) as Partial<Record<EntryStatus, string>>;
 const CHIPS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
 
 export function EntrySheet({
@@ -48,6 +53,9 @@ export function EntrySheet({
   const [note, setNote] = useState("");
   const [retryOpen, setRetryOpen] = useState(false);
   const [retryDate, setRetryDate] = useState("");
+  const [waitOpen, setWaitOpen] = useState(false);
+  const [waitOn, setWaitOn] = useState("");
+  const [waitUntil, setWaitUntil] = useState("");
 
   function act(fn: () => Promise<{ ok: boolean; error?: string; message?: string }>, after?: () => void) {
     setError(null);
@@ -75,6 +83,7 @@ export function EntrySheet({
         if (!o) {
           setError(null);
           setRetryOpen(false);
+          setWaitOpen(false);
           onClose();
         }
       }}
@@ -85,33 +94,61 @@ export function EntrySheet({
     >
       <div className="space-y-5">
         <div>
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-subtle">Status</p>
-          <div className="grid grid-cols-5 gap-1.5">
-            {STATUSES.map(({ status, label }) => (
-              <button
-                key={status}
-                type="button"
-                onClick={() =>
-                  start(async () => {
-                    setOptimisticStatus(status);
-                    setError(null);
-                    const r = await setStatusAction(row.id, status);
-                    if (!r.ok) { setError(r.error ?? "That did not work."); return; }
-                    if (status === "attempted") setRetryOpen(true);
-                    router.refresh();
-                  })
-                }
-                aria-pressed={displayStatus === status}
-                className={cn(
-                  "flex flex-col items-center gap-1 rounded-xl border px-1 py-2 text-[11px] font-medium transition-colors",
-                  displayStatus === status ? "border-accent bg-accent/10 text-accent" : "border-border hover:bg-muted",
-                )}
-              >
-                <StatusGlyph status={status} className="h-6 w-6" />
-                {label}
-              </button>
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            {([["Today", TODAY_STATUSES, "grid-cols-4"], ["Finish", FINISH_STATUSES, "grid-cols-2"]] as const).map(([group, list, cols]) => (
+              <div key={group} className="min-w-0">
+                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-subtle">
+                  {group === "Today" ? "Today · task stays open" : "Finish · task closes"}
+                </p>
+                <div className={cn("grid gap-1.5", cols)}>
+                  {list.map(({ status, label, hint }) => (
+                    <button
+                      key={status}
+                      type="button"
+                      title={hint}
+                      onClick={() => {
+                        if (status === "waiting") {
+                          // needs a date (and maybe a person) first
+                          setWaitOn(row.waiting?.on ?? row.personName ?? "");
+                          setWaitUntil(row.waiting?.until ?? addDays(row.date, 3));
+                          setWaitOpen(true);
+                          setRetryOpen(false);
+                          return;
+                        }
+                        start(async () => {
+                          setOptimisticStatus(status);
+                          setError(null);
+                          const r = await setStatusAction(row.id, status);
+                          if (!r.ok) { setError(r.error ?? "That did not work."); return; }
+                          if (status === "attempted") setRetryOpen(true);
+                          router.refresh();
+                        });
+                      }}
+                      aria-pressed={displayStatus === status}
+                      className={cn(
+                        "flex min-w-0 flex-col items-center gap-1 rounded-xl border px-0.5 py-2 text-[11px] font-medium leading-tight transition-colors",
+                        displayStatus === status || (status === "waiting" && waitOpen)
+                          ? "border-accent bg-accent/10 text-accent"
+                          : "border-border hover:bg-muted",
+                      )}
+                    >
+                      <StatusGlyph status={status} className="h-6 w-6" />
+                      <span className="max-w-full truncate">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
+          {STATUS_HINT[displayStatus] ? (
+            <p className="mt-2 text-xs text-subtle">{STATUS_HINT[displayStatus]}</p>
+          ) : null}
+          {displayStatus === "waiting" && row.waiting ? (
+            <p className="mt-1 text-xs font-medium text-accent">
+              ⏳ Waiting{row.waiting.on ? ` on ${row.waiting.on}` : ""}
+              {row.waiting.until ? ` · back on your list ${fmtRelDay(row.waiting.until, today)}` : ""}
+            </p>
+          ) : null}
           {displayStatus !== "open" ? (
             <button
               type="button"
@@ -127,6 +164,81 @@ export function EntrySheet({
             </button>
           ) : null}
         </div>
+
+        {waitOpen ? (
+          <form
+            className="rounded-xl border border-accent/40 bg-accent/5 p-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!waitUntil) return;
+              act(() => setWaitingAction(row.id, waitUntil, waitOn || null), () => setWaitOpen(false));
+            }}
+          >
+            <p className="mb-2 text-sm font-medium">Waiting on whom, and when should it come back?</p>
+            <Input
+              value={waitOn}
+              onChange={(e) => setWaitOn(e.target.value)}
+              placeholder="Person or team (optional)"
+              aria-label="Waiting on"
+              className="mb-2 h-9"
+            />
+            <div className="flex flex-wrap gap-2">
+              {([["Tomorrow", 1], ["In 3 days", 3], ["Next week", 7]] as const).map(([l, n]) => (
+                <Button
+                  key={n}
+                  type="button"
+                  size="sm"
+                  variant={waitUntil === addDays(row.date, n) ? "primary" : "outline"}
+                  onClick={() => setWaitUntil(addDays(row.date, n))}
+                >
+                  {l}
+                </Button>
+              ))}
+              <Input
+                type="date"
+                min={addDays(row.date, 1)}
+                value={waitUntil}
+                onChange={(e) => setWaitUntil(e.target.value)}
+                className="h-8 w-40"
+                aria-label="Check-back date"
+              />
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Button type="submit" size="sm" variant="primary" disabled={pending || !waitUntil}>
+                Set waiting
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setWaitOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        ) : null}
+
+        {displayStatus === "skipped" ? (
+          <div>
+            <p className="mb-1.5 text-xs text-subtle">Why? (optional, shows patterns in Stats)</p>
+            <div className="flex flex-wrap gap-1.5">
+              {SKIP_REASONS.map(({ reason, label }) => {
+                const on = row.reason === reason;
+                return (
+                  <button
+                    key={reason}
+                    type="button"
+                    aria-pressed={on}
+                    disabled={pending}
+                    onClick={() => act(() => setSkipReasonAction(row.id, on ? null : reason))}
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                      on ? "border-warn bg-warn-muted text-warn" : "border-border hover:bg-muted",
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
 
         {row.status === "attempted" || retryOpen ? (
           <div className="rounded-xl border border-warn/40 bg-warn/10 p-3">

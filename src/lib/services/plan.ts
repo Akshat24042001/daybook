@@ -9,7 +9,7 @@ import { getDay, markPlanned } from "./days";
 import { makeSomeday } from "./tasks";
 
 /**
- * Unresolved = the latest entry of an active task is open, skipped or attempted and is
+ * Unresolved = the latest entry of an active task is open, skipped, attempted (or progressed, for one-offs) and is
  * older than `before`. "Latest entry" means: once a task has an entry on a later date it
  * counts as triaged (carried, dated, or auto-carried).
  */
@@ -17,7 +17,9 @@ export async function unresolvedEntries(before: DateStr, db: Db = getPool()): Pr
   return q<EntryView>(
     `${VIEW_SELECT}
      where e.date < $1
-       and e.status in ('open','skipped','attempted')
+       and (e.status in ('open','skipped','attempted')
+            -- progressed one-offs come back too; ongoing, recurring and cadence tasks return on their own schedule
+            or (e.status = 'progressed' and t.type in ('one_off','follow_up')))
        and t.state = 'active' and t.type <> 'someday'
        and not exists (select 1 from day_entries e2 where e2.task_id = e.task_id and e2.date > e.date)
      order by e.date, e.must_do desc, e.sort, e.id`,

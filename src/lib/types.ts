@@ -4,7 +4,16 @@ import type { SegmentKind } from "./hours";
 
 export type { TaskType, SegmentKind, DateStr, TargetPeriod };
 
-export type EntryStatus = "open" | "done" | "progressed" | "attempted" | "skipped" | "dropped";
+export type EntryStatus = "open" | "done" | "progressed" | "attempted" | "skipped" | "dropped" | "waiting";
+
+/** Why a task was put off ("Not today"). */
+export type SkipReason = "no_time" | "low_energy" | "blocked" | "not_important";
+export const SKIP_REASONS: { reason: SkipReason; label: string }[] = [
+  { reason: "no_time", label: "No time" },
+  { reason: "low_energy", label: "Low energy" },
+  { reason: "blocked", label: "Blocked" },
+  { reason: "not_important", label: "Not important" },
+];
 export type EntrySource = "planned" | "auto" | "carried";
 export type TaskState = "active" | "done" | "dropped";
 
@@ -61,6 +70,9 @@ export interface TaskRow {
   carry_count: number;
   last_done_at: Date | null;
   nudge_snoozed_until: DateStr | null;
+  waiting_on?: string | null;
+  waiting_since?: DateStr | null;
+  waiting_until?: DateStr | null;
   sort: number;
   created_at: Date;
   closed_at: Date | null;
@@ -81,6 +93,7 @@ export interface EntryRow {
   note: string | null;
   carried_from: DateStr | null;
   updated_at: Date;
+  reason?: SkipReason | null;
 }
 
 /** A day entry joined with its task, as the screens and the bot need it. */
@@ -99,4 +112,7 @@ export interface EntryView extends EntryRow {
   carry_count: number;
   task_state: TaskState;
   minutes_today: number;
+  waiting_on?: string | null;
+  waiting_since?: DateStr | null;
+  waiting_until?: DateStr | null;
 }

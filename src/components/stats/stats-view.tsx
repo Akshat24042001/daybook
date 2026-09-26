@@ -13,6 +13,7 @@ import type { DiarySummaryView } from "@/lib/services/diary";
 import type { Stats, TimelineDay } from "@/lib/services/stats";
 import { fmtDay, fmtDuration, fmtRange, type DateStr } from "@/lib/time";
 import { ratingTone } from "@/lib/rating-tone";
+import { SKIP_REASONS } from "@/lib/types";
 import { SummaryCard } from "../diary/diary-panel";
 import { Card, Input, Progress, Select } from "../ui";
 import { Heatmap, ProjectBars, TrendChart, WeekdayChart } from "./charts";
@@ -860,7 +861,28 @@ export function StatsView({
             ))}
           </ul>
         )}
-        <Note>Do it, shrink it, schedule it properly, or drop it. A task carried three times is telling you something.</Note>
+        {stats.skipReasons.length ? (
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-subtle">Why things were put off ({stats.skipReasons.reduce((a, r) => a + r.n, 0)} × Not today)</p>
+            <ul className="space-y-1.5">
+              {stats.skipReasons.map((r) => {
+                const max = Math.max(...stats.skipReasons.map((x) => x.n));
+                return (
+                  <li key={r.reason ?? "none"} className="flex items-center gap-3 text-sm">
+                    <span className={cn("w-28 shrink-0", !r.reason && "text-subtle")}>
+                      {SKIP_REASONS.find((x) => x.reason === r.reason)?.label ?? "No reason given"}
+                    </span>
+                    <span className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                      <span className="block h-full rounded-full bg-warn" style={{ width: `${(r.n / max) * 100}%` }} />
+                    </span>
+                    <span className="tabular w-8 shrink-0 text-right text-xs font-semibold">{r.n}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
+        <Note>Do it, shrink it, schedule it properly, or drop it. A task carried three times is telling you something. Mostly "no time"? You plan too much. Mostly "blocked"? Mark those Waiting instead.</Note>
       </DetailDialog>
 
       <DetailDialog open={open === "estimates"} onClose={close} title="Estimate vs actual" subtitle={stats.efficiency.estimateRatio === null ? undefined : `Median ${stats.efficiency.estimateRatio.toFixed(1)}× your estimate`}>

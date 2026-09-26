@@ -1,10 +1,10 @@
 "use client";
 
-import { Archive, Check, CheckCheck, History, Plus, Search, Star, X } from "lucide-react";
+import { Archive, Check, CheckCheck, History, Hourglass, Plus, Search, Star, Undo2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { bringToTodayAction, closeUnfinishedAction, somedayUnfinishedAction } from "@/app/actions";
+import { bringToTodayAction, closeUnfinishedAction, endWaitingAction, somedayUnfinishedAction } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import { useToast } from "../toast";
 import { Button, Chip, EmptyState } from "../ui";
@@ -27,6 +27,17 @@ export interface UnfinishedRow {
   minutesLabel: string | null;
 }
 
+/** A task parked with "Waiting on…", formatted on the server. */
+export interface WaitingRow {
+  taskId: number;
+  title: string;
+  projectName: string | null;
+  projectColor: string | null;
+  waitingOn: string | null;
+  sinceLabel: string | null;
+  untilLabel: string;
+}
+
 type Bucket = "recent" | "week" | "month" | "older" | "never";
 const BUCKETS: { key: Bucket; label: string; hint: string }[] = [
   { key: "recent", label: "Yesterday", hint: "Fell off the list last night" },
@@ -46,6 +57,7 @@ function bucketOf(r: UnfinishedRow): Bucket {
 
 const STATUS_WORD: Record<string, string> = {
   open: "untouched",
+  waiting: "waiting",
   progressed: "progressed",
   attempted: "attempted",
   skipped: "skipped",
@@ -75,6 +87,7 @@ export function useUnfinishedActions() {
     done: (ids: number[], after?: () => void) => run(() => closeUnfinishedAction(ids, "done"), `${plural(ids.length)} marked done`, after),
     drop: (ids: number[], after?: () => void) => run(() => closeUnfinishedAction(ids, "dropped"), `${plural(ids.length)} dropped`, after),
     someday: (ids: number[], after?: () => void) => run(() => somedayUnfinishedAction(ids), `${plural(ids.length)} moved to Someday`, after),
+    unwait: (id: number) => run(() => endWaitingAction(id), "Back on today's list"),
   };
 }
 
@@ -111,7 +124,51 @@ function IconAction({
   );
 }
 
-export function UnfinishedClient({ rows }: { rows: UnfinishedRow[] }) {
+function WaitingSection({ rows, act }: { rows: WaitingRow[]; act: ReturnType<typeof useUnfinishedActions> }) {
+  if (!rows.length) return null;
+  return (
+    <section aria-label="Waiting on others">
+      <div className="mb-2 flex items-center gap-2">
+        <Hourglass className="h-3.5 w-3.5 text-accent" />
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-subtle">Waiting on others</h2>
+        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium text-fg">{rows.length}</span>
+        <span className="hidden text-xs text-subtle sm:inline">· each comes back on its date</span>
+      </div>
+      <ul className="space-y-1.5">
+        {rows.map((r) => (
+          <li key={r.taskId} className="flex items-center gap-3 rounded-xl border border-accent/25 bg-accent-muted/20 px-3 py-2.5">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <Link href={`/task/${r.taskId}`} className="text-[15px] font-medium leading-snug hover:underline">{r.title}</Link>
+                {r.projectName ? <Chip color={r.projectColor}>{r.projectName}</Chip> : null}
+              </div>
+              <p className="mt-0.5 text-xs text-subtle">
+                {r.waitingOn ? <span className="font-medium text-accent">on {r.waitingOn}</span> : "waiting"}
+                {r.sinceLabel ? ` · since ${r.sinceLabel}` : ""} · back {r.untilLabel}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-0.5">
+              <Button size="sm" variant="outline" disabled={act.pending} onClick={() => act.unwait(r.taskId)} className="hidden sm:inline-flex">
+                <Undo2 className="h-3.5 w-3.5" /> Back today
+              </Button>
+              <IconAction label="Back on today's list now" disabled={act.pending} onClick={() => act.unwait(r.taskId)} className="text-accent hover:bg-accent-muted sm:hidden">
+                <Undo2 className="h-4 w-4" />
+              </IconAction>
+              <IconAction label="Already done" disabled={act.pending} onClick={() => act.done([r.taskId])} className="hover:bg-good-muted hover:text-good">
+                <Check className="h-4 w-4" />
+              </IconAction>
+              <IconAction label="Drop: not doing this" disabled={act.pending} onClick={() => act.drop([r.taskId])} className="hover:bg-bad-muted hover:text-bad">
+                <X className="h-4 w-4" />
+              </IconAction>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+export function UnfinishedClient({ rows, waiting = [] }: { rows: UnfinishedRow[]; waiting?: WaitingRow[] }) {
   const act = useUnfinishedActions();
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<Set<number>>(new Set());
@@ -186,6 +243,8 @@ export function UnfinishedClient({ rows }: { rows: UnfinishedRow[] }) {
           />
         </div>
       ) : null}
+
+      <WaitingSection rows={waiting} act={act} />
 
       {!rows.length ? (
         <EmptyState icon={CheckCheck} title="Nothing left behind">

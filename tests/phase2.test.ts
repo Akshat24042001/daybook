@@ -214,7 +214,7 @@ describe("task action messages: status, minutes, attempted retry", () => {
     await tap("⭐ Industry study", "2026-09-19 10:31");
     let action = lastSent();
     expect(allButtons(action).map((b: Call) => b.text)).toEqual(
-      ["✅ Done", "↗ Progressed", "📞 Attempted", "⏰ +30m", "🗓 Tomorrow", "✗ Skip", "✏️ Open in app", "📝 Note"],
+      ["✅ Done", "↗ Progressed", "📞 Attempted", "⏰ +30m", "🗓 Tomorrow", "✗ Not today", "⏳ Waiting on…", "📝 Note", "✏️ Open in app"],
     );
     await tap("✅ Done", "2026-09-19 10:32");
     expect(currentText(action.message_id)).toMatch(/How long/);
@@ -261,7 +261,7 @@ describe("task action messages: status, minutes, attempted retry", () => {
     await addMust("Vinit follow up !!", "2026-09-19 10:00");
     await say(KEYS.today, "2026-09-19 10:05");
     await tap("⭐ Vinit follow up", "2026-09-19 10:10");
-    await tap("✗ Skip", "2026-09-19 10:10");
+    await tap("✗ Not today", "2026-09-19 10:10");
     expect((await one<{ carry_count: number }>("select carry_count from tasks"))!.carry_count).toBe(1);
 
     await say("Call Bob", "2026-09-19 10:20");

@@ -6,10 +6,10 @@ import { describeParsed, parseQuickAdd, type ParsedQuickAdd, type TaskType } fro
 import { makeCtx, updateSettings, type Ctx, type SettingsPatch } from "@/lib/settings";
 import { zonedInstant, addDays, atLogical, parseHM, type DateStr, type TargetPeriod } from "@/lib/time";
 import { describeTimeLog, looksLikeTimeLog, parseTimeLog, resolveSegments } from "@/lib/timelog";
-import type { EntryStatus } from "@/lib/types";
+import type { EntryStatus, SkipReason } from "@/lib/types";
 import {
   addEntry, clearMinutes, getEntry, logMinutes, moveEntry, removeEntry, RETRY_HOURS, scheduleTaskPing,
-  setEntryStatus, setMustDo,
+  setEntryStatus, setMustDo, setSkipReason, setWaiting, endWaiting,
 } from "@/lib/services/entries";
 import { setScore, setSleep, setSteps, setWorkedOverride } from "@/lib/services/days";
 import { reorderSomeday, snoozeCadence } from "@/lib/services/goals";
@@ -131,6 +131,24 @@ export async function setStatusAction(entryId: number, status: EntryStatus) {
     const r = await setEntryStatus(ctx, entryId, status);
     return { taskClosed: r.taskClosed };
   }, ["/today", "/plan"]);
+}
+
+export async function setWaitingAction(entryId: number, until: DateStr, on: string | null) {
+  return run(async (ctx) => {
+    await setWaiting(ctx, entryId, until, on);
+  }, ["/today", "/plan", "/unfinished"]);
+}
+
+export async function endWaitingAction(taskId: number) {
+  return run(async (ctx) => {
+    await endWaiting(ctx, taskId);
+  }, ["/today", "/unfinished"]);
+}
+
+export async function setSkipReasonAction(entryId: number, reason: SkipReason | null) {
+  return run(async () => {
+    await setSkipReason(entryId, reason);
+  }, ["/today"]);
 }
 
 export async function logMinutesAction(entryId: number, minutes: number) {

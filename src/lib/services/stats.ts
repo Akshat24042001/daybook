@@ -3,7 +3,7 @@ import { computeInsights, type DayFacts, type SlotFacts } from "../insights";
 import { workedMinutes, type Segment } from "../hours";
 import { type Ctx, windowOf } from "../settings";
 import { type DateStr, addDays, dateRange, diffDays, isoDow, zonedParts } from "../time";
-import type { TaskType } from "../types";
+import type { SkipReason, TaskType } from "../types";
 import { mustDoStreak, planningStreak } from "./days";
 import { listExerciseTypes } from "./health";
 import { listCadence, targetsBehind } from "./goals";
@@ -96,7 +96,7 @@ export async function periodMetrics(
   const md = await q<{ total: number; hit: number }>(
     `select count(*)::int as total, count(*) filter (where e.status in ('done','progressed'))::int as hit
      from day_entries e join tasks t on t.id = e.task_id
-     where e.date between $1 and $2 and e.must_do and e.status <> 'dropped' ${tf1}`,
+     where e.date between $1 and $2 and e.must_do and e.status not in ('dropped','waiting') ${tf1}`,
     p1,
   );
   const p2: unknown[] = [from, to, ctx.today > to ? addDays(to, 1) : ctx.today];
@@ -104,7 +104,7 @@ export async function periodMetrics(
   const comp = await q<{ total: number; done: number }>(
     `select count(*)::int as total, count(*) filter (where e.status = 'done')::int as done
      from day_entries e join tasks t on t.id = e.task_id
-     where e.date between $1 and $2 and e.date < $3 and e.status <> 'dropped' ${tf2}`,
+     where e.date between $1 and $2 and e.date < $3 and e.status not in ('dropped','waiting') ${tf2}`,
     p2,
   );
   const p3: unknown[] = [from, to];
@@ -176,6 +176,8 @@ export interface Stats {
   drill: { date: DateStr; taskId: number; title: string; minutes: number }[];
   estimateVsActual: { taskId: number; title: string; estimate: number; actual: number }[];
   rotting: { id: number; title: string; carry: number; project: string | null }[];
+  /** "Not today" in the range, and why (reason null = no reason given) */
+  skipReasons: { reason: SkipReason | null; n: number }[];
   cadence: { id: number; title: string; target: number; avgInterval: number | null; doneCount: number; daysSince: number | null }[];
   heatmap: { date: DateStr; score: number | null }[];
   health: {
@@ -220,7 +222,7 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
   // ---- per-day facts
   const dayMap = new Map(dayRows.map((r) => [r.date, r]));
   const mustRows = await q<{ date: DateStr; n: number }>(
-    "select date, count(*)::int as n from day_entries where date between $1 and $2 and must_do and status <> 'dropped' group by date",
+    "select date, count(*)::int as n from day_entries where date between $1 and $2 and must_do and status not in ('dropped','waiting') group by date",
     [from, to],
   );
   const mustByDay = new Map(mustRows.map((r) => [r.date, r.n]));
@@ -317,6 +319,15 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
      order by t.carry_count desc, t.id limit 10`,
     p6,
   );
+
+  const pr: unknown[] = [f.from, f.to];
+  const tfr = taskFilter(f, pr);
+  const skipReasons = await q<{ reason: SkipReason | null; n: number }>(
+    `select e.reason, count(*)::int as n from day_entries e join tasks t on t.id = e.task_id
+     where e.date between $1 and $2 and e.status = 'skipped' ${tfr}
+     group by e.reason order by 2 desc`,
+    pr,
+  ).catch(() => []); // the reason column arrives with migration 017
 
   // ---- cadence adherence
   const p7: unknown[] = [];
@@ -494,6 +505,7 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
     drill,
     estimateVsActual: est,
     rotting: rot,
+    skipReasons,
     cadence,
     heatmap: facts.map((d) => ({ date: d.date, score: d.score })),
     health: {

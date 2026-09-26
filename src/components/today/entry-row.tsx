@@ -1,9 +1,10 @@
 "use client";
 
-import { Check, ChevronRight, Minus, RotateCcw, Star, X } from "lucide-react";
+import { Check, ChevronRight, Hourglass, Minus, RotateCcw, Star, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { cn } from "@/lib/cn";
-import { fmtDuration } from "@/lib/time";
+import { fmtDay, fmtDuration } from "@/lib/time";
+import { SKIP_REASONS } from "@/lib/types";
 import type { EntryStatus } from "@/lib/types";
 import type { RowData } from "@/lib/view-types";
 import { Chip } from "../ui";
@@ -37,6 +38,12 @@ export function StatusGlyph({ status, className }: { status: EntryStatus; classN
           <X className="h-4 w-4 stroke-[3]" />
         </span>
       );
+    case "waiting":
+      return (
+        <span className={cn(base, "border-accent text-accent", className)}>
+          <Hourglass className="h-3.5 w-3.5" />
+        </span>
+      );
     case "dropped":
       return (
         <span className={cn(base, "border-subtle text-subtle", className)}>
@@ -67,6 +74,8 @@ export function EntryRow({
   const start = useRef<{ x: number; y: number; lock: "h" | "v" | null } | null>(null);
   const swiped = useRef(false);
   const closed = row.status === "done" || row.status === "dropped";
+  // parked: not finished, but nothing to do today either
+  const parked = row.status === "waiting";
 
   const onTouchStart = (e: React.TouchEvent) => {
     const t = e.touches[0];
@@ -88,7 +97,7 @@ export function EntryRow({
     setDx(0);
     if (moved > SWIPE) {
       swiped.current = true;
-      if (!closed) onQuickAction();
+      if (!closed && !parked) onQuickAction();
     } else if (moved < -SWIPE) {
       swiped.current = true;
       onOpen();
@@ -100,6 +109,22 @@ export function EntryRow({
   if (row.personName) meta.push(<span key="p">{row.personRole === "requested_by" ? "for" : "with"} {row.personName}</span>);
   if (row.estimateMin) meta.push(<span key="e" className="tabular">est {fmtDuration(row.estimateMin)}</span>);
   if (row.source === "auto" && row.carriedFrom) meta.push(<span key="a">auto-carried</span>);
+  if (parked && row.waiting) {
+    meta.push(
+      <span key="w" className="font-medium text-accent">
+        waiting{row.waiting.on ? ` on ${row.waiting.on}` : ""}{row.waiting.until ? ` · back ${fmtDay(row.waiting.until)}` : ""}
+      </span>,
+    );
+  } else if (row.waiting && row.waiting.until === row.date && row.status === "open") {
+    meta.push(
+      <span key="w" className="font-medium text-accent">
+        ↩ follow up{row.waiting.on ? `: waiting on ${row.waiting.on}` : ""}{row.waiting.since ? ` since ${fmtDay(row.waiting.since)}` : ""}
+      </span>,
+    );
+  }
+  if (row.status === "skipped" && row.reason) {
+    meta.push(<span key="r">{SKIP_REASONS.find((r) => r.reason === row.reason)?.label.toLowerCase()}</span>);
+  }
 
   return (
     <li className="relative overflow-hidden rounded-xl">
@@ -118,13 +143,13 @@ export function EntryRow({
         className={cn(
           "flex items-center gap-3 border border-border px-3 py-2.5",
           row.mustDo && !closed ? "highlighter border-transparent" : "bg-surface",
-          closed && "opacity-70",
+          (closed || parked) && "opacity-70",
         )}
       >
         <button
           type="button"
-          onClick={closed ? onOpen : onQuickAction}
-          aria-label={closed ? `${row.title}: ${row.status}. Open options` : `Mark ${row.title} ${row.type === "ongoing" ? "progressed" : "done"}`}
+          onClick={closed || parked ? onOpen : onQuickAction}
+          aria-label={closed || parked ? `${row.title}: ${row.status}. Open options` : `Mark ${row.title} ${row.type === "ongoing" ? "progressed" : "done"}`}
           className="shrink-0 rounded-full"
         >
           <StatusGlyph status={row.status} />
@@ -159,7 +184,7 @@ export function EntryRow({
             </span>
           ) : null}
         </button>
-        {onToggleMust && !closed ? (
+        {onToggleMust && !closed && !parked ? (
           <button
             type="button"
             onClick={onToggleMust}

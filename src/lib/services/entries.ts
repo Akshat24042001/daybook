@@ -1,12 +1,12 @@
 import { one, q, tx, UserError, type Db, getPool } from "../db";
 import { type Ctx } from "../settings";
 import { type DateStr, addDays } from "../time";
-import type { EntryRow, EntrySource, EntryStatus, EntryView } from "../types";
+import { SKIP_REASONS, type EntryRow, type EntrySource, type EntryStatus, type EntryView, type SkipReason } from "../types";
 
 export const VIEW_SELECT = `
   select e.*, t.title, t.type, t.project_id, p.name as project_name, p.color as project_color,
          pe.name as person_name, t.person_role, t.is_personal, t.estimate_min, t.due_at, t.lead_min,
-         t.carry_count, t.state as task_state,
+         t.carry_count, t.state as task_state, t.waiting_on, t.waiting_since, t.waiting_until,
          coalesce((select sum(l.minutes) from time_logs l
                    where l.task_id = e.task_id and l.date = e.date), 0)::int as minutes_today
   from day_entries e
@@ -29,7 +29,7 @@ export async function entryForTask(taskId: number, date: DateStr, db: Db = getPo
 export async function mustDoCount(date: DateStr, excludeEntryId: number | null, db: Db = getPool()): Promise<number> {
   const row = await one<{ n: number }>(
     `select count(*)::int as n from day_entries
-     where date = $1 and must_do and status <> 'dropped' and ($2::int is null or id <> $2)`,
+     where date = $1 and must_do and status not in ('dropped','waiting') and ($2::int is null or id <> $2)`,
     [date, excludeEntryId],
     db,
   );
@@ -105,6 +105,8 @@ export interface StatusResult {
  *  attempted  -> no carry count
  *  skipped    -> carry_count + 1
  *  dropped    -> task closed as dropped
+ *  waiting    -> off the lists until a check-back date, then back as an entry (see setWaiting)
+ * Progressed, attempted and skipped all come back the next day (plan.unresolvedEntries).
  * Setting the same status again is a no-op, so retried taps never double count.
  */
 export async function setEntryStatus(ctx: Ctx, entryId: number, status: EntryStatus): Promise<StatusResult> {
@@ -133,9 +135,18 @@ export async function setEntryStatus(ctx: Ctx, entryId: number, status: EntrySta
       taskClosed = true;
     };
 
-    // Leaving skipped / done / dropped undoes what that status did to the task.
+    // Leaving skipped / done / dropped / waiting undoes what that status did to the task.
     if (prev === "skipped") {
       await db.query("update tasks set carry_count = greatest(carry_count - 1, 0) where id = $1", [task.id]);
+      await db.query("update day_entries set reason = null where id = $1", [entryId]);
+    }
+    if (prev === "waiting") await clearWaiting(task.id, e.date, db);
+    else if (status !== "waiting") {
+      // any answer on the day a waiting task came back ends the wait
+      await db.query(
+        "update tasks set waiting_on = null, waiting_since = null, waiting_until = null where id = $1 and waiting_until <= $2",
+        [task.id, e.date],
+      );
     }
     if ((prev === "done" || prev === "dropped") && task.state !== "active") {
       await db.query("update tasks set state = 'active', closed_at = null where id = $1", [task.id]);
@@ -152,11 +163,67 @@ export async function setEntryStatus(ctx: Ctx, entryId: number, status: EntrySta
       case "dropped":
         await closeTask("dropped");
         break;
+      case "waiting":
+        await applyWaiting(ctx, e, addDays(e.date, 2), null, db);
+        break;
       default:
         break;
     }
     return { entry: (await getEntry(entryId, db))!, taskClosed, changed: true };
   });
+}
+
+/** Parks the task until `until`: later open entries go, one entry is placed on the check-back day. */
+async function applyWaiting(ctx: Ctx, e: EntryRow, until: DateStr, on: string | null, db: Db): Promise<void> {
+  await db.query("delete from day_entries where task_id = $1 and date > $2 and status = 'open'", [e.task_id, e.date]);
+  await db.query(
+    "update tasks set waiting_on = $2, waiting_since = $3, waiting_until = $4 where id = $1",
+    [e.task_id, on?.trim() || null, e.date, until],
+  );
+  await addEntry(ctx, e.task_id, until, { source: "carried", carriedFrom: e.date }, db);
+}
+
+/** Undoes a wait: the check-back entry goes (if untouched) and the task forgets who it was waiting on. */
+async function clearWaiting(taskId: number, from: DateStr, db: Db): Promise<void> {
+  await db.query(
+    `delete from day_entries where task_id = $1 and date > $2 and status = 'open'
+       and date = (select waiting_until from tasks where id = $1)`,
+    [taskId, from],
+  );
+  await db.query("update tasks set waiting_on = null, waiting_since = null, waiting_until = null where id = $1", [taskId]);
+}
+
+/**
+ * "Waiting on someone": the ball is in another court. The entry is marked waiting (no carry, no penalty),
+ * and the task returns as a normal entry on `until`, where the row says who you were waiting on.
+ */
+export async function setWaiting(ctx: Ctx, entryId: number, until: DateStr, on: string | null): Promise<EntryView> {
+  return tx(async (db) => {
+    const e = await one<EntryRow>("select * from day_entries where id = $1 for update", [entryId], db);
+    if (!e) throw new UserError("Entry not found.");
+    if (until <= e.date) throw new UserError("Pick a check-back date after the task's day.");
+    const task = await one<{ state: string }>("select state from tasks where id = $1 for update", [e.task_id], db);
+    if (task?.state !== "active") throw new UserError("This task is already closed.");
+    if (e.status === "skipped") await db.query("update tasks set carry_count = greatest(carry_count - 1, 0) where id = $1", [e.task_id]);
+    await db.query("update day_entries set status = 'waiting', reason = null, updated_at = now() where id = $1", [entryId]);
+    await applyWaiting(ctx, e, until, on, db);
+    return (await getEntry(entryId, db))!;
+  });
+}
+
+/** Ends a wait early: the task is back on today's list. */
+export async function endWaiting(ctx: Ctx, taskId: number): Promise<void> {
+  await tx(async (db) => {
+    const t = await one<{ waiting_since: DateStr | null }>("select waiting_since from tasks where id = $1", [taskId], db);
+    await clearWaiting(taskId, ctx.today, db);
+    await addEntry(ctx, taskId, ctx.today, { source: "carried", carriedFrom: t?.waiting_since ?? null }, db);
+  });
+}
+
+/** Why a task was put off. Only kept on skipped entries. */
+export async function setSkipReason(entryId: number, reason: SkipReason | null): Promise<void> {
+  if (reason && !SKIP_REASONS.some((r) => r.reason === reason)) throw new UserError("Unknown reason.");
+  await q("update day_entries set reason = $2 where id = $1 and status = 'skipped'", [entryId, reason]);
 }
 
 export async function logMinutes(

@@ -23,7 +23,7 @@ function openRouterReply(content: string, status = 200) {
 }
 
 describe("ratingCeiling", () => {
-  const counts = { open: 0, done: 5, progressed: 0, attempted: 0, skipped: 0, dropped: 0 };
+  const counts = { open: 0, done: 5, progressed: 0, attempted: 0, skipped: 0, dropped: 0, waiting: 0 };
   const strong = { worked: 480, unaccountedPct: 5, mustDoTotal: 2, mustDoHit: 2, steps: 10000, counts };
 
   it("leaves room only below 10 even on a perfect day", () => {

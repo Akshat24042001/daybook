@@ -66,14 +66,16 @@ export const STATUS_EMOJI: Record<EntryStatus, string> = {
   attempted: "↩️",
   skipped: "✗",
   dropped: "🗑",
+  waiting: "⏳",
 };
 export const STATUS_WORD: Record<EntryStatus, string> = {
   open: "Open",
   done: "Done",
   progressed: "Progressed",
   attempted: "Attempted",
-  skipped: "Skipped",
+  skipped: "Not today",
   dropped: "Dropped",
+  waiting: "Waiting",
 };
 
 /** yymmdd, compact enough for the 64-byte callback_data limit. */
@@ -106,8 +108,9 @@ export function taskAction(ctx: Ctx, e: EntryView, prefix = ""): Msg {
     text,
     markup: inline([
       [btn("✅ Done", `t:d:${id}`), btn("↗ Progressed", `t:p:${id}`), btn("📞 Attempted", `t:a:${id}`)],
-      [btn("⏰ +30m", `t:z:${id}`), btn("🗓 Tomorrow", `t:m:${id}`), btn("✗ Skip", `t:s:${id}`)],
-      [urlBtn("✏️ Open in app", `/task/${e.task_id}`), btn("📝 Note", `t:n:${id}`)],
+      [btn("⏰ +30m", `t:z:${id}`), btn("🗓 Tomorrow", `t:m:${id}`), btn("✗ Not today", `t:s:${id}`)],
+      [btn("⏳ Waiting on…", `t:w:${id}`), btn("📝 Note", `t:n:${id}`)],
+      [urlBtn("✏️ Open in app", `/task/${e.task_id}`)],
     ]),
   };
 }
@@ -331,7 +334,7 @@ export function stepsKeyboard(date: DateStr, steps: number | null): Button[][] {
 export async function recapMessage(ctx: Ctx, date: DateStr, opts: { scoreGrid?: boolean } = {}): Promise<Msg> {
   const r = await recapFor(ctx, date);
   const line1 = `📊 <b>Recap · ${weekdayName(date)} ${fmtDateShort(date)}</b>: worked ${fmtDuration(r.worked)}`;
-  const line2 = `${r.counts.done} done · ${r.counts.progressed} progressed · ${r.counts.attempted} attempted · ${r.counts.skipped} skipped`;
+  const line2 = `${r.counts.done} done · ${r.counts.progressed} progressed · ${r.counts.attempted} attempted · ${r.counts.skipped} not today${r.counts.waiting ? ` · ${r.counts.waiting} waiting` : ""}`;
   const un = `Unaccounted ${fmtDuration(r.unaccountedMin)} (${Math.round(r.unaccountedPct)}%)`;
   const md = r.mustDoTotal ? `must-dos ${r.mustDoHit}/${r.mustDoTotal}` : "no must-dos";
   const tomorrow = addDays(date, 1);

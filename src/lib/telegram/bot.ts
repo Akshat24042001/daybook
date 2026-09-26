@@ -9,9 +9,9 @@ import { aiConfigured, interpretTelegramMessage } from "../ai";
 import { addEntry as addDiaryEntry, summarizeDay } from "../services/diary";
 import { logTouch, snoozeTouch } from "../services/keep-in-touch";
 import { atLogical, addDays, fmtDuration, fmtHM, parseHM } from "../time";
-import type { EntryStatus, EntryView } from "../types";
+import { SKIP_REASONS, type EntryStatus, type EntryView, type SkipReason } from "../types";
 import {
-  addEntry, getEntry, logMinutes, moveEntry, scheduleTaskPing, setEntryStatus, setMustDo, entriesForDate,
+  addEntry, getEntry, logMinutes, moveEntry, scheduleTaskPing, setEntryStatus, setMustDo, setSkipReason, setWaiting, entriesForDate,
   RETRY_HOURS,
 } from "../services/entries";
 import { getDay, setScore, setSleep, setSteps, setWorkedOverride } from "../services/days";
@@ -38,6 +38,9 @@ interface TgFile { file_id: string; mime_type?: string; duration?: number }
 interface TgMessage { message_id: number; chat: TgChat; text?: string; voice?: TgFile; audio?: TgFile; reply_to_message?: TgMessage }
 interface TgCallback { id: string; from: { id: number }; message?: TgMessage; data?: string }
 export interface TgUpdate { update_id: number; message?: TgMessage; callback_query?: TgCallback }
+
+/** Skip reasons in callback_data, one letter each (the 64-byte limit). */
+const REASON_CODE: Record<SkipReason, string> = { no_time: "t", low_energy: "e", blocked: "b", not_important: "n" };
 
 // ---------------------------------------------------------------- persistent keyboard
 
@@ -609,8 +612,26 @@ async function handleCallback(ctx: Ctx, chat: number, cb: TgCallback): Promise<s
         case "s": {
           const r = await setEntryStatus(ctx, id, "skipped");
           const t = await getTask(r.entry.task_id);
-          await edit({ text: `✗ <b>${esc(r.entry.title)}</b>: Skipped${t && t.carry_count > 1 ? ` (carried ${t.carry_count}×)` : ""}.` });
-          return "Skipped";
+          await edit({
+            text: `✗ <b>${esc(r.entry.title)}</b>: Not today${t && t.carry_count > 1 ? ` (carried ${t.carry_count}×)` : ""}. It comes back tomorrow. Why? (optional)`,
+            markup: inline([
+              SKIP_REASONS.slice(0, 2).map((x) => ({ text: x.label, callback_data: `tr:${id}:${REASON_CODE[x.reason]}` })),
+              SKIP_REASONS.slice(2).map((x) => ({ text: x.label, callback_data: `tr:${id}:${REASON_CODE[x.reason]}` })),
+            ]),
+          });
+          return "Not today";
+        }
+        case "w": {
+          const e = await entryOrThrow(id);
+          await edit({
+            text: `⏳ <b>${esc(e.title)}</b>: waiting on ${e.person_name ? esc(e.person_name) : "someone"}. When should it come back?`,
+            markup: inline([[
+              { text: "Tomorrow", callback_data: `tw:${id}:1` },
+              { text: "In 3 days", callback_data: `tw:${id}:3` },
+              { text: "Next week", callback_data: `tw:${id}:7` },
+            ]]),
+          });
+          return undefined;
         }
         case "z": {
           const e = await entryOrThrow(id);
@@ -656,6 +677,26 @@ async function handleCallback(ctx: Ctx, chat: number, cb: TgCallback): Promise<s
         text: `${STATUS_EMOJI[fresh.status]} <b>${esc(fresh.title)}</b>: ${STATUS_WORD[fresh.status]}${min > 0 ? ` · ${fmtDuration(min)} logged (${fmtDuration(fresh.minutes_today)} today)` : ""}`,
       });
       return min > 0 ? `${min}m logged` : "OK";
+    }
+
+    // ---- waiting: tw:<entryId>:<days>
+    case "tw": {
+      const e = await entryOrThrow(Number(parts[1]));
+      const days = Math.min(30, Math.max(1, Number(parts[2]) || 3));
+      const until = addDays(e.date, days);
+      const w = await setWaiting(ctx, e.id, until, e.person_name);
+      await edit({ text: `⏳ <b>${esc(w.title)}</b>: waiting${w.waiting_on ? ` on ${esc(w.waiting_on)}` : ""}. Back on your list ${until}.` });
+      return "Waiting";
+    }
+
+    // ---- skip reason: tr:<entryId>:<t|e|b|n>
+    case "tr": {
+      const reason = (Object.entries(REASON_CODE).find(([, c]) => c === parts[2])?.[0] ?? null) as SkipReason | null;
+      await setSkipReason(Number(parts[1]), reason);
+      const e = await entryOrThrow(Number(parts[1]));
+      const label = SKIP_REASONS.find((x) => x.reason === reason)?.label ?? "";
+      await edit({ text: `✗ <b>${esc(e.title)}</b>: Not today${label ? ` · ${label.toLowerCase()}` : ""}. It comes back tomorrow.` });
+      return label || "OK";
     }
 
     // ---- retry: rt:<entryId>:<2h|am|pm>

@@ -92,10 +92,37 @@ export async function bringToToday(ctx: Ctx, taskIds: number[], mustDo = false):
 /** Closes unfinished tasks without doing them: "done" (already handled) or "dropped" (not doing it). */
 export async function closeUnfinished(ctx: Ctx, taskIds: number[], state: "done" | "dropped"): Promise<void> {
   if (!taskIds.length) return;
-  await q(
-    `update tasks set state = $2, closed_at = $3,
-            last_done_at = case when $2 = 'done' then $3 else last_done_at end
-     where id = any($1::int[]) and state = 'active'`,
-    [taskIds, state, ctx.now],
-  );
+  await tx(async (db) => {
+    await db.query(
+      `update tasks set state = $2, closed_at = $3, waiting_on = null, waiting_since = null, waiting_until = null,
+              last_done_at = case when $2 = 'done' then $3 else last_done_at end
+       where id = any($1::int[]) and state = 'active'`,
+      [taskIds, state, ctx.now],
+    );
+    // a waiting task has an entry on its check-back day; a closed task must not turn up there
+    await db.query("delete from day_entries where task_id = any($1::int[]) and date >= $2 and status = 'open'", [taskIds, ctx.today]);
+  });
+}
+
+/** Tasks parked with "Waiting on…": off the daily lists until their check-back date. Soonest first. */
+export interface WaitingTask {
+  taskId: number;
+  title: string;
+  projectName: string | null;
+  projectColor: string | null;
+  waitingOn: string | null;
+  since: DateStr | null;
+  until: DateStr;
+}
+
+export async function waitingTasks(today: DateStr, db: Db = getPool()): Promise<WaitingTask[]> {
+  return q<WaitingTask>(
+    `select t.id as "taskId", t.title, p.name as "projectName", p.color as "projectColor",
+            t.waiting_on as "waitingOn", t.waiting_since as since, t.waiting_until as until
+     from tasks t left join projects p on p.id = t.project_id
+     where t.state = 'active' and t.waiting_until > $1
+     order by t.waiting_until, t.id`,
+    [today],
+    db,
+  ).catch(() => []); // columns arrive with migration 017
 }

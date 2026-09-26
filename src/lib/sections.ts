@@ -12,7 +12,7 @@ export const SECTION_LABEL: Record<SectionKey, string> = {
   followups: "Follow-ups",
   other: "Other",
   personal: "Personal",
-  done: "Done",
+  done: "Done & waiting",
 };
 
 /**
@@ -38,7 +38,7 @@ export function sectionize(
 ): Record<SectionKey, EntryView[]> {
   const out: Record<SectionKey, EntryView[]> = { must: [], timed: [], followups: [], other: [], personal: [], done: [] };
   for (const e of entries) {
-    if (e.status === "done" || e.status === "dropped") out.done.push(e);
+    if (e.status === "done" || e.status === "dropped" || e.status === "waiting") out.done.push(e);
     else if (e.is_personal) out.personal.push(e);
     else if (e.must_do) out.must.push(e);
     else if (dueFor(e, tz, boundaryMin)) out.timed.push(e);

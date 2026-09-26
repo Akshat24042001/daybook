@@ -3,7 +3,7 @@ import type { Ctx } from "./settings";
 import { diffDays, fmtDuration, fmtHM, fmtRelDay, zonedParts, type DateStr } from "./time";
 import type { UnfinishedTask } from "./services/unfinished";
 import type { UnfinishedRow } from "@/components/unfinished/unfinished-client";
-import type { EntryStatus, EntryView, TaskType } from "./types";
+import type { EntryStatus, EntryView, SkipReason, TaskType } from "./types";
 
 /** Plain, serialisable shapes handed from server components to client components. */
 export interface RowData {
@@ -25,6 +25,10 @@ export interface RowData {
   source: "planned" | "auto" | "carried";
   carriedFrom: DateStr | null;
   date: DateStr;
+  /** why it was put off ("Not today") */
+  reason: SkipReason | null;
+  /** who the task is waiting on, and since / until when */
+  waiting: { on: string | null; since: DateStr | null; until: DateStr | null } | null;
 }
 
 export function toRow(ctx: Ctx, e: EntryView): RowData {
@@ -48,6 +52,8 @@ export function toRow(ctx: Ctx, e: EntryView): RowData {
     source: e.source,
     carriedFrom: e.carried_from,
     date: e.date,
+    reason: e.reason ?? null,
+    waiting: e.waiting_until ? { on: e.waiting_on ?? null, since: e.waiting_since ?? null, until: e.waiting_until } : null,
   };
 }
 

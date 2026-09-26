@@ -230,7 +230,9 @@ async function dayContext(ctx: Ctx, date: DateStr, db: Db = getPool()): Promise<
   if (done.length) lines.push(`Done (${done.length}):\n- ${done.map(fmt).join("\n- ")}`);
   if (progressed.length) lines.push(`Progressed:\n- ${progressed.map(fmt).join("\n- ")}`);
   if (open.length) lines.push(`Still open:\n- ${open.slice(0, 15).map(fmt).join("\n- ")}`);
-  if (skipped.length) lines.push(`Skipped:\n- ${skipped.map(fmt).join("\n- ")}`);
+  if (skipped.length) lines.push(`Put off (not today):\n- ${skipped.map(fmt).join("\n- ")}`);
+  const waiting = group(["waiting"]);
+  if (waiting.length) lines.push(`Waiting on someone else (not a failure):\n- ${waiting.map(fmt).join("\n- ")}`);
   if (!tasks.length) lines.push("No tasks were planned for this day.");
   const { cap, reasons } = ratingCeiling(recap, exercise.reduce((n, x) => n + x.sets, 0), ctx.s.step_goal);
   lines.push(`RATING CEILING: ${cap}/10${reasons.length ? ` (because: ${reasons.join("; ")})` : ""}. Your rating must not exceed this.`);
