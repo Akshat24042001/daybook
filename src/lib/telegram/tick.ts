@@ -1,3 +1,4 @@
+import { isWorkKind } from "../hours";
 import { one, q } from "../db";
 import { dueFor } from "../sections";
 import { buildCtx, getSettings, isWorkingDay, type Ctx } from "../settings";
@@ -271,7 +272,7 @@ function candidates(ctx: Ctx, work: {
     kind: "open_segment", ref: today, at: at(ctx.s.open_segment_check), graceMin: 60,
     build: async () => {
       const open = await openSegment();
-      if (!open || open.kind === "break") return null;
+      if (!open || !isWorkKind(open.kind)) return null; // only a forgotten work segment inflates worked time
       return openSegmentPrompt(ctx, open.start_at, KIND_LABEL[open.kind]);
     },
   });

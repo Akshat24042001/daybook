@@ -10,12 +10,13 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { cn } from "@/lib/cn";
 import type { DiarySummaryView } from "@/lib/services/diary";
-import type { Stats } from "@/lib/services/stats";
+import type { Stats, TimelineDay } from "@/lib/services/stats";
 import { fmtDay, fmtDuration, fmtRange, type DateStr } from "@/lib/time";
 import { ratingTone } from "@/lib/rating-tone";
 import { SummaryCard } from "../diary/diary-panel";
 import { Card, Input, Progress, Select } from "../ui";
 import { Heatmap, ProjectBars, TrendChart, WeekdayChart } from "./charts";
+import { DayTimeline } from "./day-timeline";
 
 const TYPE_OPTIONS = [
   ["one_off", "One-off"], ["ongoing", "Ongoing"], ["follow_up", "Follow-up"], ["cadence", "Cadence"],
@@ -203,9 +204,10 @@ type Panel =
   | "rotting" | "estimates" | "cadence" | "progress" | "attention" | "insights";
 
 export function StatsView({
-  stats, range, projects, people, vias, drill, today, diary,
+  stats, range, projects, people, vias, drill, today, diary, timeline,
 }: {
   stats: Stats;
+  timeline: TimelineDay[];
   range: "7" | "30" | "90" | "custom";
   projects: { id: number; name: string }[];
   people: { id: number; name: string }[];
@@ -424,6 +426,8 @@ export function StatsView({
         >
           <TrendChart data={series} y="done" avg="doneAvg" kind="bar" name="Done" height={TILE_H} />
         </Tile>
+
+        <DayTimeline days={timeline} today={today} />
 
         <Tile
           title="Unaccounted time"

@@ -206,7 +206,7 @@ function localToInstant(ctx: Ctx, value: string): Date {
 }
 
 export interface SegmentForm {
-  kind: "office" | "outside" | "break";
+  kind: import("@/lib/activity").ActivityKind;
   start: string;
   end: string | null;
 }

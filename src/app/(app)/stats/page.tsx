@@ -4,7 +4,7 @@ import { q } from "@/lib/db";
 import { makeCtx } from "@/lib/settings";
 import { addDays, type DateStr } from "@/lib/time";
 import type { TaskType } from "@/lib/types";
-import { computeStats, type StatsFilters } from "@/lib/services/stats";
+import { computeStats, dayTimelines, type StatsFilters } from "@/lib/services/stats";
 import { summariesInRange, toSummaryView } from "@/lib/services/diary";
 
 export const metadata: Metadata = { title: "Stats" };
@@ -47,12 +47,13 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
     via: one(sp.via)?.trim() || null,
   };
 
-  const [stats, projects, people, vias, diary] = await Promise.all([
+  const [stats, projects, people, vias, diary, timeline] = await Promise.all([
     computeStats(ctx, filters, one(sp.drill) ?? null),
     q<{ id: number; name: string }>("select id, name from projects order by lower(name)"),
     q<{ id: number; name: string }>("select id, name from people order by lower(name)"),
     q<{ via: string }>("select distinct via from tasks where via is not null and via <> '' order by via"),
     summariesInRange(from, to).catch(() => []),
+    dayTimelines(ctx, from, to),
   ]);
 
   return (
@@ -65,6 +66,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
       drill={one(sp.drill) ?? null}
       today={ctx.today}
       diary={diary.map(toSummaryView)}
+      timeline={timeline}
     />
   );
 }

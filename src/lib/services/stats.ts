@@ -523,3 +523,52 @@ function zonedDay(ctx: Ctx, at: Date): DateStr {
 export function presetRange(ctx: Ctx, days: number): { from: DateStr; to: DateStr } {
   return { from: addDays(ctx.today, -(days - 1)), to: ctx.today };
 }
+
+// ------------------------------------------------------------------ day timeline
+
+export interface TimelineSpan {
+  kind: Segment["kind"];
+  /** minutes after local midnight of the day (can pass 1440 when a day runs past midnight) */
+  startMin: number;
+  endMin: number;
+  /** still running */
+  open: boolean;
+}
+
+export interface TimelineDay {
+  date: DateStr;
+  spans: TimelineSpan[];
+  workedMin: number;
+}
+
+/** Every day in the range, with its segments in order, clipped to the logical day. Newest day first. */
+export async function dayTimelines(ctx: Ctx, from: DateStr, to: DateStr): Promise<TimelineDay[]> {
+  const start = windowOf(ctx, from).start;
+  const end = windowOf(ctx, to).end;
+  const rows = await q<{ kind: Segment["kind"]; start_at: Date; end_at: Date | null }>(
+    "select kind, start_at, end_at from work_segments where start_at < $2 and (end_at is null or end_at > $1) order by start_at",
+    [start, end],
+  );
+  const segs: Segment[] = rows.map((r) => ({ kind: r.kind, start: r.start_at, end: r.end_at }));
+  const now = ctx.now.getTime();
+  return dateRange(from, to)
+    .reverse()
+    .map((date) => {
+      const win = windowOf(ctx, date);
+      const midnight = win.start.getTime() - ctx.boundaryMin * 60_000;
+      const spans: TimelineSpan[] = [];
+      for (const s of segs) {
+        const sEnd = s.end ? s.end.getTime() : now;
+        const a = Math.max(s.start.getTime(), win.start.getTime());
+        const b = Math.min(sEnd, win.end.getTime());
+        if (b <= a) continue;
+        spans.push({
+          kind: s.kind,
+          startMin: Math.round((a - midnight) / 60_000),
+          endMin: Math.round((b - midnight) / 60_000),
+          open: !s.end && b === sEnd,
+        });
+      }
+      return { date, spans, workedMin: Math.round(workedMinutes(segs, win, ctx.now)) };
+    });
+}

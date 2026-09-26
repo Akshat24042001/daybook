@@ -60,7 +60,7 @@ export function toLocalInput(ctx: Ctx, at: Date): string {
 
 export interface SegmentData {
   id: number;
-  kind: "office" | "outside" | "break";
+  kind: import("@/lib/activity").ActivityKind;
   start: string;
   end: string | null;
   startLabel: string;

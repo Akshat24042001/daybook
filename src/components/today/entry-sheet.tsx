@@ -24,7 +24,7 @@ const STATUSES: { status: EntryStatus; label: string }[] = [
   { status: "skipped", label: "Skipped" },
   { status: "dropped", label: "Dropped" },
 ];
-const CHIPS = [5, 10, 15, 30, 45, 60, 90, 120];
+const CHIPS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
 
 export function EntrySheet({
   row,

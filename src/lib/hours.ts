@@ -1,13 +1,15 @@
 /**
  * Hours calculation (PRD section 8).
  *
- * Worked time = sum of office + outside segments inside the logical day.
+ * Worked time = sum of work segments (office, outside, remote) inside the logical day.
  * Segments are clipped to the day window, so a segment that runs past the day
  * boundary contributes to each day only for its own share. Open segments run
  * to `now`. Overlapping segments are merged so nothing is counted twice.
  */
 
-export type SegmentKind = "office" | "outside" | "break";
+import { ACTIVITIES, type ActivityKind } from "./activity";
+
+export type SegmentKind = ActivityKind;
 
 export interface Segment {
   kind: SegmentKind;
@@ -15,7 +17,7 @@ export interface Segment {
   end: Date | null;
 }
 
-export const WORK_KINDS: ReadonlySet<SegmentKind> = new Set<SegmentKind>(["office", "outside"]);
+export const WORK_KINDS: ReadonlySet<SegmentKind> = new Set<SegmentKind>(ACTIVITIES.filter((a) => a.work).map((a) => a.kind));
 
 export function isWorkKind(kind: SegmentKind): boolean {
   return WORK_KINDS.has(kind);

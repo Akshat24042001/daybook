@@ -1,3 +1,4 @@
+import { ACTIVITIES, ACTIVITY } from "./activity";
 import type { SegmentKind } from "./hours";
 import { clockToMinutes } from "./parser";
 import {
@@ -44,10 +45,16 @@ const WEEKDAYS = "mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:r(?:s(?:day
 const MONTH_INDEX: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 const DOW_INDEX: Record<string, number> = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 7 };
 
+// On a tie (two words at the same spot) the later pattern wins, so "work from home" is remote, not office.
 const KIND_PATTERNS: [SegmentKind, RegExp][] = [
-  ["outside", /\b(?:outside|out on work|out of (?:the )?office|client visit|site visit|field visit|field work|on[- ]?site|errand|visit)\b/gi],
-  ["break", /\b(?:break|lunch|breakfast|dinner|rest|nap|tea|coffee)\b/gi],
+  ["outside", /\b(?:outside|out on work|out of (?:the )?office|client visit|site visit|field visit|field work|on[- ]?site|visit)\b/gi],
+  ["break", /\b(?:break|rest|nap|tea|coffee|chai|refresh(?:ment)?)\b/gi],
+  ["meal", /\b(?:lunch|breakfast|dinner|meal|snacks?)\b/gi],
   ["office", /\b(?:office|desk|at work|worked|working|work)\b/gi],
+  ["remote", /\b(?:wfh|remote(?:ly)?|work(?:ed|ing)? from home)\b/gi],
+  ["commute", /\b(?:commut\w*|travel\w*|drive|driving|drove|metro|train|bus|cab)\b/gi],
+  ["exercise", /\b(?:exercis\w*|gym|workout|walk\w*|run|running|jog\w*|yoga|swim\w*|sports?)\b/gi],
+  ["personal", /\b(?:personal|errands?|shopping|family)\b/gi],
 ];
 const START_WORDS = /\b(?:in|entered|arrived|reached|started|came|from|since|begin|began|joined)\b/i;
 const END_WORDS = /\b(?:out|left|leave|exit|finished|ended|stopped|done|till|until|to)\b/i;
@@ -224,7 +231,7 @@ export function resolveSegments(p: ParsedTimeLog, ctx: TimeLogContext): Resolved
   }));
 }
 
-export const KIND_TEXT: Record<SegmentKind, string> = { office: "At office", outside: "Out on work", break: "Break" };
+export const KIND_TEXT = Object.fromEntries(ACTIVITIES.map((a) => [a.kind, a.label])) as Record<SegmentKind, string>;
 
 export function hm(min: number): string {
   const t = min % 1440;
@@ -237,7 +244,7 @@ export function describeTimeLog(p: ParsedTimeLog): { lines: string[]; workedMin:
   const lines = p.segments.map((s) => {
     if (s.endMin === null) return `${KIND_TEXT[s.kind]} from ${hm(s.startMin)} (still running)`;
     const dur = s.endMin - s.startMin;
-    if (s.kind !== "break") worked += dur;
+    if (ACTIVITY[s.kind].work) worked += dur;
     return `${KIND_TEXT[s.kind]} ${hm(s.startMin)} to ${hm(s.endMin)} = ${fmtDuration(dur)}${s.endMin >= 1440 ? " (past midnight)" : ""}`;
   });
   return { lines, workedMin: worked };

@@ -1,4 +1,5 @@
 import { one, q, UserError } from "../db";
+import { ACTIVITIES, isActivityKind } from "../activity";
 import { transcribe, voiceConfigured, VoiceError } from "../deepgram";
 import { voiceToQuickAdd } from "../voice";
 import { describeTimeLog, looksLikeTimeLog, parseTimeLog, resolveSegments } from "../timelog";
@@ -43,7 +44,8 @@ export interface TgUpdate { update_id: number; message?: TgMessage; callback_que
 export const KEYS = {
   office: "🏢 At office",
   outside: "🚗 Out on work",
-  break: "🍽 Break",
+  break: "☕ Break",
+  more: "➕ More",
   off: "🏁 Day end",
   today: "📋 Today",
   free: "🙂 I'm free",
@@ -52,7 +54,7 @@ export const KEYS = {
 export const PERSISTENT_KEYBOARD: ReplyKeyboard = {
   keyboard: [
     [{ text: KEYS.office }, { text: KEYS.outside }],
-    [{ text: KEYS.break }, { text: KEYS.off }],
+    [{ text: KEYS.break }, { text: KEYS.more }, { text: KEYS.off }],
     [{ text: KEYS.today }, { text: KEYS.free }],
   ],
   is_persistent: true,
@@ -61,6 +63,7 @@ export const PERSISTENT_KEYBOARD: ReplyKeyboard = {
 
 const norm = (s: string) => s.replace(/[️‍]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
 const KEY_LOOKUP = new Map(Object.entries(KEYS).map(([k, v]) => [norm(v), k as keyof typeof KEYS]));
+KEY_LOOKUP.set(norm("🍽 Break"), "break"); // the label on keyboards sent before meals got their own key
 
 // ---------------------------------------------------------------- owner lock
 
@@ -265,6 +268,15 @@ Anything else is added as a task — with full quick-add syntax support.`);
     case "off":
       await stateSwitch(ctx, chat, key);
       return;
+    case "more": {
+      const btns = ACTIVITIES.filter((a) => !["office", "outside", "break"].includes(a.kind)).map((a) => ({
+        text: `${a.emoji} ${a.label}`,
+        callback_data: `sw:${a.kind}`,
+      }));
+      const rows = [btns.slice(0, 2), btns.slice(2, 4), btns.slice(4)].filter((r) => r.length);
+      await sendMessage(chat, "What are you doing now?", inline(rows));
+      return;
+    }
     case "today": {
       const m = await todayList(ctx);
       await sendMessage(chat, m.text, m.markup);
@@ -471,7 +483,7 @@ async function timeLogPreview(ctx: Ctx, chat: number, text: string): Promise<voi
   const dayNote = parsed.date === ctx.today ? "today" : parsed.date;
   await sendMessage(
     chat,
-    `⏱ <b>Log time for ${dayNote}?</b>\n${d.lines.map(esc).join("\n")}\nWorked: <b>${fmtDuration(d.workedMin)}</b>${d.lines.some((l) => l.startsWith("Break")) ? " (breaks not counted)" : ""}`,
+    `⏱ <b>Log time for ${dayNote}?</b>\n${d.lines.map(esc).join("\n")}\nWorked: <b>${fmtDuration(d.workedMin)}</b>${d.lines.some((l) => ACTIVITIES.some((a) => !a.work && l.startsWith(a.label))) ? " (breaks not counted)" : ""}`,
     inline([[
       { text: "✅ Save", callback_data: `tl:s:${pid}` },
       { text: "Add as task instead", callback_data: `tl:t:${pid}` },
@@ -803,7 +815,7 @@ async function handleCallback(ctx: Ctx, chat: number, cb: TgCallback): Promise<s
     // ---- state switch from an inline button: sw:<kind>
     case "sw": {
       const kind = parts[1] as StateKind;
-      if (!["office", "outside", "break", "off"].includes(kind)) return undefined;
+      if (kind !== "off" && !isActivityKind(kind)) return undefined;
       await stateSwitch(ctx, chat, kind);
       return undefined;
     }

@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { setScoreAction, setStatusAction, setStepsAction, setWorkedOverrideAction, switchStateAction, toggleMustAction } from "@/app/actions";
 import { cn } from "@/lib/cn";
+import { ACTIVITIES, ACTIVITY, type ActivityKind } from "@/lib/activity";
+import { ActivityMenu } from "./activity-menu";
 import { SECTION_LABEL, SECTION_ORDER, type SectionKey } from "@/lib/sections";
 import { fmtDuration, type DateStr } from "@/lib/time";
 import type { EntryStatus } from "@/lib/types";
@@ -18,14 +20,15 @@ import { EntryRow } from "./entry-row";
 import { EntrySheet } from "./entry-sheet";
 import { SegmentsSheet } from "./segments-sheet";
 
-type Kind = "office" | "outside" | "break" | "off";
+type Kind = ActivityKind | "off";
 
-const STATES: { kind: Kind; label: string; Icon: typeof Building2 }[] = [
-  { kind: "office", label: "At office", Icon: Building2 },
-  { kind: "outside", label: "Out on work", Icon: Car },
-  { kind: "break", label: "Break", Icon: Coffee },
-  { kind: "off", label: "Day end", Icon: Flag },
+// the three taps you make most; everything else sits under "More"
+const STATES: { kind: ActivityKind; label: string; short: string; Icon: typeof Building2 }[] = [
+  { kind: "office", label: "At office", short: "Office", Icon: Building2 },
+  { kind: "outside", label: "Out on work", short: "Outside", Icon: Car },
+  { kind: "break", label: "Break", short: "Break", Icon: Coffee },
 ];
+const MORE = ACTIVITIES.filter((a) => !STATES.some((s) => s.kind === a.kind));
 
 const SCORES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
@@ -71,12 +74,12 @@ export function TodayView(props: {
     setTick(0);
   }, [props.workedAtLoad, state.kind]);
   useEffect(() => {
-    if (optimisticKind !== "office" && optimisticKind !== "outside") return;
+    if (optimisticKind === "off" || !ACTIVITY[optimisticKind].work) return;
     const id = setInterval(() => setTick((n) => n + 1), 15_000);
     return () => clearInterval(id);
   }, [optimisticKind]);
   void tick;
-  const working = optimisticKind === "office" || optimisticKind === "outside";
+  const working = optimisticKind !== "off" && ACTIVITY[optimisticKind].work;
   // If user set hours manually, use that; otherwise use segment-based live calculation
   const worked = props.workedOverride !== null
     ? props.workedOverride
@@ -116,7 +119,7 @@ export function TodayView(props: {
   }
 
   const empty = all.length === 0;
-  const stateLabel = STATES.find((s) => s.kind === optimisticKind)?.label ?? "Off";
+  const stateLabel = optimisticKind === "off" ? "Off" : ACTIVITY[optimisticKind].label;
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start">
@@ -156,8 +159,11 @@ export function TodayView(props: {
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-surface p-1.5 shadow-[var(--shadow-sm)]">
           <span className="flex items-center gap-2 px-2 text-xs text-subtle">
             <span
-              className={cn("inline-block h-2 w-2 rounded-full", working ? "bg-good" : optimisticKind === "break" ? "bg-warn" : "bg-subtle/50")}
-              style={working ? { animation: "pulse-dot 2s infinite" } : undefined}
+              className="inline-block h-2 w-2 rounded-full"
+              style={{
+                background: optimisticKind === "off" ? "hsl(var(--subtle) / 0.5)" : ACTIVITY[optimisticKind].color,
+                animation: working ? "pulse-dot 2s infinite" : undefined,
+              }}
               aria-hidden
             />
             <span className="whitespace-nowrap">
@@ -165,7 +171,7 @@ export function TodayView(props: {
             </span>
           </span>
           <div className="ml-auto flex items-center gap-1" role="group" aria-label="Where are you working">
-            {STATES.filter((s) => s.kind !== "off").map(({ kind, label, Icon }) => {
+            {STATES.map(({ kind, label, short, Icon }) => {
               const on = optimisticKind === kind;
               return (
                 <button
@@ -181,10 +187,11 @@ export function TodayView(props: {
                 >
                   <Icon className="h-4 w-4" />
                   <span className="hidden sm:inline">{label}</span>
-                  <span className="sm:hidden">{label.split(" ")[0] === "At" ? "Office" : label.split(" ")[0] === "Out" ? "Outside" : label}</span>
+                  <span className="sm:hidden">{short}</span>
                 </button>
               );
             })}
+            <ActivityMenu items={MORE} current={optimisticKind} disabled={pending} onPick={switchTo} />
             {optimisticKind !== "off" ? (
               <button
                 type="button"

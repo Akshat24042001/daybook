@@ -1,5 +1,6 @@
 import { one, q, tx, UserError, type Db, getPool } from "../db";
-import { findOverlap, unaccounted, workedMinutes, type Segment, type SegmentKind } from "../hours";
+import { ACTIVITIES } from "../activity";
+import { findOverlap, isWorkKind, unaccounted, workedMinutes, type Segment, type SegmentKind } from "../hours";
 import { type Ctx, windowOf } from "../settings";
 import { type DateStr, fmtHM, logicalDate } from "../time";
 
@@ -16,9 +17,7 @@ export interface SegmentRow {
 export type StateKind = SegmentKind | "off";
 
 export const KIND_LABEL: Record<StateKind, string> = {
-  office: "At office",
-  outside: "Out on work",
-  break: "Break",
+  ...(Object.fromEntries(ACTIVITIES.map((a) => [a.kind, a.label])) as Record<SegmentKind, string>),
   off: "Off",
 };
 
@@ -107,7 +106,8 @@ export async function switchState(ctx: Ctx, kind: StateKind): Promise<SwitchResu
       "insert into work_segments (date, kind, start_at) values ($1, $2, $3)",
       [date, kind, ctx.now],
     );
-    if (kind !== "break") await upsertDayClosed(date, null, db);
+    // starting work again reopens an ended day; a break, meal or errand after Day end does not
+    if (isWorkKind(kind)) await upsertDayClosed(date, null, db);
     return { changed: true, kind, since: ctx.now, workedMin: await workedForDate(ctx, date, db), date };
   });
 }

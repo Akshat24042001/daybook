@@ -4,12 +4,13 @@ import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { createSegmentAction, deleteSegmentAction, setWorkedOverrideAction, updateSegmentAction, type SegmentForm } from "@/app/actions";
+import { ACTIVITIES, ACTIVITY } from "@/lib/activity";
 import { fmtDuration, type DateStr } from "@/lib/time";
 import type { SegmentData } from "@/lib/view-types";
 import { useToast } from "../toast";
 import { Button, ErrorNote, Field, Input, Select, Sheet } from "../ui";
 
-const KIND_LABEL = { office: "At office", outside: "Out on work", break: "Break" } as const;
+const KIND_LABEL = Object.fromEntries(ACTIVITIES.map((a) => [a.kind, `${a.emoji} ${a.label}`])) as Record<SegmentForm["kind"], string>;
 
 function SegmentEditor({
   initial,
@@ -35,8 +36,8 @@ function SegmentEditor({
     >
       <Field label="Kind">
         <Select value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value as SegmentForm["kind"] })}>
-          {Object.entries(KIND_LABEL).map(([k, l]) => (
-            <option key={k} value={k}>{l}</option>
+          {ACTIVITIES.map((a) => (
+            <option key={a.kind} value={a.kind}>{`${a.emoji} ${a.label}${a.work ? " · work" : ""}`}</option>
           ))}
         </Select>
       </Field>
@@ -103,7 +104,7 @@ export function SegmentsSheet({
       open={open}
       onOpenChange={(o) => !o && onClose()}
       title="Time today"
-      description="Worked time counts At office and Out on work. Breaks do not count."
+      description="Worked time counts At office, Out on work and Remote work. Commute, meals, breaks, exercise and personal time do not count."
     >
       <div className="space-y-4">
         <p className="tabular text-2xl font-medium">{fmtDuration(workedMin)} <span className="text-sm font-normal text-subtle">worked</span></p>
@@ -117,11 +118,14 @@ export function SegmentsSheet({
             {segments.map((s) => (
               <li key={s.id} className="rounded-xl border border-border p-2.5">
                 <div className="flex items-center justify-between gap-3">
-                  <div>
+                  <div className="flex items-start gap-2.5">
+                    <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: ACTIVITY[s.kind].color }} aria-hidden />
+                    <div>
                     <p className="text-sm font-medium">{KIND_LABEL[s.kind]}</p>
                     <p className="tabular text-sm text-subtle">
                       {s.startLabel} to {s.endLabel ?? "now"} {s.minutes !== null ? `· ${fmtDuration(s.minutes)}` : "· running"}
                     </p>
+                    </div>
                   </div>
                   <Button size="sm" variant="ghost" onClick={() => setEditing(editing === s.id ? null : s.id)}>
                     {editing === s.id ? "Cancel" : "Edit"}
