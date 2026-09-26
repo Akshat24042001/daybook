@@ -1,6 +1,8 @@
 import { dueFor } from "./sections";
 import type { Ctx } from "./settings";
-import { fmtHM, zonedParts, type DateStr } from "./time";
+import { diffDays, fmtDuration, fmtHM, fmtRelDay, zonedParts, type DateStr } from "./time";
+import type { UnfinishedTask } from "./services/unfinished";
+import type { UnfinishedRow } from "@/components/unfinished/unfinished-client";
 import type { EntryStatus, EntryView, TaskType } from "./types";
 
 /** Plain, serialisable shapes handed from server components to client components. */
@@ -64,4 +66,23 @@ export interface SegmentData {
   startLabel: string;
   endLabel: string | null;
   minutes: number | null;
+}
+
+/** An unfinished task for the Unfinished page and Today's rail card. */
+export function toUnfinishedRow(today: DateStr, t: UnfinishedTask): UnfinishedRow {
+  return {
+    taskId: t.taskId,
+    title: t.title,
+    type: t.type,
+    projectName: t.projectName,
+    projectColor: t.projectColor,
+    personName: t.personName,
+    isPersonal: t.isPersonal,
+    ageDays: t.lastDate ? diffDays(today, t.lastDate) : null,
+    lastLabel: t.lastDate ? fmtRelDay(t.lastDate, today) : null,
+    lastStatus: t.lastStatus,
+    days: t.days,
+    carryCount: t.carryCount,
+    minutesLabel: t.minutesTotal ? fmtDuration(t.minutesTotal) : null,
+  };
 }

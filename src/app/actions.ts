@@ -22,12 +22,13 @@ import {
   type StateKind,
 } from "@/lib/services/segments";
 import {
-  appendNote, createRemark, deleteRemark, createFromParsed, deleteTask, ensurePerson, ensureProject, findDuplicates, getTask, updateTask,
+  appendNote, createRemark, deleteRemark, createFromParsed, deleteTask, ensurePerson, ensureProject, findDuplicates, getTask, makeSomeday, updateTask,
   type TaskPatch,
 } from "@/lib/services/tasks";
 import { sendMessage, telegramConfigured } from "@/lib/telegram/api";
 import { inline, urlBtn } from "@/lib/telegram/ui";
 import { aiConfigured, interpretTaskInput } from "@/lib/ai";
+import { bringToToday, closeUnfinished } from "@/lib/services/unfinished";
 
 type Ok<T> = { ok: true } & T;
 type Fail = { ok: false; error: string };
@@ -508,4 +509,25 @@ export async function deleteRefAction(id: number) {
   return run(async () => {
     await deleteRef(id);
   }, ["/refs"]);
+}
+
+// ------------------------------------------------------------------ unfinished tasks
+
+export async function bringToTodayAction(taskIds: number[], mustDo = false) {
+  return run(async (ctx) => {
+    const added = await bringToToday(ctx, taskIds, mustDo);
+    return { added };
+  }, ["/today", "/unfinished", "/plan"]);
+}
+
+export async function closeUnfinishedAction(taskIds: number[], state: "done" | "dropped") {
+  return run(async (ctx) => {
+    await closeUnfinished(ctx, taskIds, state);
+  }, ["/today", "/unfinished"]);
+}
+
+export async function somedayUnfinishedAction(taskIds: number[]) {
+  return run(async () => {
+    for (const id of taskIds) await makeSomeday(id);
+  }, ["/today", "/unfinished", "/goals"]);
 }

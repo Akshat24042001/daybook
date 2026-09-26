@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronRight, Minus, RotateCcw, X } from "lucide-react";
+import { Check, ChevronRight, Minus, RotateCcw, Star, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { fmtDuration } from "@/lib/time";
@@ -54,11 +54,14 @@ export function EntryRow({
   row,
   onOpen,
   onQuickAction,
+  onToggleMust,
 }: {
   row: RowData;
   onOpen: () => void;
   /** swipe right / tick button: Progressed for Ongoing, Done for everything else */
   onQuickAction: () => void;
+  /** star button: make or unmake a must-do for the day */
+  onToggleMust?: () => void;
 }) {
   const [dx, setDx] = useState(0);
   const start = useRef<{ x: number; y: number; lock: "h" | "v" | null } | null>(null);
@@ -156,6 +159,21 @@ export function EntryRow({
             </span>
           ) : null}
         </button>
+        {onToggleMust && !closed ? (
+          <button
+            type="button"
+            onClick={onToggleMust}
+            aria-pressed={row.mustDo}
+            aria-label={row.mustDo ? `Remove must-do from ${row.title}` : `Make ${row.title} a must-do`}
+            title={row.mustDo ? "Remove must-do" : "Make must-do"}
+            className={cn(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
+              row.mustDo ? "text-warn hover:bg-warn-muted" : "text-subtle/60 hover:bg-muted hover:text-warn",
+            )}
+          >
+            <Star className={cn("h-[18px] w-[18px] transition-transform active:scale-90", row.mustDo && "fill-current")} />
+          </button>
+        ) : null}
         <ChevronRight className="hidden h-4 w-4 shrink-0 text-subtle sm:block" aria-hidden />
       </div>
     </li>

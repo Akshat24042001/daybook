@@ -18,6 +18,9 @@ import { ReachOut } from "@/components/contacts/keep-in-touch";
 import { touchStates } from "@/lib/services/keep-in-touch";
 import { getReview, periodBounds } from "@/lib/services/review";
 import { getSummary, listEntries, toSummaryView } from "@/lib/services/diary";
+import { unfinishedTasks } from "@/lib/services/unfinished";
+import { UnfinishedCard } from "@/components/unfinished/unfinished-client";
+import { toUnfinishedRow } from "@/lib/view-types";
 
 export const metadata: Metadata = { title: "Today" };
 export const dynamic = "force-dynamic";
@@ -37,9 +40,10 @@ export default async function TodayPage() {
     getSummary(ctx.today).catch(() => null),
   ]);
   const weekStart = periodBounds("week", ctx.today).start;
-  const [weekReview, touch] = await Promise.all([
+  const [weekReview, touch, unfinished] = await Promise.all([
     getReview("week", weekStart).catch(() => null),
     touchStates(ctx.today, ctx.tz).catch(() => []),
+    unfinishedTasks(ctx.today).catch(() => []),
   ]);
 
   const activeTargets = [...allTargets.week, ...allTargets.month, ...allTargets.quarter, ...allTargets.year]
@@ -79,6 +83,7 @@ export default async function TodayPage() {
       asideTop={
         <>
           <SleepCard date={ctx.today} minutes={day?.sleep_minutes ?? null} quality={day?.sleep_quality ?? null} />
+          <UnfinishedCard rows={unfinished.slice(0, 4).map((t) => toUnfinishedRow(ctx.today, t))} total={unfinished.length} />
           <IntentionsMini weekStart={weekStart} items={weekReview?.intentions ?? []} />
           <ReachOut due={touch.filter((t) => t.due)} limit={2} title="Reach out today" compact />
         </>

@@ -6,7 +6,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
-import { setScoreAction, setStatusAction, setStepsAction, setWorkedOverrideAction, switchStateAction } from "@/app/actions";
+import { setScoreAction, setStatusAction, setStepsAction, setWorkedOverrideAction, switchStateAction, toggleMustAction } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import { SECTION_LABEL, SECTION_ORDER, type SectionKey } from "@/lib/sections";
 import { fmtDuration, type DateStr } from "@/lib/time";
@@ -58,6 +58,7 @@ export function TodayView(props: {
   const [optimisticKind, setOptimisticKind] = useOptimistic<Kind>(props.state.kind);
   // Optimistic entry status: entryId → status, cleared on router.refresh()
   const [optimisticStatus, setOptimisticStatus] = useOptimistic<Record<number, EntryStatus>>({});
+  const [optimisticMust, setOptimisticMust] = useOptimistic<Record<number, boolean>>({});
   const [selected, setSelected] = useState<number | null>(null);
   const [segmentsOpen, setSegmentsOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ personal: true, done: true });
@@ -99,6 +100,16 @@ export function TodayView(props: {
     start(async () => {
       setOptimisticStatus((prev) => ({ ...prev, [row.id]: next }));
       const r = await setStatusAction(row.id, next);
+      if (!r.ok) toast(r.error, "error");
+      else router.refresh();
+    });
+  }
+
+  function toggleMust(row: RowData) {
+    const on = !(optimisticMust[row.id] ?? row.mustDo);
+    start(async () => {
+      setOptimisticMust((prev) => ({ ...prev, [row.id]: on }));
+      const r = await toggleMustAction(row.id, on);
       if (!r.ok) toast(r.error, "error");
       else router.refresh();
     });
@@ -228,8 +239,21 @@ export function TodayView(props: {
               <ul className="space-y-1.5">
                 {rows.map((r) => {
                   const optStatus = optimisticStatus[r.id];
-                  const rowWithOpt = optStatus ? { ...r, status: optStatus } : r;
-                  return <EntryRow key={r.id} row={rowWithOpt} onOpen={() => setSelected(r.id)} onQuickAction={() => quick(r)} />;
+                  const optMust = optimisticMust[r.id];
+                  const rowWithOpt = {
+                    ...r,
+                    ...(optStatus ? { status: optStatus } : null),
+                    ...(optMust !== undefined ? { mustDo: optMust } : null),
+                  };
+                  return (
+                    <EntryRow
+                      key={r.id}
+                      row={rowWithOpt}
+                      onOpen={() => setSelected(r.id)}
+                      onQuickAction={() => quick(r)}
+                      onToggleMust={() => toggleMust(r)}
+                    />
+                  );
                 })}
               </ul>
             ) : null}

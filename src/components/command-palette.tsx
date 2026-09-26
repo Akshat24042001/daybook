@@ -3,7 +3,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   BarChart3, BookMarked, BookOpen, CalendarCheck, ClipboardList, CornerDownLeft, Download, FileText, FolderOpen,
-  HeartPulse, Keyboard, Loader2, Mic, Moon, Plus, Search, Settings, Sun, Target, User, Users,
+  HeartPulse, History, Keyboard, Loader2, Mic, Moon, Plus, Search, Settings, Sun, Target, User, Users,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -15,6 +15,7 @@ import type { SearchHit, SearchKind } from "@/lib/services/search";
 export const NAV_SHORTCUTS: { keys: string; href: string; label: string; Icon: typeof Sun }[] = [
   { keys: "g t", href: "/today", label: "Today", Icon: Sun },
   { keys: "g p", href: "/plan", label: "Plan", Icon: ClipboardList },
+  { keys: "g u", href: "/unfinished", label: "Unfinished", Icon: History },
   { keys: "g d", href: "/diary", label: "Diary", Icon: BookOpen },
   { keys: "g r", href: "/review", label: "Review", Icon: CalendarCheck },
   { keys: "g s", href: "/stats", label: "Stats", Icon: BarChart3 },
