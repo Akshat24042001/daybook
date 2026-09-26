@@ -120,6 +120,16 @@ export function DayTimeline({ days, today }: { days: TimelineDay[]; today: DateS
                 </span>
               </li>
             ))}
+            {days.some((d) => d.spans.some((s) => s.open)) ? (
+              <li className="flex items-center gap-1.5 text-xs text-subtle">
+                <span
+                  className="h-2.5 w-4 rounded-sm"
+                  style={{ background: "repeating-linear-gradient(135deg, hsl(var(--subtle)) 0 3px, hsl(var(--subtle) / 0.35) 3px 5px)" }}
+                  aria-hidden
+                />
+                Striped = still running
+              </li>
+            ) : null}
           </ul>
 
           {/* the chart */}
