@@ -433,6 +433,7 @@ export function StatsView({
           value={tl.daysWithData ? fmtDuration(tl.tracked / tl.daysWithData) : "–"}
           sub={tl.workPct === null ? undefined : `tracked a day · ${tl.workPct}% work`}
           onOpen={() => setOpen("timeline")}
+          className="min-w-0 overflow-hidden"
         >
           <DayTimeline days={timeline} today={today} height={TILE_H} />
         </Tile>

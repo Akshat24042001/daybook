@@ -51,10 +51,12 @@ export function DayTimeline({ days, today, height }: { days: TimelineDay[]; toda
   const withData = useMemo(() => days.filter((d) => d.spans.length), [days]);
   const totals = useMemo(() => timelineTotals(days), [days]);
 
-  // compact: rows of 8px + 4px gap under a 12px axis and a 14px legend
-  const ROW = compact ? 8 : 26;
-  const GAP = compact ? 4 : 4;
-  const fit = compact ? Math.max(3, Math.floor((height - 12 - 18 + GAP) / (ROW + GAP))) : INITIAL_ROWS;
+  // every row is exactly LINE tall (label and bar both fit inside), so the tile can never grow past `height`:
+  // compact = 12px axis + 4px + rows + 16px legend line
+  const BAR = compact ? 8 : 24;
+  const LINE = compact ? 12 : 30;
+  const GAP = compact ? 2 : 4;
+  const fit = compact ? Math.max(3, Math.floor((height - 12 - 4 - 16 - 4 + GAP) / (LINE + GAP))) : INITIAL_ROWS;
   const pool = compact || hideEmpty ? withData : days;
   const rows = pool.slice(0, compact || !all ? fit : undefined);
   const hiddenCount = pool.length - rows.length;
@@ -86,7 +88,8 @@ export function DayTimeline({ days, today, height }: { days: TimelineDay[]; toda
   const pos = (min: number) => ((min - lo) / span) * 100;
 
   const labelW = compact ? "w-9" : "w-12 sm:w-16";
-  const workedW = compact ? "w-9" : "w-12 sm:w-14";
+  // wide enough for "10h 09m" on one line; a wrapped label made rows taller than the tile
+  const workedW = compact ? "w-11 whitespace-nowrap" : "w-14 whitespace-nowrap";
 
   if (!withData.length) {
     return compact ? (
@@ -104,8 +107,16 @@ export function DayTimeline({ days, today, height }: { days: TimelineDay[]; toda
     );
   }
 
+  // one readout line instead of a floating tooltip, which could run off a phone screen
+  const hovered = hover ? rows.find((d) => d.date === hover.date)?.spans[hover.i] : undefined;
+  const readout = (
+    <p className={cn("h-4 truncate leading-4 font-medium", compact ? "text-[10px]" : "text-xs")} aria-live="polite">
+      {hovered ? tip(hovered) : <span className="font-normal text-subtle">Hover or tap a bar to see its times</span>}
+    </p>
+  );
+
   const legend = (
-    <ul className={cn("flex gap-x-3 gap-y-1", compact ? "h-[14px] flex-nowrap overflow-hidden" : "flex-wrap")} aria-label="Legend">
+    <ul className={cn("flex min-w-0 flex-wrap gap-x-3 gap-y-1", compact && "h-4 overflow-hidden")} aria-label="Legend">
       {totals.kinds.map((t) => (
         <li key={t.kind} className={cn("flex shrink-0 items-center gap-1", compact ? "text-[10px]" : "text-xs")}>
           <span className="h-2 w-2 rounded-sm" style={{ background: t.color }} aria-hidden />
@@ -131,7 +142,7 @@ export function DayTimeline({ days, today, height }: { days: TimelineDay[]; toda
   );
 
   return (
-    <div style={compact ? { height } : undefined} className={cn(compact && "flex flex-col justify-between")}>
+    <div style={compact ? { height } : undefined} className={cn("min-w-0", compact && "flex flex-col justify-between overflow-hidden")}>
       {!compact ? (
         <>
           {/* how the whole range split up */}
@@ -147,10 +158,11 @@ export function DayTimeline({ days, today, height }: { days: TimelineDay[]; toda
               Hide {days.length - withData.length} day{days.length - withData.length === 1 ? "" : "s"} with nothing logged
             </label>
           ) : null}
+          <div className="mb-1">{readout}</div>
         </>
       ) : null}
 
-      <div>
+      <div className="min-w-0">
         {/* hour axis */}
         <div className="flex items-end gap-2">
           <div className={cn(labelW, "shrink-0")} />
@@ -175,10 +187,9 @@ export function DayTimeline({ days, today, height }: { days: TimelineDay[]; toda
         <ul className="mt-1" style={{ display: "grid", rowGap: GAP }}>
           {rows.map((d) => {
             const l = dayLabel(d.date, today);
-            const hv = hover?.date === d.date ? d.spans[hover.i] : undefined;
             return (
-              <li key={d.date} className="flex items-center gap-2">
-                <div className={cn(labelW, "shrink-0 leading-tight")}>
+              <li key={d.date} className="flex min-w-0 items-center gap-2" style={{ height: LINE }}>
+                <div className={cn(labelW, "shrink-0", compact ? "leading-none" : "leading-tight")}>
                   {compact ? (
                     <span className={cn("block truncate text-[10px]", d.date === today ? "font-semibold text-accent" : "text-subtle")} title={l.bottom}>
                       {l.top === "Today" ? "Today" : `${l.top.slice(0, 2)} ${parseDateStr(d.date).d}`}
@@ -192,7 +203,7 @@ export function DayTimeline({ days, today, height }: { days: TimelineDay[]; toda
                 </div>
                 <div
                   className={cn("relative flex-1 bg-muted/60", compact ? "rounded-sm" : "rounded-md")}
-                  style={{ height: ROW }}
+                  style={{ height: BAR }}
                   onMouseLeave={() => setHover(null)}
                 >
                   {!compact
@@ -233,18 +244,6 @@ export function DayTimeline({ days, today, height }: { days: TimelineDay[]; toda
                   {d.spans.length === 0 ? (
                     <span className="absolute inset-0 flex items-center px-2 text-[10px] text-subtle">Nothing logged</span>
                   ) : null}
-                  {hv ? (
-                    <span
-                      role="tooltip"
-                      className={cn(
-                        "pointer-events-none absolute bottom-full z-20 mb-1 whitespace-nowrap rounded-lg border border-border bg-surface px-2 py-1 text-[11px] font-medium shadow-[var(--shadow-md)]",
-                        pos(hv.startMin) > 55 && "-translate-x-full",
-                      )}
-                      style={{ left: `${pos(hv.startMin) > 55 ? pos(hv.endMin) : pos(hv.startMin)}%` }}
-                    >
-                      {tip(hv)}
-                    </span>
-                  ) : null}
                 </div>
                 <span
                   className={cn(
@@ -262,7 +261,7 @@ export function DayTimeline({ days, today, height }: { days: TimelineDay[]; toda
         </ul>
       </div>
 
-      {compact ? legend : null}
+      {compact ? (hovered ? readout : legend) : null}
 
       {!compact && (hiddenCount > 0 || all) ? (
         <button type="button" onClick={() => setAll((v) => !v)} className="mt-3 text-xs font-medium text-accent hover:underline">
