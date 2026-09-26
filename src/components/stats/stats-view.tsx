@@ -16,7 +16,7 @@ import { ratingTone } from "@/lib/rating-tone";
 import { SummaryCard } from "../diary/diary-panel";
 import { Card, Input, Progress, Select } from "../ui";
 import { Heatmap, ProjectBars, TrendChart, WeekdayChart } from "./charts";
-import { DayTimeline } from "./day-timeline";
+import { DayTimeline, timelineTotals } from "./day-timeline";
 
 const TYPE_OPTIONS = [
   ["one_off", "One-off"], ["ongoing", "Ongoing"], ["follow_up", "Follow-up"], ["cadence", "Cadence"],
@@ -201,7 +201,7 @@ function DetailDialog({ open, onClose, title, subtitle, children }: {
 type Panel =
   | "score" | "hours" | "done" | "unaccounted" | "projects" | "consistency" | "weekday" | "steps" | "exercise" | "sleep" | "diary"
   | "completion" | "mustdo" | "logged" | "planstreak" | "mustdostreak"
-  | "rotting" | "estimates" | "cadence" | "progress" | "attention" | "insights";
+  | "rotting" | "estimates" | "cadence" | "progress" | "attention" | "insights" | "timeline";
 
 export function StatsView({
   stats, range, projects, people, vias, drill, today, diary, timeline,
@@ -222,6 +222,7 @@ export function StatsView({
   const [pending, start] = useTransition();
   const [showFilters, setShowFilters] = useState(false);
   const [open, setOpen] = useState<Panel | null>(null);
+  const tl = useMemo(() => timelineTotals(timeline), [timeline]);
   const [weekdayMetric, setWeekdayMetric] = useState<"avgScore" | "avgDone" | "avgHours">("avgScore");
   const { current: cur, previous: prev } = stats.summary;
   const f = stats.filters;
@@ -427,7 +428,14 @@ export function StatsView({
           <TrendChart data={series} y="done" avg="doneAvg" kind="bar" name="Done" height={TILE_H} />
         </Tile>
 
-        <DayTimeline days={timeline} today={today} />
+        <Tile
+          title="Your day, hour by hour"
+          value={tl.daysWithData ? fmtDuration(tl.tracked / tl.daysWithData) : "–"}
+          sub={tl.workPct === null ? undefined : `tracked a day · ${tl.workPct}% work`}
+          onOpen={() => setOpen("timeline")}
+        >
+          <DayTimeline days={timeline} today={today} height={TILE_H} />
+        </Tile>
 
         <Tile
           title="Unaccounted time"
@@ -621,6 +629,17 @@ export function StatsView({
         <Note>Your own 0 to 10 rating of each day. The dashed line is the 7-day average, so a single bad day does not hide the trend.</Note>
       </DetailDialog>
 
+      <DetailDialog open={open === "timeline"} onClose={close} title="Your day, hour by hour" subtitle={periodLabel}>
+        <Facts>
+          <Fact label="Tracked" value={fmtDuration(tl.tracked)} />
+          <Fact label="Per day" value={tl.daysWithData ? fmtDuration(tl.tracked / tl.daysWithData) : "–"} />
+          <Fact label="Work share" value={tl.workPct === null ? "–" : `${tl.workPct}%`} />
+          <Fact label="Days tracked" value={`${tl.daysWithData} of ${timeline.length}`} />
+        </Facts>
+        <DayTimeline days={timeline} today={today} />
+        <Note>Each bar is one day from morning to night, coloured by what you were doing. Hover or tap a stretch for its times. Only office, outside and remote work count as worked time.</Note>
+      </DetailDialog>
+
       <DetailDialog open={open === "hours"} onClose={close} title="Hours worked" subtitle={periodLabel}>
         <Facts>
           <Fact label="Per day" value={cur.avgWorkedHours === null ? "–" : `${cur.avgWorkedHours.toFixed(1)}h`} />
@@ -629,7 +648,7 @@ export function StatsView({
           <Fact label="Longest day" value={d.longest ? `${d.longest.hours.toFixed(1)}h · ${fmtDay(d.longest.date)}` : "–"} />
         </Facts>
         <TrendChart data={series} y="hours" avg="hoursAvg" kind="bar" name="Hours" unit="h" height={BIG_H} large />
-        <Note>Previous period averaged {prev.avgWorkedHours?.toFixed(1) ?? "–"}h a day. Worked time comes from your office/outside segments or the manual hours you enter on Today.</Note>
+        <Note>Previous period averaged {prev.avgWorkedHours?.toFixed(1) ?? "–"}h a day. Worked time comes from your work segments (office, outside, remote) or the manual hours you enter on Today.</Note>
       </DetailDialog>
 
       <DetailDialog open={open === "done"} onClose={close} title="Tasks done" subtitle={periodLabel}>
