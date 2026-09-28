@@ -17,7 +17,7 @@ interface Message {
  * one answers. Override with AI_MODELS="vendor/model:free,vendor/other:free".
  */
 export const OPEN_MODELS = [
-  "z-ai/glm-5.2:free",
+  "nvidia/nemotron-3-ultra-550b-a55b:free",
   "nvidia/nemotron-3-super-120b-a12b:free",
   "qwen/qwen3.8-27b:free",
   "google/gemma-4-31b-it:free",
@@ -34,6 +34,8 @@ interface ChatOptions {
   temperature?: number;
   /** budget across all fallback attempts */
   totalMs?: number;
+  /** try this model first, then the usual list */
+  prefer?: string | null;
 }
 
 async function chatOnce(messages: Message[], model: string, o: ChatOptions): Promise<string> {
@@ -74,7 +76,8 @@ async function chatOnce(messages: Message[], model: string, o: ChatOptions): Pro
 export async function chatWithModel(messages: Message[], o: ChatOptions = {}): Promise<{ text: string; model: string }> {
   let last: Error | null = null;
   const deadline = Date.now() + (o.totalMs ?? 40_000);
-  for (const model of openModels()) {
+  const order = o.prefer ? [o.prefer, ...openModels().filter((m) => m !== o.prefer)] : openModels();
+  for (const model of order) {
     const left = deadline - Date.now();
     if (left < 3_000) break;
     try {

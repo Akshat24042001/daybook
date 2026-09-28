@@ -21,6 +21,9 @@ export const EXPORT_TABLES = [
   { name: "diary_entries", label: "Diary notes" },
   { name: "diary_summaries", label: "Diary summaries" },
   { name: "scratch_items", label: "Scratchpad" },
+  { name: "assistant_chats", label: "Assistant chats" },
+  { name: "assistant_messages", label: "Assistant messages" },
+  { name: "assistant_memory", label: "Assistant memory" },
   { name: "reviews", label: "Reviews and intentions" },
   { name: "settings", label: "Settings" },
 ] as const;

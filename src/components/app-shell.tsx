@@ -2,7 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import {
-  BarChart3, BookMarked, BookOpen, CalendarCheck, ClipboardList, FolderOpen, HeartPulse, LayoutGrid, Monitor, Moon, PenLine, Settings, Sun, Target,
+  BarChart3, BookMarked, BookOpen, Bot, CalendarCheck, ClipboardList, FolderOpen, HeartPulse, LayoutGrid, Monitor, Moon, PenLine, Settings, Sun, Target,
   History, Search, Users, X,
 } from "lucide-react";
 import Link from "next/link";
@@ -60,6 +60,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "Daily",
     items: [
       { href: "/today", label: "Today", Icon: Sun },
+      { href: "/assistant", label: "Assistant", Icon: Bot },
       { href: "/plan", label: "Plan", Icon: ClipboardList },
       { href: "/unfinished", label: "Unfinished", Icon: History },
       { href: "/diary", label: "Diary", Icon: BookOpen },
@@ -93,6 +94,7 @@ const MOBILE_MAIN: NavItem[] = [
   { href: "/stats", label: "Stats", Icon: BarChart3 },
 ];
 const MOBILE_MORE: NavItem[] = [
+  { href: "/assistant", label: "Assistant", Icon: Bot },
   { href: "/scratch", label: "Scratchpad", Icon: PenLine },
   { href: "/unfinished", label: "Unfinished", Icon: History },
   { href: "/review", label: "Review", Icon: CalendarCheck },

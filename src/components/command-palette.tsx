@@ -2,7 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import {
-  BarChart3, BookMarked, BookOpen, CalendarCheck, ClipboardList, CornerDownLeft, Download, FileText, FolderOpen,
+  BarChart3, BookMarked, BookOpen, Bot, CalendarCheck, ClipboardList, CornerDownLeft, Download, FileText, FolderOpen,
   Calculator, HeartPulse, History, Keyboard, LineChart, Loader2, Mic, Moon, PenLine, Plus, Search, Settings, StickyNote, Sun, Target,
   User, Users,
 } from "lucide-react";
@@ -15,6 +15,7 @@ import type { SearchHit, SearchKind } from "@/lib/services/search";
 
 export const NAV_SHORTCUTS: { keys: string; href: string; label: string; Icon: typeof Sun }[] = [
   { keys: "g t", href: "/today", label: "Today", Icon: Sun },
+  { keys: "g a", href: "/assistant", label: "Assistant", Icon: Bot },
   { keys: "g p", href: "/plan", label: "Plan", Icon: ClipboardList },
   { keys: "g u", href: "/unfinished", label: "Unfinished", Icon: History },
   { keys: "g d", href: "/diary", label: "Diary", Icon: BookOpen },
@@ -223,8 +224,12 @@ export function CommandPalette() {
     const results: Item[] = hits.map((h) => ({
       id: h.id, group: KIND_GROUP[h.kind], title: h.title, subtitle: h.subtitle, Icon: KIND_ICON[h.kind], run: () => go(h.href),
     }));
+    // anything typed can go straight to the assistant as a question
+    const ask: Item[] = term.length >= 3
+      ? [{ id: "a-ask", group: "Assistant", title: `Ask: ${query.trim()}`, Icon: Bot, run: () => go(`/assistant?q=${encodeURIComponent(query.trim())}`) }]
+      : [];
     // with a query, found records come first; without one, actions and pages
-    return term.length >= 2 ? [...results, ...pages, ...actions] : [...actions, ...pages];
+    return term.length >= 2 ? [...results, ...ask, ...pages, ...actions] : [...actions, ...pages];
   }, [query, hits, go]);
 
   useEffect(() => setActive(0), [query, hits.length]);
