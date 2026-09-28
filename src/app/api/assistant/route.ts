@@ -1,7 +1,8 @@
 import { aiConfigured } from "@/lib/ai";
+import { prepareAction, proposeActions } from "@/lib/assistant/actions";
 import { runAgent, type AgentTurn } from "@/lib/assistant/agent";
 import type { Block, StreamEvent } from "@/lib/assistant/types";
-import { q } from "@/lib/db";
+import { q, UserError } from "@/lib/db";
 import { makeCtx, type Ctx } from "@/lib/settings";
 import {
   addMemory, addMessage, cleanModel, createChat, deleteMemory, getChat, listMemory, messagesFor, renameChat, setChatModel,
@@ -106,6 +107,14 @@ export async function POST(req: Request) {
           snapshot: snap,
           deadline: started + 56_000,
           prefer: chat.model,
+          checkAction: async (raw) => {
+            try {
+              await prepareAction(ctx, raw);
+              return null;
+            } catch (e) {
+              return e instanceof UserError ? e.message : "invalid";
+            }
+          },
           emit: {
             status: (text) => send({ t: "status", text }),
             query: (step) => send({ t: "query", step }),
@@ -116,10 +125,16 @@ export async function POST(req: Request) {
         if (result.remember.length) memoryChanged = (await addMemory(result.remember, chat.id)) > 0 || memoryChanged;
         if (result.forget.length) memoryChanged = (await deleteMemory(result.forget)) > 0 || memoryChanged;
 
+        // proposed changes become buttons; nothing is applied until tapped
+        const blocks = [...result.blocks];
+        if (result.actions.length) {
+          const { items } = await proposeActions(ctx, chat.id, result.actions);
+          if (items.length) blocks.unshift({ type: "actions", items });
+        }
         const saved = await addMessage(chat.id, {
           role: "assistant",
           content: result.content,
-          blocks: result.blocks,
+          blocks,
           steps: result.steps,
           model: result.model,
         });

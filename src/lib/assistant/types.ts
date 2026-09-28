@@ -13,7 +13,17 @@ export type Block =
   | { type: "stats"; items: StatItem[] }
   | { type: "chart"; chart: ChartKind; title: string; x: string; y: string[]; rows: Record<string, unknown>[]; unit?: string }
   | { type: "table"; title: string; columns: string[]; rows: Record<string, unknown>[]; total?: number }
-  | { type: "followups"; items: string[] };
+  | { type: "followups"; items: string[] }
+  | { type: "actions"; items: ActionItem[] };
+
+/** A change the assistant proposed. Applied only when the owner taps it; undoable after. */
+export interface ActionItem {
+  id: number;
+  label: string;
+  detail: string | null;
+  status: "proposed" | "applied" | "undone" | "failed";
+  error: string | null;
+}
 
 export interface Step {
   name: string;

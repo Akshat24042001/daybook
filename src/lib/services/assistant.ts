@@ -1,6 +1,6 @@
 /** Storage for the assistant: chats, messages and memory facts. */
 import { getPool, one, q, type Db } from "../db";
-import type { Block, ChatSummary, MemoryFact, MessageView, Step } from "../assistant/types";
+import type { ActionItem, Block, ChatSummary, MemoryFact, MessageView, Step } from "../assistant/types";
 
 interface ChatRow { id: number; title: string; pinned: boolean; model: string | null; created_at: Date; updated_at: Date }
 interface MessageRow {
@@ -59,7 +59,19 @@ export async function deleteChat(id: number, db: Db = getPool()): Promise<void> 
 
 export async function messagesFor(chatId: number, db: Db = getPool()): Promise<MessageView[]> {
   const rows = await q<MessageRow>("select * from assistant_messages where chat_id = $1 order by id", [chatId], db);
-  return rows.map(toMessage);
+  const messages = rows.map(toMessage);
+  // action buttons show what happened since (applied, undone), not what was true when the answer was saved
+  const ids = messages.flatMap((m) => m.blocks.flatMap((b) => (b.type === "actions" ? b.items.map((i) => i.id) : [])));
+  if (ids.length) {
+    const now = new Map(
+      (await q<ActionItem>("select id, label, detail, status, error from assistant_actions where id = any($1::int[])", [ids], db))
+        .map((a) => [a.id, a]),
+    );
+    for (const m of messages) {
+      m.blocks = m.blocks.map((b) => (b.type === "actions" ? { ...b, items: b.items.map((i) => now.get(i.id) ?? i) } : b));
+    }
+  }
+  return messages;
 }
 
 export async function addMessage(

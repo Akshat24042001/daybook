@@ -25,6 +25,8 @@ export interface AgentResult {
   title: string | null;
   remember: string[];
   forget: number[];
+  /** proposed changes that passed the check; stored and shown as buttons by the caller */
+  actions: Record<string, unknown>[];
 }
 
 interface Emit {
@@ -82,7 +84,27 @@ To answer, reply:
 - "remember": only when they ask you to remember something, or they state a lasting goal, preference, constraint or
   fact about their life. Not numbers that change daily. "forget" when they ask you to drop a memory.
 - "followups": 2-3 short questions that would dig deeper, in their voice.
-- If the question needs no data (small talk, a plan, a definition), answer directly.`;
+- If the question needs no data (small talk, a plan, a definition), answer directly.
+
+ACTIONS — you can propose changes; each becomes a button the owner taps to apply (and can undo). Add to the answer:
+ "actions":[{"type":"task_status","entry_id":123,"status":"done"}, ...]
+Types and fields (look up ids with queries first; never guess an id):
+- task_status: entry_id (v_task_days.entry_id), status done|progressed|attempted|skipped|dropped|open, reason (skipped only: no_time|low_energy|blocked|not_important)
+- log_time: task_id, minutes, date (default today)
+- add_task: text in quick-add syntax, e.g. "Aivaura: Send proposal ~30m !! @tom @5pm +Rahul" (Project: prefix, ~estimate, !! must-do, @date/@time, ? someday, >> ongoing, *7d cadence, /p personal)
+- move_task: entry_id, date (YYYY-MM-DD, today, tomorrow)
+- waiting: entry_id, until (check-back date), on (who/what, optional)
+- task_note: task_id, text
+- switch_state: kind office|outside|remote|commute|meal|break|exercise|personal|off (off = Day end)
+- edit_segment: segment_id (v_segments.id), start and/or end as "HH:MM" local (end "running" reopens it)
+- set_day: field score|steps|sleep_minutes, value, date (default today)
+- log_exercise: exercise (type name), amount
+- diary_note: text, date (default today)
+- scratch_note: text, title (optional)
+- contact_touch: contact_id, kind call|meet|message|other, note (optional), date (default today)
+Rules: when they ask for a change, propose exactly that change (several actions are fine: "mark X done and log 45m").
+When you list pending or overdue tasks, you may offer up to 4 obvious one-tap actions. Nothing changes until they tap,
+so write "Tap to apply" and never claim you already did it. Up to 12 actions.`;
 }
 
 // ---------------------------------------------------------------- parsing
@@ -202,8 +224,11 @@ export async function runAgent(opts: {
   deadline: number;
   /** model chosen for the chat; the free fallback list still backs it up */
   prefer?: string | null;
+  /** checks proposed actions against the data; returns a reason per rejected one */
+  checkAction?: (raw: Record<string, unknown>) => Promise<string | null>;
 }): Promise<AgentResult> {
-  const { ctx, question, history, memory, snapshot, emit, deadline, prefer } = opts;
+  const { ctx, question, history, memory, snapshot, emit, deadline, prefer, checkAction } = opts;
+  let actionRetry = false;
   const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
     { role: "system", content: systemPrompt(ctx, memory, snapshot) },
     ...history.slice(-12),
@@ -239,7 +264,7 @@ export async function runAgent(opts: {
         continue;
       }
       // a model that will not speak JSON still gets its words shown
-      return { content: reply.text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim(), blocks: [], steps, model, title: null, remember: [], forget: [] };
+      return { content: reply.text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim(), blocks: [], steps, model, title: null, remember: [], forget: [], actions: [] };
     }
 
     const queries = readQueries(parsed);
@@ -277,7 +302,25 @@ export async function runAgent(opts: {
       messages.push({ role: "user", content: 'Reply with {"answer": ...} now, or with {"queries": [...]} if you need data.' });
       continue;
     }
+    // proposed changes: check them now, and give the model one chance to fix wrong ids
+    let actions = arr(parsed.actions).filter((a): a is Record<string, unknown> => !!a && typeof a === "object").slice(0, 12);
+    if (actions.length && checkAction) {
+      const verdicts = await Promise.all(actions.map((a) => checkAction(a)));
+      const bad = verdicts.map((v, i) => (v ? `action ${i + 1} (${str(actions[i].type, 30)}): ${v}` : null)).filter(Boolean);
+      if (bad.length && !actionRetry && !lastChance) {
+        actionRetry = true;
+        messages.push({ role: "assistant", content: reply.text.slice(0, 6000) });
+        messages.push({
+          role: "user",
+          content: `Some actions were rejected:\n${bad.join("\n")}\nQuery for the right ids if needed, then send the answer JSON again with corrected actions (or drop them).`,
+        });
+        emit.status("Checking the changes…");
+        continue;
+      }
+      actions = actions.filter((_, i) => !verdicts[i]);
+    }
     return {
+      actions,
       content: answer || "I could not put an answer together this time. Try asking again, maybe more specifically.",
       blocks: buildBlocks(parsed, results),
       steps,
@@ -287,5 +330,5 @@ export async function runAgent(opts: {
       forget: arr(parsed.forget).map((n) => Number(n)).filter((n) => Number.isInteger(n)).slice(0, 20),
     };
   }
-  return { content: "I ran out of time before finishing. Ask again, or narrow the question.", blocks: [], steps, model, title: null, remember: [], forget: [] };
+  return { content: "I ran out of time before finishing. Ask again, or narrow the question.", blocks: [], steps, model, title: null, remember: [], forget: [], actions: [] };
 }

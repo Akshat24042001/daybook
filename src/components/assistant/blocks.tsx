@@ -7,6 +7,7 @@ import {
 import { cn } from "@/lib/cn";
 import type { Block } from "@/lib/assistant/types";
 import { useCanvasTheme } from "../scratch/canvas-theme";
+import { ActionCards } from "./action-cards";
 
 const human = (c: string) => c.replace(/_/g, " ").replace(/\blocal\b/, "").replace(/\bmin\b/, "(min)").replace(/\bh\b/, "(h)").trim();
 
@@ -183,11 +184,12 @@ function TableBlock({ b }: { b: Extract<Block, { type: "table" }> }) {
   );
 }
 
-export function Blocks({ blocks, onAsk }: { blocks: Block[]; onAsk?: (q: string) => void }) {
+export function Blocks({ blocks, onAsk, onChanged }: { blocks: Block[]; onAsk?: (q: string) => void; onChanged?: () => void }) {
   if (!blocks.length) return null;
   const charts = blocks.filter((b) => b.type === "chart");
   return (
     <div className="space-y-3">
+      {blocks.map((b, i) => (b.type === "actions" ? <ActionCards key={`a${i}`} items={b.items} onChanged={onChanged} /> : null))}
       {blocks.map((b, i) => {
         if (b.type === "stats") {
           return (

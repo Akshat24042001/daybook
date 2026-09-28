@@ -23,7 +23,7 @@ v_daily — one row per logical date that has any data
   diary_rating (AI's 0-10 read of the diary), diary_mood, diary_headline, day_ended (bool)
 
 v_task_days — one row per task per day it was on the list
-  date, task_id, title, project (name or null), type, is_personal, status, must_do, source ('planned','auto','carried'),
+  entry_id (the id actions use), date, task_id, title, project (name or null), type, is_personal, status, must_do, source ('planned','auto','carried'),
   carried_from, reason (why "not today": no_time, low_energy, blocked, not_important), carry_count (times the task has
   been carried over so far), estimate_min, task_state ('active','done','dropped'), logged_min (minutes logged that day),
   status_changed_local (local timestamp of the last status change — when a task was marked done, use this for
@@ -90,8 +90,8 @@ assistant_memory: id, fact — what you have been asked to remember (already giv
 select date, weekday, score, round(worked_min/60.0,1) as worked_h, done, planned, ex_done, steps
 from v_daily where date > current_date - 14 order by date;
 
--- what is pending today
-select title, project, status, must_do, carry_count from v_task_days
+-- what is pending today (entry_id is what task_status / move_task / waiting actions need)
+select entry_id, task_id, title, project, status, must_do, carry_count from v_task_days
 where date = '2026-01-15' and status in ('open','progressed','attempted') order by must_do desc, carry_count desc;
 
 -- hour of day when tasks get finished (last 60 days)

@@ -16,6 +16,7 @@ import { useToast } from "../toast";
 import { VoiceButton } from "../voice-button";
 import { Blocks } from "./blocks";
 import { Markdown } from "./markdown";
+import { QuickBar } from "./quick-bar";
 
 const SUGGESTIONS: { group: string; items: string[] }[] = [
   { group: "Today", items: ["How is my day going so far?", "What is still pending today, most important first?"] },
@@ -24,6 +25,7 @@ const SUGGESTIONS: { group: string; items: string[] }[] = [
   { group: "Body", items: ["How consistent is my exercise this month?", "Steps and sleep trend for the last 30 days"] },
   { group: "Work", items: ["Hours per project this week vs my goals", "Where did my worked hours go last week?"] },
   { group: "People & mind", items: ["Who should I reconnect with this week?", "What have I been writing about in my diary lately?"] },
+  { group: "Do it for me", items: ["Close out today: offer buttons for everything still open", "I started office at 9:40 today, fix my time"] },
 ];
 
 const fmtCtx = (n: number) => (n >= 1_000_000 ? `${Math.round(n / 100_000) / 10}M` : n >= 1000 ? `${Math.round(n / 1000)}K` : String(n));
@@ -59,7 +61,7 @@ function StepsList({ steps, live }: { steps: Step[]; live?: boolean }) {
   );
 }
 
-function Message({ m, onAsk, isLast }: { m: MessageView; onAsk: (q: string) => void; isLast: boolean }) {
+function Message({ m, onAsk, isLast, onChanged }: { m: MessageView; onAsk: (q: string) => void; isLast: boolean; onChanged: () => void }) {
   const [showSteps, setShowSteps] = useState(false);
   if (m.role === "user") {
     return (
@@ -76,7 +78,7 @@ function Message({ m, onAsk, isLast }: { m: MessageView; onAsk: (q: string) => v
       </span>
       <div className="min-w-0 flex-1 space-y-3">
         <Markdown text={m.content} />
-        <Blocks blocks={blocks} onAsk={onAsk} />
+        <Blocks blocks={blocks} onAsk={onAsk} onChanged={onChanged} />
         {m.steps.length || m.model ? (
           <div>
             <button onClick={() => setShowSteps(!showSteps)} className="flex items-center gap-1.5 text-[11px] text-subtle hover:text-fg">
@@ -361,6 +363,9 @@ export function AssistantApp({
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const busy = !!pending;
+  // anything that changes data (quick bar, applied actions, a finished answer) refreshes the quick bar
+  const [refreshKey, setRefreshKey] = useState(0);
+  const bump = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
@@ -457,6 +462,7 @@ export function AssistantApp({
           } else if (ev.t === "done") {
             finished = true;
             setMessages((m) => [...m, ev.message]);
+            bump();
             setChats((cs) => {
               const cur = cs.find((c) => c.id === chatId);
               if (!cur) return cs;
@@ -563,7 +569,7 @@ export function AssistantApp({
           ) : (
             <div className="mx-auto max-w-3xl space-y-6">
               {messages.map((m, i) => (
-                <Message key={m.id} m={m} onAsk={send} isLast={i === messages.length - 1 && !pending} />
+                <Message key={m.id} m={m} onAsk={send} isLast={i === messages.length - 1 && !pending} onChanged={bump} />
               ))}
               {pending ? (
                 <div className="flex gap-3">
@@ -596,6 +602,9 @@ export function AssistantApp({
             void send(input);
           }}
         >
+          <div className="mx-auto mb-1.5 max-w-3xl">
+            <QuickBar refreshKey={refreshKey} onChanged={bump} />
+          </div>
           <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-border bg-bg/50 p-1.5 focus-within:border-accent/60">
             <textarea
               ref={inputRef}
@@ -623,7 +632,7 @@ export function AssistantApp({
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
             </button>
           </div>
-          <p className="mx-auto mt-1 max-w-3xl px-1 text-[10px] text-subtle">Read-only: it can look at everything but never changes your data. Enter to send, Shift+Enter for a new line.</p>
+          <p className="mx-auto mt-1 max-w-3xl px-1 text-[10px] text-subtle">It reads everything; it changes something only when you tap a suggested change, and every change can be undone. Enter to send, Shift+Enter for a new line.</p>
         </form>
       </section>
 
