@@ -198,8 +198,45 @@ export async function createSegments(ctx: Ctx, inputs: SegmentInput[]): Promise<
   });
 }
 
+/**
+ * Segments made by tapping share a boundary: the previous one ends the instant the next starts. Moving that boundary
+ * while editing one side should move it for both, so "started at 15:50, not 15:52" just works instead of reporting an
+ * overlap with the segment before. Only a touching neighbour is adjusted, and only while it keeps a positive length;
+ * anything else falls through to the normal overlap check.
+ */
+async function moveSharedEdges(id: number, raw: SegmentInput, ctx: Ctx, db: Db): Promise<void> {
+  const old = await one<SegmentRow>("select * from work_segments where id = $1 for update", [id], db);
+  if (!old) return;
+  // under a minute is just the form dropping seconds, which fitToNeighbours snaps; only a real move drags the edge
+  if (old.start_at.getTime() - raw.start.getTime() >= MINUTE_MS) {
+    const prev = await one<SegmentRow>(
+      "select * from work_segments where id <> $1 and end_at = $2 for update",
+      [id, old.start_at],
+      db,
+    );
+    if (prev && prev.start_at.getTime() < raw.start.getTime()) {
+      await db.query("update work_segments set end_at = $2 where id = $1", [prev.id, raw.start]);
+    }
+  }
+  if (old.end_at && raw.end && raw.end.getTime() - old.end_at.getTime() >= MINUTE_MS) {
+    const next = await one<SegmentRow>(
+      "select * from work_segments where id <> $1 and start_at = $2 for update",
+      [id, old.end_at],
+      db,
+    );
+    if (next && (!next.end_at || next.end_at.getTime() > raw.end.getTime())) {
+      await db.query("update work_segments set start_at = $2, date = $3 where id = $1", [
+        next.id,
+        raw.end,
+        logicalDate(raw.end, ctx.tz, ctx.boundaryMin),
+      ]);
+    }
+  }
+}
+
 export async function updateSegment(ctx: Ctx, id: number, raw: SegmentInput): Promise<SegmentRow> {
   return tx(async (db) => {
+    await moveSharedEdges(id, raw, ctx, db);
     const input = await fitToNeighbours(ctx, raw, id, db);
     const row = await one<SegmentRow>(
       "update work_segments set date = $2, kind = $3, start_at = $4, end_at = $5 where id = $1 returning *",

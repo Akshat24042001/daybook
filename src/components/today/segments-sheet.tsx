@@ -127,7 +127,7 @@ export function SegmentsSheet({
                     </p>
                     </div>
                   </div>
-                  <Button size="sm" variant="ghost" onClick={() => setEditing(editing === s.id ? null : s.id)}>
+                  <Button size="sm" variant="ghost" onClick={() => { setError(null); setEditing(editing === s.id ? null : s.id); }}>
                     {editing === s.id ? "Cancel" : "Edit"}
                   </Button>
                 </div>
@@ -140,6 +140,7 @@ export function SegmentsSheet({
                       onSave={(f) => run(() => updateSegmentAction(s.id, f), "Segment updated.")}
                       onDelete={() => run(() => deleteSegmentAction(s.id), "Segment deleted.")}
                     />
+                    <ErrorNote message={error} />
                   </div>
                 ) : null}
               </li>
@@ -155,9 +156,10 @@ export function SegmentsSheet({
               saveLabel="Add segment"
               onSave={(f) => run(() => createSegmentAction(f), "Segment added.")}
             />
+            <ErrorNote message={error} />
           </div>
         ) : (
-          <Button variant="outline" size="sm" onClick={() => setEditing("new")}>+ Add a segment</Button>
+          <Button variant="outline" size="sm" onClick={() => { setError(null); setEditing("new"); }}>+ Add a segment</Button>
         )}
 
         <div className="border-t border-border pt-3">
@@ -206,7 +208,7 @@ export function SegmentsSheet({
           <p className="mt-1 text-xs text-subtle">Overrides the segment total. Use when you track time elsewhere.</p>
         </div>
 
-        <ErrorNote message={error} />
+        {editing === null ? <ErrorNote message={error} /> : null}
       </div>
     </Sheet>
   );

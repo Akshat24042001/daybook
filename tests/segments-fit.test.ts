@@ -42,11 +42,41 @@ describe("editing segments with minute-precision forms", () => {
     expect(rows.map((r) => r.kind)).toEqual(["office", "break", "office"]);
   });
 
+  it("moving the start of a running segment earlier pulls back the end of the segment it was tapped after", async () => {
+    const ctx = await ctxAt("2026-09-28 16:30");
+    const commute = await seg("commute", ist("2026-09-28 15:10"), sec("2026-09-28 15:52", 8));
+    const office = await seg("office", sec("2026-09-28 15:52", 8), null);
+
+    const r = await updateSegment(ctx, office, { kind: "office", start: ist("2026-09-28 15:50"), end: null });
+    expect(r.start_at.getTime()).toBe(ist("2026-09-28 15:50").getTime());
+    expect(r.end_at).toBeNull();
+    const [c] = await q<{ end_at: Date }>("select end_at from work_segments where id = $1", [commute]);
+    expect(c.end_at.getTime()).toBe(ist("2026-09-28 15:50").getTime());
+  });
+
+  it("moving an end later pushes the start of the segment that followed it", async () => {
+    const ctx = await ctxAt("2026-09-28 16:30");
+    const commute = await seg("commute", ist("2026-09-28 15:10"), ist("2026-09-28 15:52"));
+    const office = await seg("office", ist("2026-09-28 15:52"), null);
+
+    await updateSegment(ctx, commute, { kind: "commute", start: ist("2026-09-28 15:10"), end: ist("2026-09-28 15:55") });
+    const [o] = await q<{ start_at: Date }>("select start_at from work_segments where id = $1", [office]);
+    expect(o.start_at.getTime()).toBe(ist("2026-09-28 15:55").getTime());
+  });
+
+  it("a shared edge is not moved past the neighbour's other end", async () => {
+    const ctx = await ctxAt("2026-09-28 16:30");
+    await seg("commute", ist("2026-09-28 15:40"), ist("2026-09-28 15:52"));
+    const office = await seg("office", ist("2026-09-28 15:52"), null);
+    await expect(updateSegment(ctx, office, { kind: "office", start: ist("2026-09-28 15:30"), end: null }))
+      .rejects.toThrow(/overlaps Commute 15:40–15:52/);
+  });
+
   it("a real overlap is refused and names the segment in the way", async () => {
     const ctx = await ctxAt("2026-09-25 19:30");
-    await seg("office", ist("2026-09-25 15:43"), ist("2026-09-25 19:01"));
+    await seg("office", ist("2026-09-25 15:43"), ist("2026-09-25 18:50"));
     const brk = await seg("break", ist("2026-09-25 19:01"), null);
     await expect(updateSegment(ctx, brk, { kind: "break", start: ist("2026-09-25 18:30"), end: null }))
-      .rejects.toThrow(/overlaps At office 15:43–19:01/);
+      .rejects.toThrow(/overlaps At office 15:43–18:50/);
   });
 });
