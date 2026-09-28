@@ -20,6 +20,7 @@ export const EXPORT_TABLES = [
   { name: "refs", label: "References" },
   { name: "diary_entries", label: "Diary notes" },
   { name: "diary_summaries", label: "Diary summaries" },
+  { name: "scratch_items", label: "Scratchpad" },
   { name: "reviews", label: "Reviews and intentions" },
   { name: "settings", label: "Settings" },
 ] as const;

@@ -295,14 +295,17 @@ describe("Phase 1: segments and the hours calculation", () => {
     await expect(
       createSegment(ctx, { kind: "office", start: ist("2026-09-19 11:30"), end: ist("2026-09-19 12:30") }),
     ).rejects.toThrow(/overlaps At office 10:00–12:00/);
+    // running past the whole break is a real overlap
     await expect(
-      updateSegment(ctx, s1.id, { kind: "office", start: ist("2026-09-19 10:00"), end: ist("2026-09-19 12:30") }),
-    ).rejects.toThrow(/overlaps/);
+      updateSegment(ctx, s1.id, { kind: "office", start: ist("2026-09-19 10:00"), end: ist("2026-09-19 13:30") }),
+    ).rejects.toThrow(/overlaps Break 12:00–13:00/);
+    // moving the shared edge into the break shortens the break instead
+    await updateSegment(ctx, s1.id, { kind: "office", start: ist("2026-09-19 10:00"), end: ist("2026-09-19 12:30") });
     await expect(
       createSegment(ctx, { kind: "office", start: ist("2026-09-19 15:00"), end: ist("2026-09-19 14:00") }),
     ).rejects.toThrow(/end time must be after/);
     await createSegment(ctx, { kind: "office", start: ist("2026-09-19 13:00"), end: ist("2026-09-19 15:00") });
-    expect(await workedForDate(ctx, "2026-09-19")).toBe(120 + 120);
+    expect(await workedForDate(ctx, "2026-09-19")).toBe(150 + 120);
   });
 
   it("forgotten close: End now / Ended 1h ago / Ended 2h ago", async () => {

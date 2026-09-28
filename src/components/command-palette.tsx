@@ -3,7 +3,8 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   BarChart3, BookMarked, BookOpen, CalendarCheck, ClipboardList, CornerDownLeft, Download, FileText, FolderOpen,
-  HeartPulse, History, Keyboard, Loader2, Mic, Moon, Plus, Search, Settings, Sun, Target, User, Users,
+  Calculator, HeartPulse, History, Keyboard, LineChart, Loader2, Mic, Moon, PenLine, Plus, Search, Settings, StickyNote, Sun, Target,
+  User, Users,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -17,6 +18,7 @@ export const NAV_SHORTCUTS: { keys: string; href: string; label: string; Icon: t
   { keys: "g p", href: "/plan", label: "Plan", Icon: ClipboardList },
   { keys: "g u", href: "/unfinished", label: "Unfinished", Icon: History },
   { keys: "g d", href: "/diary", label: "Diary", Icon: BookOpen },
+  { keys: "g n", href: "/scratch", label: "Scratchpad", Icon: PenLine },
   { keys: "g r", href: "/review", label: "Review", Icon: CalendarCheck },
   { keys: "g s", href: "/stats", label: "Stats", Icon: BarChart3 },
   { keys: "g o", href: "/goals", label: "Goals", Icon: Target },
@@ -76,10 +78,10 @@ interface Item {
 }
 
 const KIND_ICON: Record<SearchKind, typeof Sun> = {
-  task: FileText, project: FolderOpen, contact: User, ref: BookMarked, diary: BookOpen,
+  task: FileText, project: FolderOpen, contact: User, ref: BookMarked, diary: BookOpen, scratch: PenLine,
 };
 const KIND_GROUP: Record<SearchKind, string> = {
-  task: "Tasks", project: "Projects", contact: "Contacts", ref: "References", diary: "Diary",
+  task: "Tasks", project: "Projects", contact: "Contacts", ref: "References", diary: "Diary", scratch: "Scratchpad",
 };
 
 export function CommandPalette() {
@@ -200,6 +202,15 @@ export function CommandPalette() {
     const actions: Item[] = [
       { id: "a-new", group: "Actions", title: "New task", Icon: Plus, hint: "n", run: () => { setOpen(false); setTimeout(focusQuickAdd, 50); } },
       { id: "a-diary", group: "Actions", title: "Record today's diary", Icon: Mic, hint: "r", run: () => { go("/diary"); setTimeout(() => window.dispatchEvent(new CustomEvent("daybook:record")), 600); } },
+      ...([
+        ["note", "New scratch note", StickyNote],
+        ["sketch", "New sketch", PenLine],
+        ["calc", "New calculation", Calculator],
+        ["graph", "New graph", LineChart],
+      ] as const).map(([kind, title, Icon]): Item => ({
+        id: `a-scratch-${kind}`, group: "Actions", title, Icon,
+        run: () => go(`/scratch?new=${kind}`),
+      })),
       { id: "a-review", group: "Actions", title: "Review this week", Icon: CalendarCheck, run: () => go("/review") },
       { id: "a-plan", group: "Actions", title: "Plan tomorrow", Icon: ClipboardList, run: () => go("/plan") },
       { id: "a-export", group: "Actions", title: "Export all my data", Icon: Download, run: () => go("/settings#export") },

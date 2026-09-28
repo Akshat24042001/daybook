@@ -1,11 +1,12 @@
 /**
- * One search across everything: tasks, projects, contacts, references, diary notes and day summaries.
+ * One search across everything: tasks, projects, contacts, references, diary notes, day summaries and scratchpad items.
  * Case-insensitive substring match, a few results per group, best matches (title starts with the query) first.
  */
 import { q } from "../db";
+import { itemPreview, KIND_META, type ScratchData, type ScratchKind } from "../scratch";
 import { fmtDay, type DateStr } from "../time";
 
-export type SearchKind = "task" | "project" | "contact" | "ref" | "diary";
+export type SearchKind = "task" | "project" | "contact" | "ref" | "diary" | "scratch";
 
 export interface SearchHit {
   kind: SearchKind;
@@ -28,7 +29,7 @@ export async function searchAll(query: string): Promise<SearchHit[]> {
   const starts = `${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
   const safe = <T>(promise: Promise<T[]>) => promise.catch(() => [] as T[]); // a missing optional table never breaks search
-  const [tasks, projects, contacts, refs, diary] = await Promise.all([
+  const [tasks, projects, contacts, refs, diary, scratch] = await Promise.all([
     safe(q<{ id: number; title: string; state: string; project: string | null; due_date: DateStr | null }>(
       `select t.id, t.title, t.state, p.name as project, t.due_date from tasks t left join projects p on p.id = t.project_id
        where t.title ilike $1 or t.notes ilike $1
@@ -62,6 +63,17 @@ export async function searchAll(query: string): Promise<SearchHit[]> {
        ) x order by date desc, rank limit ${PER_GROUP}`,
       [p],
     )),
+    // only the words people wrote: note text, calculator lines, graph functions, text placed on sketches
+    safe(q<{ id: number; date: DateStr; kind: ScratchKind; title: string; data: ScratchData }>(
+      `select id, date, kind, title, data from scratch_items
+       where title ilike $1
+          or (kind = 'note' and data->>'text' ilike $1)
+          or (kind = 'calc' and (data->'lines')::text ilike $1)
+          or (kind = 'graph' and (data->'fns')::text ilike $1)
+          or (kind = 'sketch' and jsonb_path_query_array(data, '$.strokes[*].x')::text ilike $1)
+       order by date desc, id desc limit ${PER_GROUP}`,
+      [p],
+    )),
   ]);
 
   return [
@@ -85,6 +97,10 @@ export async function searchAll(query: string): Promise<SearchHit[]> {
     })),
     ...diary.map((d, i): SearchHit => ({
       kind: "diary", id: `d${d.date}-${i}`, title: d.text, subtitle: fmtDay(d.date), href: `/diary?date=${d.date}`,
+    })),
+    ...scratch.map((s): SearchHit => ({
+      kind: "scratch", id: `s${s.id}`, title: s.title || itemPreview(s.kind, s.data) || `Untitled ${KIND_META[s.kind].noun}`,
+      subtitle: `${KIND_META[s.kind].label} · ${fmtDay(s.date)}`, href: `/scratch?date=${s.date}`,
     })),
   ];
 }
