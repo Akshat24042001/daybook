@@ -24,10 +24,32 @@ export interface FileStore {
 
 export class StorageNotConfigured extends Error {}
 
+/**
+ * The Supabase project's API address: SUPABASE_URL if set, otherwise worked out from DATABASE_URL, which already names
+ * the project ("db.<ref>.supabase.co", or user "postgres.<ref>" on the pooler).
+ */
+export function supabaseUrl(): string | null {
+  const explicit = process.env.SUPABASE_URL?.trim();
+  if (explicit) return explicit.replace(/\/+$/, "");
+  const db = process.env.DATABASE_URL?.trim();
+  if (!db) return null;
+  try {
+    const u = new URL(db);
+    const direct = /^db\.([a-z0-9]{10,40})\.supabase\.co$/i.exec(u.hostname);
+    const pooled = /pooler\.supabase\.com$/i.test(u.hostname) ? /^postgres\.([a-z0-9]{10,40})$/i.exec(decodeURIComponent(u.username)) : null;
+    const ref = direct?.[1] ?? pooled?.[1];
+    return ref ? `https://${ref.toLowerCase()}.supabase.co` : null;
+  } catch {
+    return null;
+  }
+}
+
+const secretKey = () => (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY)?.trim() || null;
+
 function supabaseStore(): FileStore {
-  const url = process.env.SUPABASE_URL?.trim();
-  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY)?.trim();
-  if (!url || !key) throw new StorageNotConfigured("File storage is not set up: add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.");
+  const url = supabaseUrl();
+  const key = secretKey();
+  if (!url || !key) throw new StorageNotConfigured("File storage is not set up: add SUPABASE_SERVICE_ROLE_KEY (and SUPABASE_URL if your database is not on Supabase).");
   const client: SupabaseClient = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   const files = () => client.storage.from(BUCKET);
 
@@ -96,7 +118,7 @@ let cached: FileStore | null = null;
 
 export function storageConfigured(): boolean {
   if (override) return true;
-  return !!(process.env.SUPABASE_URL?.trim() && (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY)?.trim());
+  return !!(supabaseUrl() && secretKey());
 }
 
 export function fileStore(): FileStore {

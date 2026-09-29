@@ -271,7 +271,7 @@ export function ScratchPanel({
   /** Uploads files one after another; each shows up at once with a progress bar. */
   const uploadFiles = async (files: File[], kind: "file" | "voice" = "file", extra?: { duration?: number }) => {
     if (!storageEnabled) {
-      toast("File storage is not set up yet: add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel.", "error");
+      toast("File storage is not set up yet: add SUPABASE_SERVICE_ROLE_KEY in Vercel.", "error");
       return [];
     }
     const done: { id: number; data: FileData }[] = [];
@@ -391,7 +391,7 @@ export function ScratchPanel({
       <p className="-mt-2 text-xs text-subtle">
         {storageEnabled
           ? "Or drag files here, or paste a screenshot. Up to 50 MB each."
-          : "Photos, files and voice memos need file storage: add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel."}
+          : "Photos, files and voice memos need file storage: add SUPABASE_SERVICE_ROLE_KEY in Vercel."}
       </p>
       {recording ? <VoiceRecorder onDone={saveVoiceMemo} onCancel={() => setRecording(false)} /> : null}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

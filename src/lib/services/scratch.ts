@@ -155,7 +155,7 @@ export async function startUpload(
   file: { name: string; mime: string; size: number },
   db: Db = getPool(),
 ): Promise<{ row: ScratchRow; uploadUrl: string }> {
-  if (!storageConfigured()) throw new UserError("File storage is not set up yet. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel.");
+  if (!storageConfigured()) throw new UserError("File storage is not set up yet. Add SUPABASE_SERVICE_ROLE_KEY in Vercel.");
   const name = (file.name || (kind === "voice" ? "voice-memo.webm" : "file")).slice(0, 200);
   if (!(file.size > 0)) throw new UserError(`"${name}" is empty.`);
   if (file.size > MAX_FILE_BYTES) throw new UserError(`"${name}" is ${Math.round(file.size / 1048576)} MB. The limit is ${MAX_FILE_BYTES / 1048576} MB per file.`);
