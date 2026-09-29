@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { one, q, UserError } from "../db";
 import { ACTIVITIES, isActivityKind } from "../activity";
 import { transcribe, voiceConfigured, VoiceError } from "../deepgram";
@@ -26,6 +27,7 @@ import {
   type InlineMarkup, type Markup, type ReplyKeyboard,
 } from "./api";
 import { sendRecapOnce } from "./notify";
+import { askFromTelegram, askMenu, assistantCallback, listChatsMessage, looksLikeQuestion, newChat, STARTERS } from "./assistant";
 import {
   exerciseCountsLine, exercisePing, exerciseTypePicker, inline, minutesPrompt, recapMarkup, retryPrompt, scoreDecimals,
   sleepQualityKeyboard, slotFromCode, taskAction, todayList, touchNudge, unpackDate, urlBtn, STATUS_EMOJI, STATUS_WORD, type Msg,
@@ -52,13 +54,14 @@ export const KEYS = {
   off: "🏁 Day end",
   today: "📋 Today",
   free: "🙂 I'm free",
+  ask: "🤖 Ask",
 } as const;
 
 export const PERSISTENT_KEYBOARD: ReplyKeyboard = {
   keyboard: [
     [{ text: KEYS.office }, { text: KEYS.outside }],
     [{ text: KEYS.break }, { text: KEYS.more }, { text: KEYS.off }],
-    [{ text: KEYS.today }, { text: KEYS.free }],
+    [{ text: KEYS.today }, { text: KEYS.free }, { text: KEYS.ask }],
   ],
   is_persistent: true,
   resize_keyboard: true,
@@ -67,6 +70,18 @@ export const PERSISTENT_KEYBOARD: ReplyKeyboard = {
 const norm = (s: string) => s.replace(/[️‍]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
 const KEY_LOOKUP = new Map(Object.entries(KEYS).map(([k, v]) => [norm(v), k as keyof typeof KEYS]));
 KEY_LOOKUP.set(norm("🍽 Break"), "break"); // the label on keyboards sent before meals got their own key
+
+/**
+ * Runs slow work (an assistant answer takes up to a minute) after the webhook has replied, so Telegram does not
+ * time out and re-deliver the update. Outside a request (tests, scripts) it simply runs now.
+ */
+function later(task: () => Promise<void>): Promise<void> | void {
+  try {
+    after(task);
+  } catch {
+    return task();
+  }
+}
 
 // ---------------------------------------------------------------- owner lock
 
@@ -173,6 +188,12 @@ async function handleText(ctx: Ctx, chat: number, text: string, opts: TextOpts =
       await saveDiaryFromTelegram(ctx, chat, diary.ref_id, text);
       return;
     }
+    // A reply to an assistant answer continues that chat.
+    const answer = await one<{ chat_id: number }>("select chat_id from assistant_messages where tg_message_id = $1", [opts.replyToId]);
+    if (answer && aiConfigured()) {
+      await later(() => askFromTelegram(ctx, chat, text, answer.chat_id));
+      return;
+    }
   }
   // "diary: ..." or "/diary ..." adds a note to today's diary at any time
   const diaryCmd = text.match(/^\/?diary\b[:\s-]*([\s\S]*)$/i);
@@ -195,6 +216,21 @@ async function handleText(ctx: Ctx, chat: number, text: string, opts: TextOpts =
       "Daybook is linked to this chat. Use the buttons below to switch state and see today, or just type a task.",
       PERSISTENT_KEYBOARD,
     );
+    return;
+  }
+  const ask = text.match(/^\/ask(?:@\w+)?(?:\s+([\s\S]*))?$/i);
+  if (ask) {
+    if (!aiConfigured()) throw new UserError("The assistant needs OPENROUTER_API_KEY on the server.");
+    if (!ask[1]?.trim()) await askMenu(ctx, chat);
+    else await later(() => askFromTelegram(ctx, chat, ask[1].trim()));
+    return;
+  }
+  if (/^\/new(@\w+)?$/i.test(text)) {
+    await newChat(chat);
+    return;
+  }
+  if (/^\/chats(@\w+)?$/i.test(text)) {
+    await listChatsMessage(ctx, chat);
     return;
   }
   if (/^\/pause(@\w+)?$/.test(text)) {
@@ -243,6 +279,11 @@ async function handleText(ctx: Ctx, chat: number, text: string, opts: TextOpts =
 /worked 7.5h — set hours worked manually
 /pause — toggle exercise pings on/off
 
+<b>Assistant</b>
+/ask how was my week? — ask anything about your data (or just type a question)
+/new — start a new assistant chat · /chats — switch chats
+Changes it suggests come as buttons: tap to apply, tap again to undo. Reply to an answer to follow up.
+
 <b>Quick text</b>
 <code>done [task]</code> — mark a task done
 <code>skip [task]</code> — skip a task
@@ -285,6 +326,9 @@ Anything else is added as a task — with full quick-add syntax support.`);
       await sendMessage(chat, m.text, m.markup);
       return;
     }
+    case "ask":
+      await askMenu(ctx, chat);
+      return;
     case "free": {
       await sendMessage(chat, "🙂 How much time do you have?", inline([[
         { text: "15m", callback_data: "fr:15" },
@@ -311,6 +355,11 @@ async function routeFreeText(ctx: Ctx, chat: number, text: string, fromVoice: bo
   if (sleepMin !== null) {
     await setSleep(ctx.today, sleepMin);
     await sendMessage(chat, `😴 <b>${fmtDuration(sleepMin)}</b> of sleep logged for today. How well did you sleep?`, inline(sleepQualityKeyboard(ctx.today)));
+    return;
+  }
+  // questions go to the assistant, which answers from the data and offers buttons for any change
+  if (aiConfigured() && looksLikeQuestion(text)) {
+    await later(() => askFromTelegram(ctx, chat, text));
     return;
   }
   if (aiConfigured()) {
@@ -399,6 +448,9 @@ async function routeFreeText(ctx: Ctx, chat: number, text: string, fromVoice: bo
         await sendMessage(chat, m.text, m.markup);
         return;
       }
+      case "assistant":
+        await later(() => askFromTelegram(ctx, chat, text));
+        return;
       case "unknown":
         // AI couldn't classify it — show as task-add preview so user can confirm or discard
         await quickAddPreview(ctx, chat, fromVoice ? voiceToQuickAdd(text) : text, true);
@@ -593,6 +645,26 @@ async function handleCallback(ctx: Ctx, chat: number, cb: TgCallback): Promise<s
   };
 
   switch (parts[0]) {
+    // ---- assistant: apply / undo a change, follow-up, new chat, switch chat, starter question, chat list
+    case "aa":
+    case "au":
+    case "af":
+    case "an":
+    case "ac": {
+      const r = await assistantCallback(ctx, chat, mid, data);
+      if (r.later) await later(r.later);
+      return r.toast;
+    }
+    case "aq": {
+      const question = STARTERS[Number(parts[1])];
+      if (!question) return undefined;
+      await sendMessage(chat, `💬 <i>${esc(question)}</i>`);
+      await later(() => askFromTelegram(ctx, chat, question));
+      return undefined;
+    }
+    case "al":
+      await listChatsMessage(ctx, chat);
+      return undefined;
     // ---- task actions: t:<d|p|a|s|z|m|o>:<entryId>
     case "t": {
       const id = Number(parts[2]);

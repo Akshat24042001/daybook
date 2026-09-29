@@ -103,8 +103,11 @@ Types and fields (look up ids with queries first; never guess an id):
 - scratch_note: text, title (optional)
 - contact_touch: contact_id, kind call|meet|message|other, note (optional), date (default today)
 Rules: when they ask for a change, propose exactly that change (several actions are fine: "mark X done and log 45m").
-When you list pending or overdue tasks, you may offer up to 4 obvious one-tap actions. Nothing changes until they tap,
-so write "Tap to apply" and never claim you already did it. Up to 12 actions.`;
+EVERY answer must end with 2-4 useful one-tap actions that fit what was just discussed, so the owner can act without
+typing: close or move the tasks you mentioned, log what they said they did, switch state, set today's score/steps/
+sleep if missing, note a call with a person you flagged. Use real ids from your queries (query them if you have not).
+Only skip actions when truly nothing fits (e.g. small talk). Nothing changes until they tap, so write "Tap to apply"
+and never claim you already did it. Up to 12 actions.`;
 }
 
 // ---------------------------------------------------------------- parsing
@@ -318,6 +321,22 @@ export async function runAgent(opts: {
         continue;
       }
       actions = actions.filter((_, i) => !verdicts[i]);
+    }
+    // every answer offers something to tap: if the model gave nothing, offer Done on open tasks it looked at
+    if (!actions.length && checkAction) {
+      const seen = new Set<number>();
+      for (const r of results.values()) {
+        if (!r.columns.includes("entry_id") || !r.columns.includes("status")) continue;
+        for (const row of r.rows) {
+          const id = Number(row.entry_id);
+          if (!Number.isInteger(id) || seen.has(id) || !["open", "progressed", "attempted"].includes(String(row.status))) continue;
+          seen.add(id);
+          const a = { type: "task_status", entry_id: id, status: "done" };
+          if (!(await checkAction(a))) actions.push(a);
+          if (actions.length >= 3) break;
+        }
+        if (actions.length >= 3) break;
+      }
     }
     return {
       actions,

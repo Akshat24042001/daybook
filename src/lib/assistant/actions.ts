@@ -67,7 +67,8 @@ function dateArg(ctx: Ctx, v: unknown, fallback: DateStr = ctx.today): DateStr {
   throw new UserError(`"${t}" is not a date.`);
 }
 
-const dayName = (ctx: Ctx, d: DateStr) => (d === ctx.today ? "today" : fmtDay(d, ctx.today));
+const dayName = (ctx: Ctx, d: DateStr) =>
+  d === ctx.today ? "today" : d === addDays(ctx.today, 1) ? "tomorrow" : d === addDays(ctx.today, -1) ? "yesterday" : fmtDay(d, ctx.today);
 
 /** "15:50" on the given logical date, or "YYYY-MM-DD 15:50". Times before the day boundary fall on the next calendar day. */
 function localTime(ctx: Ctx, v: unknown, date: DateStr): Date {

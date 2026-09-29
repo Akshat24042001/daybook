@@ -3,7 +3,8 @@ import { safeEqual } from "@/lib/clock";
 import { handleUpdate, type TgUpdate } from "@/lib/telegram/bot";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+// an assistant answer runs after the reply (see `later` in bot.ts) and can take most of a minute
+export const maxDuration = 60;
 
 /**
  * Telegram webhook. Rejects any request whose secret header does not match, then hands the update to the

@@ -150,6 +150,7 @@ export type TgCommand =
   | { kind: "worked"; minutes: number }
   | { kind: "exercise"; amount: number; name: string }
   | { kind: "plan" }
+  | { kind: "assistant" }
   | { kind: "unknown" };
 
 function buildTgSystemPrompt(exerciseTypes: string[]): string {
@@ -169,7 +170,10 @@ DISAMBIGUATION RULES (read carefully):
 6. Step count, walking distance in steps → steps.
 7. Something to do in the future, a reminder, or "add" → add.
 8. Asking to see today's list → plan.
-9. Anything truly ambiguous or a general observation with no clear action → unknown.${exList}
+9. A question about their own data, progress, habits or plans, a request for analysis or advice, or a request that
+   combines several changes or needs looking things up ("mark X done and log 45m on it", "move everything I skipped
+   to tomorrow") → assistant.
+10. Anything truly ambiguous or a general observation with no clear action → unknown.${exList}
 
 Commands:
 {"kind":"exercise","amount":<number>,"name":"<exercise name>"} — user did a physical exercise. Convert word numbers to digits (five→5, twenty→20, etc.).
@@ -182,6 +186,7 @@ Commands:
 {"kind":"worked","minutes":<integer>} — user recording total hours worked today (not a specific task).
 {"kind":"add","syntax":"<quick-add syntax>"} — user wants to add a new task or reminder.
 {"kind":"plan"} — user wants to see today's task list.
+{"kind":"assistant"} — a question or analysis request, or several changes at once; the assistant handles it.
 {"kind":"unknown"} — genuinely unclear; will be shown as a task-add preview.
 
 Quick-add syntax for "add": plain title + optional: ~30m ~2h !! @today @tom @mon @3pm ? >> *7d +Person /p
@@ -206,7 +211,11 @@ Examples:
 "I worked 8 hours today" → {"kind":"worked","minutes":480}
 "put in 6h30m today" → {"kind":"worked","minutes":390}
 "what's on my list" → {"kind":"plan"}
-"show today" → {"kind":"plan"}`;
+"show today" → {"kind":"plan"}
+"am I on track with my Aivaura hours this week" → {"kind":"assistant"}
+"how did I sleep this month" → {"kind":"assistant"}
+"mark the invoice done and log 45 minutes on it" → {"kind":"assistant"}
+"move everything I skipped today to tomorrow" → {"kind":"assistant"}`;
 }
 
 /** Interprets a free-form Telegram message and returns a structured command.

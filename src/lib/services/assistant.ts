@@ -26,8 +26,17 @@ export async function getChat(id: number, db: Db = getPool()): Promise<ChatSumma
   return r ? toChat(r) : null;
 }
 
-export async function createChat(title: string, model: string | null = null, db: Db = getPool()): Promise<ChatSummary> {
-  const r = await one<ChatRow>("insert into assistant_chats (title, model) values ($1, $2) returning *", [cleanTitle(title), cleanModel(model)], db);
+export async function createChat(
+  title: string,
+  model: string | null = null,
+  source: "web" | "telegram" = "web",
+  db: Db = getPool(),
+): Promise<ChatSummary> {
+  const r = await one<ChatRow>(
+    "insert into assistant_chats (title, model, source) values ($1, $2, $3) returning *",
+    [cleanTitle(title), cleanModel(model), source],
+    db,
+  );
   return toChat(r!);
 }
 
