@@ -374,6 +374,20 @@ export function TodayView(props: {
         >
           <Input id="today-steps" name="steps" type="number" inputMode="numeric" min={0} defaultValue={props.steps ?? ""} key={props.steps ?? "none"} placeholder="e.g. 8000" className="h-10" />
           <Button type="submit" variant="outline" disabled={pending}>Save</Button>
+          {props.steps !== null ? (
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={pending}
+              onClick={() => start(async () => {
+                const r = await setStepsAction(date, null);
+                if (!r.ok) toast(r.error, "error");
+                else { toast("Steps cleared."); router.refresh(); }
+              })}
+            >
+              Clear
+            </Button>
+          ) : null}
         </form>
       </Card>
       {props.aside}

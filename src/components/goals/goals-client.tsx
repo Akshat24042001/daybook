@@ -6,7 +6,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { addToDayAction, markTargetDoneAction, reorderSomedayAction, snoozeCadenceAction } from "@/app/actions";
+import { addToDayAction, markTargetDoneAction, reorderSomedayAction, setTaskStateAction, snoozeCadenceAction } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import { fmtDuration, type DateStr, type TargetPeriod } from "@/lib/time";
 import { useToast } from "../toast";
@@ -44,8 +44,11 @@ const PERIOD_DOT: Record<TargetPeriod, string> = {
   year: "bg-subtle",
 };
 
-function TargetCard({ t, onAdd, onDone, pending }: { t: Target; onAdd: () => void; onDone: () => void; pending: boolean }) {
+function TargetCard({
+  t, onAdd, onDone, onReopen, pending,
+}: { t: Target; onAdd: () => void; onDone: () => void; onReopen: () => void; pending: boolean }) {
   const tone = t.met ? "accent" : t.behind ? "warn" : "accent";
+  const closedEarly = t.done && !t.met;
   return (
     <Card className="p-3.5">
       <div className="flex items-start justify-between gap-3">
@@ -58,10 +61,11 @@ function TargetCard({ t, onAdd, onDone, pending }: { t: Target; onAdd: () => voi
         <span
           className={cn(
             "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
-            t.met ? "bg-good/15 text-good" : t.behind ? "bg-warn/15 text-warn" : "bg-accent/15 text-accent",
+            t.met ? "bg-good/15 text-good" : closedEarly || t.behind ? "bg-warn/15 text-warn" : "bg-accent/15 text-accent",
           )}
+          title={closedEarly ? "Closed before the goal was reached" : undefined}
         >
-          {t.met ? "Met" : t.behind ? "Behind pace" : "On track"}
+          {t.met ? "Met" : closedEarly ? "Closed early" : t.behind ? "Behind pace" : "On track"}
         </span>
       </div>
       <div className="mt-3 space-y-2.5">
@@ -105,8 +109,12 @@ function TargetCard({ t, onAdd, onDone, pending }: { t: Target; onAdd: () => voi
                 <Check className="h-3.5 w-3.5" /> Done
               </Button>
             </>
+          ) : closedEarly ? (
+            <Button size="sm" variant="outline" disabled={pending} onClick={onReopen} title="Keep working toward this goal">
+              Reopen
+            </Button>
           ) : (
-            <span className="text-xs font-medium text-good">✓ Completed</span>
+            <span className="text-xs font-medium text-good">✓ Goal reached</span>
           )}
         </div>
       </div>
@@ -185,7 +193,11 @@ export function GoalsClient(props: {
                   t={t}
                   pending={pending}
                   onAdd={() => act(() => addToDayAction(t.id, props.today), "Added to today.")}
-                  onDone={() => act(() => markTargetDoneAction(t.id), "Target marked as done! 🎉")}
+                  onDone={() => {
+                    if (t.hasGoal && !t.met && !window.confirm(`The goal is not reached yet. Close "${t.title}" early anyway?`)) return;
+                    act(() => markTargetDoneAction(t.id), t.met ? "Target marked as done! 🎉" : "Closed early.");
+                  }}
+                  onReopen={() => act(() => setTaskStateAction(t.id, "active"), "Reopened. Back on track.")}
                 />
               ))}
             </div>

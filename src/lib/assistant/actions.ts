@@ -180,8 +180,14 @@ export async function prepareAction(ctx: Ctx, raw: Record<string, unknown>): Pro
       const field = s(raw.field, 20);
       const date = dateArg(ctx, raw.date);
       if (date > ctx.today) throw new UserError("Only today or earlier.");
+      // "clear" (or null) takes the value off, e.g. a score entered by mistake
+      if (raw.value === null || /^(clear|none|reset|remove|delete)$/i.test(s(raw.value, 10))) {
+        if (!["score", "steps", "sleep_minutes"].includes(field)) throw new UserError("field must be score, steps or sleep_minutes.");
+        const what = field === "sleep_minutes" ? "sleep" : field;
+        return { kind, params: { field, date, value: null }, label: `⌫ Clear ${what}`, detail: dayName(ctx, date) };
+      }
       const value = num(raw.value);
-      if (value === null) throw new UserError("set_day needs a numeric value.");
+      if (value === null) throw new UserError("set_day needs a numeric value, or \"clear\".");
       if (field === "score") {
         if (value < 0 || value > 10) throw new UserError("score is 0 to 10.");
         return { kind, params: { field, date, value: Math.round(value * 10) / 10 }, label: `★ Score ${Math.round(value * 10) / 10}/10`, detail: dayName(ctx, date) };
@@ -385,10 +391,12 @@ export async function runAction(ctx: Ctx, p: Prepared): Promise<{ result: string
     }
     case "set_day": {
       const d = pr.date as DateStr;
-      if (pr.field === "score") await setScore(d, pr.value as number);
-      else if (pr.field === "steps") await setSteps(d, pr.value as number);
-      else await setSleep(d, pr.value as number);
-      result = "Saved.";
+      const v = pr.value as number | null;
+      if (pr.field === "score") await setScore(d, v);
+      else if (pr.field === "steps") await setSteps(d, v);
+      else await setSleep(d, v);
+      if (v === null) result = "Cleared.";
+      else result = "Saved.";
       break;
     }
     case "log_exercise": {

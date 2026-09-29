@@ -1,6 +1,7 @@
 import { one, q, tx, UserError, type Db, getPool } from "../db";
 import { findSimilar, type Match } from "../fuzzy";
 import type { ParsedQuickAdd, TaskType } from "../parser";
+import { formatRepeat, parseRepeat, repeatProblem, rruleMatches } from "../recurrence";
 import { type Ctx } from "../settings";
 import {
   type DateStr,
@@ -74,6 +75,15 @@ export interface CreateOptions {
   targetDate?: DateStr;
 }
 
+/** Checks a repeat rule and stores it in its standard form; a rule that cannot work is refused with the reason. */
+export function cleanRrule(raw: string): string {
+  const r = parseRepeat(raw);
+  if (!r) throw new UserError("Choose how the task repeats.");
+  const problem = repeatProblem(r);
+  if (problem) throw new UserError(problem);
+  return formatRepeat(r);
+}
+
 /** Creates a task (and, where the type implies it, its first day entry) from a parsed quick-add line. */
 export async function createFromParsed(
   ctx: Ctx,
@@ -113,7 +123,7 @@ export async function createFromParsed(
         opts.targetDate ?? parsed.date,
         type === "someday" || type === "target" ? null : dueAt,
         type === "cadence" ? parsed.cadenceDays : null,
-        type === "recurring" ? parsed.rrule : null,
+        type === "recurring" ? cleanRrule(parsed.rrule ?? "FREQ=DAILY") : null,
         period,
         period ? periodStart(targetDate, period) : null,
         type === "target" ? parsed.goalMin : null,
@@ -130,8 +140,12 @@ export async function createFromParsed(
       type === "ongoing" ||
       ((type === "cadence" || type === "recurring") && (parsed.date !== null || parsed.timeMin !== null));
     let entry: EntryRow | null = null;
+    // a repeating task whose rule includes today shows up today, not only from tomorrow's rollover
+    const startsToday = type === "recurring" && !wantsEntry && rruleMatches(parsed.rrule ?? "FREQ=DAILY", ctx.today, ctx.today);
     if (wantsEntry) {
       entry = await addEntry(ctx, taskId, targetDate, { mustDo: parsed.mustDo, source: "planned" }, db);
+    } else if (startsToday) {
+      entry = await addEntry(ctx, taskId, ctx.today, { mustDo: parsed.mustDo, source: "auto" }, db);
     } else if (parsed.mustDo && type !== "someday" && type !== "target") {
       entry = await addEntry(ctx, taskId, targetDate, { mustDo: true, source: "planned" }, db);
     }
@@ -198,7 +212,7 @@ export async function updateTask(ctx: Ctx, id: number, patch: TaskPatch): Promis
     if (patch.estimate_min !== undefined) set("estimate_min", patch.estimate_min);
     if (patch.lead_min !== undefined) set("lead_min", patch.lead_min);
     if (patch.cadence_days !== undefined) set("cadence_days", patch.cadence_days);
-    if (patch.rrule !== undefined) set("rrule", patch.rrule || null);
+    if (patch.rrule !== undefined) set("rrule", patch.rrule ? cleanRrule(patch.rrule) : null);
     if (patch.target_period !== undefined) {
       set("target_period", patch.target_period);
       if (patch.target_period) set("period_start", periodStart(ctx.today, patch.target_period));

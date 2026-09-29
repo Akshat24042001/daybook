@@ -52,6 +52,8 @@ export async function setSleep(date: DateStr, minutes: number | null, quality?: 
     throw new UserError("Sleep quality is 1 to 5.");
   }
   const m = minutes === null ? null : Math.round(minutes);
+  // no sleep means no sleep quality either
+  if (m === null) quality = null;
   if (quality === undefined) {
     await q(
       `insert into days (date, sleep_minutes) values ($1, $2)

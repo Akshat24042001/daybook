@@ -9,18 +9,23 @@ import { getDay, markPlanned } from "./days";
 import { makeSomeday } from "./tasks";
 
 /**
- * Unresolved = the latest entry of an active task is open, skipped, attempted (or progressed, for one-offs) and is
- * older than `before`. "Latest entry" means: once a task has an entry on a later date it
- * counts as triaged (carried, dated, or auto-carried).
+ * Unresolved = the latest entry of an active task is open, skipped, attempted (or progressed) and is older than
+ * `before`. "Latest entry" means: once a task has an entry on a later date it counts as triaged (carried, dated, or
+ * auto-carried).
+ *
+ * Only tasks that are meant to be carried: one-offs, follow-ups and targets. Repeating tasks (ongoing, recurring,
+ * cadence) come back on their own schedule, so a missed day is just missed; a recurring task carries only when its
+ * rule says "keep it until done" (X-MISSED=CARRY).
  */
 export async function unresolvedEntries(before: DateStr, db: Db = getPool()): Promise<EntryView[]> {
   return q<EntryView>(
     `${VIEW_SELECT}
      where e.date < $1
+       and t.state = 'active'
+       and (t.type in ('one_off','follow_up','target')
+            or (t.type = 'recurring' and t.rrule ilike '%X-MISSED=CARRY%'))
        and (e.status in ('open','skipped','attempted')
-            -- progressed one-offs come back too; ongoing, recurring and cadence tasks return on their own schedule
-            or (e.status = 'progressed' and t.type in ('one_off','follow_up')))
-       and t.state = 'active' and t.type <> 'someday'
+            or (e.status = 'progressed' and t.type in ('one_off','follow_up','recurring')))
        and not exists (select 1 from day_entries e2 where e2.task_id = e.task_id and e2.date > e.date)
      order by e.date, e.must_do desc, e.sort, e.id`,
     [before],
@@ -59,7 +64,7 @@ export async function triageEntry(
     if (!target) throw new UserError("Pick a date.");
     if (target <= e.date) throw new UserError("Pick a date after the original day.");
     await addEntry(ctx, e.task_id, target, { mustDo: action === "carry_must", source: "carried", carriedFrom: e.date }, db);
-    if (e.status === "open") await db.query("update tasks set carry_count = carry_count + 1 where id = $1", [e.task_id]);
+    if (e.status === "open" && e.date < ctx.today) await db.query("update tasks set carry_count = carry_count + 1 where id = $1", [e.task_id]);
   });
 }
 
@@ -103,7 +108,7 @@ export async function materializeDay(
   const recurring = await q<TaskRow>("select * from tasks where state = 'active' and type = 'recurring'", [], db);
   for (const t of recurring) {
     const createdDay = logicalDate(t.created_at, ctx.tz, ctx.boundaryMin);
-    if (createdDay <= date && rruleMatches(t.rrule, date)) await addEntry(ctx, t.id, date, { source: "auto" }, db);
+    if (createdDay <= date && rruleMatches(t.rrule, date, createdDay)) await addEntry(ctx, t.id, date, { source: "auto" }, db);
   }
 
   if (opts.cadence) {
@@ -152,11 +157,12 @@ export interface PlanView {
 }
 
 export async function planView(ctx: Ctx, date: DateStr): Promise<PlanView> {
-  // Auto-carry all unresolved entries to the plan date without asking.
+  // Auto-carry unresolved entries to the plan date without asking. A carry counts only once its day is over: an entry
+  // from today may still be done tonight, so the rollover counts it at the boundary if it was left untouched.
   const stale = await unresolvedEntries(date);
   for (const e of stale) {
     await addEntry(ctx, e.task_id, date, { source: "carried", carriedFrom: e.date });
-    if (e.status === "open") await getPool().query("update tasks set carry_count = carry_count + 1 where id = $1", [e.task_id]);
+    if (e.status === "open" && e.date < ctx.today) await getPool().query("update tasks set carry_count = carry_count + 1 where id = $1", [e.task_id]);
   }
   await materializeDay(ctx, date, { cadence: true });
   const triage: EntryView[] = [];

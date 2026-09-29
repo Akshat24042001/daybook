@@ -12,6 +12,7 @@ import { fmtDuration, fmtDay } from "@/lib/time";
 import { useToast } from "../toast";
 import { Button, Card, Chip, ErrorNote, Field, Input, Select, Textarea, ComboInput } from "../ui";
 import { VoiceButton } from "../voice-button";
+import { RepeatEditor } from "./repeat-editor";
 
 export interface TaskFormData {
   id: number;
@@ -38,15 +39,6 @@ export interface TaskFormData {
   mustDo?: boolean;
 }
 
-const DAYS = [["MO", "Monday"], ["TU", "Tuesday"], ["WE", "Wednesday"], ["TH", "Thursday"], ["FR", "Friday"], ["SA", "Saturday"], ["SU", "Sunday"]] as const;
-
-function parseRule(rrule: string): { kind: "weekly" | "monthly"; day: string; monthDay: string } {
-  const w = /BYDAY=(\w\w)/.exec(rrule);
-  const m = /BYMONTHDAY=(\d+)/.exec(rrule);
-  if (m) return { kind: "monthly", day: "MO", monthDay: m[1] };
-  return { kind: "weekly", day: w?.[1] ?? "MO", monthDay: "1" };
-}
-
 const num = (v: string): number | null => (v.trim() === "" ? null : Math.max(0, Math.round(Number(v))) || null);
 
 export function TaskForm({
@@ -68,10 +60,8 @@ export function TaskForm({
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [f, setF] = useState(task);
-  const rule0 = parseRule(task.rrule);
-  const [ruleKind, setRuleKind] = useState(rule0.kind);
-  const [ruleDay, setRuleDay] = useState(rule0.day);
-  const [ruleMonthDay, setRuleMonthDay] = useState(rule0.monthDay);
+  const [rule, setRule] = useState(task.rrule || "FREQ=DAILY");
+  const [ruleProblem, setRuleProblem] = useState<string | null>(null);
   const [estimate, setEstimate] = useState(task.estimateMin === null ? "" : String(task.estimateMin));
   const [lead, setLead] = useState(task.leadMin === null ? "" : String(task.leadMin));
   const [cadence, setCadence] = useState(task.cadenceDays === null ? "7" : String(task.cadenceDays));
@@ -82,10 +72,11 @@ export function TaskForm({
   const [newRemark, setNewRemark] = useState("");
   const set = <K extends keyof TaskFormData>(k: K, v: TaskFormData[K]) => setF((cur) => ({ ...cur, [k]: v }));
 
-  const rrule = f.type === "recurring" ? (ruleKind === "weekly" ? `FREQ=WEEKLY;BYDAY=${ruleDay}` : `FREQ=MONTHLY;BYMONTHDAY=${Math.min(31, Math.max(1, Number(ruleMonthDay) || 1))}`) : "";
+  const rrule = f.type === "recurring" ? rule : "";
 
   function save() {
     setError(null);
+    if (f.type === "recurring" && ruleProblem) return setError(ruleProblem);
     start(async () => {
       if (mode === "new") {
         const form: NewTaskForm = {
@@ -216,25 +207,15 @@ export function TaskForm({
         ) : null}
 
         {f.type === "recurring" ? (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Repeats">
-              <Select value={ruleKind} onChange={(e) => setRuleKind(e.target.value as "weekly" | "monthly")}>
-                <option value="weekly">Every week on…</option>
-                <option value="monthly">Every month on day…</option>
-              </Select>
-            </Field>
-            {ruleKind === "weekly" ? (
-              <Field label="Day">
-                <Select value={ruleDay} onChange={(e) => setRuleDay(e.target.value)}>
-                  {DAYS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-                </Select>
-              </Field>
-            ) : (
-              <Field label="Day of month">
-                <Input inputMode="numeric" value={ruleMonthDay} onChange={(e) => setRuleMonthDay(e.target.value.replace(/\D/g, ""))} />
-              </Field>
-            )}
-          </div>
+          <RepeatEditor
+            value={rule}
+            today={today}
+            startDefault={task.createdDay || today}
+            onChange={(v, problem) => {
+              setRule(v);
+              setRuleProblem(problem);
+            }}
+          />
         ) : null}
 
         {f.type === "target" ? (

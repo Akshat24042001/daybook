@@ -41,9 +41,18 @@ export function SleepCard({ date, minutes, quality }: { date: DateStr; minutes: 
         </span>
         <h2 className="text-sm font-semibold">Sleep</h2>
         {logged ? (
-          <span className="tabular ml-auto text-sm font-semibold">
+          <span className="tabular ml-auto flex items-center gap-2 text-sm font-semibold">
             {fmtDuration(opt.minutes!)}
-            {opt.quality ? <span className="ml-1.5" title={FACE_LABEL[opt.quality - 1]}>{FACES[opt.quality - 1]}</span> : null}
+            {opt.quality ? <span title={FACE_LABEL[opt.quality - 1]}>{FACES[opt.quality - 1]}</span> : null}
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => save({ minutes: null, quality: null })}
+              className="rounded-md px-1.5 py-0.5 text-xs font-medium text-subtle hover:bg-muted hover:text-fg"
+              title="Remove last night's sleep"
+            >
+              Clear
+            </button>
           </span>
         ) : (
           <span className="ml-auto text-xs text-subtle">How long did you sleep?</span>
@@ -115,7 +124,8 @@ export function SleepCard({ date, minutes, quality }: { date: DateStr; minutes: 
               title={FACE_LABEL[i]}
               aria-label={`Sleep quality: ${FACE_LABEL[i]}`}
               aria-pressed={opt.quality === i + 1}
-              onClick={() => save({ minutes: opt.minutes, quality: i + 1 })}
+              // tapping the chosen face again takes the rating off
+              onClick={() => save({ minutes: opt.minutes, quality: opt.quality === i + 1 ? null : i + 1 })}
               className={cn(
                 "flex h-8 w-8 items-center justify-center rounded-lg text-base transition-all",
                 opt.quality === i + 1 ? "scale-110 bg-accent-muted ring-1 ring-accent/40" : "opacity-60 hover:bg-muted hover:opacity-100",
@@ -124,6 +134,7 @@ export function SleepCard({ date, minutes, quality }: { date: DateStr; minutes: 
               {f}
             </button>
           ))}
+          {opt.quality ? <span className="ml-1 text-[11px] text-subtle">tap again to remove</span> : null}
         </div>
       ) : null}
     </Card>

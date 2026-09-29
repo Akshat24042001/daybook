@@ -244,6 +244,17 @@ async function handleText(ctx: Ctx, chat: number, text: string, opts: TextOpts =
     await sendMessage(chat, m.text, m.markup);
     return;
   }
+  // "/score clear", "/steps reset", "/sleep clear", "/worked clear": take off a value entered by mistake
+  const clearCmd = text.match(/^\/(score|steps|sleep|worked)(?:@\w+)?\s+(clear|reset|none|remove|delete|off)$/i);
+  if (clearCmd) {
+    const what = clearCmd[1].toLowerCase();
+    if (what === "score") await setScore(ctx.today, null);
+    else if (what === "steps") await setSteps(ctx.today, null);
+    else if (what === "sleep") await setSleep(ctx.today, null, null);
+    else await setWorkedOverride(ctx.today, null);
+    await sendMessage(chat, what === "worked" ? "⏱ Worked hours are back to automatic for today." : `🧹 Today's ${what} cleared.`);
+    return;
+  }
   const slashScore = text.match(/^\/score(@\w+)?\s+(\d+(?:[.,]\d+)?)/i);
   if (slashScore) {
     const val = parseFloat(slashScore[2].replace(",", "."));
@@ -277,6 +288,7 @@ async function handleText(ctx: Ctx, chat: number, text: string, opts: TextOpts =
 /score 8 — set day score (0–10, decimals OK: 8.5)
 /steps 8500 — log step count
 /worked 7.5h — set hours worked manually
+/score clear · /steps clear · /sleep clear · /worked clear — remove a value entered by mistake
 /pause — toggle exercise pings on/off
 
 <b>Assistant</b>

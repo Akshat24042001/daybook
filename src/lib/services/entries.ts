@@ -1,4 +1,5 @@
 import { one, q, tx, UserError, type Db, getPool } from "../db";
+import { carriesWhenMissed } from "../recurrence";
 import { type Ctx } from "../settings";
 import { type DateStr, addDays } from "../time";
 import { SKIP_REASONS, type EntryRow, type EntrySource, type EntryStatus, type EntryView, type SkipReason } from "../types";
@@ -90,7 +91,14 @@ export async function setMustDo(ctx: Ctx, entryId: number, on: boolean): Promise
   });
 }
 
-const CLOSES_ON_DONE = new Set(["one_off", "ongoing", "follow_up", "someday", "target"]);
+// A target's Done on a day is one session toward the goal; the target itself closes at the end of its period
+// (rollover) or from its own Done button on Goals, never from a single day.
+const CLOSES_ON_DONE = new Set(["one_off", "ongoing", "follow_up", "someday"]);
+
+/** Only tasks that carry over count carries; a repeating task's missed or skipped day is just that day. */
+function countsCarries(task: { type: string; rrule: string | null }): boolean {
+  return ["one_off", "follow_up", "target", "someday"].includes(task.type) || (task.type === "recurring" && carriesWhenMissed(task.rrule));
+}
 
 export interface StatusResult {
   entry: EntryView;
@@ -113,8 +121,8 @@ export async function setEntryStatus(ctx: Ctx, entryId: number, status: EntrySta
   return tx(async (db) => {
     const e = await one<EntryRow>("select * from day_entries where id = $1 for update", [entryId], db);
     if (!e) throw new UserError("Entry not found.");
-    const task = await one<{ id: number; type: string; state: string }>(
-      "select id, type, state from tasks where id = $1 for update",
+    const task = await one<{ id: number; type: string; state: string; rrule: string | null }>(
+      "select id, type, state, rrule from tasks where id = $1 for update",
       [e.task_id],
       db,
     );
@@ -137,7 +145,7 @@ export async function setEntryStatus(ctx: Ctx, entryId: number, status: EntrySta
 
     // Leaving skipped / done / dropped / waiting undoes what that status did to the task.
     if (prev === "skipped") {
-      await db.query("update tasks set carry_count = greatest(carry_count - 1, 0) where id = $1", [task.id]);
+      if (countsCarries(task)) await db.query("update tasks set carry_count = greatest(carry_count - 1, 0) where id = $1", [task.id]);
       await db.query("update day_entries set reason = null where id = $1", [entryId]);
     }
     if (prev === "waiting") await clearWaiting(task.id, e.date, db);
@@ -158,7 +166,7 @@ export async function setEntryStatus(ctx: Ctx, entryId: number, status: EntrySta
         else await db.query("update tasks set last_done_at = $2 where id = $1", [task.id, ctx.now]);
         break;
       case "skipped":
-        await db.query("update tasks set carry_count = carry_count + 1 where id = $1", [task.id]);
+        if (countsCarries(task)) await db.query("update tasks set carry_count = carry_count + 1 where id = $1", [task.id]);
         break;
       case "dropped":
         await closeTask("dropped");
@@ -202,9 +210,9 @@ export async function setWaiting(ctx: Ctx, entryId: number, until: DateStr, on: 
     const e = await one<EntryRow>("select * from day_entries where id = $1 for update", [entryId], db);
     if (!e) throw new UserError("Entry not found.");
     if (until <= e.date) throw new UserError("Pick a check-back date after the task's day.");
-    const task = await one<{ state: string }>("select state from tasks where id = $1 for update", [e.task_id], db);
+    const task = await one<{ state: string; type: string; rrule: string | null }>("select state, type, rrule from tasks where id = $1 for update", [e.task_id], db);
     if (task?.state !== "active") throw new UserError("This task is already closed.");
-    if (e.status === "skipped") await db.query("update tasks set carry_count = greatest(carry_count - 1, 0) where id = $1", [e.task_id]);
+    if (e.status === "skipped" && countsCarries(task)) await db.query("update tasks set carry_count = greatest(carry_count - 1, 0) where id = $1", [e.task_id]);
     await db.query("update day_entries set status = 'waiting', reason = null, updated_at = now() where id = $1", [entryId]);
     await applyWaiting(ctx, e, until, on, db);
     return (await getEntry(entryId, db))!;

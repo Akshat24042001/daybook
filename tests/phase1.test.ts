@@ -185,14 +185,21 @@ describe("Phase 1: Plan with triage and capacity bar", () => {
     expect((await entryForTask(a.task.id, tomorrow))!.source).toBe("carried");
     expect((await unresolvedEntries(tomorrow)).length).toBe(0);
 
-    // opening Plan again must not carry or count twice
+    // opening Plan again must not carry twice; nothing is counted while the day is still running
     plan = await planView(today, tomorrow);
     expect(plan.entries.length).toBe(2);
-    expect((await getTask(a.task.id))!.carry_count).toBe(1);
-    expect((await getTask(b.task.id))!.carry_count).toBe(1);
+    expect((await getTask(a.task.id))!.carry_count).toBe(0);
 
+    // B gets done that evening after all: its early carry goes away and never counts
+    await setEntryStatus(today, b.entry!.id, "done");
     await finishPlan(today, tomorrow);
     expect((await getDay(tomorrow))!.planned_at).not.toBeNull();
+
+    // at the day boundary, A (left untouched) counts one carry, B none
+    await rolloverIfNeeded(await ctxAt("2026-09-20 09:00"));
+    expect((await getTask(a.task.id))!.carry_count).toBe(1);
+    expect((await getTask(b.task.id))!.carry_count).toBe(0);
+    expect(await entryForTask(b.task.id, tomorrow)).toBeNull();
   });
 
   it("pre-fills tomorrow with Ongoing, Recurring and overdue Cadence items", async () => {

@@ -213,6 +213,11 @@ export function QuickBar({ refreshKey, onChanged }: { refreshKey: number; onChan
             </button>
           ))}
         </div>
+        {data.day.score !== null ? (
+          <Button className="mt-3" size="sm" variant="ghost" disabled={!!busy} onClick={() => act("score-clear", { type: "set_day", field: "score", value: "clear" })}>
+            Clear today&apos;s score
+          </Button>
+        ) : null}
       </Sheet>
 
       {(["steps", "sleep", "task", "diary"] as const).map((p) => {
@@ -250,9 +255,22 @@ export function QuickBar({ refreshKey, onChanged }: { refreshKey: number; onChan
                   inputMode={p === "steps" || p === "sleep" ? "decimal" : "text"}
                 />
               )}
-              <Button type="submit" variant="primary" size="sm" disabled={!text.trim() || !!busy}>
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} {meta.button}
-              </Button>
+              <div className="flex gap-2">
+                <Button type="submit" variant="primary" size="sm" disabled={!text.trim() || !!busy}>
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} {meta.button}
+                </Button>
+                {(p === "steps" && data.day.steps !== null) || (p === "sleep" && data.day.sleep !== null) ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={!!busy}
+                    onClick={() => act(`${p}-clear`, { type: "set_day", field: p === "steps" ? "steps" : "sleep_minutes", value: "clear" })}
+                  >
+                    Clear
+                  </Button>
+                ) : null}
+              </div>
             </form>
           </Sheet>
         );

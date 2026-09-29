@@ -63,9 +63,10 @@ export function computePace(args: {
   const countFraction = goalCount ? count / goalCount : undefined;
   const hasGoal = !!(goalMin || goalCount);
   const goalsMet = hasGoal && (minFraction === undefined || minFraction >= 1) && (countFraction === undefined || countFraction >= 1);
-  const met = done || goalsMet;
+  // "Met" means the numbers were reached. A target closed before that is closed early, not met.
+  const met = goalsMet || (done && !hasGoal);
   let behind = false;
-  if (!met) {
+  if (!met && !done) {
     if (hasGoal) {
       const worst = Math.min(minFraction ?? Infinity, countFraction ?? Infinity);
       behind = worst + BEHIND_TOLERANCE < elapsed;

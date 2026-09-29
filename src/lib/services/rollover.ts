@@ -37,6 +37,16 @@ export async function rolloverIfNeeded(ctx: Ctx): Promise<RolloverResult> {
     );
     if (!claim) return { ran: false, carried: 0, materialized: 0, targetsClosed: 0 };
 
+    // Yesterday's untouched entries that planning already carried forward are counted now that the day is over
+    // (planning does not count them: they might still have been done that evening).
+    await db.query(
+      `update tasks t set carry_count = carry_count + 1
+       from day_entries e
+       where e.task_id = t.id and e.date = $1 and e.status = 'open' and t.state = 'active'
+         and (t.type in ('one_off','follow_up','target') or (t.type = 'recurring' and t.rrule ilike '%X-MISSED=CARRY%'))
+         and exists (select 1 from day_entries later where later.task_id = e.task_id and later.date > e.date and later.carried_from = e.date)`,
+      [addDays(today, -1)],
+    );
     const stale: EntryView[] = await unresolvedEntries(today, db);
     let carried = 0;
     for (const e of stale) {

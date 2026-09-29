@@ -1,3 +1,4 @@
+import { describeRrule, formatRepeat, parseRepeatPhrase, PHRASE_WORD } from "./recurrence";
 import {
   type DateStr,
   type TargetPeriod,
@@ -196,28 +197,29 @@ export function parseQuickAdd(input: string, ctx: ParseContext): ParsedQuickAdd 
     out.targetPeriod = c === "w" ? "week" : c === "m" ? "month" : c === "q" ? "quarter" : "year";
   });
 
-  // every mon / every 1st
-  s = extract(
-    s,
-    new RegExp(`(^|\\s)every\\s+(${WEEKDAY_RE}|\\d{1,2}(?:st|nd|rd|th))(?=\\s|$)`, "i"),
-    (m, first) => {
-      if (!first) return;
-      const word = m[2].toLowerCase();
-      const dayNum = /^(\d{1,2})/.exec(word);
-      if (dayNum) {
-        const d = +dayNum[1];
-        if (d >= 1 && d <= 31) {
-          out.rrule = `FREQ=MONTHLY;BYMONTHDAY=${d}`;
-          hasRecurring = true;
-        } else {
-          out.errors.push(`"every ${word}" is not a valid day of the month.`);
-        }
-      } else {
-        out.rrule = `FREQ=WEEKLY;BYDAY=${WEEKDAY_BYDAY[weekdayFrom(word)]}`;
+  // repeats: "every mon", "every 1st", "daily", "every weekday", "every mon wed fri", "every 2 weeks on tue",
+  // "every day except sun", "every last fri", "every other day", "every year on 12 mar"
+  {
+    const re = new RegExp(String.raw`(^|\s)(?:every((?:[\s,]+${PHRASE_WORD})+)|(daily|weekdays))(?=[\s,]|$)`, "i");
+    const m = re.exec(s);
+    if (m) {
+      let phrase = m[3] ? (m[3].toLowerCase() === "daily" ? "day" : "weekday") : m[2];
+      // connector words at the end belong to the title ("every day and night" is not a rule)
+      let used = m[0];
+      while (/[\s,]+(and|on|the|of|but|not|except)\s*$/i.test(phrase)) {
+        const cut = /[\s,]+(and|on|the|of|but|not|except)\s*$/i.exec(phrase)!;
+        phrase = phrase.slice(0, cut.index);
+        used = used.slice(0, used.length - cut[0].length);
+      }
+      const parsed = parseRepeatPhrase(phrase);
+      if ("error" in parsed) out.errors.push(parsed.error);
+      else {
+        out.rrule = formatRepeat(parsed.repeat);
         hasRecurring = true;
       }
-    },
-  );
+      s = `${s.slice(0, m.index)} ${s.slice(m.index + used.length)}`;
+    }
+  }
 
   s = extract(s, /(^|\s)\/p(?=\s|$)/i, () => {
     out.isPersonal = true;
@@ -355,16 +357,7 @@ export function describeParsed(p: ParsedQuickAdd, ctx: { tz: string; today: Date
   return lines;
 }
 
-export function describeRrule(rrule: string): string {
-  const weekly = /FREQ=WEEKLY;BYDAY=(\w\w)/.exec(rrule);
-  if (weekly) {
-    const names: Record<string, string> = { MO: "Monday", TU: "Tuesday", WE: "Wednesday", TH: "Thursday", FR: "Friday", SA: "Saturday", SU: "Sunday" };
-    return `every ${names[weekly[1]] ?? weekly[1]}`;
-  }
-  const monthly = /FREQ=MONTHLY;BYMONTHDAY=(\d+)/.exec(rrule);
-  if (monthly) return `on day ${monthly[1]} of every month`;
-  return rrule;
-}
+export { describeRrule };
 
 function dateLabel(date: DateStr, today: DateStr): string {
   if (date === today) return "Today";

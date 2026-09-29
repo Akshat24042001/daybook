@@ -276,6 +276,22 @@ export function HealthClient(props: {
             >
               <Input inputMode="numeric" value={steps} onChange={(e) => setSteps(e.target.value.replace(/\D/g, ""))} placeholder="e.g. 8000" aria-label="Steps today" className="h-9" />
               <Button type="submit" variant="outline" size="sm" className="h-9" disabled={pending}>Save</Button>
+              {props.steps !== null ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-9"
+                  disabled={pending}
+                  onClick={() => start(async () => {
+                    const r = await setStepsAction(props.date, null);
+                    if (!r.ok) toast(r.error, "error");
+                    else { setSteps(""); toast("Steps cleared."); router.refresh(); }
+                  })}
+                >
+                  Clear
+                </Button>
+              ) : null}
             </form>
           </Card>
 
