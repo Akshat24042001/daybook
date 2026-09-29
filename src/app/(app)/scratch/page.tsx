@@ -6,12 +6,15 @@ import { cn } from "@/lib/cn";
 import { logicalDate, addDays, fmtDateLong, fmtDay, fmtHM, weekdayName, type DateStr } from "@/lib/time";
 import { makeCtx } from "@/lib/settings";
 import { normalizeData, SCRATCH_KINDS, type ScratchKind } from "@/lib/scratch";
-import { itemCountsInRange, listItems } from "@/lib/services/scratch";
+import { itemCountsInRange, listItems, mediaUrls, sweepAbandonedUploads } from "@/lib/services/scratch";
+import { storageConfigured } from "@/lib/storage";
+import { voiceConfigured } from "@/lib/deepgram";
 
 export const metadata: Metadata = { title: "Scratchpad" };
 export const dynamic = "force-dynamic";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const isTodayView = (date: DateStr, today: DateStr) => date === today;
 
 export default async function ScratchPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
@@ -22,6 +25,10 @@ export default async function ScratchPage({ searchParams }: { searchParams: Prom
   const autoAdd = SCRATCH_KINDS.find((k) => k === sp.new) ?? null;
 
   const [rows, counts] = await Promise.all([listItems(date), itemCountsInRange(from, ctx.today)]);
+  // short-lived links for this day's photos, files and voice memos (one storage call)
+  const urls = await mediaUrls(rows);
+  // uploads abandoned mid-way (tab closed) are cleaned up in passing
+  if (isTodayView(date, ctx.today)) void sweepAbandonedUploads().catch(() => undefined);
   const days: DateStr[] = Array.from({ length: 21 }, (_, i) => addDays(ctx.today, -i));
   const isToday = date === ctx.today;
   const stamp = (d: Date) => {
@@ -111,7 +118,10 @@ export default async function ScratchPage({ searchParams }: { searchParams: Prom
           data: normalizeData(r.kind, r.data)!,
           timeLabel: stamp(r.created_at),
           updatedLabel: stamp(r.updated_at),
+          mediaUrl: urls.get(r.id) ?? null,
         }))}
+        storageEnabled={storageConfigured()}
+        voiceEnabled={voiceConfigured()}
       />
     </div>
   );

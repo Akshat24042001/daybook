@@ -67,8 +67,11 @@ contacts: id, name, companies[], roles[], cities[], phones[], emails[], linkedin
   touch_snoozed_until, created_at
 contact_touches: contact_id, date, kind ('call','meet','message','other'), note
 refs: id, kind ('link','note','quote'), title, url, body, source, tags[], pinned, created_at — saved references
-scratch_items: id, date, kind ('note','sketch','calc','graph'), title, data (jsonb: note {text}, calc {lines[]},
-  graph {fns[]}), created_at
+scratch_items: id, date, kind ('note','checklist','sketch','calc','table','graph','link','code','voice','file'), title,
+  data (jsonb: note {text}, checklist {items[{text,done}]}, calc {lines[]}, table {rows[][]}, graph {fns[]},
+  link {url,note}, code {lang,code}, voice {name,duration,transcript}, file {name,mime,size}), created_at
+tasks.rrule: repeat rule, e.g. FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR,SA (every day except Sunday), FREQ=MONTHLY;BYDAY=-1FR
+  (last Friday), X-MISSED=CARRY (a missed day stays until done). Repeating tasks do not count carries unless X-MISSED=CARRY.
 settings (one row): timezone, day_boundary, working_days (isodow array), step_goal, available_hours, rot_threshold
 assistant_memory: id, fact — what you have been asked to remember (already given to you below)
 

@@ -20,7 +20,7 @@ describe("scratchpad", () => {
     expect(a.data).toEqual({ text: "" });
     expect(b.data).toEqual({ h: 560, bg: "grid", strokes: [] });
     const counts = await itemCountsInRange("2026-09-20", "2026-09-28");
-    expect(counts.get("2026-09-28")).toEqual({ note: 1, sketch: 1, calc: 0, graph: 0 });
+    expect(counts.get("2026-09-28")).toMatchObject({ note: 1, sketch: 1, calc: 0, graph: 0, file: 0 });
     expect(counts.get("2026-09-27")?.calc).toBe(1);
   });
 

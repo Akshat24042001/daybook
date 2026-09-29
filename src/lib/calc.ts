@@ -58,6 +58,7 @@ const FUNCS: Record<string, (...a: number[]) => number> = {
   min: Math.min, max: Math.max, pow: Math.pow, hypot: Math.hypot, sign: Math.sign,
   avg: (...a) => a.reduce((s, v) => s + v, 0) / a.length,
   sum: (...a) => a.reduce((s, v) => s + v, 0),
+  count: (...a) => a.length,
   fact: factorial,
 };
 

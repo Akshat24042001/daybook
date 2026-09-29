@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { UserError } from "@/lib/db";
 import { makeCtx } from "@/lib/settings";
 import type { DateStr } from "@/lib/time";
-import { copyItem, createItem, deleteItem, updateItem } from "@/lib/services/scratch";
+import type { FileData } from "@/lib/scratch";
+import { copyItem, createItem, deleteItem, finishUpload, mediaUrls, startUpload, updateItem } from "@/lib/services/scratch";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -59,6 +60,37 @@ export async function copyScratchToTodayAction(id: number): Promise<Result<{ dat
     await copyItem(id, ctx.today);
     revalidatePath("/scratch");
     return { ok: true, date: ctx.today };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Step 1 of a file upload: returns the new item and a short-lived link the browser puts the file to. */
+export async function startUploadAction(
+  date: DateStr,
+  kind: "file" | "voice",
+  file: { name: string; mime: string; size: number },
+): Promise<Result<{ id: number; uploadUrl: string; data: FileData }>> {
+  try {
+    await checkDate(date);
+    if (kind !== "file" && kind !== "voice") throw new UserError("Unknown upload.");
+    const { row, uploadUrl } = await startUpload(date, kind, file);
+    return { ok: true, id: row.id, uploadUrl, data: row.data as FileData };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Step 2: confirms the file arrived and returns a link to show it. */
+export async function finishUploadAction(
+  id: number,
+  extra: { width?: number; height?: number; duration?: number; transcript?: string } = {},
+): Promise<Result<{ data: FileData; url: string | null }>> {
+  try {
+    const row = await finishUpload(id, extra);
+    const url = (await mediaUrls([row])).get(row.id) ?? null;
+    revalidatePath("/scratch");
+    return { ok: true, data: row.data as FileData, url };
   } catch (e) {
     return fail(e);
   }

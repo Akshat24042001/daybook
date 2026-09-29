@@ -71,6 +71,11 @@ export async function searchAll(query: string): Promise<SearchHit[]> {
           or (kind = 'calc' and (data->'lines')::text ilike $1)
           or (kind = 'graph' and (data->'fns')::text ilike $1)
           or (kind = 'sketch' and jsonb_path_query_array(data, '$.strokes[*].x')::text ilike $1)
+          or (kind = 'checklist' and jsonb_path_query_array(data, '$.items[*].text')::text ilike $1)
+          or (kind = 'table' and (data->'rows')::text ilike $1)
+          or (kind = 'link' and (data->>'url' ilike $1 or data->>'note' ilike $1))
+          or (kind = 'code' and data->>'code' ilike $1)
+          or (kind in ('file','voice') and (data->>'name' ilike $1 or data->>'transcript' ilike $1))
        order by date desc, id desc limit ${PER_GROUP}`,
       [p],
     )),
