@@ -20,7 +20,7 @@ import { logTouch } from "../services/keep-in-touch";
 import { createItem } from "../services/scratch";
 import type { SegmentKind } from "../hours";
 import { KIND_LABEL, switchState, updateSegment, type StateKind } from "../services/segments";
-import { setScore, setSleep, setSteps } from "../services/days";
+import { setInstagram, setScore, setSleep, setSteps } from "../services/days";
 import { createFromParsed, createRemark, getTask } from "../services/tasks";
 import type { ActionItem } from "./types";
 
@@ -182,8 +182,8 @@ export async function prepareAction(ctx: Ctx, raw: Record<string, unknown>): Pro
       if (date > ctx.today) throw new UserError("Only today or earlier.");
       // "clear" (or null) takes the value off, e.g. a score entered by mistake
       if (raw.value === null || /^(clear|none|reset|remove|delete)$/i.test(s(raw.value, 10))) {
-        if (!["score", "steps", "sleep_minutes"].includes(field)) throw new UserError("field must be score, steps or sleep_minutes.");
-        const what = field === "sleep_minutes" ? "sleep" : field;
+        if (!["score", "steps", "sleep_minutes", "instagram_minutes"].includes(field)) throw new UserError("field must be score, steps, sleep_minutes or instagram_minutes.");
+        const what = field === "sleep_minutes" ? "sleep" : field === "instagram_minutes" ? "Instagram time" : field;
         return { kind, params: { field, date, value: null }, label: `⌫ Clear ${what}`, detail: dayName(ctx, date) };
       }
       const value = num(raw.value);
@@ -201,7 +201,12 @@ export async function prepareAction(ctx: Ctx, raw: Record<string, unknown>): Pro
         const m = Math.round(value);
         return { kind, params: { field, date, value: m }, label: `☾ Sleep ${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}`, detail: `into ${dayName(ctx, date)}` };
       }
-      throw new UserError("field must be score, steps or sleep_minutes.");
+      if (field === "instagram_minutes") {
+        if (value < 0 || value > 1440) throw new UserError("instagram_minutes is 0 to 1440.");
+        const m = Math.round(value);
+        return { kind, params: { field, date, value: m }, label: `Instagram ${m}m${m > 60 ? " (over the 1h limit)" : ""}`, detail: dayName(ctx, date) };
+      }
+      throw new UserError("field must be score, steps, sleep_minutes or instagram_minutes.");
     }
     case "log_exercise": {
       const name = s(raw.exercise, 60).toLowerCase().replace(/[-_]/g, " ").replace(/s\b/g, "");
@@ -394,6 +399,7 @@ export async function runAction(ctx: Ctx, p: Prepared): Promise<{ result: string
       const v = pr.value as number | null;
       if (pr.field === "score") await setScore(d, v);
       else if (pr.field === "steps") await setSteps(d, v);
+      else if (pr.field === "instagram_minutes") await setInstagram(d, v);
       else await setSleep(d, v);
       if (v === null) result = "Cleared.";
       else result = "Saved.";

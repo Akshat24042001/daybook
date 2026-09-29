@@ -97,7 +97,7 @@ Types and fields (look up ids with queries first; never guess an id):
 - task_note: task_id, text
 - switch_state: kind office|outside|remote|commute|meal|break|exercise|personal|off (off = Day end)
 - edit_segment: segment_id (v_segments.id), start and/or end as "HH:MM" local (end "running" reopens it)
-- set_day: field score|steps|sleep_minutes, value (a number, or "clear" to remove a wrong entry), date (default today)
+- set_day: field score|steps|sleep_minutes|instagram_minutes, value (a number, or "clear" to remove a wrong entry), date (default today)
 - log_exercise: exercise (type name), amount
 - diary_note: text, date (default today)
 - scratch_note: text, title (optional)

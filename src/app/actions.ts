@@ -11,7 +11,7 @@ import {
   addEntry, clearMinutes, getEntry, logMinutes, moveEntry, removeEntry, RETRY_HOURS, scheduleTaskPing,
   setEntryStatus, setMustDo, setSkipReason, setWaiting, endWaiting,
 } from "@/lib/services/entries";
-import { setScore, setSleep, setSteps, setWorkedOverride } from "@/lib/services/days";
+import { setInstagram, setScore, setSleep, setSteps, setWorkedOverride } from "@/lib/services/days";
 import { reorderSomeday, snoozeCadence } from "@/lib/services/goals";
 import {
   createExerciseType, logExercise, updateExerciseType, type ExerciseTypeInput,
@@ -254,6 +254,12 @@ export async function setSleepAction(date: DateStr, minutes: number | null, qual
   return run(async () => {
     await setSleep(date, minutes, quality);
   }, ["/today", "/health", "/stats"]);
+}
+
+export async function setInstagramAction(date: DateStr, minutes: number | null) {
+  return run(async () => {
+    await setInstagram(date, minutes);
+  }, ["/today", "/health"]);
 }
 
 export async function setStepsAction(date: DateStr, steps: number | null) {

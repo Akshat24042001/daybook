@@ -11,6 +11,7 @@ export interface DayRow {
   worked_minutes_override: number | null;
   sleep_minutes: number | null;
   sleep_quality: number | null;
+  instagram_minutes: number | null;
   planned_at: Date | null;
   closed_at: Date | null;
   rollover_at: Date | null;
@@ -67,6 +68,18 @@ export async function setSleep(date: DateStr, minutes: number | null, quality?: 
       [date, m, quality],
     );
   }
+}
+
+/** Minutes spent on Instagram on this day. Pass null to clear. The daily limit (INSTAGRAM_LIMIT_MIN) is a goal, not enforced. */
+export async function setInstagram(date: DateStr, minutes: number | null): Promise<void> {
+  if (minutes !== null && (!Number.isFinite(minutes) || minutes < 0 || minutes > 1440)) {
+    throw new UserError("Instagram time must be between 0 and 24 hours.");
+  }
+  await q(
+    `insert into days (date, instagram_minutes) values ($1, $2)
+     on conflict (date) do update set instagram_minutes = excluded.instagram_minutes`,
+    [date, minutes === null ? null : Math.round(minutes)],
+  );
 }
 
 export async function setSteps(date: DateStr, steps: number | null): Promise<void> {
@@ -189,6 +202,6 @@ export async function daysInRange(from: DateStr, to: DateStr, db: Db = getPool()
   const rows = await q<DayRow>("select * from days where date >= $1 and date <= $2", [from, to], db);
   const map = new Map<DateStr, DayRow>();
   for (const r of rows) map.set(r.date, r);
-  for (const d of dateRange(from, to)) if (!map.has(d)) map.set(d, { date: d, score: null, steps: null, worked_minutes_override: null, sleep_minutes: null, sleep_quality: null, planned_at: null, closed_at: null, rollover_at: null });
+  for (const d of dateRange(from, to)) if (!map.has(d)) map.set(d, { date: d, score: null, steps: null, worked_minutes_override: null, sleep_minutes: null, sleep_quality: null, instagram_minutes: null, planned_at: null, closed_at: null, rollover_at: null });
   return map;
 }

@@ -13,7 +13,7 @@ never by created_at::date. Weeks start on Monday (date_trunc('week', d)).
 
 v_daily — one row per logical date that has any data
   date, weekday ('Mon'), isodow (1=Mon..7=Sun),
-  score (0-10, owner's own rating of the day, null if not rated), steps, sleep_minutes, sleep_quality (1-5),
+  score (0-10, owner's own rating of the day, null if not rated), steps, sleep_minutes, sleep_quality (1-5), instagram_minutes (time on Instagram; daily limit 60),
   worked_min (minutes at work: office/outside/remote segments, or a manual override), worked_is_manual,
   logged_min (minutes logged against tasks), first_work_local, last_work_local (timestamps, local),
   nonwork_min (commute, meals, breaks, exercise, personal),
@@ -56,7 +56,7 @@ task_remarks: task_id, body, created_at — running notes on a task
 projects: id, name, color, archived, weekly_target_min (weekly time goal in minutes), created_at
 people: id, name, relation — people named on tasks (+Name)
 work_segments: id, date, kind, start_at, end_at — raw form of v_segments
-days: date, score, steps, sleep_minutes, sleep_quality, worked_minutes_override, planned_at, closed_at (Day end tapped)
+days: date, score, steps, sleep_minutes, sleep_quality, instagram_minutes, worked_minutes_override, planned_at, closed_at (Day end tapped)
 exercise_types: id, name, default_amount, unit, active
 exercise_logs: date, slot_at, exercise_type_id, amount, status
 diary_entries: id, date, body (the owner's own words, voice or typed), source, created_at

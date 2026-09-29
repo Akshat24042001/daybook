@@ -12,6 +12,7 @@ import { listTargets } from "@/lib/services/goals";
 import { q } from "@/lib/db";
 import { aiConfigured } from "@/lib/ai";
 import { DiaryPanel } from "@/components/diary/diary-panel";
+import { InstagramCard } from "@/components/today/instagram-card";
 import { SleepCard } from "@/components/today/sleep-card";
 import { IntentionsMini } from "@/components/today/intentions-mini";
 import { ReachOut } from "@/components/contacts/keep-in-touch";
@@ -83,6 +84,7 @@ export default async function TodayPage() {
       asideTop={
         <>
           <SleepCard date={ctx.today} minutes={day?.sleep_minutes ?? null} quality={day?.sleep_quality ?? null} />
+          <InstagramCard date={ctx.today} minutes={day?.instagram_minutes ?? null} />
           <UnfinishedCard rows={unfinished.slice(0, 4).map((t) => toUnfinishedRow(ctx.today, t))} total={unfinished.length} />
           <IntentionsMini weekStart={weekStart} items={weekReview?.intentions ?? []} />
           <ReachOut due={touch.filter((t) => t.due)} limit={2} title="Reach out today" compact />
