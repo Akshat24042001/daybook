@@ -98,23 +98,19 @@ export function InstagramCard({ date, minutes }: { date: DateStr; minutes: numbe
           className="mt-2 flex items-center gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            const m = Number(new FormData(e.currentTarget).get("m"));
-            if (!Number.isFinite(m) || m < 0 || m > 1440) return toast("Enter minutes between 0 and 1440, e.g. 40", "error");
-            save(Math.round(m));
+            const f = new FormData(e.currentTarget);
+            const h = Number(f.get("h") || 0);
+            const mi = Number(f.get("m") || 0);
+            const total = Math.round(h * 60 + mi);
+            if (!Number.isFinite(total) || h < 0 || mi < 0 || total > 1440) return toast("Enter hours and minutes, e.g. 1 h 20 m", "error");
+            save(total);
             setCustom(false);
           }}
         >
-          <input
-            name="m"
-            type="number"
-            step="1"
-            min="0"
-            max="1440"
-            autoFocus
-            placeholder="Minutes, e.g. 40"
-            aria-label="Minutes on Instagram"
-            className="h-8 w-36 rounded-lg border border-border bg-surface px-2 text-sm outline-none focus:border-accent/60"
-          />
+          <input name="h" type="number" step="1" min="0" max="24" autoFocus placeholder="0" aria-label="Hours on Instagram" className="h-8 w-16 rounded-lg border border-border bg-surface px-2 text-sm outline-none focus:border-accent/60" />
+          <span className="text-xs text-subtle">h</span>
+          <input name="m" type="number" step="1" min="0" max="59" placeholder="0" aria-label="Minutes on Instagram" className="h-8 w-16 rounded-lg border border-border bg-surface px-2 text-sm outline-none focus:border-accent/60" />
+          <span className="text-xs text-subtle">m</span>
           <button type="submit" className="h-8 rounded-lg bg-accent px-3 text-xs font-semibold text-accent-fg">Save</button>
         </form>
       ) : null}

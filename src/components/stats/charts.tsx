@@ -42,7 +42,7 @@ type Row = { date: string } & Record<string, unknown>;
  * One y-axis only. Bars above/below the target can be flagged amber.
  */
 export function TrendChart({
-  data, y, avg, kind, name, height, unit = "", domain, fmt, target, flag, color = "accent", large,
+  data, y, avg, avgLine, kind, name, height, unit = "", domain, fmt, target, flag, color = "accent", large,
 }: {
   data: Row[];
   y: string;
@@ -54,6 +54,8 @@ export function TrendChart({
   domain?: [number, number | "auto"];
   fmt?: (v: number) => string;
   target?: { value: number; label: string };
+  /** a second dashed reference line, e.g. the period average */
+  avgLine?: { value: number; label: string };
   /** colour bars amber when above ("over") or below ("under") the target */
   flag?: "over" | "under";
   color?: "accent" | "blue";
@@ -70,11 +72,12 @@ export function TrendChart({
 
   return (
     <div className="w-full" role="img" aria-label={`${name} per day`}>
-      {avg || target ? (
+      {avg || target || avgLine ? (
         <div className="mb-1 flex flex-wrap justify-end gap-x-3 text-[10px] text-subtle">
           <Swatch color={main} label={name} />
           {avg ? <Swatch color={p.amber} dashed label="7-day avg" /> : null}
           {target && !avg ? <Swatch color={p.subtle} dashed label={target.label} /> : null}
+          {avgLine ? <Swatch color={p.amber} dashed label={avgLine.label} /> : null}
         </div>
       ) : null}
       <div style={{ height }} className="relative">
@@ -110,6 +113,9 @@ export function TrendChart({
             />
             {target ? (
               <ReferenceLine y={target.value} stroke={p.subtle} strokeDasharray="4 4" ifOverflow="extendDomain" />
+            ) : null}
+            {avgLine ? (
+              <ReferenceLine y={avgLine.value} stroke={p.amber} strokeWidth={1.75} strokeDasharray="6 3" ifOverflow="extendDomain" />
             ) : null}
             {kind === "bar" ? (
               <Bar isAnimationActive={false} dataKey={y} name={name} radius={[3, 3, 0, 0]} maxBarSize={large ? 22 : 14}>

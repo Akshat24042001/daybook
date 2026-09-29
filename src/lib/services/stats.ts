@@ -187,6 +187,7 @@ export interface Stats {
     stepGoal: number;
     /** hours slept into each day, and quality 1-5 */
     sleepPerDay: { date: DateStr; hours: number | null; quality: number | null }[];
+    instagramPerDay: { date: DateStr; minutes: number | null }[];
   };
   attention: AttentionItem[];
   insights: string[];
@@ -202,8 +203,8 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
   const prevRange = { from: addDays(from, -len), to: addDays(from, -1) };
   const [worked, dayRows, loggedRows] = await Promise.all([
     workedByDay(ctx, from, to),
-    q<{ date: DateStr; score: number | null; steps: number | null; sleep_minutes: number | null; sleep_quality: number | null }>(
-      "select date, score, steps, sleep_minutes, sleep_quality from days where date between $1 and $2",
+    q<{ date: DateStr; score: number | null; steps: number | null; sleep_minutes: number | null; sleep_quality: number | null; instagram_minutes: number | null }>(
+      "select date, score, steps, sleep_minutes, sleep_quality, instagram_minutes from days where date between $1 and $2",
       [from, to],
     ),
     q<{ date: DateStr; m: number }>(
@@ -519,6 +520,7 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
         const r = dayMap.get(d);
         return { date: d, hours: r?.sleep_minutes == null ? null : Math.round((r.sleep_minutes / 60) * 10) / 10, quality: r?.sleep_quality ?? null };
       }),
+      instagramPerDay: dates.map((d) => ({ date: d, minutes: dayMap.get(d)?.instagram_minutes ?? null })),
       stepGoal: ctx.s.step_goal,
     },
     attention,

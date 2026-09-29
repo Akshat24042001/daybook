@@ -200,7 +200,7 @@ function DetailDialog({ open, onClose, title, subtitle, children }: {
 // ------------------------------------------------------------------ page
 
 type Panel =
-  | "score" | "hours" | "done" | "unaccounted" | "projects" | "consistency" | "weekday" | "steps" | "exercise" | "sleep" | "diary"
+  | "score" | "hours" | "done" | "unaccounted" | "projects" | "consistency" | "weekday" | "steps" | "exercise" | "sleep" | "instagram" | "diary"
   | "completion" | "mustdo" | "logged" | "planstreak" | "mustdostreak"
   | "rotting" | "estimates" | "cadence" | "progress" | "attention" | "insights" | "timeline";
 
@@ -264,7 +264,11 @@ export function StatsView({
     const shortNights = sleepNights.filter((n) => (n.hours ?? 0) < 7).length;
     const bestNight = sleepNights.reduce<(typeof sleep)[number] | null>((b, n) => (!b || (n.hours ?? 0) > (b.hours ?? 0) ? n : b), null);
     const worstNight = sleepNights.reduce<(typeof sleep)[number] | null>((b, n) => (!b || (n.hours ?? 99) < (b.hours ?? 99) ? n : b), null);
-    return { scored, best, worst, worked, longest, busiest, overTarget, stepAvg, stepHit, stepDays, setsTotal, setDays, bestDow, worstDow, diarySeries, diaryAvg, sleepNights, sleepAvg, sleepQ, shortNights, bestNight, worstNight };
+    const ig = stats.health.instagramPerDay;
+    const igDays = ig.filter((n) => n.minutes !== null);
+    const igAvg = avgOf(ig.map((n) => n.minutes));
+    const igOver = igDays.filter((n) => (n.minutes ?? 0) > 60).length;
+    return { igDays, igAvg, igOver, scored, best, worst, worked, longest, busiest, overTarget, stepAvg, stepHit, stepDays, setsTotal, setDays, bestDow, worstDow, diarySeries, diaryAvg, sleepNights, sleepAvg, sleepQ, shortNights, bestNight, worstNight };
   }, [series, stats, diary]);
 
   const activeFilters = [
@@ -528,6 +532,16 @@ export function StatsView({
           <TrendChart data={stats.health.sleepPerDay} y="hours" kind="bar" name="Sleep" unit="h" height={TILE_H} target={{ value: 7, label: "7h" }} flag="under" />
         </Tile>
 
+        <Tile
+          title="Instagram"
+          value={d.igAvg === null ? "–" : fmtDuration(Math.round(d.igAvg))}
+          sub={d.igDays.length ? `avg a day · ${d.igOver} day${d.igOver === 1 ? "" : "s"} over 1h` : "log time on Today"}
+          warn={d.igAvg !== null && d.igAvg > 60}
+          onOpen={() => setOpen("instagram")}
+        >
+          <TrendChart data={stats.health.instagramPerDay} y="minutes" kind="bar" name="Instagram" unit="m" height={TILE_H} target={{ value: 60, label: "1h limit" }} avgLine={d.igAvg === null ? undefined : { value: Math.round(d.igAvg), label: "average" }} flag="over" fmt={(v) => fmtDuration(Math.round(v))} />
+        </Tile>
+
         {/* Diary: AI rating trend + the latest day's headline */}
         <Tile
           title="Diary · AI day rating"
@@ -774,6 +788,16 @@ export function StatsView({
         </Facts>
         <TrendChart data={stats.health.sleepPerDay} y="hours" kind="bar" name="Sleep" unit="h" height={BIG_H} target={{ value: 7, label: "7h" }} flag="under" large />
         <Note>Amber bars are nights under 7 hours. Log sleep each morning on Today or in Telegram ("slept 7h"); with a few weeks of data, compare it with your day score.</Note>
+      </DetailDialog>
+
+      <DetailDialog open={open === "instagram"} onClose={close} title="Instagram" subtitle={`Limit 1 hour a day · ${periodLabel}`}>
+        <Facts>
+          <Fact label="Average" value={d.igAvg === null ? "–" : fmtDuration(Math.round(d.igAvg))} tone={d.igAvg !== null && d.igAvg > 60 ? "warn" : "good"} />
+          <Fact label="Days over 1h" value={`${d.igOver} of ${d.igDays.length}`} tone={d.igOver ? "warn" : undefined} />
+          <Fact label="Most / least" value={d.igDays.length ? `${fmtDuration(Math.max(...d.igDays.map((n) => n.minutes!)))} / ${fmtDuration(Math.min(...d.igDays.map((n) => n.minutes!)))}` : "–"} />
+        </Facts>
+        <TrendChart data={stats.health.instagramPerDay} y="minutes" kind="bar" name="Instagram" unit="m" height={BIG_H} target={{ value: 60, label: "1h limit" }} avgLine={d.igAvg === null ? undefined : { value: Math.round(d.igAvg), label: "average" }} flag="over" fmt={(v) => fmtDuration(Math.round(v))} large />
+        <Note>Bars show the time you logged each day; amber bars went over the 1 hour limit. The dashed grey line is the 1 hour limit and the amber line is your average. Add time on Today.</Note>
       </DetailDialog>
 
       <DetailDialog open={open === "diary"} onClose={close} title="Diary" subtitle={`${diary.length} summarised day${diary.length === 1 ? "" : "s"} in ${periodLabel}`}>
