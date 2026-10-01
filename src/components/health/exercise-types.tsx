@@ -1,7 +1,7 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Dumbbell, Eye, EyeOff, Info, Pencil, Play, Search, Trash2, X } from "lucide-react";
+import { Dumbbell, Eye, EyeOff, Pencil, Play, Search, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { createExerciseTypeAction, deleteExerciseTypeAction, updateExerciseTypeAction } from "@/app/actions";
@@ -23,33 +23,6 @@ export interface ExerciseTypeData {
 }
 
 const LEVEL_TONE = { easy: "bg-good-muted text-good", medium: "bg-warn-muted text-warn", hard: "bg-bad-muted text-bad" } as const;
-
-/** A small (i) that explains something on hover, focus or tap. */
-export function InfoTip({ text, className, label = "What does this mean?" }: { text: string; className?: string; label?: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <span className={cn("group relative inline-flex align-middle", className)}>
-      <button
-        type="button"
-        aria-label={label}
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen((v) => !v); }}
-        onBlur={() => setOpen(false)}
-        className="rounded-full text-subtle outline-none hover:text-fg focus-visible:ring-2 focus-visible:ring-accent/40"
-      >
-        <Info className="h-3.5 w-3.5" />
-      </button>
-      <span
-        role="tooltip"
-        className={cn(
-          "pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 w-60 -translate-x-1/2 rounded-xl border border-border bg-surface px-3 py-2 text-left text-xs font-normal normal-case leading-snug tracking-normal text-fg shadow-[var(--shadow-lg)] transition-opacity",
-          open ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
-        )}
-      >
-        {text}
-      </span>
-    </span>
-  );
-}
 
 const UNIT_HELP = "Reps: count each repetition of the movement. Seconds: hold the position (plank, wall sit) or keep moving (high knees) for that long.";
 const AMOUNT_HELP = "One set = this amount. It is filled in for you each time you log this exercise; change it whenever you do more or less.";
@@ -87,7 +60,8 @@ export function HowToDialog({ info, name, amount, unit, open, onClose }: {
             <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
               <div>
                 <div className="rounded-2xl bg-muted/50 p-3">
-                  <ExerciseFigure rig={info.rig} playing className="mx-auto h-64 w-full max-w-sm" label={`${info.name} demonstration`} />
+                  <ExerciseFigure rig={info.rig} controls fps={60} className="mx-auto h-72 w-full max-w-sm" label={`${info.name} demonstration`} />
+                  <p className="mt-1 text-center text-[11px] text-subtle">Drag to turn it around · double-click to reset</p>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold">
                   <span className={cn("rounded-full px-2 py-0.5 capitalize", LEVEL_TONE[info.level])}>{info.level}</span>
@@ -140,7 +114,6 @@ function Card({ t, onHowTo }: { t: ExerciseTypeData; onHowTo: () => void }) {
   const { toast } = useToast();
   const [pending, start] = useTransition();
   const [editing, setEditing] = useState(false);
-  const [hover, setHover] = useState(false);
   const [name, setName] = useState(t.name);
   const [amount, setAmount] = useState(String(t.defaultAmount));
   const [unit, setUnit] = useState<Unit>(t.unit);
@@ -172,16 +145,14 @@ function Card({ t, onHowTo }: { t: ExerciseTypeData; onHowTo: () => void }) {
   return (
     <li
       className={cn("group flex flex-col overflow-hidden rounded-2xl border border-border bg-surface transition-shadow hover:shadow-[var(--shadow-sm)]", !t.active && "opacity-60")}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
     >
-      <button type="button" onClick={onHowTo} onFocus={() => setHover(true)} onBlur={() => setHover(false)} className="relative block bg-muted/40 px-3 pt-2" aria-label={`How to do ${t.name}`}>
+      <button type="button" onClick={onHowTo} className="relative block bg-muted/40 px-2 pt-1" aria-label={`How to do ${t.name}`}>
         {info ? (
-          <ExerciseFigure rig={info.rig} playing={hover} className="mx-auto h-24 w-full" label={`${t.name} demonstration`} />
+          <ExerciseFigure rig={info.rig} className="mx-auto h-32 w-full" label={`${t.name} demonstration`} />
         ) : (
           <div className="flex h-24 items-center justify-center text-subtle"><Dumbbell className="h-8 w-8 opacity-40" /></div>
         )}
-        <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-surface/90 px-2 py-0.5 text-[10px] font-semibold text-accent opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
+        <span className="pointer-events-none absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-surface/90 px-2 py-0.5 text-[10px] font-semibold text-accent shadow-sm">
           <Play className="h-3 w-3" /> How to
         </span>
       </button>
@@ -207,10 +178,9 @@ function Card({ t, onHowTo }: { t: ExerciseTypeData; onHowTo: () => void }) {
               <p className="min-w-0 text-sm font-semibold leading-tight">{t.name}</p>
               {info ? <span className={cn("shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold capitalize", LEVEL_TONE[info.level])}>{info.level}</span> : null}
             </div>
-            <p className="flex items-center gap-1 text-xs">
-              <span className="tabular font-semibold">{t.defaultAmount}</span>
-              <span className="text-subtle">{t.unit === "seconds" ? "seconds" : "reps"} a set</span>
-              <InfoTip text={amountMeaning(t.unit, t.defaultAmount, info)} />
+            <p className="text-xs">
+              <span className="tabular font-semibold">{t.defaultAmount}</span>{" "}
+              <span className="text-subtle">{t.unit === "seconds" ? "seconds a set (hold or keep going)" : "reps a set (times in a row)"}</span>
             </p>
             {info ? <p className="line-clamp-1 text-[11px] text-subtle" title={info.muscles}>{info.muscles}</p> : <p className="text-[11px] text-subtle">Your own exercise</p>}
             <p className="mt-auto text-[11px] text-subtle">
@@ -278,9 +248,9 @@ export function ExerciseTypes({ types }: { types: ExerciseTypeData[] }) {
           ))}
         </div>
       </div>
-      <p className="flex items-center gap-1.5 text-xs text-subtle">
-        Most recently done first. Hover a card to see the movement; click it for step-by-step instructions.
-        <InfoTip text={`${AMOUNT_HELP} ${UNIT_HELP}`} label="What do reps and seconds mean?" />
+      <p className="text-xs text-subtle">
+        Most recently done first. Drag any figure to turn it around in 3D; click a card for step-by-step instructions.
+        {" "}{UNIT_HELP}
       </p>
 
       {shown.length ? (
@@ -310,7 +280,7 @@ export function ExerciseTypes({ types }: { types: ExerciseTypeData[] }) {
         }}
       >
         <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-subtle">
-          Add your own <InfoTip text={`${AMOUNT_HELP} ${UNIT_HELP}`} />
+          Add your own
         </p>
         <div className="grid grid-cols-[1fr_5rem_7rem] gap-2 sm:grid-cols-[1fr_6rem_8rem_auto]">
           <Input

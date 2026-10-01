@@ -971,3 +971,57 @@ export function amountMeaning(unit: Unit, amount: number, info?: ExerciseInfo | 
     : `${amount} reps per set: do the movement ${amount} times in a row.`;
   return info ? `${base} ${info.counts}` : base;
 }
+
+// ---------------------------------------------------------------- 3D
+
+export type P3 = readonly [number, number, number];
+
+/** A body in 3D: X forward (where the person faces), Y up from the floor, Z to the person's left. */
+export interface Body3 {
+  head: P3;
+  neck: P3;
+  hip: P3;
+  /** shoulder, elbow, hand; near (left) then far (right) */
+  arms: [P3, P3, P3][];
+  /** hip joint, knee, ankle, toe */
+  legs: [P3, P3, P3, P3 | null][];
+}
+
+/** Half the shoulder and hip width, used to spread the side view's two arms and legs apart. */
+const SHOULDER_HALF = 4.6;
+const HIP_HALF = 3.2;
+
+/**
+ * Lifts a solved 2D skeleton into 3D. Side-view rigs move in the X/Y plane and their two sides sit apart along Z;
+ * front-view rigs move in the Z/Y plane (their drawing's x is the person's left-right).
+ */
+export function toBody3(rig: Rig, s: Skeleton): Body3 {
+  const front = rig.view === "front";
+  const at = (p: Pt, z: number): P3 => (front ? [0, GROUND - p[1], -(p[0] - 60)] : [p[0] - 60, GROUND - p[1], z]);
+  const side = (i: number, half: number) => (i === 0 ? half : -half);
+  return {
+    head: at(s.head, 0),
+    neck: at(s.neck, 0),
+    hip: at(s.hip, 0),
+    arms: s.arms.map((a, i) => a.map((p) => at(p, side(i, SHOULDER_HALF))) as [P3, P3, P3]),
+    legs: s.legs.map((l, i) => l.map((p) => (p ? at(p, side(i, HIP_HALF)) : null)) as [P3, P3, P3, P3 | null]),
+  };
+}
+
+/** Props as boxes in the same 3D space: [x0, x1, y0, y1, z0, z1]. */
+export function propBoxes(rig: Rig): [number, number, number, number, number, number][] {
+  const p = rig.prop;
+  if (!p) return [];
+  const Y = (y: number) => GROUND - y;
+  if (p.kind === "wall") return [[p.x - 60 - 0.8, p.x - 60 + 0.8, 0, 96, -24, 24]];
+  if (p.kind === "step") return [[p.x - 60, p.x - 60 + p.w, 0, Y(p.y), -16, 16]];
+  const top = Y(p.y);
+  const x0 = p.x - 60;
+  const x1 = x0 + p.w;
+  const legs: [number, number, number, number, number, number][] = [];
+  for (const lx of [x0 + 1, x1 - 2]) for (const lz of [-11, 10]) legs.push([lx, lx + 1, 0, top, lz, lz + 1]);
+  const seat: [number, number, number, number, number, number] = [x0, x1, top - 1.6, top, -12, 12];
+  if (p.kind === "desk") return [seat, ...legs];
+  // chair: seat, legs, and a back on the side away from where the person faces
+  return [seat, ...legs, [x0 - 1, x0 + 0.6, top, top + 24, -12, 12]];
+}

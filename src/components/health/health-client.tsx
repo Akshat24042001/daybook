@@ -12,7 +12,7 @@ import { useToast } from "../toast";
 import { Button, Card, ErrorNote, Field, Input, Select, Sheet } from "../ui";
 import { amountMeaning, catalogFor } from "@/lib/exercise-catalog";
 import { ExerciseFigure } from "./exercise-figure";
-import { ExerciseTypes, HowToDialog, InfoTip, type ExerciseTypeData } from "./exercise-types";
+import { ExerciseTypes, HowToDialog, type ExerciseTypeData } from "./exercise-types";
 
 interface Cell {
   iso: string;
@@ -335,7 +335,7 @@ export function HealthClient(props: {
         <div className="space-y-3">
           {selectedInfo ? (
             <button type="button" onClick={() => setHowTo(true)} className="group relative block w-full rounded-2xl bg-muted/50 p-2" aria-label={`How to do ${selected?.name}`}>
-              <ExerciseFigure rig={selectedInfo.rig} className="mx-auto h-32 w-full max-w-xs" label={`${selectedInfo.name} demonstration`} />
+              <ExerciseFigure rig={selectedInfo.rig} className="mx-auto h-40 w-full max-w-xs" label={`${selectedInfo.name} demonstration`} />
               <span className="absolute bottom-2 right-2 rounded-full bg-surface px-2 py-0.5 text-[10px] font-semibold text-accent shadow-sm">How to do it</span>
             </button>
           ) : null}
@@ -353,9 +353,8 @@ export function HealthClient(props: {
               <Button variant="outline" size="icon" aria-label="Plus 5" onClick={() => setAmount(String(Number(amount) + 5))}>+5</Button>
             </div>
           </Field>
-          <p className="flex items-start gap-1 text-xs text-subtle">
-            <InfoTip text={amountMeaning(unit, Number(amount) || 0, selectedInfo)} />
-            {unit === "seconds" ? `${Number(amount) || 0} seconds = one set.` : `${Number(amount) || 0} reps = one set.`} A slot can hold several exercises: log each one.
+          <p className="text-xs text-subtle">
+            {amountMeaning(unit, Number(amount) || 0, selectedInfo)} A slot can hold several exercises: log each one.
           </p>
           <ErrorNote message={error} />
           <div className="flex gap-2">

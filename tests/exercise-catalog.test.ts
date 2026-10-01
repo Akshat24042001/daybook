@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EXERCISES, GROUND, TOP, catalogFor, poseAt, solve, type Pt } from "@/lib/exercise-catalog";
+import { EXERCISES, GROUND, TOP, catalogFor, poseAt, propBoxes, solve, toBody3, type Pt } from "@/lib/exercise-catalog";
 
 const points = (s: ReturnType<typeof solve>): Pt[] => [
   s.head, s.neck, s.hip,
@@ -59,6 +59,22 @@ describe("exercise catalogue", () => {
           expect(Math.hypot(target[0] - got[0], target[1] - got[1]), `${e.key} contact`).toBeLessThan(2);
         }
       }
+    }
+  });
+
+  it("lifts every figure into 3D with both sides apart and nothing under the floor", () => {
+    for (const e of EXERCISES) {
+      for (let i = 0; i <= 20; i++) {
+        const b = toBody3(e.rig, solve(e.rig, poseAt(e.rig, i / 20)));
+        const pts = [b.head, b.neck, b.hip, ...b.arms.flat(), ...b.legs.flat().filter((p) => p !== null)];
+        for (const p of pts) {
+          expect(p.every(Number.isFinite), e.key).toBe(true);
+          expect(p[1], `${e.key} below the floor`).toBeGreaterThanOrEqual(-2.5);
+        }
+        // the two shoulders are apart, so turning the figure shows a body, not a flat drawing
+        expect(Math.hypot(...b.arms[0][0].map((v, k) => v - b.arms[1][0][k])), e.key).toBeGreaterThan(6);
+      }
+      for (const box of propBoxes(e.rig)) expect(box[0] < box[1] && box[2] <= box[3] && box[4] < box[5], e.key).toBe(true);
     }
   });
 });
