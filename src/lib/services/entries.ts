@@ -7,7 +7,7 @@ import { SKIP_REASONS, type EntryRow, type EntrySource, type EntryStatus, type E
 export const VIEW_SELECT = `
   select e.*, t.title, t.type, t.project_id, p.name as project_name, p.color as project_color,
          pe.name as person_name, t.person_role, t.is_personal, t.estimate_min, t.due_at, t.lead_min,
-         t.carry_count, t.state as task_state, t.waiting_on, t.waiting_since, t.waiting_until,
+         t.carry_count, t.state as task_state, t.waiting_on, t.waiting_since, t.waiting_until, t.show_from,
          coalesce((select sum(l.minutes) from time_logs l
                    where l.task_id = e.task_id and l.date = e.date), 0)::int as minutes_today
   from day_entries e

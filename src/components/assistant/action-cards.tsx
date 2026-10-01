@@ -74,12 +74,14 @@ export function ActionCards({ items: initial, onChanged }: { items: ActionItem[]
       <ul className="divide-y divide-border/60">
         {items.map((it) => {
           const working = busy.has(it.id);
+          // deletes look different, so they are never tapped by accident
+          const danger = it.label.startsWith("🗑");
           return (
             <li key={it.id} className="flex items-center gap-3 px-3 py-2">
               <div className={cn("min-w-0 flex-1", it.status === "undone" && "opacity-50")}>
                 <p className={cn("text-sm font-medium", it.status === "undone" && "line-through")}>{it.label}</p>
                 {it.detail || it.error ? (
-                  <p className={cn("truncate text-xs", it.status === "failed" ? "text-bad" : "text-subtle")}>{it.status === "failed" ? it.error : it.detail}</p>
+                  <p className={cn("line-clamp-2 text-xs", it.status === "failed" ? "text-bad" : "text-subtle")}>{it.status === "failed" ? it.error : it.detail}</p>
                 ) : null}
               </div>
               {it.status === "applied" ? (
@@ -98,7 +100,7 @@ export function ActionCards({ items: initial, onChanged }: { items: ActionItem[]
                 <button
                   className={cn(
                     "flex h-8 shrink-0 items-center gap-1 rounded-lg px-3 text-xs font-semibold disabled:opacity-50",
-                    it.status === "undone" ? "border border-border bg-surface text-fg" : "bg-accent text-accent-fg",
+                    it.status === "undone" ? "border border-border bg-surface text-fg" : danger ? "bg-bad text-white" : "bg-accent text-accent-fg",
                   )}
                   disabled={working}
                   onClick={async () => {
@@ -109,7 +111,7 @@ export function ActionCards({ items: initial, onChanged }: { items: ActionItem[]
                   }}
                 >
                   {working ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                  {it.status === "failed" ? "Retry" : it.status === "undone" ? "Apply again" : "Apply"}
+                  {it.status === "failed" ? "Retry" : it.status === "undone" ? "Apply again" : danger ? "Delete" : "Apply"}
                 </button>
               )}
             </li>

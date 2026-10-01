@@ -173,6 +173,22 @@ export interface TaskPatch {
   target_period?: TargetPeriod | null;
   goal_count?: number | null;
   goal_min?: number | null;
+  /** HH:MM: keep the task off Today until this time; null clears it */
+  show_from?: string | null;
+}
+
+/** "18:00", "6pm", "6:30 pm" -> "18:00". Throws on anything else. */
+export function cleanShowFrom(v: string | null | undefined): string | null {
+  const t = (v ?? "").trim().toLowerCase();
+  if (!t) return null;
+  const m = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/.exec(t);
+  if (!m) throw new UserError("Show-from time must look like 18:00 or 6pm.");
+  let h = Number(m[1]);
+  const min = Number(m[2] ?? 0);
+  if (m[3] === "pm" && h < 12) h += 12;
+  if (m[3] === "am" && h === 12) h = 0;
+  if (h > 23 || min > 59) throw new UserError("That is not a valid time.");
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
 
 const TYPES: TaskType[] = ["one_off", "ongoing", "follow_up", "cadence", "recurring", "someday", "target"];
@@ -219,6 +235,7 @@ export async function updateTask(ctx: Ctx, id: number, patch: TaskPatch): Promis
     }
     if (patch.goal_count !== undefined) set("goal_count", patch.goal_count);
     if (patch.goal_min !== undefined) set("goal_min", patch.goal_min);
+    if (patch.show_from !== undefined) set("show_from", cleanShowFrom(patch.show_from));
 
     let newDue: DateStr | null | undefined = patch.due_date;
     if (patch.due_date !== undefined || patch.due_time !== undefined) {

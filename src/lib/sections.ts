@@ -31,14 +31,33 @@ export function dueFor(
   return logicalDate(e.due_at, tz, boundaryMin) === e.date ? e.due_at : null;
 }
 
+/**
+ * When a task with a "show from" time joins its day's list, e.g. a daily task set to show from 18:00. Null when the
+ * task has no such time.
+ */
+export function showsFrom(e: Pick<EntryView, "show_from" | "date">, tz: string, boundaryMin: number): Date | null {
+  if (!e.show_from || !/^\d{1,2}:\d{2}$/.test(e.show_from)) return null;
+  return atLogical(e.date, parseHM(e.show_from), tz, boundaryMin);
+}
+
+/** Still waiting for its "show from" time: an unresolved entry whose time has not come yet at `now`. */
+export function isLater(e: EntryView, tz: string, boundaryMin: number, now: Date): boolean {
+  if (e.status === "done" || e.status === "dropped" || e.status === "waiting") return false;
+  const from = showsFrom(e, tz, boundaryMin);
+  return !!from && from.getTime() > now.getTime();
+}
+
 export function sectionize(
   entries: EntryView[],
   tz: string,
   boundaryMin: number,
-): Record<SectionKey, EntryView[]> {
-  const out: Record<SectionKey, EntryView[]> = { must: [], timed: [], followups: [], other: [], personal: [], done: [] };
+  /** pass the current time to hold back tasks whose "show from" time has not come yet (they go to `later`) */
+  now?: Date,
+): Record<SectionKey, EntryView[]> & { later: EntryView[] } {
+  const out: Record<SectionKey, EntryView[]> & { later: EntryView[] } = { must: [], timed: [], followups: [], other: [], personal: [], done: [], later: [] };
   for (const e of entries) {
-    if (e.status === "done" || e.status === "dropped" || e.status === "waiting") out.done.push(e);
+    if (now && isLater(e, tz, boundaryMin, now)) out.later.push(e);
+    else if (e.status === "done" || e.status === "dropped" || e.status === "waiting") out.done.push(e);
     else if (e.is_personal) out.personal.push(e);
     else if (e.must_do) out.must.push(e);
     else if (dueFor(e, tz, boundaryMin)) out.timed.push(e);
@@ -48,6 +67,7 @@ export function sectionize(
   out.timed.sort(
     (a, b) => dueFor(a, tz, boundaryMin)!.getTime() - dueFor(b, tz, boundaryMin)!.getTime(),
   );
+  out.later.sort((a, b) => showsFrom(a, tz, boundaryMin)!.getTime() - showsFrom(b, tz, boundaryMin)!.getTime());
   return out;
 }
 

@@ -1,5 +1,5 @@
 import { one, q, tx } from "../db";
-import { type Ctx } from "../settings";
+import { type Ctx, isWorkingDay } from "../settings";
 import { type DateStr, addDays, periodEnd } from "../time";
 import type { EntryView } from "../types";
 import { addEntry } from "./entries";
@@ -47,7 +47,8 @@ export async function rolloverIfNeeded(ctx: Ctx): Promise<RolloverResult> {
          and exists (select 1 from day_entries later where later.task_id = e.task_id and later.date > e.date and later.carried_from = e.date)`,
       [addDays(today, -1)],
     );
-    const stale: EntryView[] = await unresolvedEntries(today, db);
+    // a day off gets no carried tasks: they wait for the next working day (and count one carry then)
+    const stale: EntryView[] = isWorkingDay(ctx, today) ? await unresolvedEntries(today, db) : [];
     let carried = 0;
     for (const e of stale) {
       await addEntry(ctx, e.task_id, today, { source: "auto", carriedFrom: e.date }, db);

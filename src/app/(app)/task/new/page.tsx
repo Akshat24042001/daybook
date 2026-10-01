@@ -53,6 +53,7 @@ export default async function NewTaskPage({ searchParams }: { searchParams: Prom
         state: "active",
         carry: 0,
         createdDay: ctx.today,
+        showFrom: "",
         mustDo: parsed?.mustDo ?? false,
       }}
     />

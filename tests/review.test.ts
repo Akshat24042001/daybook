@@ -56,7 +56,7 @@ describe("periods", () => {
 
 describe("time goals", () => {
   it("scales the weekly budget and judges progress against the share of the week gone", async () => {
-    const ctx = await ctxAt("2026-09-23 12:00"); // Wednesday: 3 of 7 days
+    const ctx = await ctxAt("2026-09-23 12:00"); // Wednesday: 3 of 6 working days (Sunday is off)
     const t = await add(ctx, "Aivaura: Write proposal");
     const pid = t.task.project_id!;
     await setProjectTimeGoal(pid, 14 * 60); // 14h a week
@@ -64,10 +64,10 @@ describe("time goals", () => {
     await logMinutes(ctx, t.task.id, "2026-09-23", 60, "web");
 
     const week = await timeGoals(ctx, "2026-09-21", "2026-09-27");
-    expect(week.elapsed).toBeCloseTo(3 / 7);
-    expect(week.goals[0]).toMatchObject({ name: "Aivaura", targetMin: 840, actualMin: 180, expectedMin: 360, status: "behind" });
+    expect(week.elapsed).toBeCloseTo(3 / 6);
+    expect(week.goals[0]).toMatchObject({ name: "Aivaura", targetMin: 840, actualMin: 180, expectedMin: 420, status: "behind" });
 
-    await logMinutes(ctx, t.task.id, "2026-09-23", 180, "web");
+    await logMinutes(ctx, t.task.id, "2026-09-23", 240, "web");
     expect((await timeGoals(ctx, "2026-09-21", "2026-09-27")).goals[0].status).toBe("on_track");
 
     // a month budget is the weekly budget times the number of weeks in it

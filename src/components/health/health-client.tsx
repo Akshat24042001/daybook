@@ -10,7 +10,9 @@ import type { HealthWeekDay } from "@/lib/services/health";
 import { fmtDuration, weekdayName } from "@/lib/time";
 import { useToast } from "../toast";
 import { Button, Card, ErrorNote, Field, Input, Select, Sheet } from "../ui";
-import { ExerciseTypes, type ExerciseTypeData } from "./exercise-types";
+import { amountMeaning, catalogFor } from "@/lib/exercise-catalog";
+import { ExerciseFigure } from "./exercise-figure";
+import { ExerciseTypes, HowToDialog, InfoTip, type ExerciseTypeData } from "./exercise-types";
 
 interface Cell {
   iso: string;
@@ -78,8 +80,11 @@ export function HealthClient(props: {
   const [amount, setAmount] = useState(String(props.defaultAmount));
   const [steps, setSteps] = useState(props.steps === null ? "" : String(props.steps));
   const [allSlots, setAllSlots] = useState(false);
+  const [howTo, setHowTo] = useState(false);
   const active = props.types.filter((t) => t.active);
-  const unit = active.find((t) => t.id === typeId)?.unit ?? "reps";
+  const selected = active.find((t) => t.id === typeId) ?? null;
+  const unit = selected?.unit ?? "reps";
+  const selectedInfo = selected ? catalogFor(selected.name) : null;
 
   const totalSlots = props.cells.length;
   const past = props.cells.filter((c) => c.status !== "upcoming");
@@ -110,7 +115,8 @@ export function HealthClient(props: {
     });
   }
 
-  const shown = allSlots ? props.cells : props.cells.filter((c) => c.status !== "upcoming" || c === next);
+  // newest first: the next ping, then the latest slot, down to the morning
+  const shown = (allSlots ? props.cells : props.cells.filter((c) => c.status !== "upcoming" || c === next)).slice().reverse();
 
   return (
     <div className="space-y-6">
@@ -241,7 +247,7 @@ export function HealthClient(props: {
               ))}
             </ol>
           )}
-          <p className="text-xs text-subtle">Telegram pings you every half hour in your exercise window. Tap any past slot to log or correct it.</p>
+          <p className="text-xs text-subtle">Newest at the top. Telegram pings you every half hour in your exercise window. Tap any past slot to log or correct it.</p>
         </section>
 
         {/* steps + sleep */}
@@ -321,12 +327,18 @@ export function HealthClient(props: {
       </div>
 
       <section aria-label="Exercise types" className="space-y-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-subtle">Exercise types</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-subtle">Exercise library · {props.types.length}</h2>
         <ExerciseTypes types={props.types} />
       </section>
 
       <Sheet open={!!cell} onOpenChange={(o) => !o && setCell(null)} title={cell ? `${cell.label} exercise` : "Exercise"} description="Log what you did, or mark the slot skipped.">
         <div className="space-y-3">
+          {selectedInfo ? (
+            <button type="button" onClick={() => setHowTo(true)} className="group relative block w-full rounded-2xl bg-muted/50 p-2" aria-label={`How to do ${selected?.name}`}>
+              <ExerciseFigure rig={selectedInfo.rig} className="mx-auto h-32 w-full max-w-xs" label={`${selectedInfo.name} demonstration`} />
+              <span className="absolute bottom-2 right-2 rounded-full bg-surface px-2 py-0.5 text-[10px] font-semibold text-accent shadow-sm">How to do it</span>
+            </button>
+          ) : null}
           <Field label="Exercise">
             <Select value={typeId ?? ""} onChange={(e) => { const id = Number(e.target.value); setTypeId(id); const t = active.find((x) => x.id === id); if (t) setAmount(String(t.defaultAmount)); }}>
               {active.map((t) => (
@@ -334,13 +346,17 @@ export function HealthClient(props: {
               ))}
             </Select>
           </Field>
-          <Field label={unit === "seconds" ? "Seconds" : "Reps"}>
+          <Field label={unit === "seconds" ? "Seconds (how long you held it or kept going)" : "Reps (how many times you did the movement)"}>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="icon" aria-label="Minus 5" onClick={() => setAmount(String(Math.max(1, Number(amount) - 5)))}>−5</Button>
               <Input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} className="text-center" />
               <Button variant="outline" size="icon" aria-label="Plus 5" onClick={() => setAmount(String(Number(amount) + 5))}>+5</Button>
             </div>
           </Field>
+          <p className="flex items-start gap-1 text-xs text-subtle">
+            <InfoTip text={amountMeaning(unit, Number(amount) || 0, selectedInfo)} />
+            {unit === "seconds" ? `${Number(amount) || 0} seconds = one set.` : `${Number(amount) || 0} reps = one set.`} A slot can hold several exercises: log each one.
+          </p>
           <ErrorNote message={error} />
           <div className="flex gap-2">
             <Button variant="primary" disabled={pending || !typeId} onClick={() => log("done")}>Log it</Button>
@@ -348,6 +364,7 @@ export function HealthClient(props: {
           </div>
         </div>
       </Sheet>
+      <HowToDialog info={selectedInfo} name={selected?.name ?? ""} amount={Number(amount) || selected?.defaultAmount || 0} unit={unit} open={howTo} onClose={() => setHowTo(false)} />
     </div>
   );
 }

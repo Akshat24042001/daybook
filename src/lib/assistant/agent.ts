@@ -5,9 +5,10 @@
  *
  * The protocol is plain JSON in the reply (not provider tool-calling), so any free open model can follow it.
  */
-import { chatWithModel } from "../ai";
+import { chatWithModel, openModels } from "../ai";
 import { fmtDateLong, fmtHM, weekdayName } from "../time";
 import type { Ctx } from "../settings";
+import { MORE_DOCS } from "./actions-more";
 import { SCHEMA_GUIDE } from "./schema";
 import { resultForModel, runReadOnlySql, SqlRejected, type SqlResult } from "./sql";
 import type { Block, ChartKind, MemoryFact, Step, StatItem } from "./types";
@@ -86,9 +87,13 @@ To answer, reply:
 - "followups": 2-3 short questions that would dig deeper, in their voice.
 - If the question needs no data (small talk, a plan, a definition), answer directly.
 
-ACTIONS — you can propose changes; each becomes a button the owner taps to apply (and can undo). Add to the answer:
+ACTIONS — you can make ANY change the app itself can make: create, edit and delete tasks, projects, people,
+contacts, references, diary notes, scratchpad items, time segments, exercise logs and exercise types, intentions,
+reviews and settings. Each change becomes a button the owner taps to apply, and every applied change can be undone
+exactly (deletes included). Add to the answer:
  "actions":[{"type":"task_status","entry_id":123,"status":"done"}, ...]
-Types and fields (look up ids with queries first; never guess an id):
+Never say you cannot change something in Daybook: find the action below that does it. If one request needs several
+changes, propose all of them. Types and fields (look up ids with queries first; never guess an id):
 - task_status: entry_id (v_task_days.entry_id), status done|progressed|attempted|skipped|dropped|open, reason (skipped only: no_time|low_energy|blocked|not_important)
 - log_time: task_id, minutes, date (default today)
 - add_task: text in quick-add syntax, e.g. "Aivaura: Send proposal ~30m !! @tom @5pm +Rahul" (Project: prefix, ~estimate, !! must-do, @date/@time, ? someday, >> ongoing, *7d cadence, /p personal)
@@ -97,11 +102,18 @@ Types and fields (look up ids with queries first; never guess an id):
 - task_note: task_id, text
 - switch_state: kind office|outside|remote|commute|meal|break|exercise|personal|off (off = Day end)
 - edit_segment: segment_id (v_segments.id), start and/or end as "HH:MM" local (end "running" reopens it)
-- set_day: field score|steps|sleep_minutes|instagram_minutes, value (a number, or "clear" to remove a wrong entry), date (default today)
-- log_exercise: exercise (type name), amount
+- set_day: field score|steps|sleep_minutes|sleep_quality (1-5)|instagram_minutes|worked_minutes (manual override; "clear" = automatic), value (a number, or "clear" to remove a wrong entry), date (default today), mode "add" (instagram_minutes and steps: add to today's total, e.g. "30 more minutes on Instagram")
+- log_exercise: exercise (type name), amount, time ("HH:MM" slot, optional)
 - diary_note: text, date (default today)
 - scratch_note: text, title (optional)
 - contact_touch: contact_id, kind call|meet|message|other, note (optional), date (default today)
+- edit_segment also takes kind (change what that stretch of time was, e.g. office -> outside)
+${MORE_DOCS}
+Where the ids live: tasks.id (task_id), v_task_days.entry_id, task_remarks.id (note_id), projects.id, people.id,
+contacts.id, contact_touches.id (touch_id), refs.id, diary_entries.id (diary_id), scratch_items.id (item_id),
+v_segments.id (segment_id), exercise_types.id (type_id), exercise_logs.id (log_id).
+For a delete, say plainly what goes with it (the button shows it too). Prefer the gentler action when the owner did
+not say "delete": set_task_state dropped keeps history, update_project archived, update_exercise_type active false.
 Rules: when they ask for a change, propose exactly that change (several actions are fine: "mark X done and log 45m").
 EVERY answer must end with 2-4 useful one-tap actions that fit what was just discussed, so the owner can act without
 typing: close or move the tasks you mentioned, log what they said they did, switch state, set today's score/steps/
@@ -241,6 +253,8 @@ export async function runAgent(opts: {
   const steps: Step[] = [];
   let model: string | null = null;
   let repaired = false;
+  let switched = false;
+  let useModel = prefer ?? null;
 
   for (let round = 0; round <= MAX_ROUNDS; round++) {
     const left = deadline - Date.now();
@@ -254,7 +268,7 @@ export async function runAgent(opts: {
       temperature: 0.2,
       timeoutMs: Math.max(5_000, Math.min(35_000, left - 2_000)),
       totalMs: Math.max(5_000, left - 1_000),
-      prefer,
+      prefer: useModel,
     });
     model = reply.model;
     const parsed = parseReply(reply.text);
@@ -264,6 +278,14 @@ export async function runAgent(opts: {
         repaired = true;
         messages.push({ role: "assistant", content: reply.text.slice(0, 4000) });
         messages.push({ role: "user", content: "That was not a single JSON object. Reply again with exactly one JSON object as the PROTOCOL says." });
+        continue;
+      }
+      // a model that still will not follow the protocol: hand the same conversation to the next model once
+      const next = openModels().find((m) => m !== reply.model);
+      if (!switched && next && !lastChance) {
+        switched = true;
+        useModel = next;
+        emit.status("Asking another model…");
         continue;
       }
       // a model that will not speak JSON still gets its words shown

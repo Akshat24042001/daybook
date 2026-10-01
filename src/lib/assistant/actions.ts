@@ -7,11 +7,11 @@
  *  undo     — before applying, the rows the action can touch are snapshotted; undo restores them exactly, whatever
  *             side effects the service had (closing a task, carry counts, check-back entries, neighbour segments).
  */
-import { getPool, q, tx, UserError, type Db } from "../db";
+import { getPool, q, tx, UserError } from "../db";
 import { ACTIVITIES } from "../activity";
 import { describeParsed, parseQuickAdd } from "../parser";
 import type { Ctx } from "../settings";
-import { addDays, fmtDay, fmtHM, zonedInstant, type DateStr } from "../time";
+import { addDays, fmtDay, fmtHM, type DateStr } from "../time";
 import type { EntryStatus, SkipReason } from "../types";
 import { addEntry as addDiaryEntry } from "../services/diary";
 import { getEntry, logMinutes, moveEntry, setEntryStatus, setSkipReason, setWaiting } from "../services/entries";
@@ -20,15 +20,24 @@ import { logTouch } from "../services/keep-in-touch";
 import { createItem } from "../services/scratch";
 import type { SegmentKind } from "../hours";
 import { KIND_LABEL, switchState, updateSegment, type StateKind } from "../services/segments";
-import { setInstagram, setScore, setSleep, setSteps } from "../services/days";
+import { getDay, setInstagram, setScore, setSleep, setSteps, setWorkedOverride } from "../services/days";
 import { createFromParsed, createRemark, getTask } from "../services/tasks";
 import type { ActionItem } from "./types";
+import {
+  dateArg, dayName, dayScope, int, localTime, num, quote, restore, s, segmentScope, takeSnapshot, taskScopes,
+  type Scope, type Snapshot,
+} from "./action-kit";
+import { MORE } from "./actions-more";
 
-export const ACTION_TYPES = [
+const BASE_TYPES = [
   "task_status", "log_time", "add_task", "move_task", "waiting", "task_note",
   "switch_state", "edit_segment", "set_day", "log_exercise", "diary_note", "scratch_note", "contact_touch",
 ] as const;
-export type ActionType = (typeof ACTION_TYPES)[number];
+type BaseType = (typeof BASE_TYPES)[number];
+/** every action the assistant can propose: the original set plus the registry in actions-more.ts */
+export const ACTION_TYPES: string[] = [...BASE_TYPES, ...Object.keys(MORE)];
+export type ActionType = string;
+const isBase = (k: string): k is BaseType => (BASE_TYPES as readonly string[]).includes(k);
 
 export interface Prepared {
   kind: ActionType;
@@ -46,43 +55,6 @@ const REASONS: SkipReason[] = ["no_time", "low_energy", "blocked", "not_importan
 const REASON_LABEL: Record<string, string> = { no_time: "no time", low_energy: "low energy", blocked: "blocked", not_important: "not important" };
 const STATE_KINDS = new Set<string>([...ACTIVITIES.map((a) => a.kind), "off"]);
 
-const s = (v: unknown, max = 500) => (typeof v === "string" ? v.trim().slice(0, max) : "");
-const int = (v: unknown) => {
-  const n = typeof v === "string" ? Number(v) : v;
-  return typeof n === "number" && Number.isInteger(n) ? n : null;
-};
-const num = (v: unknown) => {
-  const n = typeof v === "string" ? Number(v) : v;
-  return typeof n === "number" && Number.isFinite(n) ? n : null;
-};
-const quote = (t: string, max = 60) => `“${t.length > max ? `${t.slice(0, max - 1)}…` : t}”`;
-
-/** "today", "tomorrow", "yesterday" or YYYY-MM-DD. */
-function dateArg(ctx: Ctx, v: unknown, fallback: DateStr = ctx.today): DateStr {
-  const t = s(v, 20).toLowerCase();
-  if (!t || t === "today") return fallback;
-  if (t === "tomorrow") return addDays(ctx.today, 1);
-  if (t === "yesterday") return addDays(ctx.today, -1);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
-  throw new UserError(`"${t}" is not a date.`);
-}
-
-const dayName = (ctx: Ctx, d: DateStr) =>
-  d === ctx.today ? "today" : d === addDays(ctx.today, 1) ? "tomorrow" : d === addDays(ctx.today, -1) ? "yesterday" : fmtDay(d, ctx.today);
-
-/** "15:50" on the given logical date, or "YYYY-MM-DD 15:50". Times before the day boundary fall on the next calendar day. */
-function localTime(ctx: Ctx, v: unknown, date: DateStr): Date {
-  const t = s(v, 40);
-  // an exact instant (how a prepared action stores it)
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(t)) return new Date(t);
-  const full = /^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}):(\d{2})$/.exec(t);
-  if (full) return zonedInstant(full[1], +full[2], +full[3], ctx.tz);
-  const hm = /^(\d{1,2}):(\d{2})$/.exec(t);
-  if (!hm || +hm[1] > 23 || +hm[2] > 59) throw new UserError(`"${t}" is not a time.`);
-  const min = +hm[1] * 60 + +hm[2];
-  return zonedInstant(min < ctx.boundaryMin ? addDays(date, 1) : date, +hm[1], +hm[2], ctx.tz);
-}
-
 async function entryOrFail(id: number | null) {
   const e = id === null ? null : await getEntry(id);
   if (!e) throw new UserError("That task entry no longer exists.");
@@ -93,8 +65,9 @@ async function entryOrFail(id: number | null) {
 
 /** Validates one proposed action and writes its label. Throws UserError with a reason the model can read. */
 export async function prepareAction(ctx: Ctx, raw: Record<string, unknown>): Promise<Prepared> {
-  const kind = s(raw.type, 40) as ActionType;
-  if (!ACTION_TYPES.includes(kind)) throw new UserError(`Unknown action "${kind}".`);
+  const kind = s(raw.type, 40);
+  if (!ACTION_TYPES.includes(kind)) throw new UserError(`Unknown action "${kind}". Known: ${ACTION_TYPES.join(", ")}.`);
+  if (!isBase(kind)) return { kind, ...(await MORE[kind].prepare(ctx, raw)) };
 
   switch (kind) {
     case "task_status": {
@@ -167,19 +140,53 @@ export async function prepareAction(ctx: Ctx, raw: Record<string, unknown>): Pro
       const end = raw.end === "running" || raw.end === null ? null
         : raw.end !== undefined && raw.end !== "" ? localTime(ctx, raw.end, seg.date) : seg.end_at;
       if (end && end <= start) throw new UserError("end must be after start.");
+      const newKind = s(raw.kind, 20) || seg.kind;
+      if (!STATE_KINDS.has(newKind) || newKind === "off") throw new UserError(`kind must be one of ${[...STATE_KINDS].filter((k) => k !== "off").join(", ")}.`);
       const was = `${fmtHM(seg.start_at, ctx.tz)}–${seg.end_at ? fmtHM(seg.end_at, ctx.tz) : "now"}`;
       const now = `${fmtHM(start, ctx.tz)}–${end ? fmtHM(end, ctx.tz) : "now"}`;
-      if (was === now) throw new UserError("That segment already has those times.");
+      if (was === now && newKind === seg.kind) throw new UserError("That segment already has those times.");
       return {
-        kind, params: { segment_id: seg.id, start: start.toISOString(), end: end ? end.toISOString() : null },
-        label: `◷ ${KIND_LABEL[seg.kind]}: ${was} → ${now}`,
+        kind, params: { segment_id: seg.id, start: start.toISOString(), end: end ? end.toISOString() : null, kind: newKind },
+        label: newKind !== seg.kind
+          ? `◷ ${KIND_LABEL[seg.kind]} → ${KIND_LABEL[newKind as StateKind]}${was !== now ? `, ${now}` : ` (${was})`}`
+          : `◷ ${KIND_LABEL[seg.kind]}: ${was} → ${now}`,
         detail: `${dayName(ctx, seg.date)} · a touching neighbour moves with it`,
       };
     }
     case "set_day": {
-      const field = s(raw.field, 20);
+      const field = s(raw.field, 24);
       const date = dateArg(ctx, raw.date);
       if (date > ctx.today) throw new UserError("Only today or earlier.");
+      if (field === "worked_minutes") {
+        if (raw.value === null || /^(clear|none|reset|auto|remove)$/i.test(s(raw.value, 10))) {
+          return { kind, params: { field, date, value: null }, label: "↺ Worked time back to automatic", detail: dayName(ctx, date) };
+        }
+        const m = Math.round(num(raw.value) ?? NaN);
+        if (!(m >= 0 && m <= 1440)) throw new UserError("worked_minutes is 0 to 1440, or \"clear\".");
+        return { kind, params: { field, date, value: m }, label: `◷ Worked ${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""} (manual)`, detail: dayName(ctx, date) };
+      }
+      if (field === "sleep_quality") {
+        const v = int(raw.value);
+        if (v === null || v < 1 || v > 5) throw new UserError("sleep_quality is 1 to 5.");
+        const day = await getDay(date);
+        if (day?.sleep_minutes == null) throw new UserError("Log the sleep hours first (set_day sleep_minutes).");
+        return { kind, params: { field, date, value: v }, label: `☾ Sleep quality ${v}/5`, detail: dayName(ctx, date) };
+      }
+      // "add": running totals through the day (Instagram, steps)
+      if (raw.mode === "add" || raw.add === true) {
+        if (field !== "instagram_minutes" && field !== "steps") throw new UserError("mode add works for instagram_minutes and steps.");
+        const plus = num(raw.value);
+        if (plus === null || plus <= 0) throw new UserError("add needs a positive value.");
+        const day = await getDay(date);
+        const cur = (field === "steps" ? day?.steps : day?.instagram_minutes) ?? 0;
+        const total = Math.round(cur + plus);
+        if (field === "instagram_minutes" && total > 1440) throw new UserError("That would be more than 24 hours.");
+        return {
+          kind, params: { field, date, value: total },
+          label: field === "steps" ? `👣 +${Math.round(plus).toLocaleString("en-IN")} steps (= ${total.toLocaleString("en-IN")})` : `Instagram +${Math.round(plus)}m (= ${Math.floor(total / 60)}h${total % 60 ? ` ${total % 60}m` : ""}${total > 60 ? ", over the 1h limit" : ""})`,
+          detail: dayName(ctx, date),
+        };
+      }
       // "clear" (or null) takes the value off, e.g. a score entered by mistake
       if (raw.value === null || /^(clear|none|reset|remove|delete)$/i.test(s(raw.value, 10))) {
         if (!["score", "steps", "sleep_minutes", "instagram_minutes"].includes(field)) throw new UserError("field must be score, steps, sleep_minutes or instagram_minutes.");
@@ -204,9 +211,9 @@ export async function prepareAction(ctx: Ctx, raw: Record<string, unknown>): Pro
       if (field === "instagram_minutes") {
         if (value < 0 || value > 1440) throw new UserError("instagram_minutes is 0 to 1440.");
         const m = Math.round(value);
-        return { kind, params: { field, date, value: m }, label: `Instagram ${m}m${m > 60 ? " (over the 1h limit)" : ""}`, detail: dayName(ctx, date) };
+        return { kind, params: { field, date, value: m }, label: `Instagram ${m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}` : `${m}m`}${m > 60 ? " (over the 1h limit)" : ""}`, detail: dayName(ctx, date) };
       }
-      throw new UserError("field must be score, steps, sleep_minutes or instagram_minutes.");
+      throw new UserError("field must be score, steps, sleep_minutes, sleep_quality, instagram_minutes or worked_minutes.");
     }
     case "log_exercise": {
       const name = s(raw.exercise, 60).toLowerCase().replace(/[-_]/g, " ").replace(/s\b/g, "");
@@ -218,7 +225,9 @@ export async function prepareAction(ctx: Ctx, raw: Record<string, unknown>): Pro
       if (!type) throw new UserError(`No exercise type matches "${s(raw.exercise, 60)}". Known: ${types.map((t) => t.name).join(", ")}.`);
       const amount = Math.round(num(raw.amount) ?? type.default_amount);
       if (amount < 1 || amount > 100000) throw new UserError("amount must be positive.");
-      return { kind, params: { type_id: type.id, amount }, label: `💪 ${amount}${type.unit === "seconds" ? "s" : ""} ${type.name}`, detail: "today, next free slot" };
+      const at = s(raw.time, 10);
+      if (at && !/^\d{1,2}:\d{2}$/.test(at)) throw new UserError("time must look like 15:30.");
+      return { kind, params: { type_id: type.id, amount, time: at || null }, label: `💪 ${amount}${type.unit === "seconds" ? "s" : ""} ${type.name}`, detail: at ? `today, the ${at} slot` : "today, next free slot" };
     }
     case "diary_note": {
       const text = s(raw.text, 5000);
@@ -247,74 +256,12 @@ export async function prepareAction(ctx: Ctx, raw: Record<string, unknown>): Pro
   }
 }
 
-// ---------------------------------------------------------------- snapshots
-
-interface Scope { table: string; key: string; where: string; params: unknown[] }
-interface Snapshot { scopes: (Scope & { rows: Record<string, unknown>[] })[]; created: { table: string; id: number }[] }
-
-const TABLES = new Set(["tasks", "day_entries", "time_logs", "task_remarks", "work_segments", "days", "exercise_logs", "contacts"]);
-const CREATED_TABLES = new Set(["tasks", "diary_entries", "scratch_items", "contact_touches", "task_remarks", "time_logs"]);
-
-const taskScopes = (taskId: number): Scope[] => [
-  { table: "tasks", key: "id", where: "id = $1", params: [taskId] },
-  { table: "day_entries", key: "id", where: "task_id = $1", params: [taskId] },
-  { table: "time_logs", key: "id", where: "task_id = $1", params: [taskId] },
-  { table: "task_remarks", key: "id", where: "task_id = $1", params: [taskId] },
-];
-const dayScope = (date: DateStr): Scope => ({ table: "days", key: "date", where: "date = $1", params: [date] });
-const segmentScope = (from: DateStr, to: DateStr): Scope => ({
-  table: "work_segments", key: "id", where: "(date between $1 and $2) or end_at is null", params: [from, to],
-});
-
-async function takeSnapshot(scopes: Scope[], db: Db): Promise<Snapshot> {
-  const out: Snapshot = { scopes: [], created: [] };
-  for (const sc of scopes) {
-    if (!TABLES.has(sc.table)) throw new Error(`no snapshots for ${sc.table}`);
-    const rows = await q<Record<string, unknown>>(`select * from ${sc.table} where ${sc.where}`, sc.params, db);
-    out.scopes.push({ ...sc, rows });
-  }
-  return out;
-}
-
-const toParam = (v: unknown) => (v !== null && typeof v === "object" && !(v instanceof Date) && !Array.isArray(v) ? JSON.stringify(v) : v);
-
-async function restore(snap: Snapshot, db: Db): Promise<void> {
-  for (const c of snap.created) {
-    if (!CREATED_TABLES.has(c.table)) continue;
-    await db.query(`delete from ${c.table} where id = $1`, [c.id]);
-  }
-  // parents before children on upsert, children before parents on delete
-  const order = ["tasks", "day_entries", "time_logs", "task_remarks", "work_segments", "days", "exercise_logs", "contacts"];
-  const scopes = [...snap.scopes].sort((a, b) => order.indexOf(a.table) - order.indexOf(b.table));
-  for (const sc of [...scopes].reverse()) {
-    if (!TABLES.has(sc.table)) continue;
-    const keys = sc.rows.map((r) => r[sc.key]);
-    const n = sc.params.length;
-    await db.query(
-      `delete from ${sc.table} where (${sc.where}) and not (${sc.key} = any($${n + 1}))`,
-      [...sc.params, keys],
-    );
-  }
-  for (const sc of scopes) {
-    if (!TABLES.has(sc.table)) continue;
-    for (const row of sc.rows) {
-      const cols = Object.keys(row).filter((c) => /^[a-z_]+$/.test(c));
-      const vals = cols.map((c) => toParam(row[c]));
-      const set = cols.filter((c) => c !== sc.key).map((c) => `${c} = excluded.${c}`).join(", ");
-      await db.query(
-        `insert into ${sc.table} (${cols.join(", ")}) values (${cols.map((_, i) => `$${i + 1}`).join(", ")})
-         on conflict (${sc.key}) do update set ${set}`,
-        vals,
-      );
-    }
-  }
-}
-
 // ---------------------------------------------------------------- apply
 
 /** What each action may touch, taken before it runs. */
 async function scopesFor(ctx: Ctx, p: Prepared): Promise<Scope[]> {
   const pr = p.params;
+  if (!isBase(p.kind)) return MORE[p.kind].scopes(ctx, pr);
   switch (p.kind) {
     case "task_status":
     case "move_task":
@@ -349,6 +296,7 @@ export async function runAction(ctx: Ctx, p: Prepared): Promise<{ result: string
   const undo = await takeSnapshot(await scopesFor(ctx, p), pool);
   const pr = p.params;
   let result = "Done.";
+  if (!isBase(p.kind)) return { result: await MORE[p.kind].run(ctx, pr, undo), undo };
   switch (p.kind) {
     case "task_status": {
       const r = await setEntryStatus(ctx, pr.entry_id as number, pr.status as EntryStatus);
@@ -389,7 +337,7 @@ export async function runAction(ctx: Ctx, p: Prepared): Promise<{ result: string
     case "edit_segment": {
       const [seg] = await q<{ kind: SegmentKind }>("select kind from work_segments where id = $1", [pr.segment_id]);
       await updateSegment(ctx, pr.segment_id as number, {
-        kind: seg.kind, start: new Date(pr.start as string), end: pr.end ? new Date(pr.end as string) : null,
+        kind: (pr.kind as SegmentKind | undefined) ?? seg.kind, start: new Date(pr.start as string), end: pr.end ? new Date(pr.end as string) : null,
       });
       result = "Times updated.";
       break;
@@ -400,6 +348,8 @@ export async function runAction(ctx: Ctx, p: Prepared): Promise<{ result: string
       if (pr.field === "score") await setScore(d, v);
       else if (pr.field === "steps") await setSteps(d, v);
       else if (pr.field === "instagram_minutes") await setInstagram(d, v);
+      else if (pr.field === "worked_minutes") await setWorkedOverride(d, v);
+      else if (pr.field === "sleep_quality") await setSleep(d, (await getDay(d))?.sleep_minutes ?? null, v);
       else await setSleep(d, v);
       if (v === null) result = "Cleared.";
       else result = "Saved.";
@@ -411,7 +361,11 @@ export async function runAction(ctx: Ctx, p: Prepared): Promise<{ result: string
       const free = slots.filter((x) => !taken.has(x.getTime()));
       // the current slot if it is free, else the next free one, else the latest free one
       const current = [...slots].reverse().find((x) => x.getTime() <= ctx.now.getTime());
-      const slot = (current && !taken.has(current.getTime()) ? current : null)
+      // a named slot ("the 15:30 one") takes the exercise even if it already holds another one
+      const wanted = pr.time ? localTime(ctx, pr.time, ctx.today).getTime() : null;
+      const named = wanted === null ? null : slots.reduce<Date | null>((b, x) => (!b || Math.abs(x.getTime() - wanted) < Math.abs(b.getTime() - wanted) ? x : b), null);
+      if (named && Math.abs(named.getTime() - wanted!) > 20 * 60_000) throw new UserError(`No exercise slot near ${pr.time}.`);
+      const slot = named ?? (current && !taken.has(current.getTime()) ? current : null)
         ?? free.find((x) => x.getTime() >= ctx.now.getTime()) ?? free[free.length - 1];
       if (!slot) throw new UserError("Every exercise slot today is already logged.");
       await logExercise(ctx, slot, "done", pr.type_id as number, pr.amount as number);
@@ -457,12 +411,16 @@ export async function proposeActions(ctx: Ctx, chatId: number | null, raws: unkn
     try {
       if (!raw || typeof raw !== "object") throw new UserError("not an object");
       const p = await prepareAction(ctx, raw as Record<string, unknown>);
+      // registry actions keep the request as asked, so a tap later re-checks it from the same words
+      const { type: _t, ...asked } = raw as Record<string, unknown>;
+      const stored = isBase(p.kind) ? p.params : { ...p.params, $raw: asked };
       const [row] = await q<ActionRow>(
         "insert into assistant_actions (chat_id, kind, params, label, detail) values ($1, $2, $3, $4, $5) returning *",
-        [chatId, p.kind, JSON.stringify(p.params), p.label.slice(0, 200), p.detail?.slice(0, 300) ?? null],
+        [chatId, p.kind, JSON.stringify(stored), p.label.slice(0, 200), p.detail?.slice(0, 300) ?? null],
       );
       items.push(toItem(row));
     } catch (e) {
+      if (!(e instanceof UserError)) console.error("[assistant] action check failed:", (e as Error).message);
       rejected.push(`${s((raw as { type?: unknown })?.type, 40) || "action"}: ${e instanceof UserError ? e.message : "invalid"}`);
     }
   }
@@ -475,7 +433,8 @@ export async function applyStoredAction(ctx: Ctx, id: number): Promise<ActionIte
   if (row.status === "applied") return toItem(row);
   try {
     // re-check against the data as it is now: things may have changed since it was proposed
-    const p = await prepareAction(ctx, { type: row.kind, ...row.params });
+    const asked = (row.params.$raw ?? row.params) as Record<string, unknown>;
+    const p = await prepareAction(ctx, { ...asked, type: row.kind });
     const { result, undo } = await runAction(ctx, p);
     const [done] = await q<ActionRow>(
       "update assistant_actions set status = 'applied', undo = $2, error = null, detail = $3, applied_at = now() where id = $1 returning *",

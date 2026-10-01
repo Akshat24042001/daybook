@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { HealthClient } from "@/components/health/health-client";
 import { makeCtx } from "@/lib/settings";
-import { fmtDateLong, fmtHM } from "@/lib/time";
+import { diffDays, fmtDateLong, fmtHM, logicalDate } from "@/lib/time";
 import { getDay } from "@/lib/services/days";
-import { exerciseCounts, exerciseGrid, healthOverview, lastExercise, listExerciseTypes } from "@/lib/services/health";
+import { exerciseCounts, exerciseGrid, exerciseTypesByUse, healthOverview, lastExercise } from "@/lib/services/health";
 
 export const metadata: Metadata = { title: "Health" };
 export const dynamic = "force-dynamic";
@@ -12,11 +12,11 @@ export default async function HealthPage() {
   const ctx = await makeCtx();
   const [grid, types, day, counts, last, overview] = await Promise.all([
     exerciseGrid(ctx, ctx.today),
-    listExerciseTypes(false),
+    exerciseTypesByUse(ctx.today),
     getDay(ctx.today),
     exerciseCounts(ctx.today),
     lastExercise(),
-    healthOverview(ctx.today, ctx.s.step_goal),
+    healthOverview(ctx.today, ctx.s.step_goal, 7, undefined, ctx.s.working_days),
   ]);
   return (
     <div className="mx-auto max-w-5xl">
@@ -33,7 +33,13 @@ export default async function HealthPage() {
         extraNames: c.extraNames,
         items: c.items,
       }))}
-      types={types.map((t) => ({ id: t.id, name: t.name, defaultAmount: t.default_amount, unit: t.unit, active: t.active }))}
+      types={types.map((t) => {
+        const ago = t.last_used ? diffDays(ctx.today, logicalDate(t.last_used, ctx.tz, ctx.boundaryMin)) : null;
+        return {
+          id: t.id, name: t.name, defaultAmount: t.default_amount, unit: t.unit, active: t.active, sets30d: t.sets_30d,
+          lastUsed: ago === null ? null : ago <= 0 ? "today" : ago === 1 ? "yesterday" : `${ago} days ago`,
+        };
+      })}
       steps={day?.steps ?? null}
       stepGoal={ctx.s.step_goal}
       counts={counts}

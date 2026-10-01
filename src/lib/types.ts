@@ -73,6 +73,8 @@ export interface TaskRow {
   waiting_on?: string | null;
   waiting_since?: DateStr | null;
   waiting_until?: DateStr | null;
+  /** HH:MM local: the task stays off Today until this time */
+  show_from?: string | null;
   sort: number;
   created_at: Date;
   closed_at: Date | null;
@@ -115,4 +117,5 @@ export interface EntryView extends EntryRow {
   waiting_on?: string | null;
   waiting_since?: DateStr | null;
   waiting_until?: DateStr | null;
+  show_from?: string | null;
 }

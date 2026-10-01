@@ -17,7 +17,7 @@ const entries = async (id: number) => q<{ date: string; status: string; source: 
 describe("carrying", () => {
   it("a daily task done every day is never carried, whenever tomorrow is planned", async () => {
     await q("insert into tasks (title, type, rrule, created_at) values ('Meditate', 'recurring', 'FREQ=DAILY', '2026-09-20T00:00:00Z')");
-    for (const day of ["2026-09-25", "2026-09-26", "2026-09-27"]) {
+    for (const day of ["2026-09-24", "2026-09-25", "2026-09-26"]) {
       const morning = await ctxAt(`${day} 09:00`);
       await rolloverIfNeeded(morning);
       // plan tomorrow in the afternoon, before today's occurrence is done
@@ -31,15 +31,25 @@ describe("carrying", () => {
 
   it("a missed or skipped day of a repeating task is just missed", async () => {
     await q("insert into tasks (title, type, rrule, created_at) values ('Read 20 pages', 'recurring', 'FREQ=DAILY', '2026-09-20T00:00:00Z')");
-    await rolloverIfNeeded(await ctxAt("2026-09-25 09:00"));
-    const [e] = await q<{ id: number }>("select id from day_entries where task_id = 1 and date = '2026-09-25'");
-    await setEntryStatus(await ctxAt("2026-09-25 18:00"), e.id, "skipped");
-    await rolloverIfNeeded(await ctxAt("2026-09-26 09:00")); // yesterday skipped, today's own occurrence arrives
-    await rolloverIfNeeded(await ctxAt("2026-09-27 09:00")); // yesterday ignored entirely
+    await rolloverIfNeeded(await ctxAt("2026-09-24 09:00"));
+    const [e] = await q<{ id: number }>("select id from day_entries where task_id = 1 and date = '2026-09-24'");
+    await setEntryStatus(await ctxAt("2026-09-24 18:00"), e.id, "skipped");
+    await rolloverIfNeeded(await ctxAt("2026-09-25 09:00")); // yesterday skipped, today's own occurrence arrives
+    await rolloverIfNeeded(await ctxAt("2026-09-26 09:00")); // yesterday ignored entirely
     expect(await carry(1)).toBe(0);
     expect((await entries(1)).map((x) => [x.date, x.status, x.source])).toEqual([
-      ["2026-09-25", "skipped", "auto"], ["2026-09-26", "open", "auto"], ["2026-09-27", "open", "auto"],
+      ["2026-09-24", "skipped", "auto"], ["2026-09-25", "open", "auto"], ["2026-09-26", "open", "auto"],
     ]);
+  });
+
+  it("a day off skips plain daily tasks but keeps rules that name that day", async () => {
+    await q("insert into tasks (title, type, rrule, created_at) values ('Read 20 pages', 'recurring', 'FREQ=DAILY', '2026-09-20T00:00:00Z')");
+    await q("insert into tasks (title, type, rrule, created_at) values ('Weekly review', 'recurring', 'FREQ=WEEKLY;BYDAY=SU', '2026-09-20T00:00:00Z')");
+    await rolloverIfNeeded(await ctxAt("2026-09-27 09:00")); // Sunday, off by default
+    expect((await q<{ task_id: number }>("select task_id from day_entries where date = '2026-09-27'")).map((r) => r.task_id)).toEqual([2]);
+    await rolloverIfNeeded(await ctxAt("2026-09-28 09:00")); // Monday: the daily one is back, nothing carried
+    expect((await q<{ task_id: number }>("select task_id from day_entries where date = '2026-09-28'")).map((r) => r.task_id)).toEqual([1]);
+    expect(await carry(1)).toBe(0);
   });
 
   it("a repeating task set to 'keep it until done' carries like a one-off", async () => {

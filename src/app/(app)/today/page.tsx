@@ -3,7 +3,7 @@ import { TodayView } from "@/components/today/today-view";
 import { SECTION_ORDER, sectionize, type SectionKey } from "@/lib/sections";
 import { voiceConfigured } from "@/lib/deepgram";
 import { makeCtx } from "@/lib/settings";
-import { fmtDateLong, fmtHM } from "@/lib/time";
+import { atLogical, fmtDateLong, fmtHM } from "@/lib/time";
 import { getDay } from "@/lib/services/days";
 import { entriesForDate } from "@/lib/services/entries";
 import { currentState, segmentsForDate, workedForDate } from "@/lib/services/segments";
@@ -50,7 +50,7 @@ export default async function TodayPage() {
   const activeTargets = [...allTargets.week, ...allTargets.month, ...allTargets.quarter, ...allTargets.year]
     .filter((t) => t.task.state === "active")
     .map((t) => ({ id: t.task.id, title: t.task.title, met: t.met, behind: t.behind, hasGoal: t.hasGoal, period: t.task.target_period as string }));
-  const sec = sectionize(entries, ctx.tz, ctx.boundaryMin);
+  const sec = sectionize(entries, ctx.tz, ctx.boundaryMin, ctx.now);
   const sections = Object.fromEntries(SECTION_ORDER.map((k) => [k, sec[k].map((e) => toRow(ctx, e))])) as Record<SectionKey, RowData[]>;
 
   const segments: SegmentData[] = segs.map((s) => ({
@@ -81,6 +81,8 @@ export default async function TodayPage() {
       voiceEnabled={voiceConfigured()}
       targets={activeTargets}
       projects={projects}
+      endOfDayFrom={atLogical(ctx.today, 18 * 60, ctx.tz, ctx.boundaryMin).toISOString()}
+      later={sec.later.map((e) => ({ id: e.task_id, title: e.title, from: e.show_from ?? "" }))}
       asideTop={
         <>
           <SleepCard date={ctx.today} minutes={day?.sleep_minutes ?? null} quality={day?.sleep_quality ?? null} />

@@ -14,7 +14,7 @@ import {
 import { setInstagram, setScore, setSleep, setSteps, setWorkedOverride } from "@/lib/services/days";
 import { reorderSomeday, snoozeCadence } from "@/lib/services/goals";
 import {
-  createExerciseType, logExercise, updateExerciseType, type ExerciseTypeInput,
+  createExerciseType, deleteExerciseType, logExercise, updateExerciseType, type ExerciseTypeInput,
 } from "@/lib/services/health";
 import { finishPlan, triageEntry, type TriageAction } from "@/lib/services/plan";
 import {
@@ -22,7 +22,7 @@ import {
   type StateKind,
 } from "@/lib/services/segments";
 import {
-  appendNote, createRemark, deleteRemark, createFromParsed, deleteTask, ensurePerson, ensureProject, findDuplicates, getTask, makeSomeday, updateTask,
+  appendNote, cleanShowFrom, createRemark, deleteRemark, createFromParsed, deleteTask, ensurePerson, ensureProject, findDuplicates, getTask, makeSomeday, updateTask,
   type TaskPatch,
 } from "@/lib/services/tasks";
 import { sendMessage, telegramConfigured } from "@/lib/telegram/api";
@@ -322,6 +322,11 @@ export async function updateExerciseTypeAction(id: number, input: ExerciseTypeIn
     await updateExerciseType(id, input);
   }, ["/health"]);
 }
+export async function deleteExerciseTypeAction(id: number) {
+  return run(async () => {
+    await deleteExerciseType(id);
+  }, ["/health", "/settings"]);
+}
 
 // ------------------------------------------------------------------ tasks
 
@@ -373,6 +378,8 @@ export interface NewTaskForm {
   goalMin: number | null;
   notes: string | null;
   pendingId?: number | null;
+  /** HH:MM: keep it off Today until this time */
+  showFrom?: string | null;
 }
 
 export async function createTaskAction(f: NewTaskForm) {
@@ -403,6 +410,7 @@ export async function createTaskAction(f: NewTaskForm) {
     if (f.type === "recurring" && !f.rrule) throw new UserError("Pick how often this repeats.");
     const { task } = await createFromParsed(ctx, parsed);
     if (f.notes?.trim()) await q("update tasks set notes = $2 where id = $1", [task.id, f.notes.trim()]);
+    if (f.showFrom?.trim()) await q("update tasks set show_from = $2 where id = $1", [task.id, cleanShowFrom(f.showFrom)]);
     if (f.pendingId) await q("delete from pending_adds where id = $1", [f.pendingId]);
     return { taskId: task.id };
   }, ["/today", "/goals"]);

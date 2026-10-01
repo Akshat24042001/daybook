@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Check, CircleDot, Dumbbell, ListChecks, Loader2, Moon, Plus, Star, Footprints } from "lucide-react";
+import { BookOpen, Check, CircleDot, Dumbbell, Instagram, ListChecks, Loader2, Moon, Plus, Star, Footprints } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { quickAction, quickContextAction, undoAssistantAction, type QuickContext } from "@/app/assistant-actions";
 import { ACTIVITIES, ACTIVITY } from "@/lib/activity";
@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { Button, Input, Sheet, Textarea } from "../ui";
 import { useToast } from "../toast";
 
-type Panel = "state" | "tasks" | "steps" | "score" | "sleep" | "exercise" | "task" | "diary" | null;
+type Panel = "state" | "tasks" | "steps" | "score" | "sleep" | "exercise" | "task" | "diary" | "insta" | null;
 
 const chip = "flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface px-3 text-xs font-medium text-subtle transition-colors hover:border-accent/40 hover:text-fg disabled:opacity-50";
 
@@ -90,6 +90,9 @@ export function QuickBar({ refreshKey, onChanged }: { refreshKey: number; onChan
         </button>
         <button className={chip} onClick={() => open("sleep", data.day.sleep ? String(Math.round((data.day.sleep / 60) * 10) / 10) : "")}>
           <Moon className="h-3.5 w-3.5" /> {data.day.sleep ? `${Math.floor(data.day.sleep / 60)}h${data.day.sleep % 60 ? ` ${data.day.sleep % 60}m` : ""}` : "Sleep"}
+        </button>
+        <button className={cn(chip, (data.day.instagram ?? 0) > 60 && "border-bad/40 text-bad")} onClick={() => open("insta")} title="Instagram time today (1h limit)">
+          <Instagram className="h-3.5 w-3.5" /> {data.day.instagram !== null ? `${Math.floor(data.day.instagram / 60) ? `${Math.floor(data.day.instagram / 60)}h ` : ""}${data.day.instagram % 60}m` : "Instagram"}
         </button>
         <button className={chip} onClick={() => open("task")}><Plus className="h-3.5 w-3.5" /> Task</button>
         <button className={chip} onClick={() => open("diary")}><BookOpen className="h-3.5 w-3.5" /> Diary</button>
@@ -198,6 +201,29 @@ export function QuickBar({ refreshKey, onChanged }: { refreshKey: number; onChan
         ) : (
           <p className="text-sm text-subtle">Add exercise types on the Health page first.</p>
         )}
+      </Sheet>
+
+      <Sheet open={panel === "insta"} onOpenChange={(o) => !o && setPanel(null)} title="Instagram today" description="Add as you go through the day. The limit is 1 hour.">
+        <div className="grid grid-cols-4 gap-2">
+          {[5, 15, 30, 60].map((m) => (
+            <button
+              key={m}
+              disabled={!!busy}
+              onClick={() => act(`ig-${m}`, { type: "set_day", field: "instagram_minutes", value: m, mode: "add" })}
+              className="h-11 rounded-xl border border-border text-sm font-semibold tabular-nums hover:bg-muted disabled:opacity-50"
+            >
+              +{m === 60 ? "1h" : `${m}m`}
+            </button>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-subtle">
+          Today: {data.day.instagram === null ? "nothing logged" : `${data.day.instagram} min${data.day.instagram > 60 ? `, ${data.day.instagram - 60} min over the limit` : ""}`}
+        </p>
+        {data.day.instagram !== null ? (
+          <Button className="mt-2" size="sm" variant="ghost" disabled={!!busy} onClick={() => act("ig-clear", { type: "set_day", field: "instagram_minutes", value: "clear" })}>
+            Clear today&apos;s Instagram time
+          </Button>
+        ) : null}
       </Sheet>
 
       <Sheet open={panel === "score"} onOpenChange={(o) => !o && setPanel(null)} title="Score today" description="How was the day, 0 to 10?">

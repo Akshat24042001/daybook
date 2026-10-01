@@ -18,41 +18,57 @@ afterAll(closePool);
 
 describe("Phase 1: a task added on day 1 appears on day 2 without retyping", () => {
   it("carries an untouched task into the next day via rollover, flagged and counted", async () => {
-    const day1 = await ctxAt("2026-09-19 14:00"); // Saturday
+    const day1 = await ctxAt("2026-09-18 14:00"); // Friday
     const { task, entry } = await add(day1, "Industry study");
-    expect(entry?.date).toBe("2026-09-19");
+    expect(entry?.date).toBe("2026-09-18");
 
-    // Sunday 04:30 IST: the tick runs the rollover once
-    const day2 = await ctxAt("2026-09-20 04:30");
-    expect(day2.today).toBe("2026-09-20");
+    // Saturday 04:30 IST: the tick runs the rollover once
+    const day2 = await ctxAt("2026-09-19 04:30");
+    expect(day2.today).toBe("2026-09-19");
     const r = await rolloverIfNeeded(day2);
     expect(r).toMatchObject({ ran: true, carried: 1 });
 
-    const e2 = await entryForTask(task.id, "2026-09-20");
-    expect(e2).toMatchObject({ source: "auto", carried_from: "2026-09-19", status: "open" });
+    const e2 = await entryForTask(task.id, "2026-09-19");
+    expect(e2).toMatchObject({ source: "auto", carried_from: "2026-09-18", status: "open" });
     expect((await getTask(task.id))!.carry_count).toBe(1);
 
     // Running the rollover again does nothing (idempotent)
     expect((await rolloverIfNeeded(day2)).ran).toBe(false);
     expect((await getTask(task.id))!.carry_count).toBe(1);
-    expect((await entriesForDate("2026-09-20")).length).toBe(1);
+    expect((await entriesForDate("2026-09-19")).length).toBe(1);
   });
 
   it("does not carry a task that was resolved, and skipped tasks are not double counted", async () => {
-    const day1 = await ctxAt("2026-09-19 14:00");
+    const day1 = await ctxAt("2026-09-18 14:00");
     const done = (await add(day1, "Write invoice")).task;
     const skipped = (await add(day1, "Vinit Suryavanshi follow up")).task;
-    const e1 = (await entryForTask(done.id, "2026-09-19"))!;
+    const e1 = (await entryForTask(done.id, "2026-09-18"))!;
     await setEntryStatus(day1, e1.id, "done");
-    const e2 = (await entryForTask(skipped.id, "2026-09-19"))!;
+    const e2 = (await entryForTask(skipped.id, "2026-09-18"))!;
     await setEntryStatus(day1, e2.id, "skipped");
     expect((await getTask(skipped.id))!.carry_count).toBe(1);
 
-    const day2 = await ctxAt("2026-09-20 05:00");
+    const day2 = await ctxAt("2026-09-19 05:00");
     await rolloverIfNeeded(day2);
-    expect(await entryForTask(done.id, "2026-09-20")).toBeNull();
-    expect(await entryForTask(skipped.id, "2026-09-20")).not.toBeNull();
+    expect(await entryForTask(done.id, "2026-09-19")).toBeNull();
+    expect(await entryForTask(skipped.id, "2026-09-19")).not.toBeNull();
     expect((await getTask(skipped.id))!.carry_count).toBe(1); // skip already counted it
+  });
+
+  it("a day off gets nothing carried; the next working day picks it up and counts one carry", async () => {
+    const sat = await ctxAt("2026-09-19 14:00"); // Saturday; Sunday is off by default
+    const { task } = await add(sat, "Industry study");
+
+    const sun = await ctxAt("2026-09-20 05:00");
+    expect((await rolloverIfNeeded(sun)).carried).toBe(0);
+    expect(await entryForTask(task.id, "2026-09-20")).toBeNull();
+    // planning the day off does not pull work onto it either
+    expect((await planView(sat, "2026-09-20")).entries).toEqual([]);
+
+    const mon = await ctxAt("2026-09-21 05:00");
+    expect((await rolloverIfNeeded(mon)).carried).toBe(1);
+    expect(await entryForTask(task.id, "2026-09-21")).toMatchObject({ carried_from: "2026-09-19", status: "open" });
+    expect((await getTask(task.id))!.carry_count).toBe(1);
   });
 
   it("Ongoing tasks appear on every working day until Done, not on Sunday", async () => {
@@ -172,12 +188,12 @@ describe("Phase 1: status rules", () => {
 describe("Phase 1: Plan with triage and capacity bar", () => {
   // Plan carries unresolved tasks forward automatically (owner's choice); the per-task triage actions still work.
   it("carries every unresolved entry to the plan date automatically, counting each carry once", async () => {
-    const today = await ctxAt("2026-09-19 21:00");
+    const today = await ctxAt("2026-09-18 21:00");
     const a = await add(today, "Task A");
     const b = await add(today, "Task B");
     const done = await add(today, "Task Done");
     await setEntryStatus(today, done.entry!.id, "done");
-    const tomorrow = "2026-09-20";
+    const tomorrow = "2026-09-19";
 
     let plan = await planView(today, tomorrow);
     expect(plan.triage.length).toBe(0);
@@ -196,7 +212,7 @@ describe("Phase 1: Plan with triage and capacity bar", () => {
     expect((await getDay(tomorrow))!.planned_at).not.toBeNull();
 
     // at the day boundary, A (left untouched) counts one carry, B none
-    await rolloverIfNeeded(await ctxAt("2026-09-20 09:00"));
+    await rolloverIfNeeded(await ctxAt("2026-09-19 09:00"));
     expect((await getTask(a.task.id))!.carry_count).toBe(1);
     expect((await getTask(b.task.id))!.carry_count).toBe(0);
     expect(await entryForTask(b.task.id, tomorrow)).toBeNull();

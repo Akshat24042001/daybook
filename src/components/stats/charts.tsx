@@ -250,7 +250,7 @@ export function Heatmap({ data, cell = 14 }: { data: Stats["heatmap"]; cell?: nu
   if (data.length === 0) return null;
   const dow = (d: string) => (new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7; // Monday = 0
   const pad = dow(data[0].date);
-  const cells: ({ date: string; score: number | null } | null)[] = [...Array(pad).fill(null), ...data];
+  const cells: ({ date: string; score: number | null; off?: boolean } | null)[] = [...Array(pad).fill(null), ...data];
   const weeks: (typeof cells)[] = [];
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
   const color = (s: number | null) => (s === null ? p.heat[0] : p.heat[Math.min(6, Math.max(1, Math.ceil((s / 10) * 6)))]);
@@ -268,9 +268,9 @@ export function Heatmap({ data, cell = 14 }: { data: Stats["heatmap"]; cell?: nu
               c ? (
                 <span
                   key={i}
-                  title={`${fmtDateShort(c.date)}: ${c.score === null ? "no score" : c.score}`}
-                  className="rounded-[3px]"
-                  style={{ background: color(c.score), width: cell, height: cell }}
+                  title={`${fmtDateShort(c.date)}: ${c.score === null ? (c.off ? "day off" : "no score") : c.score}`}
+                  className={c.off && c.score === null ? "rounded-[3px] border border-dashed border-border" : "rounded-[3px]"}
+                  style={{ background: c.off && c.score === null ? "transparent" : color(c.score), width: cell, height: cell }}
                 />
               ) : (
                 <span key={i} style={{ width: cell, height: cell }} />
@@ -285,6 +285,7 @@ export function Heatmap({ data, cell = 14 }: { data: Stats["heatmap"]; cell?: nu
           <span key={i} className="h-2.5 w-2.5 rounded-[2px]" style={{ background: c }} />
         ))}
         <span>10</span>
+        {data.some((d) => d.off) ? <span className="ml-2 inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-[2px] border border-dashed border-border" /> day off</span> : null}
       </div>
     </div>
   );

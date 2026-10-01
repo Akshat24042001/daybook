@@ -1,7 +1,7 @@
 import { q } from "../db";
 import { computeInsights, type DayFacts, type SlotFacts } from "../insights";
 import { workedMinutes, type Segment } from "../hours";
-import { type Ctx, windowOf } from "../settings";
+import { type Ctx, isWorkingDay, windowOf } from "../settings";
 import { type DateStr, addDays, dateRange, diffDays, isoDow, zonedParts } from "../time";
 import type { SkipReason, TaskType } from "../types";
 import { mustDoStreak, planningStreak } from "./days";
@@ -91,20 +91,24 @@ export async function periodMetrics(
   const totalWorked = workedDays.reduce((a, d) => a + (worked.get(d) ?? 0), 0);
   const totalUnacc = workedDays.reduce((a, d) => a + Math.max(0, (worked.get(d) ?? 0) - (logged.get(d) ?? 0)), 0);
 
-  const p1: unknown[] = [from, to];
+  // Days off (Settings > working days): a task left untouched on a day off is not counted as a miss; anything you
+  // did act on that day still counts.
+  const p1: unknown[] = [from, to, ctx.s.working_days];
   const tf1 = taskFilter(f, p1);
   const md = await q<{ total: number; hit: number }>(
     `select count(*)::int as total, count(*) filter (where e.status in ('done','progressed'))::int as hit
      from day_entries e join tasks t on t.id = e.task_id
-     where e.date between $1 and $2 and e.must_do and e.status not in ('dropped','waiting') ${tf1}`,
+     where e.date between $1 and $2 and e.must_do and e.status not in ('dropped','waiting')
+       and (extract(isodow from e.date)::int = any($3::int[]) or e.status <> 'open') ${tf1}`,
     p1,
   );
-  const p2: unknown[] = [from, to, ctx.today > to ? addDays(to, 1) : ctx.today];
+  const p2: unknown[] = [from, to, ctx.today > to ? addDays(to, 1) : ctx.today, ctx.s.working_days];
   const tf2 = taskFilter(f, p2);
   const comp = await q<{ total: number; done: number }>(
     `select count(*)::int as total, count(*) filter (where e.status = 'done')::int as done
      from day_entries e join tasks t on t.id = e.task_id
-     where e.date between $1 and $2 and e.date < $3 and e.status not in ('dropped','waiting') ${tf2}`,
+     where e.date between $1 and $2 and e.date < $3 and e.status not in ('dropped','waiting')
+       and (extract(isodow from e.date)::int = any($4::int[]) or e.status <> 'open') ${tf2}`,
     p2,
   );
   const p3: unknown[] = [from, to];
@@ -179,7 +183,8 @@ export interface Stats {
   /** "Not today" in the range, and why (reason null = no reason given) */
   skipReasons: { reason: SkipReason | null; n: number }[];
   cadence: { id: number; title: string; target: number; avgInterval: number | null; doneCount: number; daysSince: number | null }[];
-  heatmap: { date: DateStr; score: number | null }[];
+  /** every day in the range; off = not a working day */
+  heatmap: { date: DateStr; score: number | null; off: boolean }[];
   health: {
     setsPerDay: { date: DateStr; sets: number }[];
     amountByType: { name: string; unit: string; amount: number }[];
@@ -236,7 +241,12 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
   );
   const doneByDay = new Map(doneRows.map((r) => [r.date, r.n]));
 
-  const facts: DayFacts[] = dates.map((d) => {
+  // Days off with nothing logged are left out of the daily charts, averages and the weekday pattern, so a free
+  // Sunday does not drag every number down. A day off you did work on still shows.
+  const counted = dates.filter((d) =>
+    isWorkingDay(ctx, d) || (worked.get(d) ?? 0) > 0 || (doneByDay.get(d) ?? 0) > 0 || dayMap.get(d)?.score != null);
+  const countedSet = new Set(counted);
+  const allFacts: DayFacts[] = dates.map((d) => {
     const w = worked.get(d) ?? 0;
     const l = logged.get(d) ?? 0;
     return {
@@ -247,14 +257,15 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
       unaccountedPct: w > 0 ? (Math.max(0, w - l) / w) * 100 : null,
     };
   });
+  const facts = allFacts.filter((d) => countedSet.has(d.date));
 
   const scoreArr = facts.map((d) => d.score);
   const hoursArr = facts.map((d) => (d.workedMin > 0 ? Math.round((d.workedMin / 60) * 100) / 100 : null));
-  const doneArr = dates.map((d) => doneByDay.get(d) ?? 0);
+  const doneArr = counted.map((d) => doneByDay.get(d) ?? 0);
   const scoreAvg = movingAverage(scoreArr, 7);
   const hoursAvg = movingAverage(hoursArr, 7);
   const doneAvg = movingAverage(doneArr, 7);
-  const series = dates.map((d, i) => ({
+  const series = counted.map((d, i) => ({
     date: d,
     score: scoreArr[i],
     scoreAvg: scoreAvg[i],
@@ -267,13 +278,13 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
 
   // ---- weekday pattern
   const weekday = [1, 2, 3, 4, 5, 6, 7].map((dow) => {
-    const idx = dates.map((d, i) => (isoDow(d) === dow ? i : -1)).filter((i) => i >= 0);
+    const idx = counted.map((d, i) => (isoDow(d) === dow ? i : -1)).filter((i) => i >= 0);
     const scores = idx.map((i) => scoreArr[i]).filter((v): v is number => v !== null);
     const hours = idx.map((i) => hoursArr[i]).filter((v): v is number => v !== null);
     const dones = idx.map((i) => doneArr[i]);
     const avg = (xs: number[]) => (xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 100) / 100 : null);
     return { dow, label: DOW_LABEL[dow], avgScore: avg(scores), avgDone: avg(dones), avgHours: avg(hours), days: idx.length };
-  });
+  }).filter((w) => ctx.s.working_days.includes(w.dow) || w.days > 0);
 
   // ---- filtered task-derived tables
   const [projectProgress] = await Promise.all([projectProgressForStats(from, to)]);
@@ -478,11 +489,12 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
     });
   }
   const recent = await q<{ date: DateStr }>("select date from days where date between $1 and $2 and score is not null", [weekAgo, ctx.today]);
-  if (recent.length < 4 && ctx.today >= from) {
+  const workdays7 = dateRange(weekAgo, ctx.today).filter((d) => isWorkingDay(ctx, d)).length;
+  if (recent.length < Math.min(4, workdays7) && ctx.today >= from) {
     attention.push({
       id: "noscore",
       severity: "info",
-      title: `Score entered on ${recent.length} of the last 7 days`,
+      title: `Score entered on ${recent.length} of the last ${workdays7} working days`,
       detail: "The score is only useful next to the hours if it is entered every day.",
       href: "/today",
     });
@@ -508,9 +520,9 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
     rotting: rot,
     skipReasons,
     cadence,
-    heatmap: facts.map((d) => ({ date: d.date, score: d.score })),
+    heatmap: allFacts.map((d) => ({ date: d.date, score: d.score, off: !isWorkingDay(ctx, d.date) })),
     health: {
-      setsPerDay: dates.map((d) => ({ date: d, sets: setsByDay.get(d) ?? 0 })),
+      setsPerDay: counted.map((d) => ({ date: d, sets: setsByDay.get(d) ?? 0 })),
       amountByType: [...amountByType.entries()].map(([id, amount]) => {
         const t = types.find((x) => x.id === id);
         return { name: t?.name ?? "Removed exercise", unit: t?.unit ?? "reps", amount };
@@ -525,7 +537,7 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
     },
     attention,
     insights: computeInsights(facts, slotFacts),
-    totals: { minutes: byProject.reduce((a, r) => a + r.minutes, 0), days: len },
+    totals: { minutes: byProject.reduce((a, r) => a + r.minutes, 0), days: counted.length },
   };
 }
 

@@ -37,6 +37,8 @@ export interface TaskFormData {
   carry: number;
   createdDay: string;
   mustDo?: boolean;
+  /** HH:MM or "" */
+  showFrom: string;
 }
 
 const num = (v: string): number | null => (v.trim() === "" ? null : Math.max(0, Math.round(Number(v))) || null);
@@ -97,6 +99,7 @@ export function TaskForm({
           goalMin: goalHours ? Math.round(Number(goalHours) * 60) : null,
           notes: f.notes || null,
           pendingId,
+          showFrom: f.showFrom || null,
         };
         const r = await createTaskAction(form);
         if (!r.ok) return setError(r.error);
@@ -122,6 +125,7 @@ export function TaskForm({
         target_period: f.type === "target" ? f.targetPeriod ?? "week" : null,
         goal_min: f.type === "target" && goalHours ? Math.round(Number(goalHours) * 60) : null,
         goal_count: f.type === "target" ? num(goalCount) : null,
+        show_from: f.showFrom || null,
       });
       if (!r.ok) return setError(r.error);
       toast("Saved.");
@@ -183,6 +187,12 @@ export function TaskForm({
           </Field>
           <Field label="Time" hint="A reminder is sent before it.">
             <Input type="time" value={f.dueTime} onChange={(e) => set("dueTime", e.target.value)} />
+          </Field>
+          <Field label="Show on Today from" hint="Off your Today list until this time, e.g. a daily task for the evening. Blank = all day.">
+            <div className="flex gap-2">
+              <Input type="time" value={f.showFrom} onChange={(e) => set("showFrom", e.target.value)} />
+              {f.showFrom ? <Button variant="ghost" onClick={() => set("showFrom", "")}>Clear</Button> : null}
+            </div>
           </Field>
           {mode === "edit" ? (
             <Field label="Reminder lead (minutes)" hint="Blank uses the default from Settings.">

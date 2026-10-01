@@ -4,7 +4,7 @@
  * much of the range has already passed, so a Tuesday is not judged against a full week.
  */
 import { q, UserError } from "../db";
-import type { Ctx } from "../settings";
+import { type Ctx, isWorkingDay } from "../settings";
 import { dateRange, diffDays, type DateStr } from "../time";
 
 export type TimeGoalStatus = "done" | "on_track" | "behind" | "not_started";
@@ -58,8 +58,12 @@ export async function setProjectTimeGoal(projectId: number, weeklyMin: number | 
 export async function timeGoals(ctx: Ctx, from: DateStr, to: DateStr): Promise<TimeGoalReport> {
   await ensureColumn();
   const days = dateRange(from, to).length;
+  // pace runs over working days only (Settings > working days): a day off is not "behind"
+  const workdays = dateRange(from, to).filter((d) => isWorkingDay(ctx, d));
   const passed = ctx.today < from ? 0 : ctx.today > to ? days : diffDays(ctx.today, from) + 1;
-  const elapsed = days > 0 ? passed / days : 1;
+  const elapsed = workdays.length
+    ? workdays.filter((d) => d <= ctx.today).length / workdays.length
+    : days > 0 ? passed / days : 1;
 
   const rows = await q<{ id: number | null; name: string | null; color: string | null; weekly_target_min: number | null; minutes: number }>(
     `select p.id, p.name, p.color, p.weekly_target_min, coalesce(sum(l.minutes), 0)::int as minutes

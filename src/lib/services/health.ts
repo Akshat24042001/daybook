@@ -1,6 +1,6 @@
 import { one, q, UserError, type Db, getPool } from "../db";
 import { type Ctx, isWorkingDay } from "../settings";
-import { type DateStr, addDays, atLogical, dateRange, logicalDate, parseHM } from "../time";
+import { type DateStr, addDays, atLogical, dateRange, isoDow, logicalDate, parseHM } from "../time";
 
 export interface ExerciseType {
   id: number;
@@ -61,9 +61,38 @@ export async function createExerciseType(input: ExerciseTypeInput): Promise<Exer
 
 export async function updateExerciseType(id: number, input: ExerciseTypeInput & { active?: boolean }): Promise<void> {
   const v = validateType(input);
-  await q(
-    "update exercise_types set name = $2, default_amount = $3, unit = $4, active = coalesce($5, active) where id = $1",
+  const r = await q(
+    "update exercise_types set name = $2, default_amount = $3, unit = $4, active = coalesce($5, active) where id = $1 returning id",
     [id, v.name, v.default_amount, v.unit, input.active ?? null],
+  );
+  if (!r.length) throw new UserError("That exercise no longer exists.");
+}
+
+/** Removes an exercise type. Logged sets stay in the history (they lose the name: shown as "Removed exercise"). */
+export async function deleteExerciseType(id: number): Promise<void> {
+  const r = await q("delete from exercise_types where id = $1 returning id", [id]);
+  if (!r.length) throw new UserError("That exercise no longer exists.");
+}
+
+export interface ExerciseTypeUse extends ExerciseType {
+  /** last time a set was logged, null if never */
+  last_used: Date | null;
+  /** sets logged in the last 30 days */
+  sets_30d: number;
+}
+
+/** All exercise types, the ones done most recently first, then the rest in their usual order. */
+export async function exerciseTypesByUse(today: DateStr, db: Db = getPool()): Promise<ExerciseTypeUse[]> {
+  return q<ExerciseTypeUse>(
+    `select t.*, u.last_used, coalesce(u.sets_30d, 0)::int as sets_30d
+     from exercise_types t
+     left join (
+       select exercise_type_id, max(slot_at) as last_used, count(*) filter (where date > $1::date - 30) as sets_30d
+       from exercise_logs where status = 'done' group by exercise_type_id
+     ) u on u.exercise_type_id = t.id
+     order by u.last_used desc nulls last, t.sort, t.id`,
+    [today],
+    db,
   );
 }
 
@@ -164,7 +193,7 @@ export interface HealthWeekDay {
  * An active day has at least one exercise set or reached the step goal. Today only extends the streak once it is
  * active, so the streak never "breaks" in the morning before you have moved.
  */
-export async function healthOverview(today: DateStr, stepGoal: number, days = 7, db: Db = getPool()) {
+export async function healthOverview(today: DateStr, stepGoal: number, days = 7, db: Db = getPool(), workingDays: number[] = [1, 2, 3, 4, 5, 6, 7]) {
   const from = addDays(today, -(days - 1));
   const streakFrom = addDays(today, -365);
   const [sets, dayRows, totals, activeRows] = await Promise.all([
@@ -205,10 +234,12 @@ export async function healthOverview(today: DateStr, stepGoal: number, days = 7,
     sleepMin: dayMap.get(d)?.sleep_minutes ?? null,
   }));
   const active = new Set(activeRows.map((r) => r.date));
+  // days off (Settings > working days) neither break the streak nor add to it, unless you moved anyway
+  const off = (x: DateStr) => !workingDays.includes(isoDow(x));
   let streak = 0;
   let d = active.has(today) ? today : addDays(today, -1);
-  while (active.has(d)) {
-    streak++;
+  for (let guard = 0; guard < 400 && (active.has(d) || off(d)); guard++) {
+    if (active.has(d)) streak++;
     d = addDays(d, -1);
   }
   return { week, totals, streak, activeToday: active.has(today) };

@@ -149,7 +149,7 @@ function bullet(ctx: Ctx, e: EntryView): string {
 /** 📋 Today: compact list, inline buttons for the must-dos, [Open Today]. */
 export async function todayList(ctx: Ctx): Promise<Msg> {
   const entries = await entriesForDate(ctx.today);
-  const sec = sectionize(entries, ctx.tz, ctx.boundaryMin);
+  const sec = sectionize(entries, ctx.tz, ctx.boundaryMin, ctx.now);
   const lines: string[] = [`<b>Today · ${fmtDateLong(ctx.today)}</b>`];
   if (entries.length === 0) lines.push("Nothing planned. Send a message to add a task.");
   for (const key of SECTION_ORDER) {
@@ -162,6 +162,7 @@ export async function todayList(ctx: Ctx): Promise<Msg> {
     lines.push(`\n<b>${SECTION_LABEL[key]}${key === "personal" ? ` (${list.length})` : ""}</b>`);
     for (const e of list) lines.push(bullet(ctx, e));
   }
+  if (sec.later.length) lines.push(`\n<i>Later today: ${sec.later.map((e) => `${esc(e.title)} (${e.show_from})`).join(", ")}</i>`);
   const openMust = sec.must.filter((e) => e.status !== "done");
   return {
     text: lines.join("\n"),
@@ -476,11 +477,14 @@ export async function exercisePing(ctx: Ctx, slot: Date, typeId?: number, amount
 export async function exerciseTypePicker(ctx: Ctx, slot: Date): Promise<Msg> {
   const types = await listExerciseTypes(true);
   const sc = slotCode(slot);
+  // two per row: the library has 30+ exercises
+  const rows: ReturnType<typeof btn>[][] = [];
+  for (let i = 0; i < types.length; i += 2) {
+    rows.push(types.slice(i, i + 2).map((t) => btn(`${t.name} (${t.unit === "seconds" ? `${t.default_amount}s` : t.default_amount})`, `ex:t:${t.id}:${sc}`)));
+  }
   return {
     text: `💪 ${fmtHM(slot, ctx.tz)} exercise. Pick one:`,
-    markup: inline([
-      ...types.map((t) => [btn(`${t.name} (${t.unit === "seconds" ? `${t.default_amount}s` : t.default_amount})`, `ex:t:${t.id}:${sc}`)]),
-    ]),
+    markup: inline(rows),
   };
 }
 

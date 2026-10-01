@@ -52,6 +52,10 @@ export function TodayView(props: {
   asideTop?: React.ReactNode;
   targets: { id: number; title: string; met: boolean; behind: boolean; hasGoal: boolean; period: string }[];
   projects: { id: number; name: string }[];
+  /** the moment the End of day card appears (18:00 local on this day) */
+  endOfDayFrom: string;
+  /** tasks with a "show from" time still in the future: off the list until then */
+  later: { id: number; title: string; from: string }[];
 }) {
   const { sections, state, date } = props;
   const router = useRouter();
@@ -65,6 +69,17 @@ export function TodayView(props: {
   const [selected, setSelected] = useState<number | null>(null);
   const [segmentsOpen, setSegmentsOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ personal: true, done: true });
+  const [laterOpen, setLaterOpen] = useState(false);
+
+  // End of day belongs to the evening: it shows from 18:00, and appears by itself if the page is left open
+  const eodAt = new Date(props.endOfDayFrom).getTime();
+  const [evening, setEvening] = useState(() => Date.now() >= eodAt);
+  useEffect(() => {
+    if (Date.now() >= eodAt) { setEvening(true); return; }
+    setEvening(false);
+    const id = setTimeout(() => { setEvening(true); router.refresh(); }, Math.min(eodAt - Date.now() + 500, 2 ** 31 - 1));
+    return () => clearTimeout(id);
+  }, [eodAt, router]);
 
   // live worked time: server snapshot plus minutes elapsed since it was rendered
   const loadedAt = useRef(Date.now());
@@ -269,6 +284,31 @@ export function TodayView(props: {
       })}
 
 
+      {props.later.length > 0 ? (
+        <section aria-label="Later today">
+          <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-subtle">
+            <button type="button" className="flex items-center gap-1.5" aria-expanded={laterOpen} onClick={() => setLaterOpen((v) => !v)}>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", !laterOpen && "-rotate-90")} />
+              Later today
+            </button>
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium normal-case tracking-normal text-fg">{props.later.length}</span>
+            <span className="font-normal normal-case tracking-normal">appear on the list at their time</span>
+          </h2>
+          {laterOpen ? (
+            <ul className="space-y-1">
+              {props.later.map((l) => (
+                <li key={l.id}>
+                  <Link href={`/task/${l.id}`} className="flex items-center gap-3 rounded-xl border border-dashed border-border px-3 py-2 text-sm text-subtle hover:bg-muted hover:text-fg">
+                    <span className="tabular w-12 shrink-0 text-xs font-semibold">{l.from}</span>
+                    <span className="min-w-0 flex-1 truncate">{l.title}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
+
       {/* targets: after the day's tasks */}
       {props.targets.length > 0 ? (
         <section aria-label="Targets">
@@ -304,6 +344,7 @@ export function TodayView(props: {
     {/* right rail on wide screens, below the list on phones */}
     <aside className="space-y-4 xl:sticky xl:top-4" aria-label="Your day">
       {props.asideTop}
+      {evening ? (
       <Card className="p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-subtle">End of day</h2>
         <p className="mt-2 text-sm font-medium">How was today, out of 10?</p>
@@ -390,6 +431,7 @@ export function TodayView(props: {
           ) : null}
         </form>
       </Card>
+      ) : null}
       {props.aside}
     </aside>
 

@@ -45,7 +45,8 @@ v_contacts — people and keep-in-touch
 tasks: id, title, notes, type, project_id→projects, person_id→people, person_role ('with','requested_by'), via,
   is_personal, estimate_min, due_date, due_at (timestamptz), cadence_days, rrule, target_period, goal_count, goal_min,
   state ('active','done','dropped'), carry_count, last_done_at, created_at, closed_at,
-  waiting_on (person/thing), waiting_since, waiting_until (check-back date)
+  waiting_on (person/thing), waiting_since, waiting_until (check-back date),
+  show_from ('HH:MM' local: the task stays off Today's list until this time, e.g. an evening routine)
   type: one_off, ongoing (open-ended, stays on the list), follow_up, cadence (every N days), recurring (rrule),
   someday (parked pool, not scheduled), target (a count/minutes goal over a week/month/quarter)
 day_entries: task_id, date, must_do, status, source, note, carried_from, reason, updated_at
@@ -57,7 +58,8 @@ projects: id, name, color, archived, weekly_target_min (weekly time goal in minu
 people: id, name, relation — people named on tasks (+Name)
 work_segments: id, date, kind, start_at, end_at — raw form of v_segments
 days: date, score, steps, sleep_minutes, sleep_quality, instagram_minutes, worked_minutes_override, planned_at, closed_at (Day end tapped)
-exercise_types: id, name, default_amount, unit, active
+exercise_types: id, name, default_amount (amount per set), unit ('reps' = repetitions, 'seconds' = hold or keep moving that long), active
+  (the app has built-in demonstrations and form cues for 36 common bodyweight exercises by name)
 exercise_logs: date, slot_at, exercise_type_id, amount, status
 diary_entries: id, date, body (the owner's own words, voice or typed), source, created_at
 diary_summaries: date, headline, summary, rating, mood, wins[], struggles[], highlights[], tomorrow[], tags[] (jsonb arrays)
@@ -74,6 +76,12 @@ tasks.rrule: repeat rule, e.g. FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR,SA (every day exc
   (last Friday), X-MISSED=CARRY (a missed day stays until done). Repeating tasks do not count carries unless X-MISSED=CARRY.
 settings (one row): timezone, day_boundary, working_days (isodow array), step_goal, available_hours, rot_threshold
 assistant_memory: id, fact — what you have been asked to remember (already given to you below)
+
+=== DAYS OFF ===
+settings.working_days lists the working weekdays (ISO 1=Mon..7=Sun). A day off has no daily repeating tasks, no
+carried tasks and no exercise pings. The app's Stats leave days off out of averages, rates and the weekday pattern
+unless something was logged that day; do the same: when averaging per day, use only working days plus days off
+that have data (worked_min > 0 or done > 0 or score is not null), and say you did.
 
 === DEFINITIONS THE OWNER USES ===
 - "Pending" / "open tasks": tasks with state='active' and type <> 'someday'. Today's pending list: v_task_days where

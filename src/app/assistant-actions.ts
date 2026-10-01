@@ -32,7 +32,8 @@ export async function loadChatAction(id: number): Promise<Result<{ messages: Mes
 
 /** Pages whose data an assistant action can change. */
 function refreshAll() {
-  for (const p of ["/today", "/plan", "/diary", "/health", "/stats", "/scratch", "/contacts", "/unfinished", "/goals"]) revalidatePath(p);
+  for (const p of ["/today", "/plan", "/diary", "/health", "/stats", "/scratch", "/contacts", "/unfinished", "/goals", "/refs", "/projects", "/settings", "/review"]) revalidatePath(p);
+  revalidatePath("/task/[id]", "page");
 }
 
 export async function applyAssistantAction(id: number): Promise<Result<{ item: ActionItem }>> {
@@ -60,7 +61,7 @@ export interface QuickContext {
   state: { kind: string; since: string | null };
   entries: { id: number; taskId: number; title: string; project: string | null; status: string; mustDo: boolean; minutes: number }[];
   exercises: { id: number; name: string; unit: string; amount: number }[];
-  day: { steps: number | null; score: number | null; sleep: number | null };
+  day: { steps: number | null; score: number | null; sleep: number | null; instagram: number | null };
 }
 
 /** What the quick bar shows: current state, today's list, exercise types, today's numbers. */
@@ -81,7 +82,7 @@ export async function quickContextAction(): Promise<Result<{ data: QuickContext 
             id: e.id, taskId: e.task_id, title: e.title, project: e.project_name, status: e.status, mustDo: e.must_do, minutes: e.minutes_today,
           })),
         exercises: types.map((t) => ({ id: t.id, name: t.name, unit: t.unit, amount: t.default_amount })),
-        day: { steps: day?.steps ?? null, score: day?.score ?? null, sleep: day?.sleep_minutes ?? null },
+        day: { steps: day?.steps ?? null, score: day?.score ?? null, sleep: day?.sleep_minutes ?? null, instagram: day?.instagram_minutes ?? null },
       },
     };
   } catch (e) {

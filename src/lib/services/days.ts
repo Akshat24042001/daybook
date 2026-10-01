@@ -166,10 +166,12 @@ export async function planningStreak(ctx: Ctx, db: Db = getPool()): Promise<numb
   );
   const map = new Map(rows.map((r) => [r.date, r.planned_at]));
   const ok = (d: DateStr) => wasPlannedInTime(ctx, d, map.get(d) ?? null);
-  let d = ok(tomorrow) ? tomorrow : ctx.today;
+  // a day off (Settings > working days) that was not planned is skipped, not a break
+  const off = (x: DateStr) => !isWorkingDay(ctx, x);
+  let d = ok(tomorrow) || off(tomorrow) ? tomorrow : ctx.today;
   let n = 0;
-  while (ok(d)) {
-    n++;
+  while (d >= from && (ok(d) || off(d))) {
+    if (ok(d)) n++;
     d = addDays(d, -1);
   }
   return n;

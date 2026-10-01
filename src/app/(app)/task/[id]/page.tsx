@@ -64,6 +64,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
         state: task.state,
         carry: task.carry_count,
         createdDay: logicalDate(task.created_at, ctx.tz, ctx.boundaryMin),
+        showFrom: task.show_from ?? "",
       }}
     />
   );

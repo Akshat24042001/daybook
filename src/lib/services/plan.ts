@@ -1,5 +1,5 @@
 import { one, q, tx, UserError, type Db, getPool } from "../db";
-import { rruleMatches } from "../recurrence";
+import { parseRepeat, rruleMatches } from "../recurrence";
 import { type Ctx, isWorkingDay } from "../settings";
 import { type DateStr, addDays, logicalDate } from "../time";
 import type { EntryView, TaskRow } from "../types";
@@ -105,13 +105,17 @@ export async function materializeDay(
     [date],
   );
 
+  // On a day off (Settings > working days) a plain "every day" task stays away; a rule that names days (every
+  // Sunday, weekends, the 1st of the month) still applies, because it was picked on purpose.
+  const working = isWorkingDay(ctx, date);
   const recurring = await q<TaskRow>("select * from tasks where state = 'active' and type = 'recurring'", [], db);
   for (const t of recurring) {
     const createdDay = logicalDate(t.created_at, ctx.tz, ctx.boundaryMin);
+    if (!working && !namesItsDays(t.rrule)) continue;
     if (createdDay <= date && rruleMatches(t.rrule, date, createdDay)) await addEntry(ctx, t.id, date, { source: "auto" }, db);
   }
 
-  if (opts.cadence) {
+  if (opts.cadence && working) {
     for (const c of await listCadence(ctx, date, db)) {
       if (c.overdue) await addEntry(ctx, c.task.id, date, { source: "auto" }, db);
     }
@@ -120,6 +124,12 @@ export async function materializeDay(
   const after = await one<{ n: number }>("select count(*)::int as n from day_entries where date = $1", [date], db);
   added = after!.n - before!.n;
   return added;
+}
+
+/** True for rules that pick their own days (weekly, monthly, "every day except Sunday"); false for a plain daily rule. */
+export function namesItsDays(rrule: string | null | undefined): boolean {
+  const r = parseRepeat(rrule ?? "FREQ=DAILY");
+  return !!r && !(r.freq === "daily" && r.days.length === 0);
 }
 
 export interface Capacity {
@@ -159,7 +169,8 @@ export interface PlanView {
 export async function planView(ctx: Ctx, date: DateStr): Promise<PlanView> {
   // Auto-carry unresolved entries to the plan date without asking. A carry counts only once its day is over: an entry
   // from today may still be done tonight, so the rollover counts it at the boundary if it was left untouched.
-  const stale = await unresolvedEntries(date);
+  // nothing is carried onto a day off: it waits for the next working day
+  const stale = isWorkingDay(ctx, date) ? await unresolvedEntries(date) : [];
   for (const e of stale) {
     await addEntry(ctx, e.task_id, date, { source: "carried", carriedFrom: e.date });
     if (e.status === "open" && e.date < ctx.today) await getPool().query("update tasks set carry_count = carry_count + 1 where id = $1", [e.task_id]);

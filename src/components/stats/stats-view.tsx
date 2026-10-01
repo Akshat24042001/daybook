@@ -119,7 +119,7 @@ function MiniStat({ label, value, hint, warn, good, onOpen }: {
     <button
       type="button"
       onClick={onOpen}
-      className="group flex flex-col rounded-2xl border border-border bg-surface px-4 py-3 text-left shadow-[var(--shadow-sm)] transition-all hover:border-accent/40 hover:shadow-[var(--shadow-md)]"
+      className="group flex min-w-0 flex-col rounded-xl bg-muted/50 px-3 py-2 text-left transition-colors hover:bg-muted"
     >
       <span className="text-[11px] font-semibold uppercase tracking-wider text-subtle">{label}</span>
       <span className={cn("tabular font-display text-xl leading-tight", warn && "text-warn", good && "text-good")}>{value}</span>
@@ -128,27 +128,85 @@ function MiniStat({ label, value, hint, warn, good, onOpen }: {
   );
 }
 
-function ListTile({ title, count, empty, onOpen, children }: {
-  title: string; count: number; empty: string; onOpen: () => void; children: React.ReactNode;
-}) {
+function SectionHead({ title, hint }: { title: string; hint?: string }) {
   return (
-    <Card onClick={onOpen} className="group flex cursor-pointer flex-col p-4 transition-all hover:border-accent/40 hover:shadow-[var(--shadow-md)]">
-      <div className="mb-2 flex items-center gap-2">
-        <p className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-subtle">{title}</p>
-        {count > 0 ? <span className="tabular rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-subtle">{count}</span> : null}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpen();
-          }}
-          aria-label={`${title}: show all`}
-          className="rounded-lg p-0.5 text-subtle hover:bg-muted hover:text-fg"
-        >
-          <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />
+    <div className="flex items-baseline gap-3 pt-2">
+      <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-subtle">{title}</h2>
+      <span className="h-px flex-1 bg-border" aria-hidden />
+      {hint ? <span className="text-[11px] text-subtle">{hint}</span> : null}
+    </div>
+  );
+}
+
+type ListKey = "rotting" | "estimates" | "cadence" | "progress";
+
+/** Rotting tasks, estimates, cadence and project progress in one card with tabs, instead of four cramped tiles. */
+function TaskHealth({ stats, onOpen }: { stats: Stats; onOpen: (p: ListKey) => void }) {
+  const tabs: { key: ListKey; label: string; n: number; empty: string }[] = [
+    { key: "rotting", label: "Rotting", n: stats.rotting.length, empty: "Nothing is being carried over again and again." },
+    { key: "estimates", label: "Estimates", n: stats.estimateVsActual.length, empty: "Add estimates (~2h) and log minutes to compare." },
+    { key: "cadence", label: "Cadence", n: stats.cadence.length, empty: "No cadence tasks." },
+    { key: "progress", label: "Projects", n: stats.projectProgress.length, empty: "No projects with tasks." },
+  ];
+  const [tab, setTab] = useState<ListKey>(() => tabs.find((t) => t.n > 0)?.key ?? "rotting");
+  const cur = tabs.find((t) => t.key === tab)!;
+  return (
+    <Card className="flex flex-col p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <p className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-subtle">Task health</p>
+        <button type="button" onClick={() => onOpen(tab)} className="inline-flex items-center gap-0.5 rounded-lg px-1.5 py-0.5 text-[11px] font-semibold text-subtle hover:bg-muted hover:text-fg">
+          All <ChevronRight className="h-3.5 w-3.5" />
         </button>
       </div>
-      {count === 0 ? <p className="text-sm text-subtle">{empty}</p> : <div className="space-y-2">{children}</div>}
+      <div className="mb-3 grid grid-cols-4 gap-1 rounded-xl bg-muted p-0.5" role="tablist" aria-label="Task lists">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            onClick={() => setTab(t.key)}
+            className={cn("truncate rounded-[10px] px-1.5 py-1 text-[11px] font-semibold", tab === t.key ? "bg-surface text-fg shadow-sm" : "text-subtle hover:text-fg")}
+          >
+            {t.label}{t.n ? <span className="tabular ml-1 text-subtle">{t.n}</span> : null}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 space-y-2" role="tabpanel">
+        {cur.n === 0 ? <p className="text-sm text-subtle">{cur.empty}</p> : null}
+        {tab === "rotting" && stats.rotting.slice(0, 5).map((r) => (
+          <div key={r.id} className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-sm">{r.title}</span>
+            <span className={cn("tabular shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold", r.carry >= 3 ? "bg-bad-muted text-bad" : "bg-warn-muted text-warn")}>{r.carry}×</span>
+          </div>
+        ))}
+        {tab === "estimates" && stats.estimateVsActual.slice(0, 5).map((e) => {
+          const ratio = e.actual / e.estimate;
+          return (
+            <div key={e.taskId} className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-sm">{e.title}</span>
+              <span className={cn("tabular shrink-0 text-xs font-bold", ratio > 1.25 ? "text-bad" : ratio < 0.75 ? "text-good" : "text-subtle")}>{ratio.toFixed(1)}×</span>
+            </div>
+          );
+        })}
+        {tab === "cadence" && stats.cadence.slice(0, 5).map((c) => (
+          <div key={c.id}>
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-sm">{c.title}</span>
+              <span className="tabular shrink-0 text-[11px] text-subtle">every {c.target}d</span>
+            </div>
+            {c.avgInterval !== null ? <Progress className="mt-1 h-1" value={Math.min(1, c.target / c.avgInterval)} tone={c.avgInterval > c.target ? "warn" : "accent"} /> : null}
+          </div>
+        ))}
+        {tab === "progress" && stats.projectProgress.slice(0, 5).map((p) => (
+          <div key={p.id} className="flex items-center gap-2">
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.color }} />
+            <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
+            <Progress className="h-1.5 w-16 shrink-0" value={p.completionPct / 100} />
+            <span className="tabular w-8 shrink-0 text-right text-[11px] font-semibold text-subtle">{p.completionPct}%</span>
+          </div>
+        ))}
+      </div>
     </Card>
   );
 }
@@ -403,7 +461,8 @@ export function StatsView({
         </div>
       ) : null}
 
-      {/* ── Charts ─────────────────────────────────────────────── */}
+      {/* ── Work ───────────────────────────────────────────────── */}
+      <SectionHead title="Work" hint={stats.heatmap.length > series.length ? `${stats.heatmap.length - series.length} day${stats.heatmap.length - series.length === 1 ? "" : "s"} off with nothing logged left out` : undefined} />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <Tile
           title="Day score"
@@ -442,7 +501,6 @@ export function StatsView({
         >
           <DayTimeline days={timeline} today={today} height={TILE_H} />
         </Tile>
-
         <Tile
           title="Unaccounted time"
           value={cur.unaccountedPct === null ? "–" : `${Math.round(cur.unaccountedPct)}%`}
@@ -465,6 +523,11 @@ export function StatsView({
             <ProjectBars data={stats.hoursByProject} limit={5} height={TILE_H} onPick={(key) => { setParam({ drill: key }); setOpen("projects"); }} />
           )}
         </Tile>
+      </div>
+
+      {/* ── Patterns & follow-through ──────────────────────────── */}
+      <SectionHead title="Patterns & follow-through" />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <Tile
           title="Consistency"
           value={`${d.scored.length}/${series.length}`}
@@ -472,7 +535,7 @@ export function StatsView({
           onOpen={() => setOpen("consistency")}
         >
           <div style={{ minHeight: TILE_H }} className="flex flex-wrap items-center gap-4">
-            <Heatmap data={stats.heatmap} cell={series.length > 100 ? 8 : series.length > 42 ? 13 : 17} />
+            <Heatmap data={stats.heatmap} cell={stats.heatmap.length > 100 ? 8 : stats.heatmap.length > 42 ? 13 : 17} />
             <div className="space-y-1.5 text-xs">
               <p className="text-subtle">Best day <span className="block text-sm font-semibold text-fg">{d.best ? `${fmtDay(d.best.date)} · ${d.best.score}` : "–"}</span></p>
               <p className="text-subtle">Best weekday <span className="block text-sm font-semibold text-fg">{d.bestDow ? `${d.bestDow.label} · ${d.bestDow.avgScore}` : "–"}</span></p>
@@ -505,10 +568,28 @@ export function StatsView({
             height={TILE_H + 28}
           />
         </Tile>
+
+        {/* the six follow-through numbers in one card instead of a loose row */}
+        <Card className="flex flex-col p-4 sm:col-span-2 xl:col-span-1">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-subtle">Follow-through</p>
+          <div className="grid flex-1 grid-cols-2 gap-2">
+            <MiniStat label="Completion" value={pct(cur.completionRate)} hint={<Delta cur={cur.completionRate === null ? null : cur.completionRate * 100} prev={prev.completionRate === null ? null : prev.completionRate * 100} unit="pt" digits={0} />} onOpen={() => setOpen("completion")} />
+            <MiniStat label="Must-do hit" value={pct(cur.mustDoHitRate)} hint="done or progressed" good={(cur.mustDoHitRate ?? 0) >= 0.8} onOpen={() => setOpen("mustdo")} />
+            <MiniStat label="Logged on tasks" value={stats.efficiency.utilizationPct === null ? "–" : `${Math.round(stats.efficiency.utilizationPct)}%`} hint="of worked time" onOpen={() => setOpen("logged")} />
+            <MiniStat label="Estimates" value={stats.efficiency.estimateRatio === null ? "–" : `${stats.efficiency.estimateRatio.toFixed(1)}×`} hint="actual vs estimate" warn={(stats.efficiency.estimateRatio ?? 1) > 1.25} onOpen={() => setOpen("estimates")} />
+            <MiniStat label="Plan streak" value={`${stats.summary.planningStreak}d`} hint="planned ahead" warn={stats.summary.planningStreak === 0} onOpen={() => setOpen("planstreak")} />
+            <MiniStat label="Must-do streak" value={`${stats.summary.mustDoStreak}d`} hint="all must-dos done" warn={stats.summary.mustDoStreak === 0} onOpen={() => setOpen("mustdostreak")} />
+          </div>
+        </Card>
+      </div>
+
+      {/* ── Health & habits ────────────────────────────────────── */}
+      <SectionHead title="Health & habits" />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Tile
           title="Steps"
           value={d.stepAvg === null ? "–" : Math.round(d.stepAvg).toLocaleString("en-US")}
-          sub={`avg · goal hit ${d.stepHit}/${d.stepDays || 0} days`}
+          sub={`avg · goal ${d.stepHit}/${d.stepDays || 0} days`}
           onOpen={() => setOpen("steps")}
         >
           <TrendChart data={stats.health.stepsPerDay} y="steps" kind="bar" name="Steps" unit="k" height={TILE_H} color="blue" target={{ value: stats.health.stepGoal, label: "goal" }} flag="under" fmt={(v) => Math.round(v).toLocaleString("en-US")} />
@@ -516,39 +597,40 @@ export function StatsView({
         <Tile
           title="Exercise"
           value={String(d.setsTotal)}
-          sub={`sets · active ${d.setDays} day${d.setDays === 1 ? "" : "s"}`}
+          sub={`sets · ${d.setDays} active day${d.setDays === 1 ? "" : "s"}`}
           onOpen={() => setOpen("exercise")}
         >
           <TrendChart data={stats.health.setsPerDay} y="sets" kind="bar" name="Sets" height={TILE_H} />
         </Tile>
-
         <Tile
           title="Sleep"
           value={d.sleepAvg === null ? "–" : `${d.sleepAvg.toFixed(1)}h`}
-          sub={d.sleepNights.length ? `avg · ${d.shortNights} night${d.shortNights === 1 ? "" : "s"} under 7h` : "log sleep on Today"}
+          sub={d.sleepNights.length ? `avg · ${d.shortNights} under 7h` : "log sleep on Today"}
           warn={d.sleepAvg !== null && d.sleepAvg < 6.5}
           onOpen={() => setOpen("sleep")}
         >
           <TrendChart data={stats.health.sleepPerDay} y="hours" kind="bar" name="Sleep" unit="h" height={TILE_H} target={{ value: 7, label: "7h" }} flag="under" />
         </Tile>
-
         <Tile
           title="Instagram"
           value={d.igAvg === null ? "–" : fmtDuration(Math.round(d.igAvg))}
-          sub={d.igDays.length ? `avg a day · ${d.igOver} day${d.igOver === 1 ? "" : "s"} over 1h` : "log time on Today"}
+          sub={d.igDays.length ? `avg · ${d.igOver} day${d.igOver === 1 ? "" : "s"} over 1h` : "log time on Today"}
           warn={d.igAvg !== null && d.igAvg > 60}
           onOpen={() => setOpen("instagram")}
         >
           <TrendChart data={stats.health.instagramPerDay} y="minutes" kind="bar" name="Instagram" unit="m" height={TILE_H} target={{ value: 60, label: "1h limit" }} avgLine={d.igAvg === null ? undefined : { value: Math.round(d.igAvg), label: "average" }} flag="over" fmt={(v) => fmtDuration(Math.round(v))} />
         </Tile>
+      </div>
 
-        {/* Diary: AI rating trend + the latest day's headline */}
+      {/* ── Reflection & task health ───────────────────────────── */}
+      <SectionHead title="Reflection & task health" />
+      <div className="grid gap-3 xl:grid-cols-3">
         <Tile
           title="Diary · AI day rating"
           value={d.diaryAvg === null ? "–" : d.diaryAvg.toFixed(1)}
           sub={diary.length ? `avg over ${diary.length} summarised day${diary.length === 1 ? "" : "s"}` : "no summaries yet"}
           onOpen={() => setOpen("diary")}
-          className="sm:col-span-2 xl:col-span-2"
+          className="xl:col-span-2"
           action={
             <Link href="/diary" className="inline-flex items-center gap-1 rounded-lg bg-accent-muted px-2 py-1 text-[11px] font-semibold text-accent hover:bg-accent/20">
               <BookOpen className="h-3 w-3" /> Write today
@@ -557,7 +639,7 @@ export function StatsView({
         >
           <div className="grid gap-4 lg:grid-cols-3">
             <div className="lg:col-span-2">
-              <TrendChart data={d.diarySeries} y="rating" kind="line" name="AI rating" height={TILE_H - 20} domain={[0, 10]} />
+              <TrendChart data={d.diarySeries} y="rating" kind="line" name="AI rating" height={TILE_H} domain={[0, 10]} />
             </div>
             {latestDiary ? (
               <div className="flex flex-col justify-center gap-2 rounded-2xl bg-muted/60 p-4">
@@ -577,60 +659,8 @@ export function StatsView({
             )}
           </div>
         </Tile>
-      </div>
 
-      {/* ── Secondary numbers ─────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        <MiniStat label="Completion" value={pct(cur.completionRate)} hint={<Delta cur={cur.completionRate === null ? null : cur.completionRate * 100} prev={prev.completionRate === null ? null : prev.completionRate * 100} unit="pt" digits={0} />} onOpen={() => setOpen("completion")} />
-        <MiniStat label="Must-do hit" value={pct(cur.mustDoHitRate)} hint="done or progressed" good={(cur.mustDoHitRate ?? 0) >= 0.8} onOpen={() => setOpen("mustdo")} />
-        <MiniStat label="Logged on tasks" value={stats.efficiency.utilizationPct === null ? "–" : `${Math.round(stats.efficiency.utilizationPct)}%`} hint="of worked time" onOpen={() => setOpen("logged")} />
-        <MiniStat label="Estimates" value={stats.efficiency.estimateRatio === null ? "–" : `${stats.efficiency.estimateRatio.toFixed(1)}×`} hint="actual vs estimate" warn={(stats.efficiency.estimateRatio ?? 1) > 1.25} onOpen={() => setOpen("estimates")} />
-        <MiniStat label="Plan streak" value={`${stats.summary.planningStreak}d`} hint="planned ahead" warn={stats.summary.planningStreak === 0} onOpen={() => setOpen("planstreak")} />
-        <MiniStat label="Must-do streak" value={`${stats.summary.mustDoStreak}d`} hint="all must-dos done" warn={stats.summary.mustDoStreak === 0} onOpen={() => setOpen("mustdostreak")} />
-      </div>
-
-      {/* ── Lists (top 3, full list in a dialog) ──────────────── */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <ListTile title="Rotting tasks" count={stats.rotting.length} empty="Nothing carried over repeatedly." onOpen={() => setOpen("rotting")}>
-          {stats.rotting.slice(0, 3).map((r) => (
-            <div key={r.id} className="flex items-center gap-2">
-              <span className="min-w-0 flex-1 truncate text-sm">{r.title}</span>
-              <span className={cn("tabular shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold", r.carry >= 3 ? "bg-bad-muted text-bad" : "bg-warn-muted text-warn")}>{r.carry}×</span>
-            </div>
-          ))}
-        </ListTile>
-        <ListTile title="Estimate vs actual" count={stats.estimateVsActual.length} empty="Add ~2h estimates and log minutes." onOpen={() => setOpen("estimates")}>
-          {stats.estimateVsActual.slice(0, 3).map((e) => {
-            const ratio = e.actual / e.estimate;
-            return (
-              <div key={e.taskId} className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-sm">{e.title}</span>
-                <span className={cn("tabular shrink-0 text-xs font-bold", ratio > 1.25 ? "text-bad" : ratio < 0.75 ? "text-good" : "text-subtle")}>{ratio.toFixed(1)}×</span>
-              </div>
-            );
-          })}
-        </ListTile>
-        <ListTile title="Cadence" count={stats.cadence.length} empty="No cadence tasks." onOpen={() => setOpen("cadence")}>
-          {stats.cadence.slice(0, 3).map((c) => (
-            <div key={c.id}>
-              <div className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-sm">{c.title}</span>
-                <span className="tabular shrink-0 text-[11px] text-subtle">every {c.target}d</span>
-              </div>
-              {c.avgInterval !== null ? <Progress className="mt-1 h-1" value={Math.min(1, c.target / c.avgInterval)} tone={c.avgInterval > c.target ? "warn" : "accent"} /> : null}
-            </div>
-          ))}
-        </ListTile>
-        <ListTile title="Project progress" count={stats.projectProgress.length} empty="No projects with tasks." onOpen={() => setOpen("progress")}>
-          {stats.projectProgress.slice(0, 3).map((p) => (
-            <div key={p.id} className="flex items-center gap-2">
-              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.color }} />
-              <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
-              <Progress className="h-1.5 w-16 shrink-0" value={p.completionPct / 100} />
-              <span className="tabular w-8 shrink-0 text-right text-[11px] font-semibold text-subtle">{p.completionPct}%</span>
-            </div>
-          ))}
-        </ListTile>
+        <TaskHealth stats={stats} onOpen={setOpen} />
       </div>
 
       {/* ── Detail dialogs ────────────────────────────────────── */}

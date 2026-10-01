@@ -160,6 +160,10 @@ export function SettingsClient({
                 );
               })}
             </div>
+            <p className="mt-1.5 text-xs text-subtle">
+              A day off gets no daily repeating tasks, no carried-over tasks and no exercise pings. Stats, streaks, review
+              and goal pace skip it, unless you worked or finished something that day.
+            </p>
           </div>
         </Card>
       </Block>
