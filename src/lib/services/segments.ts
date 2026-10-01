@@ -42,11 +42,13 @@ export async function workedForDate(ctx: Ctx, date: DateStr, db: Db = getPool())
   return workedMinutes(segs.map(toSeg), windowOf(ctx, date), ctx.now);
 }
 
-export async function loggedWorkMinutes(date: DateStr, db: Db = getPool()): Promise<number> {
+/**
+ * Minutes logged on tasks that day, personal tasks included: time spent on a personal task during work hours is
+ * accounted for, not "unaccounted".
+ */
+export async function loggedTaskMinutes(date: DateStr, db: Db = getPool()): Promise<number> {
   const row = await one<{ m: number }>(
-    `select coalesce(sum(l.minutes), 0)::int as m
-     from time_logs l join tasks t on t.id = l.task_id
-     where l.date = $1 and not t.is_personal`,
+    "select coalesce(sum(minutes), 0)::int as m from time_logs where date = $1",
     [date],
     db,
   );
@@ -55,7 +57,7 @@ export async function loggedWorkMinutes(date: DateStr, db: Db = getPool()): Prom
 
 export async function dayTimeSummary(ctx: Ctx, date: DateStr, db: Db = getPool()) {
   const worked = await workedForDate(ctx, date, db);
-  const logged = await loggedWorkMinutes(date, db);
+  const logged = await loggedTaskMinutes(date, db);
   return { worked, logged, ...unaccounted(worked, logged) };
 }
 

@@ -82,7 +82,7 @@ export async function periodMetrics(
       ? Promise.resolve([...pre.logged.entries()].map(([date, m]) => ({ date, m })))
       : q<{ date: DateStr; m: number }>(
           `select l.date, sum(l.minutes)::int as m from time_logs l join tasks t on t.id = l.task_id
-           where l.date between $1 and $2 and not t.is_personal group by l.date`,
+           where l.date between $1 and $2 group by l.date`,
           [from, to],
         ),
   ]);
@@ -209,7 +209,7 @@ export async function computeStats(ctx: Ctx, f: StatsFilters, drillProject?: str
     ),
     q<{ date: DateStr; m: number }>(
       `select l.date, sum(l.minutes)::int as m from time_logs l join tasks t on t.id = l.task_id
-       where l.date between $1 and $2 and not t.is_personal group by l.date`,
+       where l.date between $1 and $2 group by l.date`,
       [from, to],
     ),
   ]);

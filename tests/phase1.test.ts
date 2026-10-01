@@ -325,7 +325,7 @@ describe("Phase 1: segments and the hours calculation", () => {
     expect((await endOpenSegment(at2230, 0)).ended).toBe(false); // nothing left open
   });
 
-  it("unaccounted time = worked minus logged work minutes (personal excluded)", async () => {
+  it("unaccounted time = worked minus all logged task minutes (personal tasks count as accounted)", async () => {
     const t0 = await ctxAt("2026-09-19 10:00");
     await switchState(t0, "office");
     await switchState(await ctxAt("2026-09-19 14:00"), "off"); // 240 worked
@@ -334,8 +334,8 @@ describe("Phase 1: segments and the hours calculation", () => {
     await logMinutes(t0, work.id, "2026-09-19", 150, "web");
     await logMinutes(t0, personal.id, "2026-09-19", 40, "web");
     const s = await dayTimeSummary(await ctxAt("2026-09-19 15:00"), "2026-09-19");
-    expect(s).toMatchObject({ worked: 240, logged: 150, minutes: 90 });
-    expect(s.pct).toBeCloseTo(37.5);
+    expect(s).toMatchObject({ worked: 240, logged: 190, minutes: 50 });
+    expect(s.pct).toBeCloseTo((50 / 240) * 100);
   });
 });
 
