@@ -12,10 +12,12 @@ import { cn } from "@/lib/cn";
 import type { MoveRow } from "@/lib/sales/moves";
 import { ago } from "./util";
 import { MoveCard } from "./moves-view";
+import { HuntsPanel } from "./hunts-view";
+import type { HuntView } from "@/lib/sales/hunts";
 
 export interface RadarItem {
   id: number; title: string; body: string | null; url: string | null; score: number | null; status: string; found_at: string; posted_at: string | null;
-  source: string | null; category: string | null; deal_id: number | null;
+  source: string | null; category: string | null; deal_id: number | null; hunt?: string | null;
   fit: { why?: string; angle?: string; money_leak?: string | null; country?: string; industry?: string; services?: string[]; buyer?: string; budget?: string | null; urgency?: string } | null;
 }
 export interface SourceRow {
@@ -46,7 +48,7 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold leading-snug">{it.title}</p>
           <p className="mt-0.5 flex flex-wrap gap-x-2 text-[11px] text-subtle">
-            <span>{it.source ?? "manual"}</span>{it.category ? <span>{it.category}</span> : null}<span>found {ago(it.found_at)}</span>
+            {it.hunt ? <span className="font-medium text-p-teal-fg">🔎 {it.hunt}</span> : null}<span>{it.source ?? "manual"}</span>{it.category ? <span>{it.category}</span> : null}<span>found {ago(it.found_at)}</span>
             {it.posted_at ? <span>posted {ago(it.posted_at)}</span> : null}{f.country ? <span>{f.country}</span> : null}{f.industry ? <span>{f.industry}</span> : null}
           </p>
           {f.why ? <p className="mt-1 text-xs">{f.why}</p> : null}
@@ -78,8 +80,8 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
   );
 }
 
-export function RadarView({ items, sources, googleReady, focus, searchProviders }: { items: RadarItem[]; sources: SourceRow[]; googleReady: boolean; focus: { country: string; industry: string }; searchProviders: string[] }) {
-  const [tab, setTab] = useState<"qualified" | "new" | "rejected" | "sources">("qualified");
+export function RadarView({ items, sources, googleReady, focus, searchProviders, hunts, searchCap, tz }: { items: RadarItem[]; sources: SourceRow[]; googleReady: boolean; focus: { country: string; industry: string }; searchProviders: string[]; hunts: HuntView[]; searchCap: number; tz: string }) {
+  const [tab, setTab] = useState<"qualified" | "new" | "rejected" | "hunts" | "sources">("qualified");
   const [busy, start] = useTransition();
   const [add, setAdd] = useState(false);
   const [paste, setPaste] = useState({ title: "", body: "", url: "" });
@@ -113,11 +115,13 @@ export function RadarView({ items, sources, googleReady, focus, searchProviders 
         </div>
       </div>
       <div className="flex flex-wrap gap-1.5">
-        {([["qualified", `Qualified · ${counts.qualified}`], ["new", `Scoring · ${counts.new}`], ["rejected", `Below the bar · ${counts.rejected}`], ["sources", `Sources${broken ? ` · ${broken} failing` : ""}`]] as const).map(([k, l]) => (
+        {([["qualified", `Qualified · ${counts.qualified}`], ["new", `Scoring · ${counts.new}`], ["rejected", `Below the bar · ${counts.rejected}`], ["hunts", `Hunts · ${hunts.filter((h) => h.enabled).length} on`], ["sources", `Sources${broken ? ` · ${broken} failing` : ""}`]] as const).map(([k, l]) => (
           <button key={k} type="button" onClick={() => setTab(k)} className={cn("rounded-full border px-3 py-1 text-xs", tab === k ? "border-accent bg-accent-muted text-accent" : "border-border text-subtle")}>{l}</button>
         ))}
       </div>
-      {tab !== "sources" ? (
+      {tab === "hunts" ? (
+        <HuntsPanel hunts={hunts} searchCap={searchCap} providers={searchProviders} tz={tz} />
+      ) : tab !== "sources" ? (
         list.length ? <ul className="grid gap-3 lg:grid-cols-2">{list.map((it) => <ItemCard key={it.id} it={it} googleReady={googleReady} />)}</ul>
           : <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-subtle">Nothing here yet. The radar runs every 15 minutes; the morning digest always brings at least one opportunity.</p>
       ) : (

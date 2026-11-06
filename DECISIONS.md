@@ -53,3 +53,10 @@ and the rest are two lists because must-dos always sit on top. Keyboard works to
 
 **Claude connector (MCP).** `/api/mcp`, off until `MCP_TOKEN` is set. Reads the day and the pipeline; writes only add a
 task, tick a task off and log the day's numbers. Nothing can message a client, move a deal or delete. See docs/MCP.md.
+
+**Hunts.** Scheduled AI lead hunting lives in Sales > Radar > Hunts (`sales_hunts`, `sales_hunt_runs`, `src/lib/sales/hunts.ts`).
+Results go into the same radar items table, tagged with the hunt, so scoring, alerts, drafting and "Make it a lead" are
+shared. The schedule is data: the existing every-minute tick queues a due hunt as a job, so nothing new has to be
+deployed or cron-configured. A run never repeats recent queries, learns from leads you kept or skipped, and is honest
+when there is no search key (it says so instead of reporting zero as success). Search cost is shown before saving.
+**Row-level security** now covers every `sales_*` table (migration 030), and a test fails if a future sales table lacks it.

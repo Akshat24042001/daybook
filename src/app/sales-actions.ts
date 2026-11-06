@@ -14,6 +14,7 @@ import { capture, processCapture, undoCapture, type CaptureResult } from "@/lib/
 import { enqueue } from "@/lib/sales/jobs";
 import { type GoChannel } from "@/lib/sales/links";
 import { addCustomMove, draftForMove, refreshMoves, setMoveStatus, snoozeMove, type MoveRow } from "@/lib/sales/moves";
+import { deleteHunt, recentRuns, runHuntNow, saveHunt, setHuntEnabled, type HuntInput, type HuntRun } from "@/lib/sales/hunts";
 import { radarToDeal, runRadar, qualifyPending, setRadarStatus, dailyDigest } from "@/lib/sales/radar";
 import { deleteStage, moveDeal, saveStage, setTransition, type Category, type Requirement } from "@/lib/sales/stages";
 import { fileStore, newPath } from "@/lib/storage";
@@ -274,6 +275,24 @@ export async function runRadarAction() {
 export async function digestNowAction() {
   return run<{ result: string }>(async () => ({ result: await dailyDigest(50_000) }), ["/sales/radar"]);
 }
+// ------------------------------------------------------------------ hunts (scheduled AI lead hunting)
+const HUNT_PATHS = ["/sales/radar"];
+export async function saveHuntAction(input: HuntInput, id?: number) {
+  return run<{ id: number }>(async () => ({ id: await saveHunt(input, id) }), HUNT_PATHS);
+}
+export async function toggleHuntAction(id: number, enabled: boolean) {
+  return run(() => setHuntEnabled(id, enabled), HUNT_PATHS);
+}
+export async function deleteHuntAction(id: number) {
+  return run(() => deleteHunt(id), HUNT_PATHS);
+}
+export async function runHuntAction(id: number) {
+  return run(() => runHuntNow(id), HUNT_PATHS);
+}
+export async function huntRunsAction(id: number) {
+  return run<{ runs: HuntRun[] }>(async () => ({ runs: await recentRuns(id) }), []);
+}
+
 export async function toggleSourceAction(id: number, enabled: boolean) {
   return run(async () => {
     await q("update sales_radar_sources set enabled = $2 where id = $1", [id, enabled]);

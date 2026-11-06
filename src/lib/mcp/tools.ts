@@ -5,6 +5,8 @@
 import { q, UserError } from "../db";
 import { parseQuickAdd } from "../parser";
 import { getDeal, listDeals, timeline, commitments } from "../sales/deals";
+import { describeSchedule } from "../sales/hunt-schedule";
+import { listHunts, runHuntNow } from "../sales/hunts";
 import { listMoves } from "../sales/moves";
 import { entriesForDate, setEntryStatus } from "../services/entries";
 import { setInstagram, setScore, setSleep, setSteps } from "../services/days";
@@ -170,6 +172,29 @@ export const TOOLS: Tool[] = [
     async run() {
       const moves = await listMoves({ horizonHours: 48, limit: 20 });
       return moves.map((m) => ({ id: m.id, kind: m.kind, title: m.title, why: m.why, channel: m.channel, due_at: m.due_at, deal: m.deal_title, person: m.person_name, company: m.company_name }));
+    },
+  },
+  {
+    name: "sales_hunts",
+    description: "The scheduled AI lead hunts: name, brief, schedule in words, next and last run, and what each found in the last 7 days (found, qualified, hot, turned into leads).",
+    readOnly: true,
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    async run() {
+      return (await listHunts()).map((h) => ({
+        id: h.id, name: h.name, enabled: h.enabled, brief: h.brief, schedule: describeSchedule(h), next_run_at: h.next_run_at,
+        last_run: h.last_run ? { at: h.last_run.started_at, status: h.last_run.status, found: h.last_run.found, error: h.last_run.error } : null, last_7_days: h.week,
+      }));
+    },
+  },
+  {
+    name: "sales_run_hunt",
+    description: "Run a lead hunt now (it starts within a minute; results appear on the Radar page and in Telegram). Use an id from sales_hunts.",
+    readOnly: false,
+    inputSchema: { type: "object", properties: { id: { type: "integer" } }, required: ["id"], additionalProperties: false },
+    async run(a) {
+      if (!Number.isInteger(a.id)) throw new UserError("id must be an integer.");
+      await runHuntNow(a.id as number);
+      return { queued: true };
     },
   },
 ];

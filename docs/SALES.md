@@ -119,6 +119,26 @@ the call log.
 - Countries rotate weekly, industries daily (both lists are editable).
 - Replying to a radar lead from Daybook turns it into a tracked deal automatically.
 
+## Hunts: scheduled AI lead hunting
+
+Radar > **Hunts**. A hunt is an AI that searches the web for buyers on a schedule you set. Make as many as you like.
+
+- **Brief**: who you want to find, in plain words. The AI turns it into fresh, high-intent search queries every run and
+  scores every result against it (on top of your offers).
+- **Where**: countries, industries and exact phrases (always searched word for word). Empty countries/industries use
+  the radar's weekly and daily rotation. Pick the signals: asking for help, hiring for manual work, funding and
+  launches, broken-process complaints, tenders. Optionally sweep the radar's feeds in the same run.
+- **When**: every N hours (optionally only between two hours, for example 8 to 20), or at a set time on chosen days.
+  Presets: every hour, hourly 8 to 20, every 3 hours, daily 09:00, weekdays 09:00. Your timezone. **Run now** any time.
+- **It learns**: leads you turned into deals or kept steer the next queries toward more like them; leads you skipped
+  steer them away. Queries used in recent runs are never repeated.
+- **Results** land in Radar > Qualified, tagged with the hunt, with Draft reply and Make it a lead as usual. Strong
+  ones reach Telegram; each run ends with a short report. Every run is logged with the exact queries it used.
+- **Cost**: the form shows roughly how many searches a day a schedule spends. Paid providers (Tavily, Serper, Brave)
+  stop at your daily cap in Settings; after that the free DuckDuckGo fallback runs, which is much weaker. Hourly
+  hunts with many searches need a paid plan or a higher cap.
+- A starter hunt, "Daily deep sweep" at 08:30, is created the first time you open the page. Edit or delete it freely.
+
 ## Tracked documents
 
 Send links, not attachments. Quotes, opportunity briefs, files and any URL (Loom, Drive, a case study) get an unguessable

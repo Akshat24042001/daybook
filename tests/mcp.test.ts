@@ -59,6 +59,16 @@ describe("MCP server", () => {
     expect((await rpc("tools/call", { name: "missing" })).error.code).toBe(-32602);
   });
 
+  it("lists lead hunts and queues one to run", async () => {
+    const { saveHunt } = await import("@/lib/sales/hunts");
+    await q("truncate sales_hunts restart identity cascade");
+    const id = await saveHunt({ name: "Via Claude", brief: "founders needing automation" });
+    const list = JSON.parse((await tool("sales_hunts")).text);
+    expect(list[0]).toMatchObject({ id, name: "Via Claude", schedule: "Daily at 09:00" });
+    expect((await tool("sales_run_hunt", { id })).isError).toBe(false);
+    expect((await tool("sales_run_hunt", { id: 99999 })).isError).toBe(true);
+  });
+
   it("reads the sales pipeline", async () => {
     expect(Array.isArray(JSON.parse((await tool("sales_pipeline")).text))).toBe(true);
     expect((await tool("sales_deal", { id: 999 })).isError).toBe(true);

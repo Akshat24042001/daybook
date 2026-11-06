@@ -25,6 +25,8 @@ Lets Claude read your day and your sales pipeline, add tasks, tick tasks off and
 | `sales_pipeline` | read | Every deal with stage, value, heat and open moves |
 | `sales_deal` | read | One deal: promises on both sides and the latest interactions |
 | `sales_next_moves` | read | Sales actions due in the next 48 hours |
+| `sales_hunts` | read | Your scheduled AI lead hunts and what each found this week |
+| `sales_run_hunt` | write | Start a lead hunt now |
 
 Deliberately **not** included: sending messages to clients, moving or closing deals, deleting anything. Those stay
 with you, in the app or in Telegram.

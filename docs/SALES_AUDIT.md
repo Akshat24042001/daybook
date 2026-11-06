@@ -16,6 +16,12 @@ Method: read the code path by path, then wrote a failing test for each bug befor
 | 5 | **High** (if the env is incomplete) | Signed links (`go`, view beacons) fell back to a secret built from `ADMIN_PASSWORD` or the literal string `dev`, so anyone could forge them when `AUTH_SECRET` and `CRON_SECRET` were both missing. | In production it now refuses to sign without a real secret. The dev fallback remains for local work. |
 | 6 | **Low** | The capture endpoint accepted unlimited image sizes. | Each image capped at about 4 MB, four per request. |
 
+## Found later, fixed in the hunts change
+
+| # | Severity | Finding | Fix |
+| --- | --- | --- | --- |
+| 7 | **High** | None of the `sales_*` tables had row-level security (every other Daybook table does). On Supabase, the public API key that ships in the browser bundle could read and write them: deals, contacts, captured chats and the capture token and Google secret in `sales_settings`. | Migration 030 enables RLS with an owner-only policy on every `sales_*` table. The server connects as the database owner, so the app is unaffected. A test now fails if a future sales table is created without it. |
+
 ## Checked and fine
 
 - **XSS**: briefs and quotes pass through `mdToHtml`, which escapes first and only re-adds links with `https?://`. No attribute injection path.

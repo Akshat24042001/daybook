@@ -199,7 +199,7 @@ async function fetchApi(api: string, c: Record<string, unknown>, focus: { countr
 
 const urlHash = (s: string) => createHash("sha1").update(s.toLowerCase().replace(/[?#].*$/, "").replace(/\/+$/, "")).digest("hex");
 
-export async function storeItems(sourceId: number | null, items: RawItem[]): Promise<number> {
+export async function storeItems(sourceId: number | null, items: RawItem[], o: { huntId?: number; runId?: number } = {}): Promise<number> {
   let added = 0;
   const weekAgo = Date.now() - 7 * 86_400_000;
   for (const it of items) {
@@ -208,9 +208,9 @@ export async function storeItems(sourceId: number | null, items: RawItem[]): Pro
     if (posted && !Number.isNaN(posted.getTime()) && posted.getTime() < weekAgo) continue;
     const key = it.url ? urlHash(it.url) : urlHash(`${it.title}|${it.body.slice(0, 200)}`);
     const row = await one<{ id: number }>(
-      `insert into sales_radar_items (source_id, url, url_hash, title, body, author, posted_at) values ($1,$2,$3,$4,$5,$6,$7)
+      `insert into sales_radar_items (source_id, url, url_hash, title, body, author, posted_at, hunt_id, hunt_run_id) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        on conflict (url_hash) do nothing returning id`,
-      [sourceId, it.url, key, it.title.slice(0, 400), it.body?.slice(0, 6000) ?? null, it.author ?? null, posted && !Number.isNaN(posted.getTime()) ? posted : null],
+      [sourceId, it.url, key, it.title.slice(0, 400), it.body?.slice(0, 6000) ?? null, it.author ?? null, posted && !Number.isNaN(posted.getTime()) ? posted : null, o.huntId ?? null, o.runId ?? null],
     );
     if (row) added += 1;
   }
@@ -291,13 +291,14 @@ export async function qualifyPending(budgetMs = 45_000): Promise<number> {
   const deadline = Date.now() + budgetMs;
   let done = 0;
   while (Date.now() < deadline - 15_000) {
-    const batch = await q<{ id: number; title: string; body: string | null; url: string | null; category: string; source: string; posted_at: string | null }>(
-      `select r.id, r.title, r.body, r.url, coalesce(s.category, 'requirement') as category, coalesce(s.name, 'manual') as source, r.posted_at
-       from sales_radar_items r left join sales_radar_sources s on s.id = r.source_id
+    const batch = await q<{ id: number; title: string; body: string | null; url: string | null; category: string; source: string; posted_at: string | null; hunt_brief: string | null; hunt_min: number | null; hunt_notify: boolean | null }>(
+      `select r.id, r.title, r.body, r.url, coalesce(s.category, 'requirement') as category, coalesce(s.name, h.name, 'manual') as source, r.posted_at,
+              h.brief as hunt_brief, h.min_score as hunt_min, h.notify as hunt_notify
+       from sales_radar_items r left join sales_radar_sources s on s.id = r.source_id left join sales_hunts h on h.id = r.hunt_id
        where r.status = 'new' and r.score is null order by r.found_at desc limit 8`,
     );
     if (!batch.length) break;
-    const text = batch.map((b, i) => `#${i + 1} CATEGORY: ${b.category} | SOURCE: ${b.source}${b.posted_at ? ` | POSTED: ${new Date(b.posted_at).toISOString().slice(0, 10)}` : ""}\nTITLE: ${b.title}\nURL: ${b.url ?? ""}\n${(b.body ?? "").slice(0, 1200)}`).join("\n\n");
+    const text = batch.map((b, i) => `#${i + 1} CATEGORY: ${b.category} | SOURCE: ${b.source}${b.posted_at ? ` | POSTED: ${new Date(b.posted_at).toISOString().slice(0, 10)}` : ""}${b.hunt_brief ? `\nWHAT THE OWNER ASKED THIS HUNT TO FIND: ${b.hunt_brief.slice(0, 500)} (score higher when the item matches this; lower when it clearly does not)` : ""}\nTITLE: ${b.title}\nURL: ${b.url ?? ""}\n${(b.body ?? "").slice(0, 1200)}`).join("\n\n");
     let verdicts: Verdict[] = [];
     try {
       const out = await llmJson<Verdict[] | { items: Verdict[] }>(qualifySystem(cfg, focus), text, { maxTokens: 2500, totalMs: Math.max(20_000, deadline - Date.now() - 5_000) });
@@ -316,12 +317,12 @@ export async function qualifyPending(budgetMs = 45_000): Promise<number> {
         continue;
       }
       const score = Math.max(0, Math.min(100, Math.round(Number(v.score) || 0)));
-      const status = score >= cfg.radar.min_score && !["candidate", "spam"].includes(v.buyer) ? "qualified" : "rejected";
+      const status = score >= (b.hunt_min ?? cfg.radar.min_score) && !["candidate", "spam"].includes(v.buyer) ? "qualified" : "rejected";
       await q("update sales_radar_items set score = $2, status = $3, fit = $4, angle = $5 where id = $1", [b.id, score, status, JSON.stringify(v), v.angle ?? null]);
       if (status === "qualified") {
         await q("update sales_radar_sources set items_qualified = items_qualified + 1 where id = (select source_id from sales_radar_items where id = $1)", [b.id]);
         const fresh = !b.posted_at || Date.now() - new Date(b.posted_at).getTime() < 12 * 3_600_000;
-        if (score >= cfg.radar.alert_score && fresh) await alertItem(b.id);
+        if (score >= cfg.radar.alert_score && fresh && b.hunt_notify !== false) await alertItem(b.id);
       }
       done += 1;
     }

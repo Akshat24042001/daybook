@@ -16,6 +16,7 @@ import { baseUrl } from "./links";
 import { llm } from "./llm";
 import { draftForMove, refreshMoves } from "./moves";
 import { ownerChat, push } from "./notify";
+import { reportHunt, runHunt, scheduleHunts } from "./hunts";
 import { dailyDigest, hunt, qualifyPending, runRadar } from "./radar";
 import { weeklyReview, reviewMessage } from "./review";
 import { movesMessage, processAndReport, report } from "./telegram";
@@ -57,6 +58,12 @@ export const HANDLERS: Record<string, Handler> = {
   async radar_hunt() {
     await hunt(40_000);
     await enqueue("radar_qualify", {}, { dedupeKey: "radar_qualify" });
+  },
+  async hunt_run(p) {
+    await runHunt(Number(p.id), String(p.trigger ?? "schedule"), 45_000);
+  },
+  async hunt_report(p) {
+    await reportHunt(Number(p.runId));
   },
   async radar_digest() {
     await dailyDigest(50_000);
@@ -150,6 +157,7 @@ export async function runSalesTick(now: Date = new Date()): Promise<string> {
   // schedules (each guarded so it runs once)
   if (Date.now() - (await lastDone("refresh_moves")) > 10 * 60_000) await enqueue("refresh_moves", {}, { dedupeKey: "refresh_moves:all" });
   if (Date.now() - (await lastDone("radar_run")) > 15 * 60_000) await enqueue("radar_run", {}, { dedupeKey: "radar_run" });
+  await scheduleHunts(now).catch((e) => console.warn("[sales] hunts:", (e as Error).message));
   // anything captured but never queued (a crash mid-request)
   await q(
     `insert into sales_jobs (kind, payload, dedupe_key) select 'process_capture', jsonb_build_object('id', c.id), 'capture:' || c.id
