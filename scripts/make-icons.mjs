@@ -1,4 +1,4 @@
-// Generates the PWA icons (a notebook page on navy, with a mustard highlighter line) with no image dependencies.
+// Generates the PWA icons (a notebook page on soft charcoal, with a pastel butter highlighter line) with no image dependencies.
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
@@ -61,10 +61,10 @@ const rrect = (px, py, cx, cy, hw, hh, r) => {
 
 function render(size, { maskable }) {
   const S = 3; // supersampling
-  const bg = [31, 58, 95];
-  const page = [246, 248, 251];
-  const ink = [43, 47, 54];
-  const hl = [224, 161, 0];
+  const bg = [46, 52, 64];
+  const page = [246, 247, 249];
+  const ink = [46, 52, 64];
+  const hl = [241, 215, 142];
   const u = size / 100;
   return png(size, (x, y) => {
     let acc = [0, 0, 0, 0];

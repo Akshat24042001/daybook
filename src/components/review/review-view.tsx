@@ -242,7 +242,7 @@ function IntentionRow({ it, onMark }: { it: Intention; onMark: (done: boolean | 
           aria-label="Mark done"
           aria-pressed={it.done === true}
           onClick={() => onMark(it.done === true ? null : true)}
-          className={cn("flex h-6 w-6 items-center justify-center rounded-lg border transition-colors", it.done === true ? "border-good bg-good text-white" : "border-border text-subtle hover:border-good hover:text-good")}
+          className={cn("flex h-6 w-6 items-center justify-center rounded-lg border transition-colors", it.done === true ? "border-good bg-good text-good-on" : "border-border text-subtle hover:border-good hover:text-good")}
         >
           <Check className="h-3.5 w-3.5" />
         </button>
@@ -251,7 +251,7 @@ function IntentionRow({ it, onMark }: { it: Intention; onMark: (done: boolean | 
           aria-label="Mark not done"
           aria-pressed={it.done === false}
           onClick={() => onMark(it.done === false ? null : false)}
-          className={cn("flex h-6 w-6 items-center justify-center rounded-lg border transition-colors", it.done === false ? "border-bad bg-bad text-white" : "border-border text-subtle hover:border-bad hover:text-bad")}
+          className={cn("flex h-6 w-6 items-center justify-center rounded-lg border transition-colors", it.done === false ? "border-bad bg-bad text-bad-on" : "border-border text-subtle hover:border-bad hover:text-bad")}
         >
           <X className="h-3.5 w-3.5" />
         </button>

@@ -14,7 +14,7 @@ export function StatusGlyph({ status, className }: { status: EntryStatus; classN
   switch (status) {
     case "done":
       return (
-        <span className={cn(base, "border-good bg-good text-white", className)}>
+        <span className={cn(base, "border-good bg-good text-good-on", className)}>
           <Check className="h-4 w-4 stroke-[3]" />
         </span>
       );
@@ -129,7 +129,7 @@ export function EntryRow({
   return (
     <li className="relative overflow-hidden rounded-xl">
       {/* swipe hints */}
-      <div className="absolute inset-0 flex items-center justify-between px-4 text-xs font-medium text-white" aria-hidden>
+      <div className="absolute inset-0 flex items-center justify-between px-4 text-xs font-medium text-on-fill" aria-hidden>
         <span className={cn("rounded-full bg-good px-2 py-1", dx > 8 ? "opacity-100" : "opacity-0")}>
           {row.type === "ongoing" ? "Progressed" : "Done"}
         </span>

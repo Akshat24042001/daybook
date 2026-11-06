@@ -323,10 +323,8 @@ export function DealView({ d }: { d: DealPageData }) {
   );
 }
 
-const CHANNEL_TINT: Record<string, string> = {
-  whatsapp: "bg-p-mint text-p-mint-fg", email: "bg-p-sky text-p-sky-fg", linkedin: "bg-p-lavender text-p-lavender-fg", call: "bg-p-peach text-p-peach-fg",
-  meeting: "bg-p-butter text-p-butter-fg", in_person: "bg-p-butter text-p-butter-fg", instagram: "bg-p-rose text-p-rose-fg", document: "bg-p-sky text-p-sky-fg",
-};
+// channels stay neutral on purpose: colour is reserved for meaning (action, success, attention, urgent)
+const CHANNEL_TINT: Record<string, string> = {};
 
 function TimelineItem({ i, onDelete }: { i: InteractionRow; onDelete: () => void }) {
   const [open, setOpen] = useState(false);

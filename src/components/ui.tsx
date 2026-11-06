@@ -13,7 +13,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          "bg-accent text-accent-fg shadow-[0_1px_3px_hsl(var(--accent)/0.4)] hover:opacity-90 hover:shadow-[0_2px_8px_hsl(var(--accent)/0.45)] active:scale-[0.97]",
+          "bg-accent text-accent-fg shadow-[0_1px_3px_hsl(var(--accent-fill)/0.5)] hover:brightness-[0.97] hover:shadow-[0_2px_8px_hsl(var(--accent-fill)/0.6)] active:scale-[0.97]",
         soft:
           "bg-muted text-fg hover:bg-border active:scale-[0.97]",
         outline:
@@ -21,7 +21,7 @@ const buttonVariants = cva(
         ghost:
           "text-subtle hover:bg-muted hover:text-fg active:scale-[0.97]",
         danger:
-          "bg-bad text-white shadow-[0_1px_3px_hsl(var(--bad)/0.35)] hover:opacity-90 active:scale-[0.97]",
+          "bg-bad text-bad-on shadow-[0_1px_3px_hsl(var(--bad-fill)/0.45)] hover:brightness-[0.97] active:scale-[0.97]",
       },
       size: {
         sm:   "h-8 px-3 text-xs",

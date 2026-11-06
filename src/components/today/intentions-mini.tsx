@@ -61,7 +61,7 @@ export function IntentionsMini({ weekStart, items }: { weekStart: DateStr; items
               <span
                 className={cn(
                   "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors",
-                  it.done === true ? "border-good bg-good text-white" : "border-border hover:border-good",
+                  it.done === true ? "border-good bg-good text-good-on" : "border-border hover:border-good",
                 )}
               >
                 {it.done === true ? <Check className="h-3.5 w-3.5" /> : null}

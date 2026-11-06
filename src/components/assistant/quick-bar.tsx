@@ -13,7 +13,7 @@ type Panel = "state" | "tasks" | "steps" | "score" | "sleep" | "exercise" | "tas
 const chip = "flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface px-3 text-xs font-medium text-subtle transition-colors hover:border-accent/40 hover:text-fg disabled:opacity-50";
 
 const STATUS_BTNS: { status: string; label: string; tone: string }[] = [
-  { status: "done", label: "Done", tone: "bg-good text-white" },
+  { status: "done", label: "Done", tone: "bg-good text-good-on" },
   { status: "progressed", label: "Progressed", tone: "bg-accent text-accent-fg" },
   { status: "skipped", label: "Not today", tone: "border border-border bg-surface text-fg" },
 ];

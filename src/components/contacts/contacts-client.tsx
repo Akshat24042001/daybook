@@ -246,7 +246,7 @@ function ConfirmDelete({
             size="sm"
             disabled={pending}
             onClick={onConfirm}
-            className="flex items-center gap-1.5 rounded-xl bg-bad px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+            className="flex items-center gap-1.5 rounded-xl bg-bad px-3 py-1.5 text-sm font-medium text-bad-on hover:opacity-90"
           >
             <Trash2 className="h-3.5 w-3.5" /> Delete
           </Button>

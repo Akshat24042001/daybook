@@ -100,7 +100,7 @@ export function ActionCards({ items: initial, onChanged }: { items: ActionItem[]
                 <button
                   className={cn(
                     "flex h-8 shrink-0 items-center gap-1 rounded-lg px-3 text-xs font-semibold disabled:opacity-50",
-                    it.status === "undone" ? "border border-border bg-surface text-fg" : danger ? "bg-bad text-white" : "bg-accent text-accent-fg",
+                    it.status === "undone" ? "border border-border bg-surface text-fg" : danger ? "bg-bad text-bad-on" : "bg-accent text-accent-fg",
                   )}
                   disabled={working}
                   onClick={async () => {

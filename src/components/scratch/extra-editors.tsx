@@ -67,7 +67,7 @@ export function ChecklistEditor({ data, onChange, autoFocus }: { data: Checklist
             <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-subtle/50 opacity-0 group-hover:opacity-100" />
             <button
               onClick={() => set(items.map((x) => (x.id === it.id ? { ...x, done: !x.done } : x)))}
-              className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-md border", it.done ? "border-good bg-good text-white" : "border-border hover:border-accent")}
+              className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-md border", it.done ? "border-good bg-good text-good-on" : "border-border hover:border-accent")}
               aria-label={it.done ? "Untick" : "Tick"}
             >
               {it.done ? <Check className="h-3.5 w-3.5" /> : null}

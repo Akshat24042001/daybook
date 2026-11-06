@@ -264,7 +264,7 @@ export function VoiceRecorder({ onDone, onCancel }: { onDone: (file: File, secon
         </>
       ) : (
         <>
-          <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-bad text-white">
+          <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-bad text-bad-on">
             <Mic className="h-4 w-4" />
             <span className="absolute inset-0 animate-ping rounded-full bg-bad/40" />
           </span>
@@ -279,7 +279,7 @@ export function VoiceRecorder({ onDone, onCancel }: { onDone: (file: File, secon
           </button>
           <button
             onClick={() => rec.current?.state === "recording" && rec.current.stop()}
-            className="flex items-center gap-1.5 rounded-lg bg-bad px-3 py-1.5 text-sm font-semibold text-white"
+            className="flex items-center gap-1.5 rounded-lg bg-bad px-3 py-1.5 text-sm font-semibold text-bad-on"
           >
             <Square className="h-3.5 w-3.5" /> Stop & save
           </button>

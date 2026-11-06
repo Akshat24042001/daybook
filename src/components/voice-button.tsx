@@ -130,7 +130,7 @@ export function VoiceButton({
       title={enabled ? label : "Voice needs a Deepgram key"}
       className={cn(
         "inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl border px-3 text-sm transition-colors",
-        recording ? "border-bad bg-bad text-white" : "border-border bg-surface text-subtle hover:bg-muted hover:text-fg",
+        recording ? "border-bad bg-bad text-bad-on" : "border-border bg-surface text-subtle hover:bg-muted hover:text-fg",
         !enabled && "opacity-60",
         className,
       )}

@@ -29,7 +29,7 @@ export default async function SalesPage() {
   const focus = focusFor(cfg, new Date());
   const tiles = [
     { label: "Open pipeline", value: money(k?.open_usd ?? 0), sub: `${k?.deals ?? 0} deals`, tone: "bg-p-sky text-p-sky-fg" },
-    { label: "Weighted", value: money(k?.weighted ?? 0), sub: "by stage probability", tone: "bg-p-lavender text-p-lavender-fg" },
+    { label: "Weighted", value: money(k?.weighted ?? 0), sub: "by stage probability", tone: "border border-border bg-surface text-fg" },
     { label: "Won, not paid", value: money(k?.won_unpaid ?? 0), sub: "cash to collect", tone: "bg-p-mint text-p-mint-fg" },
     { label: "Replies waiting", value: String(k?.replies ?? 0), sub: `${k?.meetings ?? 0} meetings in 24h`, tone: "bg-p-rose text-p-rose-fg" },
     { label: "Fresh radar leads", value: String(k?.radar ?? 0), sub: `${focus.country} · ${focus.industry}`, tone: "bg-p-butter text-p-butter-fg" },

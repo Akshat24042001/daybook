@@ -152,9 +152,9 @@ export default async function PublicDoc({ params, searchParams }: { params: Prom
 }
 
 const CSS = `
-.qdoc{--bg:#F6F8FB;--raised:#FFFFFF;--raised2:#F6F8FB;--fg:#2B2F36;--muted:#5A6472;--navy:#1F3A5F;--accent:#0E7C7B;--accent-h:#0B6968;--soft:#E3F2EF;--butter:#FFF4CE;--mustard:#E0A100;--line:#D5DEE8;--th:#1F3A5F;--th-fg:#FFFFFF;
+.qdoc{--bg:#F6F7F9;--raised:#FFFFFF;--raised2:#F6F7F9;--fg:#2E3440;--muted:#667085;--navy:#2E3440;--accent:#33507F;--soft:#E4ECFA;--soft-line:#AFC6F0;--butter:#FBF1D3;--mustard:#F1D78E;--line:#E1E5EB;--th:#EFF1F5;--th-fg:#2E3440;--gfill:#A7D8BC;--gink:#265A3F;
   min-height:100dvh;background:var(--bg);color:var(--fg);font-family:var(--q-body),Arial,sans-serif;font-size:16px;line-height:1.6;color-scheme:light}
-@media (prefers-color-scheme: dark){.qdoc{--bg:#0F1722;--raised:#152030;--raised2:#1B283B;--fg:#E6ECF3;--muted:#9AA5B1;--navy:#A9C1E6;--accent:#6FD3CB;--accent-h:#8FE0D9;--soft:rgba(111,211,203,.12);--butter:rgba(242,201,76,.12);--line:#26364A;--th:#1B283B;--th-fg:#E6ECF3;color-scheme:dark}}
+@media (prefers-color-scheme: dark){.qdoc{--bg:#16181D;--raised:#1E2128;--raised2:#262A33;--fg:#E6E8EC;--muted:#9AA1AD;--navy:#E6E8EC;--accent:#BFD2F5;--soft:#232D40;--soft-line:#9DB8E8;--butter:#362F1D;--mustard:#E9CD7E;--line:#323743;--th:#262A33;--th-fg:#E6E8EC;--gfill:#8FCFAB;--gink:#16181D;color-scheme:dark}}
 .qdoc a{color:var(--accent)}
 .qh,.qf{max-width:900px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:20px 24px}
 .qh{border-bottom:1px solid var(--line)}
@@ -175,15 +175,15 @@ td{padding:12px 14px;border-top:1px solid var(--line);vertical-align:top}tr:nth-
 .qtotals{margin:12px 0 0 auto;max-width:360px}.qtotals div{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)}
 .qgrand{font-family:var(--q-display),sans-serif;font-weight:800;font-size:20px;border-bottom:0!important;color:var(--navy)}
 .qplan{list-style:none;padding:0;margin:0}.qplan li{display:flex;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid var(--line)}
-.qcallout{background:var(--soft);border-left:3px solid var(--accent);padding:14px 18px;border-radius:0 8px 8px 0;margin:16px 0}
+.qcallout{background:var(--soft);border-left:3px solid var(--soft-line);padding:14px 18px;border-radius:0 8px 8px 0;margin:16px 0}
 .qcallout.warm{background:var(--butter);border-left-color:var(--mustard)}
 .qcallout.bad{border-left-color:#C0392B}
 .qactions{margin-top:36px;padding-top:24px;border-top:1px solid var(--line);display:grid;gap:20px}
 .qform{display:grid;gap:8px;max-width:440px}
 .qform input,.qform textarea{background:transparent;border:0;border-bottom:1px solid var(--line);color:var(--fg);font:inherit;padding:8px 0;outline:none}
-.qform input:focus,.qform textarea:focus{border-bottom-color:var(--accent)}
-.qbtn{display:inline-flex;justify-content:center;align-items:center;background:var(--accent);color:var(--bg)!important;border:0;border-radius:8px;padding:12px 20px;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;margin-top:8px}
-.qbtn:hover{background:var(--accent-h)}.qbtn.outline{background:transparent;border:1px solid var(--line);color:var(--fg)!important}.qbtn.outline:hover{border-color:var(--accent)}
+.qform input:focus,.qform textarea:focus{border-bottom-color:var(--soft-line)}
+.qbtn{display:inline-flex;justify-content:center;align-items:center;background:var(--gfill);color:var(--gink)!important;border:0;border-radius:8px;padding:12px 20px;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;margin-top:8px}
+.qbtn:hover{filter:brightness(.97)}.qbtn.outline{background:transparent;border:1px solid var(--line);color:var(--fg)!important}.qbtn.outline:hover{border-color:var(--soft-line)}
 .qchanges summary{cursor:pointer;color:var(--muted);font-size:14px}.qchanges .qform{margin-top:12px}
 .qcontact{margin-top:32px;color:var(--muted);font-size:14px}
 @media (max-width:600px){.qh,.qf,.qmain{padding-left:16px;padding-right:16px}table{min-width:0}th:nth-child(2),th:nth-child(3),td:nth-child(2),td:nth-child(3){display:none}}

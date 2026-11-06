@@ -3,40 +3,51 @@
 @tailwind utilities;
 
 /* ── Light theme ─────────────────────────────────────────────────────────── */
+/* Four pastels, one job each: blue = action, green = success, yellow = attention, red = urgent. */
 :root {
-  /* Palette from the Vector pricing guide: paper, ink, navy, teal, with soft pastel tints */
-  --bg:         216 38% 97%;   /* paper  #F6F8FB */
+  /* Neutral base: soft charcoal on off-white. Colour only where it means something. */
+  --bg:         220 21% 97%;   /* #F6F7F9 */
   --surface:    0   0%  100%;
-  --muted:      210 40% 95%;   /* ice    #EEF3F8 */
-  --border:     212 29% 87%;   /* line   #D5DEE8 */
-  --fg:         218 11% 19%;   /* ink    #2B2F36 */
-  --subtle:     215 12% 40%;   /* slate  #5A6472 */
-  --brand:      215 51% 25%;   /* navy   #1F3A5F */
+  --muted:      220 25% 95%;   /* #EFF1F5 */
+  --border:     216 20% 90%;   /* #E1E5EB */
+  --fg:         220 16% 22%;   /* #2E3440 soft charcoal, not black: less glare */
+  --subtle:     221 13% 46%;   /* #667085 */
+  --brand:      220 16% 22%;
+  --on-fill:    220 16% 22%;
 
-  --accent:     180 80% 27%;   /* teal   #0E7C7B */
-  --accent-fg:  0   0%  100%;
-  --accent-muted: 178 45% 92%;
+  /* Blue = action. text-accent is the readable ink, bg-accent the pastel fill (see tailwind.config.ts) */
+  --accent:       217 43% 35%; /* #33507F */
+  --accent-fill:  219 68% 81%; /* #AFC6F0 */
+  --accent-fg:    217 43% 35%; /* text on the fill */
+  --accent-muted: 218 68% 94%; /* #E4ECFA tint */
 
-  --good:       152 60% 27%;
-  --good-muted: 150 42% 92%;
-  --warn:       38  88% 30%;
-  --warn-muted: 47  100% 90%;  /* butter #FFF4CE */
-  --bad:        2   62% 44%;
-  --bad-muted:  0   75% 95%;
+  /* Green = success and money */
+  --good:       149 41% 25%;   /* #265A3F */
+  --good-fill:  146 41% 75%;   /* #A7D8BC */
+  --good-on:    149 41% 25%;
+  --good-muted: 148 42% 92%;   /* #E2F3EA */
+  /* Yellow = needs attention */
+  --warn:       43  69% 25%;   /* #6E5414 */
+  --warn-fill:  45  79% 75%;   /* #F1D78E */
+  --warn-on:    43  69% 25%;
+  --warn-muted: 45  83% 91%;   /* #FBF1D3 */
+  /* Red = urgent and negative */
+  --bad:        0   42% 34%;   /* #7A3232 */
+  --bad-fill:   0   63% 81%;   /* #EDB0B0 */
+  --bad-on:     0   42% 34%;
+  --bad-muted:  0   73% 94%;   /* #FBE5E5 */
 
-  --hl:         47  100% 88%;  /* butter highlighter */
+  --hl:         45  83% 88%;   /* butter highlighter for must-dos */
 
-  /* pastel tints (background / text on it) */
-  --p-mint:     168 37% 92%;  --p-mint-fg:     168 55% 24%;
-  --p-butter:   47  100% 90%; --p-butter-fg:   36  85% 28%;
-  --p-sky:      205 80% 94%;  --p-sky-fg:      207 60% 32%;
-  --p-lavender: 255 70% 95%;  --p-lavender-fg: 258 38% 42%;
-  --p-peach:    25  90% 93%;  --p-peach-fg:    18  60% 38%;
-  --p-rose:     340 70% 95%;  --p-rose-fg:     340 45% 40%;
+  /* tint + ink pairs for badges and tiles */
+  --p-sky:    218 68% 94%;  --p-sky-fg:    217 43% 35%;
+  --p-mint:   148 42% 92%;  --p-mint-fg:   149 41% 25%;
+  --p-butter: 45  83% 91%;  --p-butter-fg: 43  69% 25%;
+  --p-rose:   0   73% 94%;  --p-rose-fg:   0   42% 34%;
 
-  --shadow-sm:  0 1px 2px hsl(215 51% 25% / 0.05), 0 1px 3px hsl(215 51% 25% / 0.05);
-  --shadow-md:  0 4px 12px hsl(215 51% 25% / 0.07), 0 2px 4px hsl(215 51% 25% / 0.04);
-  --shadow-lg:  0 10px 28px hsl(215 51% 25% / 0.10), 0 4px 8px hsl(215 51% 25% / 0.05);
+  --shadow-sm:  0 1px 2px hsl(220 16% 22% / 0.05), 0 1px 3px hsl(220 16% 22% / 0.05);
+  --shadow-md:  0 4px 12px hsl(220 16% 22% / 0.07), 0 2px 4px hsl(220 16% 22% / 0.04);
+  --shadow-lg:  0 10px 28px hsl(220 16% 22% / 0.10), 0 4px 8px hsl(220 16% 22% / 0.05);
 
   color-scheme: light;
 }
@@ -44,33 +55,40 @@
 /* ── Dark theme ──────────────────────────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg:         215 39% 10%;   /* deep navy ink, never pure black */
-    --surface:    216 37% 14%;
-    --muted:      216 35% 18%;
-    --border:     215 28% 24%;
-    --fg:         213 37% 92%;
-    --subtle:     211 14% 66%;
-    --brand:      216 55% 80%;   /* pastel navy */
+    /* Charcoal, never pure black: bright text on black halos and tires the eyes */
+    --bg:         223 14% 10%;   /* #16181D */
+    --surface:    222 14% 14%;   /* #1E2128 */
+    --muted:      222 15% 17%;   /* #262A33 */
+    --border:     222 15% 23%;   /* #323743 */
+    --fg:         220 12% 90%;   /* #E6E8EC */
+    --subtle:     218 10% 64%;   /* #9AA1AD */
+    --brand:      220 12% 90%;
+    --on-fill:    223 14% 10%;
 
-    --accent:     175 53% 63%;   /* pastel teal */
-    --accent-fg:  215 39% 10%;
-    --accent-muted: 177 38% 18%;
+    --accent:       219 73% 85%; /* #BFD2F5 text */
+    --accent-fill:  218 62% 76%; /* #9DB8E8 */
+    --accent-fg:    223 14% 10%;
+    --accent-muted: 219 29% 19%; /* #232D40 */
 
-    --good:       150 50% 66%;
-    --good-muted: 152 32% 16%;
-    --warn:       44  85% 66%;
-    --warn-muted: 44  40% 17%;
-    --bad:        4   78% 74%;
-    --bad-muted:  2   38% 18%;
+    --good:       146 43% 79%;   /* #B2E0C6 */
+    --good-fill:  146 42% 69%;   /* #8FCFAB */
+    --good-on:    223 14% 10%;
+    --good-muted: 153 25% 16%;   /* #1E3229 */
+    --warn:       44  74% 79%;   /* #F1DCA0 */
+    --warn-fill:  44  71% 70%;   /* #E9CD7E */
+    --warn-on:    223 14% 10%;
+    --warn-muted: 43  30% 16%;   /* #362F1D */
+    --bad:        0   70% 84%;   /* #F3BCBC */
+    --bad-fill:   0   59% 76%;   /* #E59E9E */
+    --bad-on:     223 14% 10%;
+    --bad-muted:  352 25% 18%;   /* #3A2326 */
 
-    --hl:         44  40% 21%;
+    --hl:         43  30% 19%;
 
-    --p-mint:     168 28% 18%;  --p-mint-fg:     165 50% 74%;
-    --p-butter:   44  38% 18%;  --p-butter-fg:   44  85% 72%;
-    --p-sky:      207 35% 20%;  --p-sky-fg:      205 75% 78%;
-    --p-lavender: 258 25% 21%;  --p-lavender-fg: 255 70% 82%;
-    --p-peach:    20  30% 19%;  --p-peach-fg:    22  85% 76%;
-    --p-rose:     340 25% 20%;  --p-rose-fg:     340 70% 82%;
+    --p-sky:    219 29% 19%;  --p-sky-fg:    219 73% 85%;
+    --p-mint:   153 25% 16%;  --p-mint-fg:   146 43% 79%;
+    --p-butter: 43  30% 16%;  --p-butter-fg: 44  74% 79%;
+    --p-rose:   352 25% 18%;  --p-rose-fg:   0   70% 84%;
 
     --shadow-sm:  0 1px 2px hsl(0 0% 0% / 0.30), 0 1px 3px hsl(0 0% 0% / 0.20);
     --shadow-md:  0 4px 12px hsl(0 0% 0% / 0.35), 0 2px 4px hsl(0 0% 0% / 0.20);
@@ -81,33 +99,40 @@
 }
 
 :root[data-theme="dark"] {
-  --bg:         215 39% 10%;   /* deep navy ink, never pure black */
-  --surface:    216 37% 14%;
-  --muted:      216 35% 18%;
-  --border:     215 28% 24%;
-  --fg:         213 37% 92%;
-  --subtle:     211 14% 66%;
-  --brand:      216 55% 80%;   /* pastel navy */
+  /* Charcoal, never pure black: bright text on black halos and tires the eyes */
+  --bg:         223 14% 10%;   /* #16181D */
+  --surface:    222 14% 14%;   /* #1E2128 */
+  --muted:      222 15% 17%;   /* #262A33 */
+  --border:     222 15% 23%;   /* #323743 */
+  --fg:         220 12% 90%;   /* #E6E8EC */
+  --subtle:     218 10% 64%;   /* #9AA1AD */
+  --brand:      220 12% 90%;
+  --on-fill:    223 14% 10%;
 
-  --accent:     175 53% 63%;   /* pastel teal */
-  --accent-fg:  215 39% 10%;
-  --accent-muted: 177 38% 18%;
+  --accent:       219 73% 85%; /* #BFD2F5 text */
+  --accent-fill:  218 62% 76%; /* #9DB8E8 */
+  --accent-fg:    223 14% 10%;
+  --accent-muted: 219 29% 19%; /* #232D40 */
 
-  --good:       150 50% 66%;
-  --good-muted: 152 32% 16%;
-  --warn:       44  85% 66%;
-  --warn-muted: 44  40% 17%;
-  --bad:        4   78% 74%;
-  --bad-muted:  2   38% 18%;
+  --good:       146 43% 79%;   /* #B2E0C6 */
+  --good-fill:  146 42% 69%;   /* #8FCFAB */
+  --good-on:    223 14% 10%;
+  --good-muted: 153 25% 16%;   /* #1E3229 */
+  --warn:       44  74% 79%;   /* #F1DCA0 */
+  --warn-fill:  44  71% 70%;   /* #E9CD7E */
+  --warn-on:    223 14% 10%;
+  --warn-muted: 43  30% 16%;   /* #362F1D */
+  --bad:        0   70% 84%;   /* #F3BCBC */
+  --bad-fill:   0   59% 76%;   /* #E59E9E */
+  --bad-on:     223 14% 10%;
+  --bad-muted:  352 25% 18%;   /* #3A2326 */
 
-  --hl:         44  40% 21%;
+  --hl:         43  30% 19%;
 
-  --p-mint:     168 28% 18%;  --p-mint-fg:     165 50% 74%;
-  --p-butter:   44  38% 18%;  --p-butter-fg:   44  85% 72%;
-  --p-sky:      207 35% 20%;  --p-sky-fg:      205 75% 78%;
-  --p-lavender: 258 25% 21%;  --p-lavender-fg: 255 70% 82%;
-  --p-peach:    20  30% 19%;  --p-peach-fg:    22  85% 76%;
-  --p-rose:     340 25% 20%;  --p-rose-fg:     340 70% 82%;
+  --p-sky:    219 29% 19%;  --p-sky-fg:    219 73% 85%;
+  --p-mint:   153 25% 16%;  --p-mint-fg:   146 43% 79%;
+  --p-butter: 43  30% 16%;  --p-butter-fg: 44  74% 79%;
+  --p-rose:   352 25% 18%;  --p-rose-fg:   0   70% 84%;
 
   --shadow-sm:  0 1px 2px hsl(0 0% 0% / 0.30), 0 1px 3px hsl(0 0% 0% / 0.20);
   --shadow-md:  0 4px 12px hsl(0 0% 0% / 0.35), 0 2px 4px hsl(0 0% 0% / 0.20);
@@ -116,7 +141,7 @@
   color-scheme: dark;
 }
 
-/* headings in navy; zero specificity so any text-* class still wins */
+/* headings; zero specificity so any text-* class still wins */
 :where(.font-display) { color: hsl(var(--brand)); }
 
 /* ── Base ────────────────────────────────────────────────────────────────── */

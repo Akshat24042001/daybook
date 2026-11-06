@@ -59,7 +59,7 @@ export function SalesTabs() {
 
 /** Priority 0-100 with its tier, the trend since yesterday, and the reasons on hover. */
 export function Priority({ value, prev, why, compact }: { value: number; prev?: number | null; why?: string[] | null; compact?: boolean }) {
-  const t = value >= 70 ? ["Hot", "bg-p-rose text-p-rose-fg"] : value >= 45 ? ["Warm", "bg-p-peach text-p-peach-fg"] : value >= 20 ? ["Steady", "bg-p-sky text-p-sky-fg"] : ["Cold", "bg-muted text-subtle"];
+  const t = value >= 70 ? ["Hot", "bg-p-rose text-p-rose-fg"] : value >= 45 ? ["Warm", "bg-p-butter text-p-butter-fg"] : value >= 20 ? ["Steady", "bg-p-sky text-p-sky-fg"] : ["Cold", "bg-muted text-subtle"];
   const delta = prev === null || prev === undefined ? 0 : value - prev;
   const arrow = delta >= 5 ? "↑" : delta <= -5 ? "↓" : "";
   return (

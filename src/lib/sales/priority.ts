@@ -84,7 +84,7 @@ export function scoreDeal(r: PriorityRow, now = Date.now()): { score: number; wh
 
 export function tier(score: number): { label: "Hot" | "Warm" | "Steady" | "Cold"; tone: string } {
   if (score >= 70) return { label: "Hot", tone: "bg-p-rose text-p-rose-fg" };
-  if (score >= 45) return { label: "Warm", tone: "bg-p-peach text-p-peach-fg" };
+  if (score >= 45) return { label: "Warm", tone: "bg-p-butter text-p-butter-fg" };
   if (score >= 20) return { label: "Steady", tone: "bg-p-sky text-p-sky-fg" };
   return { label: "Cold", tone: "bg-muted text-subtle" };
 }

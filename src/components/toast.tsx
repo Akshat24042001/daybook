@@ -41,7 +41,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             role="status"
             className={cn(
               "pointer-events-auto max-w-md rounded-xl px-4 py-2.5 text-sm shadow-lg",
-              t.kind === "error" ? "bg-bad text-white" : "bg-fg text-bg",
+              t.kind === "error" ? "bg-bad text-bad-on" : "bg-fg text-bg",
             )}
           >
             {t.message}

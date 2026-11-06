@@ -13,25 +13,26 @@ import { cn } from "@/lib/cn";
 import type { MoveRow } from "@/lib/sales/moves";
 import { ago } from "./util";
 
+// red = act now, yellow = needs attention, green = money and good news, blue = a new action to start, grey = housekeeping
 const KIND: Record<string, { label: string; tone: string }> = {
   reply: { label: "Reply", tone: "bg-p-rose text-p-rose-fg" },
   quote_hot: { label: "Hot", tone: "bg-p-rose text-p-rose-fg" },
   commit_mine: { label: "Your promise", tone: "bg-p-butter text-p-butter-fg" },
   payment_due: { label: "Money", tone: "bg-p-mint text-p-mint-fg" },
-  debrief: { label: "Debrief", tone: "bg-p-lavender text-p-lavender-fg" },
+  debrief: { label: "Debrief", tone: "bg-p-butter text-p-butter-fg" },
   first_touch: { label: "First touch", tone: "bg-p-sky text-p-sky-fg" },
-  follow_up: { label: "Follow-up", tone: "bg-p-sky text-p-sky-fg" },
-  breakup: { label: "Last follow-up", tone: "bg-p-peach text-p-peach-fg" },
-  reengage: { label: "Re-engage", tone: "bg-p-peach text-p-peach-fg" },
+  follow_up: { label: "Follow-up", tone: "bg-p-butter text-p-butter-fg" },
+  breakup: { label: "Last follow-up", tone: "bg-p-butter text-p-butter-fg" },
+  reengage: { label: "Re-engage", tone: "bg-p-butter text-p-butter-fg" },
   commit_theirs: { label: "Their promise", tone: "bg-p-butter text-p-butter-fg" },
-  quote_unseen: { label: "Quote unseen", tone: "bg-p-peach text-p-peach-fg" },
-  quote_silent: { label: "Quote read", tone: "bg-p-peach text-p-peach-fg" },
+  quote_unseen: { label: "Quote unseen", tone: "bg-p-butter text-p-butter-fg" },
+  quote_silent: { label: "Quote read", tone: "bg-p-butter text-p-butter-fg" },
   stale: { label: "Stuck", tone: "bg-muted text-subtle" },
-  resurrect: { label: "Revisit", tone: "bg-p-lavender text-p-lavender-fg" },
+  resurrect: { label: "Revisit", tone: "bg-p-butter text-p-butter-fg" },
   referral_ask: { label: "Referral", tone: "bg-p-mint text-p-mint-fg" },
-  next_action: { label: "Next step", tone: "bg-accent-muted text-accent" },
-  radar: { label: "New lead", tone: "bg-p-lavender text-p-lavender-fg" },
-  custom: { label: "To do", tone: "bg-muted text-fg" },
+  next_action: { label: "Next step", tone: "bg-p-sky text-p-sky-fg" },
+  radar: { label: "New lead", tone: "bg-p-sky text-p-sky-fg" },
+  custom: { label: "To do", tone: "bg-muted text-subtle" },
 };
 
 function waUrl(phone: string | null | undefined, text: string): string {

@@ -32,7 +32,7 @@ interface Project {
 
 // ─── project card: read-only by default, edit on demand ─────────────────────────
 
-const SWATCHES = ["#1F3A5F", "#0E7C7B", "#E0A100", "#4A90C2", "#3FA587", "#8E7CC3", "#E08A5B", "#C96A8A", "#D9605A", "#5A6472"];
+const SWATCHES = ["#9DB8E8", "#7C9EDB", "#8FCFAB", "#6FB892", "#E9CD7E", "#D9B45A", "#E59E9E", "#D27E7E", "#A3ABB8", "#7D8696"];
 
 function ProjectCard({
   project,
