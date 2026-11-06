@@ -49,9 +49,9 @@ export function InstagramCard({ date, minutes }: { date: DateStr; minutes: numbe
   const limitPct = (INSTAGRAM_LIMIT_MIN / scale) * 100;
 
   return (
-    <Card className="p-4">
+    <Card className={cn("bg-gradient-to-br to-surface p-4", over ? "border-bad/40 from-p-rose/70" : "border-p-pink-fg/20 from-p-pink/70")}>
       <div className="flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-muted text-accent">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-p-pink text-p-pink-fg">
           <Instagram className="h-4 w-4" />
         </span>
         <h2 className="text-sm font-semibold">Instagram</h2>
@@ -121,7 +121,7 @@ export function InstagramCard({ date, minutes }: { date: DateStr; minutes: numbe
             onClick={() => save(m)}
             className={cn(
               "tabular h-8 rounded-lg border px-2.5 text-xs font-semibold transition-colors",
-              opt === m ? "border-accent bg-accent text-accent-fg" : "border-border hover:bg-muted",
+              opt === m ? "border-transparent bg-pink-fill text-p-pink-fg" : "border-border hover:bg-muted",
               m > INSTAGRAM_LIMIT_MIN && opt !== m && "text-bad/80",
             )}
           >

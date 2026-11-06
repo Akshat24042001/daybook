@@ -7,6 +7,7 @@ import { fmtDay, fmtDuration } from "@/lib/time";
 import { SKIP_REASONS } from "@/lib/types";
 import type { EntryStatus } from "@/lib/types";
 import type { RowData } from "@/lib/view-types";
+import type { DragSlot } from "../sortable-list";
 import { Chip } from "../ui";
 
 export function StatusGlyph({ status, className }: { status: EntryStatus; className?: string }) {
@@ -62,7 +63,9 @@ export function EntryRow({
   onOpen,
   onQuickAction,
   onToggleMust,
+  slot,
 }: {
+  slot?: DragSlot;
   row: RowData;
   onOpen: () => void;
   /** swipe right / tick button: Progressed for Ongoing, Done for everything else */
@@ -127,7 +130,11 @@ export function EntryRow({
   }
 
   return (
-    <li className="relative overflow-hidden rounded-xl">
+    <li
+      ref={slot?.setNodeRef}
+      style={slot?.style}
+      className={cn("relative overflow-hidden rounded-xl", slot?.dragging && "shadow-[var(--shadow-lg)] ring-2 ring-accent/40")}
+    >
       {/* swipe hints */}
       <div className="absolute inset-0 flex items-center justify-between px-4 text-xs font-medium text-on-fill" aria-hidden>
         <span className={cn("rounded-full bg-good px-2 py-1", dx > 8 ? "opacity-100" : "opacity-0")}>
@@ -139,13 +146,15 @@ export function EntryRow({
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
-        style={{ transform: `translateX(${dx}px)`, transition: dx === 0 ? "transform 160ms ease-out" : "none" }}
+        // the left edge carries the project's colour, so a glance down the list shows which project each task belongs to
+        style={{ transform: `translateX(${dx}px)`, transition: dx === 0 ? "transform 160ms ease-out" : "none", borderLeftColor: row.projectColor ?? undefined }}
         className={cn(
-          "flex items-center gap-3 border border-border px-3 py-2.5",
-          row.mustDo && !closed ? "highlighter border-transparent" : "bg-surface",
+          "flex items-center gap-3 border border-border border-l-[5px] px-3 py-2.5",
+          row.mustDo && !closed ? "highlighter border-y-transparent border-r-transparent" : "bg-surface",
           (closed || parked) && "opacity-70",
         )}
       >
+        {slot?.grip ? <span className="-ml-1.5 -mr-1">{slot.grip}</span> : null}
         <button
           type="button"
           onClick={closed || parked ? onOpen : onQuickAction}

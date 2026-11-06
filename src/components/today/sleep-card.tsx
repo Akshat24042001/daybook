@@ -34,9 +34,9 @@ export function SleepCard({ date, minutes, quality }: { date: DateStr; minutes: 
 
   const logged = opt.minutes !== null;
   return (
-    <Card className="p-4">
+    <Card className="border-p-lilac-fg/20 bg-gradient-to-br from-p-lilac/70 to-surface p-4">
       <div className="flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-muted text-accent">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-p-lilac text-p-lilac-fg">
           <Moon className="h-4 w-4" />
         </span>
         <h2 className="text-sm font-semibold">Sleep</h2>
@@ -69,7 +69,7 @@ export function SleepCard({ date, minutes, quality }: { date: DateStr; minutes: 
             onClick={() => save({ minutes: m })}
             className={cn(
               "tabular h-8 rounded-lg border px-2.5 text-xs font-semibold transition-colors",
-              opt.minutes === m ? "border-accent bg-accent text-accent-fg" : "border-border hover:bg-muted",
+              opt.minutes === m ? "border-transparent bg-lilac-fill text-p-lilac-fg" : "border-border hover:bg-muted",
             )}
           >
             {hoursLabel(m)}

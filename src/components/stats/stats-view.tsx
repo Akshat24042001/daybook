@@ -8,6 +8,7 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
+import { HUE, type Hue } from "@/lib/hue";
 import { cn } from "@/lib/cn";
 import type { DiarySummaryView } from "@/lib/services/diary";
 import type { Stats, TimelineDay } from "@/lib/services/stats";
@@ -60,9 +61,11 @@ function Delta({ cur, prev, unit = "", digits = 1, lowerIsBetter = false, neutra
 
 /** A chart card: headline number in the header, chart below, click anywhere for the detail dialog. */
 function Tile({
-  title, value, delta, sub, warn, onOpen, children, className, action,
+  title, value, delta, sub, warn, onOpen, children, className, action, hue = "teal",
 }: {
   title: string;
+  /** what kind of measure this is (see lib/hue.ts): the title and the bar above it wear that colour */
+  hue?: Hue;
   value?: React.ReactNode;
   delta?: React.ReactNode;
   sub?: React.ReactNode;
@@ -85,7 +88,8 @@ function Tile({
     >
       <div className="mb-2 flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-subtle">{title}</p>
+          <span className={cn("mb-1.5 block h-1 w-8 rounded-full", HUE[warn ? "butter" : hue].fill)} aria-hidden />
+          <p className={cn("text-[11px] font-semibold uppercase tracking-wider", HUE[warn ? "butter" : hue].ink)}>{title}</p>
           {value !== undefined ? (
             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
               <span className={cn("tabular font-display text-2xl leading-tight", warn && "text-warn")}>{value}</span>
@@ -466,6 +470,7 @@ export function StatsView({
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <Tile
           title="Day score"
+          hue="lilac"
           value={cur.avgScore === null ? "–" : cur.avgScore.toFixed(1)}
           delta={<Delta cur={cur.avgScore} prev={prev.avgScore} />}
           sub="avg / 10"
@@ -475,6 +480,7 @@ export function StatsView({
         </Tile>
         <Tile
           title="Hours worked"
+          hue="teal"
           value={cur.avgWorkedHours === null ? "–" : `${cur.avgWorkedHours.toFixed(1)}h`}
           delta={<Delta cur={cur.avgWorkedHours} prev={prev.avgWorkedHours} unit="h" neutral />}
           sub={`per day · ${Math.round(cur.totalWorkedHours)}h total`}
@@ -484,6 +490,7 @@ export function StatsView({
         </Tile>
         <Tile
           title="Tasks done"
+          hue="mint"
           value={String(cur.tasksDone)}
           delta={<Delta cur={cur.tasksDone} prev={prev.tasksDone} digits={0} />}
           sub={cur.tasksPerHour === null ? undefined : `${cur.tasksPerHour.toFixed(2)} per worked hour`}
@@ -494,6 +501,7 @@ export function StatsView({
 
         <Tile
           title="Your day, hour by hour"
+          hue="teal"
           value={tl.daysWithData ? fmtDuration(tl.tracked / tl.daysWithData) : "–"}
           sub={tl.workPct === null ? undefined : `tracked a day · ${tl.workPct}% work`}
           onOpen={() => setOpen("timeline")}
@@ -503,6 +511,7 @@ export function StatsView({
         </Tile>
         <Tile
           title="Unaccounted time"
+          hue="butter"
           value={cur.unaccountedPct === null ? "–" : `${Math.round(cur.unaccountedPct)}%`}
           delta={<Delta cur={cur.unaccountedPct} prev={prev.unaccountedPct} unit="pt" digits={0} lowerIsBetter />}
           sub="target under 20%"
@@ -513,6 +522,7 @@ export function StatsView({
         </Tile>
         <Tile
           title="Hours by project"
+          hue="sky"
           value={fmtDuration(stats.totals.minutes)}
           sub={stats.hoursByProject.length ? `across ${stats.hoursByProject.length} project${stats.hoursByProject.length === 1 ? "" : "s"}` : undefined}
           onOpen={() => setOpen("projects")}
@@ -530,6 +540,7 @@ export function StatsView({
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <Tile
           title="Consistency"
+          hue="mint"
           value={`${d.scored.length}/${series.length}`}
           sub="days scored"
           onOpen={() => setOpen("consistency")}
@@ -545,6 +556,7 @@ export function StatsView({
 
         <Tile
           title="Weekday patterns"
+          hue="teal"
           onOpen={() => setOpen("weekday")}
           action={
             <div className="inline-flex rounded-lg bg-muted p-0.5">
@@ -588,6 +600,7 @@ export function StatsView({
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Tile
           title="Steps"
+          hue="mint"
           value={d.stepAvg === null ? "–" : Math.round(d.stepAvg).toLocaleString("en-US")}
           sub={`avg · goal ${d.stepHit}/${d.stepDays || 0} days`}
           onOpen={() => setOpen("steps")}
@@ -596,6 +609,7 @@ export function StatsView({
         </Tile>
         <Tile
           title="Exercise"
+          hue="mint"
           value={String(d.setsTotal)}
           sub={`sets · ${d.setDays} active day${d.setDays === 1 ? "" : "s"}`}
           onOpen={() => setOpen("exercise")}
@@ -604,6 +618,7 @@ export function StatsView({
         </Tile>
         <Tile
           title="Sleep"
+          hue="lilac"
           value={d.sleepAvg === null ? "–" : `${d.sleepAvg.toFixed(1)}h`}
           sub={d.sleepNights.length ? `avg · ${d.shortNights} under 7h` : "log sleep on Today"}
           warn={d.sleepAvg !== null && d.sleepAvg < 6.5}
@@ -613,6 +628,7 @@ export function StatsView({
         </Tile>
         <Tile
           title="Instagram"
+          hue="pink"
           value={d.igAvg === null ? "–" : fmtDuration(Math.round(d.igAvg))}
           sub={d.igDays.length ? `avg · ${d.igOver} day${d.igOver === 1 ? "" : "s"} over 1h` : "log time on Today"}
           warn={d.igAvg !== null && d.igAvg > 60}
@@ -627,6 +643,7 @@ export function StatsView({
       <div className="grid gap-3 xl:grid-cols-3">
         <Tile
           title="Diary · AI day rating"
+          hue="lilac"
           value={d.diaryAvg === null ? "–" : d.diaryAvg.toFixed(1)}
           sub={diary.length ? `avg over ${diary.length} summarised day${diary.length === 1 ? "" : "s"}` : "no summaries yet"}
           onOpen={() => setOpen("diary")}

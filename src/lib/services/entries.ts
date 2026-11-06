@@ -298,6 +298,29 @@ export async function reorderEntry(entryId: number, direction: "up" | "down"): P
   });
 }
 
+/**
+ * Drag-and-drop ordering: `ids` is the new top-to-bottom order of some entries of one day. They take over the sort
+ * slots those entries already held, so entries outside the dragged list keep their place around them.
+ */
+export async function reorderEntries(date: DateStr, ids: number[]): Promise<void> {
+  const unique = [...new Set(ids)];
+  if (unique.length < 2) return;
+  await tx(async (db) => {
+    const rows = await q<{ id: number; sort: number }>(
+      "select id, sort from day_entries where date = $1 and id = any($2::int[])",
+      [date, unique],
+      db,
+    );
+    if (rows.length !== unique.length) throw new UserError("That list changed. Refresh and try again.");
+    const slots = rows.map((r) => r.sort).sort((a, b) => a - b);
+    // slots must strictly increase so the new order sticks even when several entries shared a sort value
+    for (let i = 1; i < slots.length; i++) if (slots[i] <= slots[i - 1]) slots[i] = slots[i - 1] + 1;
+    for (let i = 0; i < unique.length; i++) {
+      await db.query("update day_entries set sort = $2 where id = $1", [unique[i], slots[i]]);
+    }
+  });
+}
+
 export async function removeEntry(entryId: number): Promise<void> {
   await q("delete from day_entries where id = $1 and status = 'open'", [entryId]);
 }

@@ -9,6 +9,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { cn } from "@/lib/cn";
+import { HUE, hueForPath, type Hue } from "@/lib/hue";
 import { CommandPalette } from "./command-palette";
 import { NavProgress } from "./nav-progress";
 import { QuickAdd } from "./quick-add";
@@ -120,19 +121,34 @@ const MOBILE_MORE: NavItem[] = [
 
 function SideLink({ item, active }: { item: NavItem; active: boolean }) {
   const { href, label, Icon } = item;
+  const hue = HUE[hueForPath(href)];
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
-        active ? "bg-accent-muted text-accent" : "text-subtle hover:bg-muted hover:text-fg",
+        "relative flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm font-medium transition-colors",
+        active ? cn(hue.tint, hue.ink) : "text-subtle hover:bg-muted hover:text-fg",
       )}
     >
-      {active ? <span className="absolute -left-3 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-accent" aria-hidden /> : null}
-      <Icon className={cn("h-[18px] w-[18px]", active && "stroke-[2.3]")} />
+      {active ? <span className={cn("absolute -left-3 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full", hue.fill)} aria-hidden /> : null}
+      {/* every page keeps its own colour, lit or not, so the sidebar doubles as a legend */}
+      <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg", hue.tint, hue.ink, active && "bg-surface/60")}>
+        <Icon className={cn("h-[17px] w-[17px]", active && "stroke-[2.3]")} />
+      </span>
       {label}
     </Link>
+  );
+}
+
+/** A soft wash of the page's colour behind the header, so each area of the app feels like its own place. */
+function PageWash({ hue }: { hue: Hue }) {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-56"
+      style={{ background: `linear-gradient(to bottom, hsl(var(${HUE[hue].wash})) 0%, transparent 100%)` }}
+    />
   );
 }
 
@@ -195,7 +211,8 @@ export function AppShell({
           </div>
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="relative flex min-w-0 flex-1 flex-col">
+          <PageWash hue={hueForPath(pathname)} />
           <header className="pt-safe sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur md:border-0 md:bg-transparent md:backdrop-blur-0">
             <div className="flex items-center justify-between px-4 py-2 md:hidden">
               <Link href="/today" className="flex items-center gap-2">
@@ -237,9 +254,9 @@ export function AppShell({
             key={href}
             href={href}
             aria-current={active(href) ? "page" : undefined}
-            className={cn("flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium", active(href) ? "text-accent" : "text-subtle")}
+            className={cn("flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium", active(href) ? HUE[hueForPath(href)].ink : "text-subtle")}
           >
-            <span className={cn("flex h-7 w-12 items-center justify-center rounded-full transition-colors", active(href) && "bg-accent-muted")}>
+            <span className={cn("flex h-7 w-12 items-center justify-center rounded-full transition-colors", active(href) && HUE[hueForPath(href)].tint)}>
               <Icon className={cn("h-5 w-5", active(href) && "stroke-[2.4]")} />
             </span>
             {label}
@@ -278,10 +295,12 @@ export function AppShell({
                   href={href}
                   className={cn(
                     "flex flex-col items-center gap-1.5 rounded-2xl border px-2 py-4 text-xs font-medium transition-colors",
-                    active(href) ? "border-accent/40 bg-accent-muted text-accent" : "border-border bg-bg text-fg hover:bg-muted",
+                    active(href) ? cn("border-transparent", HUE[hueForPath(href)].tint, HUE[hueForPath(href)].ink) : "border-border bg-bg text-fg hover:bg-muted",
                   )}
                 >
-                  <Icon className="h-5 w-5" />
+                  <span className={cn("flex h-9 w-9 items-center justify-center rounded-xl", HUE[hueForPath(href)].tint, HUE[hueForPath(href)].ink)}>
+                    <Icon className="h-5 w-5" />
+                  </span>
                   {label}
                 </Link>
               ))}

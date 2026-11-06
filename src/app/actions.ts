@@ -8,7 +8,7 @@ import { zonedInstant, addDays, atLogical, parseHM, type DateStr, type TargetPer
 import { describeTimeLog, looksLikeTimeLog, parseTimeLog, resolveSegments } from "@/lib/timelog";
 import type { EntryStatus, SkipReason } from "@/lib/types";
 import {
-  addEntry, clearMinutes, getEntry, logMinutes, moveEntry, removeEntry, RETRY_HOURS, scheduleTaskPing,
+  addEntry, clearMinutes, getEntry, logMinutes, moveEntry, removeEntry, reorderEntries, RETRY_HOURS, scheduleTaskPing,
   setEntryStatus, setMustDo, setSkipReason, setWaiting, endWaiting,
 } from "@/lib/services/entries";
 import { setInstagram, setScore, setSleep, setSteps, setWorkedOverride } from "@/lib/services/days";
@@ -170,6 +170,13 @@ export async function clearMinutesAction(entryId: number) {
 export async function toggleMustAction(entryId: number, on: boolean) {
   return run(async (ctx) => {
     await setMustDo(ctx, entryId, on);
+  }, ["/today", "/plan"]);
+}
+
+export async function reorderEntriesAction(date: DateStr, ids: number[]) {
+  return run(async () => {
+    if (!Array.isArray(ids) || ids.length > 200 || !ids.every((n) => Number.isInteger(n))) throw new UserError("Bad order.");
+    await reorderEntries(date, ids);
   }, ["/today", "/plan"]);
 }
 

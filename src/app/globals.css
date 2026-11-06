@@ -44,6 +44,13 @@
   --p-mint:   148 42% 92%;  --p-mint-fg:   149 41% 25%;
   --p-butter: 45  83% 91%;  --p-butter-fg: 43  69% 25%;
   --p-rose:   0   73% 94%;  --p-rose-fg:   0   42% 34%;
+  /* four more families, each tied to one meaning (see DECISIONS.md "Colour")
+     lilac = thinking and rest (plan, review, diary, sleep) · peach = people (contacts, follow-ups, accounts)
+     teal  = measuring (stats, goals, time) · pink = leisure and social (Instagram, personal time) */
+  --p-lilac:  262 60% 94%;  --p-lilac-fg:  262 33% 38%;  --lilac-fill: 262 62% 84%;
+  --p-peach:  22  88% 92%;  --p-peach-fg:  18  52% 33%;  --peach-fill: 22  86% 80%;
+  --p-teal:   178 48% 90%;  --p-teal-fg:   180 50% 22%;  --teal-fill:  178 46% 76%;
+  --p-pink:   334 76% 94%;  --p-pink-fg:   334 42% 36%;  --pink-fill:  334 70% 84%;
 
   --shadow-sm:  0 1px 2px hsl(220 16% 22% / 0.05), 0 1px 3px hsl(220 16% 22% / 0.05);
   --shadow-md:  0 4px 12px hsl(220 16% 22% / 0.07), 0 2px 4px hsl(220 16% 22% / 0.04);
@@ -89,6 +96,10 @@
     --p-mint:   153 25% 16%;  --p-mint-fg:   146 43% 79%;
     --p-butter: 43  30% 16%;  --p-butter-fg: 44  74% 79%;
     --p-rose:   352 25% 18%;  --p-rose-fg:   0   70% 84%;
+  --p-lilac:  264 24% 20%;  --p-lilac-fg:  263 70% 87%;  --lilac-fill: 263 50% 78%;
+  --p-peach:  22  28% 18%;  --p-peach-fg:  23  80% 83%;  --peach-fill: 23  66% 74%;
+  --p-teal:   178 24% 15%;  --p-teal-fg:   178 52% 78%;  --teal-fill:  178 42% 66%;
+  --p-pink:   334 24% 19%;  --p-pink-fg:   334 78% 86%;  --pink-fill:  334 56% 76%;
 
     --shadow-sm:  0 1px 2px hsl(0 0% 0% / 0.30), 0 1px 3px hsl(0 0% 0% / 0.20);
     --shadow-md:  0 4px 12px hsl(0 0% 0% / 0.35), 0 2px 4px hsl(0 0% 0% / 0.20);
@@ -133,6 +144,10 @@
   --p-mint:   153 25% 16%;  --p-mint-fg:   146 43% 79%;
   --p-butter: 43  30% 16%;  --p-butter-fg: 44  74% 79%;
   --p-rose:   352 25% 18%;  --p-rose-fg:   0   70% 84%;
+  --p-lilac:  264 24% 20%;  --p-lilac-fg:  263 70% 87%;  --lilac-fill: 263 50% 78%;
+  --p-peach:  22  28% 18%;  --p-peach-fg:  23  80% 83%;  --peach-fill: 23  66% 74%;
+  --p-teal:   178 24% 15%;  --p-teal-fg:   178 52% 78%;  --teal-fill:  178 42% 66%;
+  --p-pink:   334 24% 19%;  --p-pink-fg:   334 78% 86%;  --pink-fill:  334 56% 76%;
 
   --shadow-sm:  0 1px 2px hsl(0 0% 0% / 0.30), 0 1px 3px hsl(0 0% 0% / 0.20);
   --shadow-md:  0 4px 12px hsl(0 0% 0% / 0.35), 0 2px 4px hsl(0 0% 0% / 0.20);

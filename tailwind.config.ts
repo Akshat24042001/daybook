@@ -32,6 +32,10 @@ const config: Config = {
         "p-butter": token("p-butter"), "p-butter-fg": token("p-butter-fg"),
         "p-sky": token("p-sky"), "p-sky-fg": token("p-sky-fg"),
         "p-rose": token("p-rose"), "p-rose-fg": token("p-rose-fg"),
+        "p-lilac": token("p-lilac"), "p-lilac-fg": token("p-lilac-fg"), "lilac-fill": token("lilac-fill"),
+        "p-peach": token("p-peach"), "p-peach-fg": token("p-peach-fg"), "peach-fill": token("peach-fill"),
+        "p-teal": token("p-teal"), "p-teal-fg": token("p-teal-fg"), "teal-fill": token("teal-fill"),
+        "p-pink": token("p-pink"), "p-pink-fg": token("p-pink-fg"), "pink-fill": token("pink-fill"),
       },
       // Fills are pastel, text is the deeper shade of the same hue: bg-accent is the pastel blue fill while
       // text-accent / border-accent / ring-accent stay readable. Same for good, warn and bad.

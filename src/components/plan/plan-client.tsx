@@ -10,8 +10,10 @@ import {
   addToDayAction, finishPlanAction, removeEntryAction, toggleMustAction,
 } from "@/app/actions";
 import { cn } from "@/lib/cn";
+import { HUE, type Hue } from "@/lib/hue";
 import { addDays, fmtDuration, type DateStr } from "@/lib/time";
 import type { RowData } from "@/lib/view-types";
+import { SortableEntries } from "../sortable-list";
 import { useToast } from "../toast";
 import { Button, Card, Chip, Empty, ErrorNote, Input, Progress, EmptyState, prefillQuickAdd } from "../ui";
 
@@ -22,6 +24,9 @@ interface Capacity {
   level: "ok" | "amber" | "red";
   message: string | null;
 }
+
+/** Overdue = rose (urgent), carried = butter (attention), ongoing = teal (measured over time), recurring = lilac (rhythm). */
+const LABEL_HUE: Record<string, Hue> = { "Overdue cadence": "rose", Carried: "butter", Ongoing: "teal", Recurring: "lilac" };
 
 export function PlanClient(props: {
   date: DateStr;
@@ -116,47 +121,66 @@ export function PlanClient(props: {
           </Card>
 
           <section aria-label="The day" className="space-y-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-subtle">On the list ({entries.length})</h2>
+            <h2 className={cn("text-xs font-semibold uppercase tracking-wider", HUE.lilac.ink)}>On the list ({entries.length})</h2>
             {entries.length === 0 ? (
               <EmptyState icon={ClipboardList} title="Nothing on this day yet" actions={[{ label: "Add a task", onClick: () => prefillQuickAdd("") }]}>
                 Add new tasks, or pick from Someday and cadence suggestions below.
               </EmptyState>
             ) : null}
-            <ul className="space-y-1.5">
-              {entries.map((r) => {
-                const label =
-                  r.type === "cadence" && r.source === "auto" ? "Overdue cadence" : r.type === "ongoing" ? "Ongoing" : r.type === "recurring" ? "Recurring" : r.source === "carried" ? "Carried" : null;
-                return (
-                  <li key={r.id} className={cn("flex items-center gap-3 rounded-xl border border-border px-3 py-2.5", r.mustDo ? "highlighter border-transparent" : "bg-surface")}>
-                    <button
-                      type="button"
-                      aria-pressed={r.mustDo}
-                      aria-label={r.mustDo ? `Demote ${r.title} from must-do` : `Make ${r.title} a must-do`}
-                      disabled={pending}
-                      onClick={() => act(() => toggleMustAction(r.id, !r.mustDo))}
-                      className={cn("shrink-0 rounded-full p-1", r.mustDo ? "text-warn" : "text-subtle hover:text-fg")}
-                    >
-                      <Star className={cn("h-5 w-5", r.mustDo && "fill-current")} />
-                    </button>
-                    <div className="min-w-0 flex-1">
-                      <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[15px] font-medium leading-snug">
-                        {r.title}
-                        {r.projectName ? <Chip color={r.projectColor}>{r.projectName}</Chip> : null}
-                        {label ? <Chip className="bg-accent/15 text-accent">{label}</Chip> : null}
-                      </p>
-                      <p className="tabular text-xs text-subtle">
-                        {[r.timeLabel, r.estimateMin ? `est ${fmtDuration(r.estimateMin)}` : "no estimate", r.personName && `with ${r.personName}`].filter(Boolean).join(" · ")}
-                      </p>
-                    </div>
-                    {r.status === "open" && r.type !== "ongoing" ? (
-                      <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Remove ${r.title} from this day`} onClick={() => removeFromDay(r.id)}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
+            {/* must-dos always sit above the rest, so each group is its own draggable list */}
+            {[entries.filter((r) => r.mustDo), entries.filter((r) => !r.mustDo)].map((group, gi) =>
+              group.length ? (
+                <SortableEntries key={gi} date={date} items={group}>
+                  {(r, slot) => {
+                    const label =
+                      r.type === "cadence" && r.source === "auto" ? "Overdue cadence" : r.type === "ongoing" ? "Ongoing" : r.type === "recurring" ? "Recurring" : r.source === "carried" ? "Carried" : null;
+                    return (
+                      <li
+                        key={r.id}
+                        ref={slot.setNodeRef}
+                        style={{ ...slot.style, borderLeftColor: r.projectColor ?? undefined }}
+                        className={cn(
+                          "flex items-center gap-2 rounded-xl border border-l-[5px] border-border px-2 py-2.5",
+                          r.mustDo ? "highlighter border-y-transparent border-r-transparent" : "bg-surface",
+                          slot.dragging && "shadow-[var(--shadow-lg)] ring-2 ring-accent/40",
+                        )}
+                      >
+                        {slot.grip}
+                        <button
+                          type="button"
+                          aria-pressed={r.mustDo}
+                          aria-label={r.mustDo ? `Demote ${r.title} from must-do` : `Make ${r.title} a must-do`}
+                          disabled={pending}
+                          onClick={() => act(() => toggleMustAction(r.id, !r.mustDo))}
+                          className={cn("shrink-0 rounded-full p-1", r.mustDo ? "text-warn" : "text-subtle hover:text-fg")}
+                        >
+                          <Star className={cn("h-5 w-5", r.mustDo && "fill-current")} />
+                        </button>
+                        {/* the whole title is a link: open the task to edit it, add notes, see its history */}
+                        <Link href={`/task/${r.taskId}`} className="group min-w-0 flex-1" title="Open this task">
+                          <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[15px] font-medium leading-snug group-hover:underline">
+                            {r.title}
+                            {r.projectName ? <Chip color={r.projectColor}>{r.projectName}</Chip> : null}
+                            {label ? <Chip className={cn(HUE[LABEL_HUE[label]].tint, HUE[LABEL_HUE[label]].ink)}>{label}</Chip> : null}
+                          </p>
+                          <p className="tabular text-xs text-subtle">
+                            {[r.timeLabel, r.estimateMin ? `est ${fmtDuration(r.estimateMin)}` : "no estimate", r.personName && `with ${r.personName}`].filter(Boolean).join(" · ")}
+                          </p>
+                        </Link>
+                        <Link href={`/task/${r.taskId}`} aria-label={`Open ${r.title}`} className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg text-subtle hover:bg-muted hover:text-fg sm:flex">
+                          <ChevronRight className="h-4 w-4" />
+                        </Link>
+                        {r.status === "open" && r.type !== "ongoing" ? (
+                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Remove ${r.title} from this day`} onClick={() => removeFromDay(r.id)}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        ) : null}
+                      </li>
+                    );
+                  }}
+                </SortableEntries>
+              ) : null,
+            )}
           </section>
 
           {props.targets.length > 0 ? (
@@ -178,12 +202,12 @@ export function PlanClient(props: {
 
           {props.someday.length > 0 ? (
             <section aria-label="Someday" className="space-y-2">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-subtle">Someday pool</h2>
+              <h2 className={cn("text-xs font-semibold uppercase tracking-wider", HUE.lilac.ink)}>Someday pool</h2>
               <ul className="space-y-1.5">
                 {props.someday.slice(0, 8).map((t) => (
                   <li key={t.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-3 py-2.5">
                     <div className="min-w-0">
-                      <p className="truncate text-[15px]">{t.title}</p>
+                      <Link href={`/task/${t.id}`} className="block truncate text-[15px] hover:underline" title="Open this task">{t.title}</Link>
                       {t.project ? <p className="text-xs text-subtle">{t.project}</p> : null}
                     </div>
                     <Button size="sm" variant="outline" disabled={pending} onClick={() => act(() => addToDayAction(t.id, date))}>Add</Button>

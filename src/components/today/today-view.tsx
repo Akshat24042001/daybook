@@ -8,7 +8,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { setScoreAction, setStatusAction, setStepsAction, setWorkedOverrideAction, switchStateAction, toggleMustAction } from "@/app/actions";
 import { cn } from "@/lib/cn";
+import { HUE, type Hue } from "@/lib/hue";
 import { ACTIVITIES, ACTIVITY, type ActivityKind } from "@/lib/activity";
+import { SortableEntries } from "../sortable-list";
 import { ActivityMenu } from "./activity-menu";
 import { SECTION_LABEL, SECTION_ORDER, type SectionKey } from "@/lib/sections";
 import { fmtDuration, type DateStr } from "@/lib/time";
@@ -31,6 +33,9 @@ const STATES: { kind: ActivityKind; label: string; short: string; Icon: typeof B
 const MORE = ACTIVITIES.filter((a) => !STATES.some((s) => s.kind === a.kind));
 
 const SCORES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+/** Each section of the day has the colour of what it holds (see lib/hue.ts). */
+const SECTION_HUE: Record<SectionKey, Hue> = { must: "butter", timed: "teal", followups: "peach", other: "sky", personal: "pink", done: "mint" };
 
 export function TodayView(props: {
   date: DateStr;
@@ -241,7 +246,8 @@ export function TodayView(props: {
         const isCollapsed = collapsible && collapsed[key];
         return (
           <section key={key} aria-label={SECTION_LABEL[key]}>
-            <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-subtle">
+            <h2 className={cn("mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider", HUE[SECTION_HUE[key]].ink)}>
+              <span className={cn("h-2.5 w-2.5 rounded-full", HUE[SECTION_HUE[key]].fill)} aria-hidden />
               {collapsible ? (
                 <button
                   type="button"
@@ -255,11 +261,16 @@ export function TodayView(props: {
               ) : (
                 SECTION_LABEL[key]
               )}
-              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium normal-case tracking-normal text-fg">{rows.length}</span>
+              <span className={cn("rounded-full px-1.5 py-0.5 text-[11px] font-medium normal-case tracking-normal", HUE[SECTION_HUE[key]].tint, HUE[SECTION_HUE[key]].ink)}>{rows.length}</span>
             </h2>
             {!isCollapsed ? (
-              <ul className="space-y-1.5">
-                {rows.map((r) => {
+              <SortableEntries
+                date={date}
+                items={rows}
+                // timed tasks sort by their time and finished ones by when they closed: only the rest are for dragging
+                locked={() => key === "timed" || key === "done"}
+              >
+                {(r, slot) => {
                   const optStatus = optimisticStatus[r.id];
                   const optMust = optimisticMust[r.id];
                   const rowWithOpt = {
@@ -270,14 +281,15 @@ export function TodayView(props: {
                   return (
                     <EntryRow
                       key={r.id}
+                      slot={slot}
                       row={rowWithOpt}
                       onOpen={() => setSelected(r.id)}
                       onQuickAction={() => quick(r)}
                       onToggleMust={() => toggleMust(r)}
                     />
                   );
-                })}
-              </ul>
+                }}
+              </SortableEntries>
             ) : null}
           </section>
         );
