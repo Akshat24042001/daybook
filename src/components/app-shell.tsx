@@ -2,8 +2,8 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import {
-  BarChart3, BookMarked, BookOpen, Bot, CalendarCheck, ClipboardList, FolderOpen, HeartPulse, LayoutGrid, Monitor, Moon, PenLine, Settings, Sun, Target,
-  History, Search, Users, X,
+  BarChart3, BookMarked, BookOpen, Bot, Briefcase, CalendarCheck, ClipboardList, FolderOpen, HeartPulse, KanbanSquare, LayoutGrid, Monitor, Moon, PenLine, Radar, Settings, Sun, Target,
+  History, Search, Users, X, Building2,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -68,6 +68,15 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     ],
   },
   {
+    label: "Sales",
+    items: [
+      { href: "/sales", label: "Moves", Icon: Briefcase },
+      { href: "/sales/pipeline", label: "Pipeline", Icon: KanbanSquare },
+      { href: "/sales/radar", label: "Radar", Icon: Radar },
+      { href: "/sales/accounts", label: "Accounts", Icon: Building2 },
+    ],
+  },
+  {
     label: "Progress",
     items: [
       { href: "/review", label: "Review", Icon: CalendarCheck },
@@ -90,10 +99,13 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
 const MOBILE_MAIN: NavItem[] = [
   { href: "/today", label: "Today", Icon: Sun },
   { href: "/plan", label: "Plan", Icon: ClipboardList },
+  { href: "/sales", label: "Sales", Icon: Briefcase },
   { href: "/diary", label: "Diary", Icon: BookOpen },
-  { href: "/stats", label: "Stats", Icon: BarChart3 },
 ];
 const MOBILE_MORE: NavItem[] = [
+  { href: "/sales/pipeline", label: "Pipeline", Icon: KanbanSquare },
+  { href: "/sales/radar", label: "Radar", Icon: Radar },
+  { href: "/stats", label: "Stats", Icon: BarChart3 },
   { href: "/assistant", label: "Assistant", Icon: Bot },
   { href: "/scratch", label: "Scratchpad", Icon: PenLine },
   { href: "/unfinished", label: "Unfinished", Icon: History },
@@ -138,7 +150,10 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const active = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  const active = (href: string) =>
+    href === "/sales"
+      ? pathname === "/sales" || /^\/sales\/(deal|docs|review|settings|clip)(\/|$)/.test(pathname)
+      : pathname === href || pathname.startsWith(`${href}/`);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreActive = MOBILE_MORE.some((i) => active(i.href));
   useEffect(() => setMoreOpen(false), [pathname]);

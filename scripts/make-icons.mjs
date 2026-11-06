@@ -1,4 +1,4 @@
-// Generates the PWA icons (a notebook page with a green highlighter line) with no image dependencies.
+// Generates the PWA icons (a notebook page with an Aivaura blue highlighter line) with no image dependencies.
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
@@ -61,10 +61,10 @@ const rrect = (px, py, cx, cy, hw, hh, r) => {
 
 function render(size, { maskable }) {
   const S = 3; // supersampling
-  const bg = [21, 94, 70];
-  const page = [250, 247, 240];
-  const ink = [40, 34, 28];
-  const hl = [178, 235, 120];
+  const bg = [10, 11, 10];
+  const page = [238, 242, 239];
+  const ink = [20, 22, 26];
+  const hl = [47, 85, 228];
   const u = size / 100;
   return png(size, (x, y) => {
     let acc = [0, 0, 0, 0];

@@ -4,34 +4,34 @@
 
 /* ── Light theme ─────────────────────────────────────────────────────────── */
 :root {
-  /* Warm off-white ground, slate-tinted surfaces */
-  --bg:         220 20% 97%;
+  /* Aivaura palette (aivaura.com): warm paper ground, ink text, one confident blue */
+  --bg:         90  12% 97%;
   --surface:    0   0%  100%;
-  --muted:      220 16% 93%;
-  --border:     220 13% 88%;
-  --fg:         222 28% 10%;
-  --subtle:     220 12% 46%;
+  --muted:      90  10% 93%;
+  --border:     90  6%  86%;
+  --fg:         220 13% 9%;
+  --subtle:     127 4%  38%;
 
-  /* Violet-indigo accent — richer than plain blue */
-  --accent:     244 78% 56%;
+  /* Aivaura blue #2F55E4, white text on it */
+  --accent:     227 77% 54%;
   --accent-fg:  0   0%  100%;
-  --accent-muted: 244 70% 95%;
+  --accent-muted: 227 80% 95%;
 
   /* Semantic */
-  --good:       160 56% 28%;
-  --good-muted: 160 50% 92%;
-  --warn:       34  90% 42%;
-  --warn-muted: 34  85% 93%;
-  --bad:        0   66% 46%;
-  --bad-muted:  0   70% 94%;
+  --good:       155 56% 28%;
+  --good-muted: 150 40% 92%;
+  --warn:       34  90% 38%;
+  --warn-muted: 38  80% 92%;
+  --bad:        2   66% 46%;
+  --bad-muted:  2   70% 94%;
 
   /* Must-do highlight */
-  --hl:         244 80% 92%;
+  --hl:         227 80% 92%;
 
   /* Shadows */
-  --shadow-sm:  0 1px 3px hsl(222 28% 10% / 0.06), 0 1px 2px hsl(222 28% 10% / 0.04);
-  --shadow-md:  0 4px 12px hsl(222 28% 10% / 0.08), 0 2px 4px hsl(222 28% 10% / 0.04);
-  --shadow-lg:  0 8px 24px hsl(222 28% 10% / 0.10), 0 4px 8px hsl(222 28% 10% / 0.05);
+  --shadow-sm:  0 1px 3px hsl(220 13% 9% / 0.06), 0 1px 2px hsl(220 13% 9% / 0.04);
+  --shadow-md:  0 4px 12px hsl(220 13% 9% / 0.08), 0 2px 4px hsl(220 13% 9% / 0.04);
+  --shadow-lg:  0 8px 24px hsl(220 13% 9% / 0.10), 0 4px 8px hsl(220 13% 9% / 0.05);
 
   color-scheme: light;
 }
@@ -39,25 +39,25 @@
 /* ── Dark theme ──────────────────────────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg:         228 18% 7%;
-    --surface:    228 16% 11%;
-    --muted:      228 14% 16%;
-    --border:     228 12% 22%;
-    --fg:         220 20% 94%;
-    --subtle:     220 10% 58%;
+    --bg:         120 5%  4%;
+    --surface:    120 5%  8%;
+    --muted:      120 5%  11%;
+    --border:     120 4%  17%;
+    --fg:         135 13% 94%;
+    --subtle:     133 4%  57%;
 
-    --accent:     244 72% 68%;
-    --accent-fg:  228 18% 7%;
-    --accent-muted: 244 40% 20%;
+    --accent:     227 82% 62%;
+    --accent-fg:  0   0%  100%;
+    --accent-muted: 227 50% 16%;
 
-    --good:       160 48% 58%;
-    --good-muted: 160 40% 14%;
-    --warn:       38  86% 62%;
-    --warn-muted: 38  60% 14%;
-    --bad:        0   72% 66%;
-    --bad-muted:  0   50% 14%;
+    --good:       152 48% 56%;
+    --good-muted: 152 35% 13%;
+    --warn:       38  86% 60%;
+    --warn-muted: 38  55% 13%;
+    --bad:        2   72% 64%;
+    --bad-muted:  2   45% 14%;
 
-    --hl:         244 38% 22%;
+    --hl:         227 45% 20%;
 
     --shadow-sm:  0 1px 3px hsl(0 0% 0% / 0.30), 0 1px 2px hsl(0 0% 0% / 0.20);
     --shadow-md:  0 4px 12px hsl(0 0% 0% / 0.40), 0 2px 4px hsl(0 0% 0% / 0.20);
@@ -68,25 +68,25 @@
 }
 
 :root[data-theme="dark"] {
-  --bg:         228 18% 7%;
-  --surface:    228 16% 11%;
-  --muted:      228 14% 16%;
-  --border:     228 12% 22%;
-  --fg:         220 20% 94%;
-  --subtle:     220 10% 58%;
+  --bg:         120 5%  4%;
+  --surface:    120 5%  8%;
+  --muted:      120 5%  11%;
+  --border:     120 4%  17%;
+  --fg:         135 13% 94%;
+  --subtle:     133 4%  57%;
 
-  --accent:     244 72% 68%;
-  --accent-fg:  228 18% 7%;
-  --accent-muted: 244 40% 20%;
+  --accent:     227 82% 62%;
+  --accent-fg:  0   0%  100%;
+  --accent-muted: 227 50% 16%;
 
-  --good:       160 48% 58%;
-  --good-muted: 160 40% 14%;
-  --warn:       38  86% 62%;
-  --warn-muted: 38  60% 14%;
-  --bad:        0   72% 66%;
-  --bad-muted:  0   50% 14%;
+  --good:       152 48% 56%;
+  --good-muted: 152 35% 13%;
+  --warn:       38  86% 60%;
+  --warn-muted: 38  55% 13%;
+  --bad:        2   72% 64%;
+  --bad-muted:  2   45% 14%;
 
-  --hl:         244 38% 22%;
+  --hl:         227 45% 20%;
 
   --shadow-sm:  0 1px 3px hsl(0 0% 0% / 0.30), 0 1px 2px hsl(0 0% 0% / 0.20);
   --shadow-md:  0 4px 12px hsl(0 0% 0% / 0.40), 0 2px 4px hsl(0 0% 0% / 0.20);

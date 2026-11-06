@@ -27,6 +27,7 @@ import {
   type InlineMarkup, type Markup, type ReplyKeyboard,
 } from "./api";
 import { sendRecapOnce } from "./notify";
+import { captureText, handleSalesMessage, handleSalesReply, isSalesText, salesCallback, salesMenu, type TgSalesMessage } from "../sales/telegram";
 import { askFromTelegram, askMenu, assistantCallback, listChatsMessage, looksLikeQuestion, newChat, STARTERS } from "./assistant";
 import {
   exerciseCountsLine, exercisePing, exerciseTypePicker, inline, minutesPrompt, recapMarkup, retryPrompt, scoreDecimals,
@@ -37,7 +38,7 @@ import {
 
 interface TgChat { id: number; type: string }
 interface TgFile { file_id: string; mime_type?: string; duration?: number }
-interface TgMessage { message_id: number; chat: TgChat; text?: string; voice?: TgFile; audio?: TgFile; reply_to_message?: TgMessage }
+interface TgMessage extends Omit<TgSalesMessage, "reply_to_message"> { message_id: number; chat: TgChat; text?: string; voice?: TgFile; audio?: TgFile; reply_to_message?: TgMessage }
 interface TgCallback { id: string; from: { id: number }; message?: TgMessage; data?: string }
 export interface TgUpdate { update_id: number; message?: TgMessage; callback_query?: TgCallback }
 
@@ -55,13 +56,14 @@ export const KEYS = {
   today: "📋 Today",
   free: "🙂 I'm free",
   ask: "🤖 Ask",
+  sales: "💼 Sales",
 } as const;
 
 export const PERSISTENT_KEYBOARD: ReplyKeyboard = {
   keyboard: [
     [{ text: KEYS.office }, { text: KEYS.outside }],
     [{ text: KEYS.break }, { text: KEYS.more }, { text: KEYS.off }],
-    [{ text: KEYS.today }, { text: KEYS.free }, { text: KEYS.ask }],
+    [{ text: KEYS.today }, { text: KEYS.free }, { text: KEYS.ask }, { text: KEYS.sales }],
   ],
   is_persistent: true,
   resize_keyboard: true,
@@ -140,6 +142,20 @@ export async function handleUpdate(update: TgUpdate, now: Date = new Date()): Pr
     return;
   }
 
+  // Sales: screenshots, files, forwarded messages and "lead: ..." texts
+  if (msg && (msg.photo || msg.document || msg.forward_origin || msg.forward_date || (msg.text && isSalesText(msg.text)))) {
+    try {
+      if (await handleSalesMessage(chat, msg, (t) => void later(t))) return;
+    } catch (e) {
+      if (e instanceof UserError) await reply(`⚠️ ${esc(e.message)}`).catch(() => {});
+      else {
+        console.error("[bot] sales capture error:", (e as Error).name, (e as Error).message);
+        await reply("Could not read that. Try again, or paste it as text.").catch(() => {});
+      }
+      return;
+    }
+  }
+
   if (msg?.text || msg?.voice || msg?.audio) {
     try {
       if (msg.voice || msg.audio) await handleVoice(ctx, chat, msg);
@@ -170,6 +186,8 @@ interface TextOpts {
 async function handleText(ctx: Ctx, chat: number, text: string, opts: TextOpts = {}): Promise<void> {
   // A reply to the "add a note" prompt attaches the text (or transcript) to that task.
   if (opts.replyToId) {
+    // a reply to a Sales prompt ("who is this?", "how did the call go?")
+    if (await handleSalesReply(chat, opts.replyToId, text, (t) => void later(t))) return;
     const prompt = await one<{ ref_id: string }>(
       "select ref_id from notifications where kind = 'note_prompt' and telegram_message_id = $1",
       [opts.replyToId],
@@ -341,6 +359,9 @@ Anything else is added as a task — with full quick-add syntax support.`);
     case "ask":
       await askMenu(ctx, chat);
       return;
+    case "sales":
+      await salesMenu(ctx, chat);
+      return;
     case "free": {
       await sendMessage(chat, "🙂 How much time do you have?", inline([[
         { text: "15m", callback_data: "fr:15" },
@@ -460,6 +481,9 @@ async function routeFreeText(ctx: Ctx, chat: number, text: string, fromVoice: bo
         await sendMessage(chat, m.text, m.markup);
         return;
       }
+      case "sales":
+        await captureText(chat, text, (t) => void later(t));
+        return;
       case "assistant":
         await later(() => askFromTelegram(ctx, chat, text));
         return;
@@ -657,6 +681,9 @@ async function handleCallback(ctx: Ctx, chat: number, cb: TgCallback): Promise<s
   };
 
   switch (parts[0]) {
+    // ---- sales: moves, captures, radar ("zs": "sl" is already sleep)
+    case "zs":
+      return salesCallback(chat, mid, parts, (t) => void later(t));
     // ---- assistant: apply / undo a change, follow-up, new chat, switch chat, starter question, chat list
     case "aa":
     case "au":

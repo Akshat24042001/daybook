@@ -24,6 +24,9 @@ Paste these in Vercel → Project Settings → Environment Variables (all values
 | `ADMIN_PASSWORD` | choose a strong password |
 | `APP_BASE_URL` | your Vercel URL, e.g. `https://your-app.vercel.app` |
 
+Sales adds a few optional free keys (Gemini, Tavily, Serper, Reddit, Adzuna, OmniDimension). The full list, the state
+machine and the setup steps are in [docs/SALES.md](docs/SALES.md); Sales, Settings shows which keys are present.
+
 ### 4. Deploy
 Click **Deploy**. On first boot the app automatically:
 - applies all database migrations

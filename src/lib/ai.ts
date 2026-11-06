@@ -151,6 +151,7 @@ export type TgCommand =
   | { kind: "exercise"; amount: number; name: string }
   | { kind: "plan" }
   | { kind: "assistant" }
+  | { kind: "sales" }
   | { kind: "unknown" };
 
 function buildTgSystemPrompt(exerciseTypes: string[]): string {
@@ -173,7 +174,10 @@ DISAMBIGUATION RULES (read carefully):
 9. A question about their own data, progress, habits or plans, a request for analysis or advice, or a request that
    combines several changes or needs looking things up ("mark X done and log 45m on it", "move everything I skipped
    to tomorrow") → assistant.
-10. Anything truly ambiguous or a general observation with no clear action → unknown.${exList}
+10. A report about a client, prospect, lead, partner or deal: what someone said in a meeting or call, what was discussed,
+   a promise made, a price quoted, someone who replied or referred work ("met Priya from Acme, she wants a WhatsApp bot,
+   budget 2 lakh, decides after Diwali", "Rahul said send the proposal by Friday") → sales.
+11. Anything truly ambiguous or a general observation with no clear action → unknown.${exList}
 
 Commands:
 {"kind":"exercise","amount":<number>,"name":"<exercise name>"} — user did a physical exercise. Convert word numbers to digits (five→5, twenty→20, etc.).
@@ -186,6 +190,7 @@ Commands:
 {"kind":"worked","minutes":<integer>} — user recording total hours worked today (not a specific task).
 {"kind":"add","syntax":"<quick-add syntax>"} — user wants to add a new task or reminder.
 {"kind":"plan"} — user wants to see today's task list.
+{"kind":"sales"} — a debrief or update about a client, lead or deal; it is logged to their deal.
 {"kind":"assistant"} — a question or analysis request, or several changes at once; the assistant handles it.
 {"kind":"unknown"} — genuinely unclear; will be shown as a task-add preview.
 
@@ -215,7 +220,9 @@ Examples:
 "am I on track with my Aivaura hours this week" → {"kind":"assistant"}
 "how did I sleep this month" → {"kind":"assistant"}
 "mark the invoice done and log 45 minutes on it" → {"kind":"assistant"}
-"move everything I skipped today to tomorrow" → {"kind":"assistant"}`;
+"move everything I skipped today to tomorrow" → {"kind":"assistant"}
+"just finished the call with Rahul from Zeta, they want the inventory app, will share data by Monday" → {"kind":"sales"}
+"Meera from the jewellery brand said our quote is too high, she wants it under 3 lakh" → {"kind":"sales"}`;
 }
 
 /** Interprets a free-form Telegram message and returns a structured command.

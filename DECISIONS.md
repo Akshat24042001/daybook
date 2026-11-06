@@ -29,3 +29,10 @@ Ambiguities in the PRD, resolved with the simplest option that meets the accepta
 **Unaccounted time.** Worked time minus minutes logged to non-personal tasks, never below zero.
 
 **Additions requested by the owner after the PRD:** Deepgram voice input (web mic and Telegram voice notes), manual time entry from text or voice ("office 10:45 to 1:30"), a task-note flow, and the analytics dashboard (trends, period comparison, needs-attention list). Voice is rule-based, no AI: spoken phrases like "must do" and "tomorrow at 5 pm" become quick-add syntax.
+
+**Sales (added after the PRD).** Lives inside Daybook (same database, bot, assistant, cron) as its own section with
+`sales_*` tables, so it can be split out later. The deal state machine is data, not code: automation targets stage roles,
+the AI may move deals forward but never closes them, and client actions and payments are ground truth. Only free services
+are used. Personal WhatsApp and LinkedIn are captured by forwarding, exports, screenshots or the bookmarklet, never by
+unofficial automation (account ban risk). Client messages are never auto-sent: Daybook drafts, you tap. Telegram callbacks
+use the `zs:` prefix because `sl:` is sleep. Full design: docs/SALES.md.

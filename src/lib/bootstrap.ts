@@ -99,6 +99,9 @@ async function runSeed(client: pg.Client) {
        select 1 from tasks where lower(title) = 'linkedin post' and type = 'cadence'
      )`,
   );
+  // Sales: keep the radar source catalogue in step with the code (your on/off switches are kept)
+  const { syncCatalog } = await import("./sales/radar");
+  await syncCatalog(client).catch((e: Error) => console.warn("[bootstrap] radar catalogue sync failed:", e.message));
   console.log("[bootstrap] seed up to date");
 }
 

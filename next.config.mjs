@@ -6,7 +6,7 @@ const nextConfig = {
   // scratchpad sketches are saved through a server action; the 1 MB default is tight for a busy drawing
   experimental: { serverActions: { bodySizeLimit: "2mb" } },
   // bootstrap.ts applies db/migrations/*.sql on cold start: make sure the files ship with every function
-  outputFileTracingIncludes: { "/**": ["./db/migrations/*.sql"] },
+  outputFileTracingIncludes: { "/**": ["./db/migrations/*.sql", "./integrations/*.gs"] },
   webpack(config) {
     // Only when node_modules is a junction to another drive (local machine with a nearly full D:).
     if (process.env.DAYBOOK_LINKED_MODULES === "1") {

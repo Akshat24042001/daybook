@@ -1,6 +1,7 @@
 import { after, NextResponse } from "next/server";
 import { safeEqual } from "@/lib/clock";
 import { runNightlyDiary, runNightlyReview, runTick } from "@/lib/telegram/tick";
+import { runSalesTick } from "@/lib/sales/run";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -19,6 +20,11 @@ export async function POST(req: Request) {
   try {
     const report = await runTick();
     // The nightly diary summary can take up to a minute with free AI models: do it after answering the cron call.
+    // Sales: jobs (AI capture, enrichment, radar), briefs, digests. Runs in its own background slot.
+    after(async () => {
+      const r = await runSalesTick().catch((e: Error) => `failed: ${e.message}`);
+      if (r.startsWith("failed")) console.warn("[sales] tick:", r);
+    });
     after(async () => {
       const quiet = ["not-yet", "not-today", "done-already", "ai-off"];
       const r = await runNightlyDiary().catch((e: Error) => `failed: ${e.message}`);

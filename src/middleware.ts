@@ -9,6 +9,15 @@ function isPublicPath(pathname: string): boolean {
     pathname === "/api/telegram" ||
     pathname.startsWith("/api/cron/") ||
     pathname.startsWith("/api/auth/") ||
+    // Sales: client-facing documents and links (no password for clients), and token/secret-checked webhooks
+    pathname.startsWith("/q/") ||
+    pathname.startsWith("/l/") ||
+    pathname === "/api/sales/capture" ||
+    pathname === "/api/sales/google" ||
+    pathname === "/api/sales/go" ||
+    pathname === "/api/sales/view" ||
+    pathname === "/api/sales/respond" ||
+    pathname.startsWith("/api/sales/file/") ||
     pathname === "/manifest.webmanifest" ||
     pathname === "/sw.js" ||
     pathname === "/offline.html" ||

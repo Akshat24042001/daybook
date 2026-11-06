@@ -96,7 +96,46 @@ that have data (worked_min > 0 or done > 0 or score is not null), and say you di
 - Keep in touch: v_contacts where overdue_days > 0 and (touch_snoozed_until is null or touch_snoozed_until < current_date).
 - Project time: sum(time_logs.minutes) joined through tasks.project_id; compare with projects.weekly_target_min.
 
+=== SALES (the owner's sales pipeline for Aivaura, his AI agency) ===
+sales_deals: id, title, company_id→sales_companies, person_id→sales_people (main contact), stage_id→sales_stages, source
+  ('radar','referral','inbound','content','outbound','network','partner','repeat','other'), referrer_id, intermediary_id (people),
+  value_amount + currency, value_usd, probability, expected_close, services[], country, next_action, next_action_at, heat (0-100: how alive),
+  summary ("where we are"), requirements, budget, timeline, objections[], last_touch_at, last_inbound_at (they last wrote),
+  last_outbound_at (owner last wrote), stage_changed_at, lost_reason, revisit_on, created_at, closed_at
+sales_stages: id, name, role ('new','contacted','engaged','discovery','proposal','negotiation','won','active','delivered','paid','nurture',
+  'ghosted','hold','lost','disqualified' or null for custom), category ('open','won','lost','parked'), probability, sla_days, sort
+sales_companies: id, name, website, country, industry, employees, revenue_usd (revenue_is_estimate), listed, description, enrichment (jsonb)
+sales_people: id, company_id, full_name, title, emails[], phones[], linkedin, city, country, relationship ('cold','warm','referral','partner','client'),
+  is_decision_maker, enrichment (jsonb: each key is {"v": value, "conf", "est"})
+sales_deal_people: deal_id, person_id, role ('decision_maker','champion','influencer','user','finance','gatekeeper','referrer','intermediary','contact')
+sales_interactions: id, deal_id, person_id, channel ('whatsapp','email','linkedin','call','meeting','in_person','instagram','document','note',...),
+  direction ('in' = they wrote, 'out' = owner wrote, 'both', 'internal'), occurred_at, subject, body, summary, source
+sales_commitments: deal_id, owner ('me' = the owner promised, 'them'), text, due_at, status ('open','done','dropped')
+sales_moves: the action list. deal_id, kind, title, why, due_at, score, status ('open','done','skipped','snoozed','obsolete')
+sales_meetings: deal_id, title, starts_at, ends_at, attendees[]
+sales_docs: tracked quotes/briefs/links. deal_id, kind, title, status ('draft','sent','viewed','accepted','changes'), view_count, last_viewed_at, current_rev
+sales_quote_revisions: doc_id, rev, currency, total, items (jsonb), sent_at
+sales_doc_views: doc_id, rev, viewed_at, country, city, device, seconds
+sales_payments: deal_id, label, amount, currency, due_on, paid_on, status ('due','paid','written_off')
+sales_radar_items: found leads. title, url, score, status ('new','qualified','rejected','skipped','contacted','converted'), fit (jsonb), found_at
+sales_radar_sources: name, category, enabled, items_found, items_qualified, deals_created
+Sales traps: a deal is open when its stage category is 'open'; "won but not paid" means payments with status 'due'.
+"Cold" deals: open deals whose last_inbound_at is older than 7 days or null.
+
 === EXAMPLES ===
+
+-- open pipeline by stage
+select s.name as stage, count(*) as deals, round(sum(d.value_usd)) as usd from sales_deals d join sales_stages s on s.id = d.stage_id
+where s.category = 'open' group by s.name, s.sort order by s.sort;
+
+-- who went cold: open deals where they have not written for a week
+select d.title, p.full_name, d.last_inbound_at::date as they_last_wrote, d.last_outbound_at::date as i_last_wrote from sales_deals d
+join sales_stages s on s.id = d.stage_id left join sales_people p on p.id = d.person_id
+where s.category = 'open' and (d.last_inbound_at is null or d.last_inbound_at < now() - interval '7 days') order by d.value_usd desc nulls last;
+
+-- what a client said about budget
+select occurred_at::date, channel, direction, coalesce(summary, left(body, 300)) from sales_interactions i join sales_deals d on d.id = i.deal_id
+where d.title ilike '%acme%' and (body ilike '%budget%' or summary ilike '%budget%') order by occurred_at desc;
 -- last 14 days at a glance
 select date, weekday, score, round(worked_min/60.0,1) as worked_h, done, planned, ex_done, steps
 from v_daily where date > current_date - 14 order by date;
@@ -129,4 +168,8 @@ export const ALLOWED_RELATIONS = new Set([
   "tasks", "day_entries", "time_logs", "task_remarks", "projects", "people", "work_segments", "days",
   "exercise_types", "exercise_logs", "diary_entries", "diary_summaries", "reviews", "contacts", "contact_touches",
   "refs", "scratch_items", "settings", "assistant_memory",
+  // sales (never sales_settings: it holds the capture token and the Google secret)
+  "sales_deals", "sales_stages", "sales_companies", "sales_people", "sales_deal_people", "sales_deal_events", "sales_interactions",
+  "sales_commitments", "sales_moves", "sales_meetings", "sales_docs", "sales_quote_revisions", "sales_doc_views", "sales_payments",
+  "sales_radar_items", "sales_radar_sources", "sales_transitions",
 ]);
