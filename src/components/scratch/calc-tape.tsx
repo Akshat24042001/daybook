@@ -135,7 +135,7 @@ export function CalcTape({ data, onChange, autoFocus }: { data: CalcData; onChan
           </button>
         ) : null}
       </div>
-      <p className="text-[11px] leading-relaxed text-subtle">
+      <p className="text-xs leading-relaxed text-subtle">
         One sum per line. Name things (<code>rent = 18000</code>) and reuse them below; <code>ans</code> is the line above;
         {" "}<code>#</code> starts a comment. Understands <code>18% of 2400</code>, <code>2400 + 10%</code>, <code>2^10</code>, <code>5!</code>,
         {" "}<code>sqrt</code>, <code>sin(30deg)</code>, <code>round(x, 2)</code>, <code>7 mod 3</code>.

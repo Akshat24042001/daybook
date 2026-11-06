@@ -3,76 +3,79 @@
 @tailwind utilities;
 
 /* ── Pastel design system ────────────────────────────────────────────────── */
-/* Everything is pastel. Eight hues, each with one job (see src/lib/hue.ts):
+/* Eight hues, each with one job (see src/lib/hue.ts):
    sky = action · mint = success and money · butter = attention · rose = urgent · lilac = thinking and rest
    peach = people · teal = measuring · pink = leisure.
    Each page lives in one hue: [data-hue="..."] on the app shell re-tints the canvas, the cards, the chips and the
-   borders for that page, so every screen has its own colour without a single component knowing about it. */
+   borders for that page, so every screen has its own colour without a single component knowing about it.
+   The palette is built from one table (hue, tint, ink, fill) and every text-on-colour pair was measured for contrast:
+   body text and all inks pass WCAG AA (4.5:1) on every surface and tint; icons on fills pass 3:1. Fills are a step deeper than
+   the tints so primary actions, selected tabs and badges have real presence against the canvas. */
 :root {
-  /* canvas and neutrals: soft lavender-tinted, never grey and never harsh white */
-  --bg:         262 80% 96%;
+  /* canvas and neutrals: lavender-tinted, never grey and never harsh white */
+  --bg:         262 85% 93%;
   --surface:    0   0%  100%;
-  --muted:      262 70% 94%;
-  --border:     262 50% 88%;
-  --fg:         252 30% 20%;   /* deep indigo ink: soft on the eyes, still very readable on pastel */
-  --subtle:     252 14% 42%;
-  --brand:      252 30% 20%;
-  --on-fill:    252 30% 20%;
+  --muted:      262 70% 91%;
+  --border:     262 45% 82%;
+  --fg:         252 34% 17%;   /* deep indigo ink: soft on the eyes, still very readable on pastel */
+  --subtle:     252 16% 35%;
+  --brand:      252 34% 17%;
+  --on-fill:    252 34% 17%;
 
   /* sky: action. text-accent is the ink, bg-accent the pastel fill (see tailwind.config.ts) */
-  --accent:       232 52% 38%;
-  --accent-fill:  228 88% 84%;
-  --accent-fg:    232 52% 28%;
-  --accent-muted: 228 90% 94%;
+  --accent:       232 55% 30%;
+  --accent-fill:  230 80% 77%;
+  --accent-fg:    232 55% 20%;
+  --accent-muted: 230 85% 91%;
 
   /* mint: success and money */
-  --good:       156 48% 24%;
-  --good-fill:  152 55% 74%;
-  --good-on:    156 48% 20%;
-  --good-muted: 152 60% 92%;
+  --good:       158 55% 20%;
+  --good-fill:  156 52% 66%;
+  --good-on:    158 55% 14%;
+  --good-muted: 154 60% 89%;
   /* butter: attention */
-  --warn:       38  70% 26%;
-  --warn-fill:  46  95% 76%;
-  --warn-on:    38  70% 22%;
-  --warn-muted: 48 100% 90%;
+  --warn:       36  75% 22%;
+  --warn-fill:  44  90% 67%;
+  --warn-on:    36  75% 16%;
+  --warn-muted: 46 100% 87%;
   /* rose: urgent and negative */
-  --bad:        350 50% 34%;
-  --bad-fill:   350 85% 84%;
-  --bad-on:     350 50% 28%;
-  --bad-muted:  350 100% 94%;
+  --bad:        348 60% 30%;
+  --bad-fill:   348 80% 79%;
+  --bad-on:     348 60% 22%;
+  --bad-muted:  348 100% 92%;
 
-  --hl:         48 100% 86%;   /* highlighter for must-dos */
+  --hl:         46 100% 80%;   /* highlighter for must-dos */
 
-  /* tint + ink (+ fill) per hue: badges, tiles, icon bubbles */
-  --p-sky:    205 90% 91%;  --p-sky-fg:    212 55% 30%;  --sky-fill:    205 90% 80%;
-  --p-mint:   155 70% 89%;  --p-mint-fg:   158 55% 21%;  --mint-fill:   155 65% 76%;
-  --p-butter: 48 100% 87%;  --p-butter-fg: 40 70% 25%;   --butter-fill: 48 98% 74%;
-  --p-rose:   350 100% 92%; --p-rose-fg:   350 50% 33%;  --rose-fill:   350 90% 84%;
-  --p-lilac:  262 90% 92%;  --p-lilac-fg:  262 40% 35%;  --lilac-fill:  262 85% 83%;
-  --p-peach:  24 100% 90%;  --p-peach-fg:  18 55% 31%;   --peach-fill:  24 95% 79%;
-  --p-teal:   175 65% 87%;  --p-teal-fg:   180 55% 21%;  --teal-fill:   175 55% 73%;
-  --p-pink:   330 100% 92%; --p-pink-fg:   330 45% 34%;  --pink-fill:   330 90% 83%;
+  /* tint + ink + fill per hue: badges, tiles, icon bubbles */
+  --p-sky: 208 85% 89%;  --p-sky-fg: 214 62% 22%;  --sky-fill: 208 80% 74%;
+  --p-mint: 156 62% 86%;  --p-mint-fg: 160 64% 15%;  --mint-fill: 156 52% 66%;
+  --p-butter: 46 100% 83%;  --p-butter-fg: 38 80% 17%;  --butter-fill: 44 90% 67%;
+  --p-rose: 348 100% 90%;  --p-rose-fg: 348 62% 26%;  --rose-fill: 348 80% 79%;
+  --p-lilac: 264 85% 90%;  --p-lilac-fg: 264 48% 27%;  --lilac-fill: 264 70% 77%;
+  --p-peach: 22 100% 87%;  --p-peach-fg: 16 66% 24%;  --peach-fill: 22 90% 74%;
+  --p-teal: 176 62% 84%;  --p-teal-fg: 182 66% 15%;  --teal-fill: 176 52% 65%;
+  --p-pink: 328 100% 90%;  --p-pink-fg: 328 56% 27%;  --pink-fill: 328 78% 78%;
 
   /* the canvas: four soft pastel glows behind everything, re-coloured per page by [data-hue] */
-  --mesh-1: 228 95% 87%; --mesh-2: 262 95% 90%; --mesh-3: 160 80% 88%; --mesh-4: 330 100% 92%;
+  --mesh-1: 230 95% 80%; --mesh-2: 264 95% 84%; --mesh-3: 156 85% 84%; --mesh-4: 328 100% 89%;
 
-  --shadow-sm:  0 1px 2px hsl(262 50% 50% / 0.06), 0 4px 14px hsl(262 70% 62% / 0.10);
-  --shadow-md:  0 4px 10px hsl(262 50% 50% / 0.08), 0 10px 26px hsl(262 70% 62% / 0.14);
-  --shadow-lg:  0 10px 30px hsl(262 50% 50% / 0.14), 0 22px 50px hsl(262 70% 62% / 0.18);
+  --shadow-sm:  0 1px 2px hsl(262 50% 40% / 0.08), 0 4px 14px hsl(262 60% 50% / 0.12);
+  --shadow-md:  0 4px 10px hsl(262 50% 40% / 0.10), 0 10px 26px hsl(262 60% 50% / 0.17);
+  --shadow-lg:  0 10px 30px hsl(262 50% 40% / 0.16), 0 22px 50px hsl(262 60% 50% / 0.22);
 
   color-scheme: light;
 }
 
 /* ── One hue per page ────────────────────────────────────────────────────── */
 /* surface = a light, clearly coloured card; muted = chips and tracks; border = a tinted edge; mesh = the canvas glows */
-[data-hue="sky"]    { --surface: 205 100% 98%; --muted: 205 90% 93%; --border: 205 65% 85%; --mesh-1: 205 100% 84%; --mesh-2: 262 95% 90%; --mesh-3: 160 85% 88%; --mesh-4: 330 100% 92%; --bg: 215 90% 96%; }
-[data-hue="mint"]   { --surface: 155 80% 98%;  --muted: 155 70% 92%; --border: 155 50% 82%; --mesh-1: 155 80% 82%; --mesh-2: 205 95% 89%; --mesh-3: 48 100% 88%;  --mesh-4: 175 70% 86%; --bg: 158 70% 95%; }
-[data-hue="butter"] { --surface: 48 100% 97%;  --muted: 48 95% 91%;  --border: 46 70% 80%;  --mesh-1: 46 100% 80%;  --mesh-2: 24 100% 88%; --mesh-3: 330 100% 92%; --mesh-4: 155 75% 88%; --bg: 48 90% 95%; }
-[data-hue="rose"]   { --surface: 350 100% 98%; --muted: 350 95% 94%; --border: 350 65% 87%; --mesh-1: 350 100% 86%; --mesh-2: 24 100% 88%; --mesh-3: 262 90% 91%;  --mesh-4: 48 100% 88%; --bg: 350 90% 96%; }
-[data-hue="lilac"]  { --surface: 262 100% 98%; --muted: 262 85% 94%; --border: 262 60% 87%; --mesh-1: 262 95% 85%; --mesh-2: 330 100% 91%; --mesh-3: 205 95% 89%;  --mesh-4: 160 80% 89%; --bg: 262 85% 96%; }
-[data-hue="peach"]  { --surface: 24 100% 97%;  --muted: 24 100% 92%; --border: 24 75% 83%;  --mesh-1: 24 100% 83%;  --mesh-2: 48 100% 87%; --mesh-3: 350 100% 91%; --mesh-4: 262 90% 91%; --bg: 24 95% 95%; }
-[data-hue="teal"]   { --surface: 175 80% 97%;  --muted: 175 65% 91%; --border: 175 50% 81%; --mesh-1: 175 75% 80%;  --mesh-2: 205 95% 88%; --mesh-3: 262 90% 91%;  --mesh-4: 155 75% 87%; --bg: 178 70% 95%; }
-[data-hue="pink"]   { --surface: 330 100% 98%; --muted: 330 95% 94%; --border: 330 65% 87%; --mesh-1: 330 100% 86%; --mesh-2: 262 95% 90%; --mesh-3: 24 100% 89%;  --mesh-4: 205 95% 90%; --bg: 330 90% 96%; }
+[data-hue="sky"]    { --surface: 208 100% 97%; --muted: 208 85% 90%; --border: 208 55% 80%; --mesh-1: 208 95% 77%; --mesh-2: 264 95% 83%; --mesh-3: 156 90% 84%; --mesh-4: 328 100% 88%; --bg: 208 85% 93%; }
+[data-hue="mint"]   { --surface: 156 100% 97%; --muted: 156 85% 90%; --border: 156 55% 80%; --mesh-1: 156 95% 77%; --mesh-2: 208 95% 83%; --mesh-3: 46 90% 84%; --mesh-4: 176 100% 88%; --bg: 156 85% 93%; }
+[data-hue="butter"] { --surface: 46 100% 97%; --muted: 46 85% 90%; --border: 46 55% 80%; --mesh-1: 46 95% 77%; --mesh-2: 22 95% 83%; --mesh-3: 328 90% 84%; --mesh-4: 156 100% 88%; --bg: 46 85% 93%; }
+[data-hue="rose"]   { --surface: 348 100% 97%; --muted: 348 85% 90%; --border: 348 55% 80%; --mesh-1: 348 95% 77%; --mesh-2: 22 95% 83%; --mesh-3: 264 90% 84%; --mesh-4: 46 100% 88%; --bg: 348 85% 93%; }
+[data-hue="lilac"]  { --surface: 264 100% 97%; --muted: 264 85% 90%; --border: 264 55% 80%; --mesh-1: 264 95% 77%; --mesh-2: 328 95% 83%; --mesh-3: 208 90% 84%; --mesh-4: 156 100% 88%; --bg: 264 85% 93%; }
+[data-hue="peach"]  { --surface: 22 100% 97%; --muted: 22 85% 90%; --border: 22 55% 80%; --mesh-1: 22 95% 77%; --mesh-2: 46 95% 83%; --mesh-3: 348 90% 84%; --mesh-4: 264 100% 88%; --bg: 22 85% 93%; }
+[data-hue="teal"]   { --surface: 176 100% 97%; --muted: 176 85% 90%; --border: 176 55% 80%; --mesh-1: 176 95% 77%; --mesh-2: 208 95% 83%; --mesh-3: 264 90% 84%; --mesh-4: 156 100% 88%; --bg: 176 85% 93%; }
+[data-hue="pink"]   { --surface: 328 100% 97%; --muted: 328 85% 90%; --border: 328 55% 80%; --mesh-1: 328 95% 77%; --mesh-2: 264 95% 83%; --mesh-3: 22 90% 84%; --mesh-4: 208 100% 88%; --bg: 328 85% 93%; }
 
 /* ── Dusk: the same pastels, after dark ──────────────────────────────────── */
 /* Plum-navy, never black. Text and accents stay pastel; surfaces are deep, softly coloured. */

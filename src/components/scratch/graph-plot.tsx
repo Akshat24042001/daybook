@@ -298,7 +298,7 @@ export function GraphPlot({ data, onChange, fullscreen }: { data: GraphData; onC
           <button className={btn} title="Reset view" aria-label="Reset view" onClick={() => commitView({ ...DEFAULT_VIEW })}><RotateCcw className="h-4 w-4" /></button>
         </div>
         {readout && hoverX !== null ? (
-          <div className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-lg border border-border bg-surface/90 px-2 py-1 font-mono text-[11px] shadow-[var(--shadow-sm)]">
+          <div className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-lg border border-border bg-surface/90 px-2 py-1 font-mono text-xs shadow-[var(--shadow-sm)]">
             <div className="text-subtle">x = {fmtNum(Number(hoverX.toPrecision(4)))}</div>
             {readout.map((y, i) =>
               y !== null ? (
@@ -310,7 +310,7 @@ export function GraphPlot({ data, onChange, fullscreen }: { data: GraphData; onC
           </div>
         ) : null}
       </div>
-      <p className="text-[11px] text-subtle">Drag to move, scroll or pinch to zoom. Uses the calculator&apos;s maths: <code>x^2</code>, <code>sqrt(x)</code>, <code>abs(x)</code>, <code>2sin(x)</code>, <code>e^(-x^2)</code>.</p>
+      <p className="text-xs text-subtle">Drag to move, scroll or pinch to zoom. Uses the calculator&apos;s maths: <code>x^2</code>, <code>sqrt(x)</code>, <code>abs(x)</code>, <code>2sin(x)</code>, <code>e^(-x^2)</code>.</p>
     </div>
   );
 }

@@ -304,7 +304,7 @@ export function CommandPalette() {
                 })
               )}
             </div>
-            <div className="flex items-center justify-between border-t border-border px-4 py-2 text-[11px] text-subtle">
+            <div className="flex items-center justify-between border-t border-border px-4 py-2 text-xs text-subtle">
               <span>↑↓ to move · Enter to open</span>
               <button type="button" onClick={() => { setOpen(false); setHelp(true); }} className="hover:text-fg">All shortcuts <kbd className="ml-1 rounded border border-border px-1">?</kbd></button>
             </div>
@@ -325,7 +325,7 @@ export function CommandPalette() {
             <p className="mt-1 text-sm text-subtle">Shortcuts work anywhere except while typing in a field.</p>
             <div className="mt-5 grid gap-6 sm:grid-cols-2">
               <div>
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-subtle">Actions</p>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-subtle">Actions</p>
                 <ul className="space-y-2">
                   {ACTION_SHORTCUTS.map((s) => (
                     <li key={s.keys} className="flex items-center justify-between gap-3 text-sm">
@@ -336,7 +336,7 @@ export function CommandPalette() {
                 </ul>
               </div>
               <div>
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-subtle">Go to (press g, then the letter)</p>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-subtle">Go to (press g, then the letter)</p>
                 <ul className="space-y-2">
                   {NAV_SHORTCUTS.map((s) => (
                     <li key={s.keys} className="flex items-center justify-between gap-3 text-sm">
@@ -361,7 +361,7 @@ function Keys({ k }: { k: string }) {
   return (
     <span className="flex shrink-0 items-center gap-1">
       {k.split(" ").map((p, i) => (
-        <kbd key={i} className="min-w-[1.5rem] rounded-md border border-border bg-bg px-1.5 py-0.5 text-center text-[11px] font-semibold text-fg shadow-[0_1px_0_hsl(var(--border))]">
+        <kbd key={i} className="min-w-[1.5rem] rounded-md border border-border bg-bg px-1.5 py-0.5 text-center text-xs font-semibold text-fg shadow-[0_1px_0_hsl(var(--border))]">
           {p === "Ctrl" ? "Ctrl/⌘" : p}
         </kbd>
       ))}

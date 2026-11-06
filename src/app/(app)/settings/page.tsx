@@ -4,7 +4,6 @@ import { SettingsClient } from "@/components/settings/settings-client";
 import { q } from "@/lib/db";
 import { makeCtx } from "@/lib/settings";
 import { fmtDateShort, fmtHM } from "@/lib/time";
-import { listExerciseTypes } from "@/lib/services/health";
 import { telegramConfigured } from "@/lib/telegram/api";
 import { deepgramReady } from "@/lib/voice-config";
 
@@ -13,9 +12,8 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const ctx = await makeCtx();
-  const [people, types] = await Promise.all([
+  const [people] = await Promise.all([
     q<{ id: number; name: string; relation: string | null }>("select id, name, relation from people order by lower(name)"),
-    listExerciseTypes(false),
   ]);
   const s = ctx.s;
   const envOwner = (process.env.TELEGRAM_OWNER_CHAT_ID ?? "").trim();
@@ -49,7 +47,6 @@ export default async function SettingsPage() {
         lunch_end: s.lunch_end,
       }}
       people={people}
-      types={types.map((t) => ({ id: t.id, name: t.name, defaultAmount: t.default_amount, unit: t.unit, active: t.active }))}
       status={{
         telegramToken: telegramConfigured(),
         telegramLinked: !!(envOwner || s.telegram_chat_id),

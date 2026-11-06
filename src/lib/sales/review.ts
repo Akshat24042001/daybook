@@ -34,7 +34,7 @@ const FX = "coalesce((select (config->'fx'->>currency)::numeric from sales_setti
 export async function weeklyReview(days = 7): Promise<Review> {
   const p = [String(days)];
   const since = `now() - ($1 || ' days')::interval`;
-  const n = async (sql: string) => Number((await one<{ n: number | null }>(sql, p))?.n ?? 0);
+  const n = async (sql: string) => Number((await one<{ n: number | null }>(sql, sql.includes("$1") ? p : []))?.n ?? 0);
   const started = await n(`select count(distinct deal_id)::int as n from sales_interactions i where direction in ('out','both') and occurred_at > ${since}
     and not exists (select 1 from sales_interactions j where j.deal_id = i.deal_id and j.direction in ('out','both') and j.occurred_at < ${since})`);
   const replies = await n(`select count(distinct deal_id)::int as n from sales_interactions where direction in ('in','both') and occurred_at > ${since}`);

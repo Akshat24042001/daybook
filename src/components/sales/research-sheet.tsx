@@ -93,7 +93,7 @@ export function ResearchSheet({ open, onOpenChange, radarItemId, companyId, titl
             <div className="flex items-center gap-2 text-sm font-semibold"><Loader2 className="h-4 w-4 animate-spin" /> Researching… {STEPS[stepIdx]?.[1]}</div>
             <ol className="mt-2 flex gap-1.5">
               {STEPS.slice(0, 3).map(([k, l], i) => (
-                <li key={k} className={cn("flex-1 rounded-full px-2 py-1 text-center text-[11px] font-medium", i < stepIdx ? "bg-good text-good-on" : i === stepIdx ? "bg-surface/80 shadow-[var(--shadow-sm)]" : "bg-surface/40 opacity-70")}>{l}</li>
+                <li key={k} className={cn("flex-1 rounded-full px-2 py-1 text-center text-xs font-medium", i < stepIdx ? "bg-good text-good-on" : i === stepIdx ? "bg-surface/80 shadow-[var(--shadow-sm)]" : "bg-surface/40 opacity-70")}>{l}</li>
               ))}
             </ol>
             <ul className="mt-2 space-y-0.5 text-xs">{active.log.slice(-5).map((l, i) => <li key={i}>· {l}</li>)}</ul>
@@ -137,7 +137,7 @@ export function ResearchSheet({ open, onOpenChange, radarItemId, companyId, titl
                   {val(e, "address") ? <li className="flex items-start gap-2"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />{val(e, "address")}</li> : null}
                 </ul>
                 {socials.length ? <div className="mt-2 flex flex-wrap gap-1.5">{socials.map(([k, u]) => <a key={k} href={u} target="_blank" rel="noreferrer" className="rounded-full bg-surface/70 px-2.5 py-1 text-xs font-medium capitalize">{k} ↗</a>)}</div> : null}
-                <p className="mt-2 text-[11px]">Taken from their own website. Nothing here is guessed.</p>
+                <p className="mt-2 text-xs">Taken from their own website. Nothing here is guessed.</p>
               </Box>
             ) : null}
 
@@ -159,7 +159,7 @@ export function ResearchSheet({ open, onOpenChange, radarItemId, companyId, titl
                         {val(pe, "opener") ? <p className="mt-1.5 rounded-lg bg-p-sky px-2.5 py-1.5 text-xs text-p-sky-fg">💬 {val(pe, "opener")}</p> : null}
                         {val(pe, "what_they_care_about") ? <p className="mt-1 text-xs"><b>Cares about:</b> {val(pe, "what_they_care_about")}</p> : null}
                         {p.enriched_at ? (
-                          <details className="mt-1.5"><summary className="cursor-pointer text-[11px] font-semibold">Everything about {p.full_name.split(" ")[0]}</summary>
+                          <details className="mt-1.5"><summary className="cursor-pointer text-xs font-semibold">Everything about {p.full_name.split(" ")[0]}</summary>
                             <div className="mt-2"><EnrichmentPanel kind="person" id={p.id} data={pe} groups={view.groups.person} enrichedAt={p.enriched_at} title={p.full_name} /></div>
                           </details>
                         ) : (

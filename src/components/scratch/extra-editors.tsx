@@ -155,14 +155,14 @@ export function TableEditor({ data, onChange }: { data: TableData; onChange: (d:
             <tr>
               <th className="sticky left-0 w-8 bg-muted" />
               {Array.from({ length: cols }, (_, c) => (
-                <th key={c} className="min-w-[6.5rem] border-l border-border bg-muted px-2 py-0.5 text-center text-[11px] font-medium text-subtle">{colName(c)}</th>
+                <th key={c} className="min-w-[6.5rem] border-l border-border bg-muted px-2 py-0.5 text-center text-xs font-medium text-subtle">{colName(c)}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((row, r) => (
               <tr key={r} className="border-t border-border">
-                <td className="sticky left-0 bg-muted px-1.5 text-center text-[11px] tabular-nums text-subtle">{r + 1}</td>
+                <td className="sticky left-0 bg-muted px-1.5 text-center text-xs tabular-nums text-subtle">{r + 1}</td>
                 {row.map((raw, c) => {
                   const v = values[r]?.[c];
                   const isFocus = focus?.[0] === r && focus?.[1] === c;
@@ -195,7 +195,7 @@ export function TableEditor({ data, onChange }: { data: TableData; onChange: (d:
           </tbody>
         </table>
       </div>
-      <p className="text-[11px] text-subtle">
+      <p className="text-xs text-subtle">
         Start a cell with <code>=</code> for a formula: <code>=A1+B1</code>, <code>=B2*18%</code>, <code>=SUM(A1:A10)</code>, <code>=AVG(B2:B8)</code>,
         {" "}<code>=MAX(…)</code>, <code>=COUNT(…)</code>, <code>=ROUND(C4, 2)</code>.
       </p>

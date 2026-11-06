@@ -51,7 +51,7 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold leading-snug">{it.title}</p>
-          <p className="mt-0.5 flex flex-wrap gap-x-2 text-[11px] text-subtle">
+          <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-subtle">
             {it.hunt ? <span className="font-medium text-p-teal-fg">🔎 {it.hunt}</span> : null}<span>{it.source ?? "manual"}</span>{it.category ? <span>{it.category}</span> : null}<span>found {ago(it.found_at)}</span>
             {it.posted_at ? <span>posted {ago(it.posted_at)}</span> : null}{f.country ? <span>{f.country}</span> : null}{f.industry ? <span>{f.industry}</span> : null}
           </p>
@@ -59,7 +59,7 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
           {f.angle ? <p className="mt-1 text-xs text-accent">💡 {f.angle}</p> : null}
           {f.money_leak ? <p className="mt-1 rounded-lg bg-p-butter px-2 py-1 text-xs text-p-butter-fg">{f.money_leak}</p> : null}
           {f.services?.length ? <div className="mt-1 flex flex-wrap gap-1">{f.services.map((s) => <Chip key={s} className="text-[10px]">{s}</Chip>)}</div> : null}
-          {it.body ? <details className="mt-1"><summary className="cursor-pointer text-[11px] text-subtle">Full post</summary><p className="mt-1 whitespace-pre-line text-xs text-subtle">{it.body.slice(0, 2500)}</p></details> : null}
+          {it.body ? <details className="mt-1"><summary className="cursor-pointer text-xs text-subtle">Full post</summary><p className="mt-1 whitespace-pre-line text-xs text-subtle">{it.body.slice(0, 2500)}</p></details> : null}
         </div>
       </div>
       {move ? <div className="mt-3"><MoveCard m={move} googleReady={googleReady} onGone={() => setGone(true)} /></div> : null}

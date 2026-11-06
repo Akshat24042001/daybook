@@ -114,3 +114,19 @@ export function insertChip(text: string, chip: SyntaxChip): string {
   const base = text.replace(/\s+$/, "");
   return `${base}${base ? " " : ""}${chip.insert}${chip.insert === "+" ? "" : " "}`;
 }
+
+const PREFIX = /^([A-Za-z0-9][A-Za-z0-9 &._'’-]{0,39}?):\s+(\S.*)$/;
+
+/** The project a quick-add line is already aimed at ("Vector: ship it" -> "Vector"), or null. */
+export function currentProject(text: string): string | null {
+  const m = PREFIX.exec(text.trim());
+  return m ? m[1].trim() : null;
+}
+
+/** Aims a quick-add line at a project (or at none), replacing any prefix already there. Pure. */
+export function withProject(text: string, name: string | null): string {
+  const body = text.trim();
+  const m = PREFIX.exec(body);
+  const rest = m ? m[2] : body;
+  return name ? `${name}: ${rest}` : rest;
+}

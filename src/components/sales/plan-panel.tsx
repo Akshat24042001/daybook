@@ -92,7 +92,7 @@ export function PlanPanel({ plan }: { plan: RadarPlan }) {
                   {h.keywords.length ? ` · always searches: ${h.keywords.map((k) => `“${k}”`).join(", ")}` : ""}
                 </p>
                 {h.brief ? <p className="mt-0.5 line-clamp-2 text-xs">{h.brief}</p> : null}
-                {h.last_run?.queries.length ? <details className="mt-1"><summary className="cursor-pointer text-[11px] text-subtle">Queries from its last run ({h.last_run.queries.length})</summary><ul className="mt-1 list-disc pl-4 text-[11px] text-subtle">{h.last_run.queries.map((x, i) => <li key={i}>{x}</li>)}</ul></details> : null}
+                {h.last_run?.queries.length ? <details className="mt-1"><summary className="cursor-pointer text-xs text-subtle">Queries from its last run ({h.last_run.queries.length})</summary><ul className="mt-1 list-disc pl-4 text-xs text-subtle">{h.last_run.queries.map((x, i) => <li key={i}>{x}</li>)}</ul></details> : null}
               </li>
             ))}
           </ul>

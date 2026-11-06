@@ -167,7 +167,7 @@ export function HealthClient(props: {
 
         {/* this week */}
         <div className="border-t border-border bg-muted/30 px-5 py-4">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-subtle">This week</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-subtle">This week</p>
           <div className="grid grid-cols-7 gap-2">
             {props.week.map((d) => {
               const isToday = d.date === props.date;

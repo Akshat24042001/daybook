@@ -83,7 +83,7 @@ export function InstagramCard({ date, minutes }: { date: DateStr; minutes: numbe
 
       {/* add as the day goes on */}
       <div className="mt-3 flex flex-wrap items-center gap-1.5" role="group" aria-label="Add Instagram time">
-        <span className="mr-0.5 text-[11px] font-semibold uppercase tracking-wider text-subtle">Add</span>
+        <span className="mr-0.5 text-xs font-semibold uppercase tracking-wider text-subtle">Add</span>
         {STEPS.map((m) => (
           <button
             key={m}
@@ -111,7 +111,7 @@ export function InstagramCard({ date, minutes }: { date: DateStr; minutes: numbe
 
       {/* or set the total */}
       <div className="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label="Total minutes on Instagram">
-        <span className="mr-0.5 text-[11px] font-semibold uppercase tracking-wider text-subtle">Total</span>
+        <span className="mr-0.5 text-xs font-semibold uppercase tracking-wider text-subtle">Total</span>
         {PRESETS.map((m) => (
           <button
             key={m}

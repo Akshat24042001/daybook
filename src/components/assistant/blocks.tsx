@@ -196,7 +196,7 @@ export function Blocks({ blocks, onAsk, onChanged }: { blocks: Block[]; onAsk?: 
             <div key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {b.items.map((s, j) => (
                 <div key={j} className="rounded-2xl border border-border bg-surface px-3 py-2.5">
-                  <p className="truncate text-[11px] font-medium uppercase tracking-wide text-subtle">{s.label}</p>
+                  <p className="truncate text-xs font-medium uppercase tracking-wide text-subtle">{s.label}</p>
                   <p className={cn("tabular truncate text-xl font-semibold", TONE[s.tone ?? "neutral"])}>{s.value}</p>
                   {s.sub ? <p className="truncate text-xs text-subtle">{s.sub}</p> : null}
                 </div>

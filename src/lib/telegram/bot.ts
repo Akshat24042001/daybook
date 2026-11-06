@@ -489,12 +489,17 @@ async function routeFreeText(ctx: Ctx, chat: number, text: string, fromVoice: bo
         return;
       case "unknown":
         // AI couldn't classify it — show as task-add preview so user can confirm or discard
-        await quickAddPreview(ctx, chat, fromVoice ? voiceToQuickAdd(text) : text, true);
+        await quickAddPreview(ctx, chat, fromVoice ? voiceToQuickAdd(text, await projectNames()) : text, true);
         return;
     }
   }
 
-  await quickAddPreview(ctx, chat, fromVoice ? voiceToQuickAdd(text) : text);
+  await quickAddPreview(ctx, chat, fromVoice ? voiceToQuickAdd(text, await projectNames()) : text);
+}
+
+/** Active project names, so a spoken "to the Vector project" files the task there. */
+async function projectNames(): Promise<string[]> {
+  return (await q<{ name: string }>("select name from projects where not archived order by lower(name)").catch(() => [])).map((p) => p.name);
 }
 
 /**

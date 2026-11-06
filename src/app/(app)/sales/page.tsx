@@ -46,9 +46,9 @@ export default async function SalesPage() {
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
         {tiles.map((t) => (
           <div key={t.label} className={`rounded-2xl px-3 py-2.5 ${t.tone}`}>
-            <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">{t.label}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide opacity-80">{t.label}</p>
             <p className="font-display text-xl tabular text-current">{t.value || "0"}</p>
-            <p className="truncate text-[11px] opacity-80">{t.sub}</p>
+            <p className="truncate text-xs opacity-80">{t.sub}</p>
           </div>
         ))}
       </div>

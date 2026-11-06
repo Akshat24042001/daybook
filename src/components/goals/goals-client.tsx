@@ -183,7 +183,7 @@ export function GoalsClient(props: {
             <div className="flex items-center gap-2.5">
               <span className={cn("h-2 w-2 shrink-0 rounded-full", PERIOD_DOT[p])} aria-hidden />
               <h3 className="text-sm font-semibold text-fg">{PERIOD_LABEL[p]}</h3>
-              <span className="tabular rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-subtle">{props.targets[p].length}</span>
+              <span className="tabular rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-subtle">{props.targets[p].length}</span>
               <span className="h-px flex-1 bg-border" aria-hidden />
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

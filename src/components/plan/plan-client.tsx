@@ -26,7 +26,8 @@ interface Capacity {
 }
 
 /** Overdue = rose (urgent), carried = butter (attention), ongoing = teal (measured over time), recurring = lilac (rhythm). */
-const LABEL_HUE: Record<string, Hue> = { "Overdue cadence": "rose", Carried: "butter", Ongoing: "teal", Recurring: "lilac" };
+const LABEL_HUE: Record<string, Hue> = { "Overdue cadence": "rose", Ongoing: "teal", Recurring: "lilac" };
+const hueOfLabel = (l: string): Hue => (l.startsWith("Carried") ? "butter" : LABEL_HUE[l]);
 
 export function PlanClient(props: {
   date: DateStr;
@@ -133,7 +134,7 @@ export function PlanClient(props: {
                 <SortableEntries key={gi} date={date} items={group}>
                   {(r, slot) => {
                     const label =
-                      r.type === "cadence" && r.source === "auto" ? "Overdue cadence" : r.type === "ongoing" ? "Ongoing" : r.type === "recurring" ? "Recurring" : r.source === "carried" ? "Carried" : null;
+                      r.type === "cadence" && r.source === "auto" ? "Overdue cadence" : r.type === "ongoing" ? "Ongoing" : r.type === "recurring" ? "Recurring" : r.source === "carried" && r.carry >= 2 ? `Carried ${r.carry}×` : null;
                     return (
                       <li
                         key={r.id}
@@ -161,7 +162,7 @@ export function PlanClient(props: {
                           <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[15px] font-medium leading-snug group-hover:underline">
                             {r.title}
                             {r.projectName ? <Chip color={r.projectColor}>{r.projectName}</Chip> : null}
-                            {label ? <Chip className={cn(HUE[LABEL_HUE[label]].tint, HUE[LABEL_HUE[label]].ink)}>{label}</Chip> : null}
+                            {label ? <Chip className={cn(HUE[hueOfLabel(label)].tint, HUE[hueOfLabel(label)].ink)}>{label}</Chip> : null}
                           </p>
                           <p className="tabular text-xs text-subtle">
                             {[r.timeLabel, r.estimateMin ? `est ${fmtDuration(r.estimateMin)}` : "no estimate", r.personName && `with ${r.personName}`].filter(Boolean).join(" · ")}

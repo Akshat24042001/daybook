@@ -22,7 +22,7 @@ export function ExportCard() {
           </span>
           <Download className="h-4 w-4 shrink-0" />
         </a>
-        <p className="mb-2 mt-4 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-subtle">
+        <p className="mb-2 mt-4 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-subtle">
           <Sheet className="h-3.5 w-3.5" /> Or one table as CSV (opens in Excel / Sheets)
         </p>
         <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">

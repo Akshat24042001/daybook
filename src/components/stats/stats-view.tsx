@@ -95,7 +95,7 @@ function Tile({
     >
       <div className="mb-2 flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <p className={cn("flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider", HUE[warn ? "butter" : hue].ink)}>
+          <p className={cn("flex items-center gap-2 text-xs font-bold uppercase tracking-wider", HUE[warn ? "butter" : hue].ink)}>
             <span className={cn("flex h-7 w-7 items-center justify-center rounded-full", HUE[warn ? "butter" : hue].fill, "text-fg/80")} aria-hidden>
               {(() => { const I = TILE_ICON[title] ?? BarChart3; return <I className="h-3.5 w-3.5" />; })()}
             </span>
@@ -136,9 +136,9 @@ function MiniStat({ label, value, hint, warn, good, onOpen }: {
       onClick={onOpen}
       className="group flex min-w-0 flex-col rounded-xl bg-muted/50 px-3 py-2 text-left transition-colors hover:bg-muted"
     >
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-subtle">{label}</span>
+      <span className="text-xs font-semibold uppercase tracking-wider text-subtle">{label}</span>
       <span className={cn("tabular font-display text-xl leading-tight", warn && "text-warn", good && "text-good")}>{value}</span>
-      {hint ? <span className="mt-0.5 truncate text-[11px] text-subtle">{hint}</span> : null}
+      {hint ? <span className="mt-0.5 truncate text-xs text-subtle">{hint}</span> : null}
     </button>
   );
 }
@@ -148,7 +148,7 @@ function SectionHead({ title, hint }: { title: string; hint?: string }) {
     <div className="flex items-baseline gap-3 pt-2">
       <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-subtle">{title}</h2>
       <span className="h-px flex-1 bg-border" aria-hidden />
-      {hint ? <span className="text-[11px] text-subtle">{hint}</span> : null}
+      {hint ? <span className="text-xs text-subtle">{hint}</span> : null}
     </div>
   );
 }
@@ -168,8 +168,8 @@ function TaskHealth({ stats, onOpen }: { stats: Stats; onOpen: (p: ListKey) => v
   return (
     <Card className="flex flex-col p-4">
       <div className="mb-3 flex items-center gap-2">
-        <p className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-subtle">Task health</p>
-        <button type="button" onClick={() => onOpen(tab)} className="inline-flex items-center gap-0.5 rounded-lg px-1.5 py-0.5 text-[11px] font-semibold text-subtle hover:bg-muted hover:text-fg">
+        <p className="flex-1 text-xs font-semibold uppercase tracking-wider text-subtle">Task health</p>
+        <button type="button" onClick={() => onOpen(tab)} className="inline-flex items-center gap-0.5 rounded-lg px-1.5 py-0.5 text-xs font-semibold text-subtle hover:bg-muted hover:text-fg">
           All <ChevronRight className="h-3.5 w-3.5" />
         </button>
       </div>
@@ -181,7 +181,7 @@ function TaskHealth({ stats, onOpen }: { stats: Stats; onOpen: (p: ListKey) => v
             role="tab"
             aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
-            className={cn("truncate rounded-[10px] px-1.5 py-1 text-[11px] font-semibold", tab === t.key ? "bg-surface text-fg shadow-sm" : "text-subtle hover:text-fg")}
+            className={cn("truncate rounded-[10px] px-1.5 py-1 text-xs font-semibold", tab === t.key ? "bg-surface text-fg shadow-sm" : "text-subtle hover:text-fg")}
           >
             {t.label}{t.n ? <span className="tabular ml-1 text-subtle">{t.n}</span> : null}
           </button>
@@ -208,7 +208,7 @@ function TaskHealth({ stats, onOpen }: { stats: Stats; onOpen: (p: ListKey) => v
           <div key={c.id}>
             <div className="flex items-center gap-2">
               <span className="min-w-0 flex-1 truncate text-sm">{c.title}</span>
-              <span className="tabular shrink-0 text-[11px] text-subtle">every {c.target}d</span>
+              <span className="tabular shrink-0 text-xs text-subtle">every {c.target}d</span>
             </div>
             {c.avgInterval !== null ? <Progress className="mt-1 h-1" value={Math.min(1, c.target / c.avgInterval)} tone={c.avgInterval > c.target ? "warn" : "accent"} /> : null}
           </div>
@@ -218,7 +218,7 @@ function TaskHealth({ stats, onOpen }: { stats: Stats; onOpen: (p: ListKey) => v
             <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.color }} />
             <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
             <Progress className="h-1.5 w-16 shrink-0" value={p.completionPct / 100} />
-            <span className="tabular w-8 shrink-0 text-right text-[11px] font-semibold text-subtle">{p.completionPct}%</span>
+            <span className="tabular w-8 shrink-0 text-right text-xs font-semibold text-subtle">{p.completionPct}%</span>
           </div>
         ))}
       </div>
@@ -229,7 +229,7 @@ function TaskHealth({ stats, onOpen }: { stats: Stats; onOpen: (p: ListKey) => v
 function Fact({ label, value, tone }: { label: string; value: React.ReactNode; tone?: "good" | "warn" | "bad" }) {
   return (
     <div className="rounded-xl bg-muted/60 px-3 py-2">
-      <p className="text-[11px] text-subtle">{label}</p>
+      <p className="text-xs text-subtle">{label}</p>
       <p className={cn("tabular text-base font-semibold", tone === "good" && "text-good", tone === "warn" && "text-warn", tone === "bad" && "text-bad")}>{value}</p>
     </div>
   );
@@ -457,7 +457,7 @@ export function StatsView({
               {vias.map((v) => <option key={v} value={v}>via {v}</option>)}
             </Select>
           </div>
-          <p className="mt-2 text-[11px] text-subtle">Filters narrow the task numbers. Score, hours worked and unaccounted time always cover whole days.</p>
+          <p className="mt-2 text-xs text-subtle">Filters narrow the task numbers. Score, hours worked and unaccounted time always cover whole days.</p>
         </Card>
       ) : null}
 
@@ -576,7 +576,7 @@ export function StatsView({
                   key={k}
                   type="button"
                   onClick={() => setWeekdayMetric(k)}
-                  className={cn("rounded-md px-2 py-0.5 text-[11px] font-semibold", weekdayMetric === k ? "bg-surface text-fg shadow-sm" : "text-subtle hover:text-fg")}
+                  className={cn("rounded-md px-2 py-0.5 text-xs font-semibold", weekdayMetric === k ? "bg-surface text-fg shadow-sm" : "text-subtle hover:text-fg")}
                 >
                   {l}
                 </button>
@@ -594,7 +594,7 @@ export function StatsView({
 
         {/* the six follow-through numbers in one card instead of a loose row */}
         <Card className="flex flex-col p-4 sm:col-span-2 xl:col-span-1">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-subtle">Follow-through</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-subtle">Follow-through</p>
           <div className="grid flex-1 grid-cols-2 gap-2">
             <MiniStat label="Completion" value={pct(cur.completionRate)} hint={<Delta cur={cur.completionRate === null ? null : cur.completionRate * 100} prev={prev.completionRate === null ? null : prev.completionRate * 100} unit="pt" digits={0} />} onOpen={() => setOpen("completion")} />
             <MiniStat label="Must-do hit" value={pct(cur.mustDoHitRate)} hint="done or progressed" good={(cur.mustDoHitRate ?? 0) >= 0.8} onOpen={() => setOpen("mustdo")} />
@@ -660,7 +660,7 @@ export function StatsView({
           onOpen={() => setOpen("diary")}
           className="xl:col-span-2"
           action={
-            <Link href="/diary" className="inline-flex items-center gap-1 rounded-lg bg-accent-muted px-2 py-1 text-[11px] font-semibold text-accent hover:bg-accent/20">
+            <Link href="/diary" className="inline-flex items-center gap-1 rounded-lg bg-accent-muted px-2 py-1 text-xs font-semibold text-accent hover:bg-accent/20">
               <BookOpen className="h-3 w-3" /> Write today
             </Link>
           }
@@ -760,7 +760,7 @@ export function StatsView({
               <ul className="divide-y divide-border">
                 {[...drillByDate.entries()].map(([date, rows]) => (
                   <li key={date} className="py-2">
-                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-subtle">{fmtDay(date)}</p>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-subtle">{fmtDay(date)}</p>
                     {rows.map((r) => (
                       <div key={r.taskId} className="flex items-center justify-between gap-3 py-0.5 text-sm">
                         <Link href={`/task/${r.taskId}`} className="min-w-0 truncate hover:underline">{r.title}</Link>
@@ -777,7 +777,7 @@ export function StatsView({
             <ProjectBars data={stats.hoursByProject} active={drill} onPick={(key) => setParam({ drill: key })} />
             {stats.projectProgress.length ? (
               <div>
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-subtle">Completion</p>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-subtle">Completion</p>
                 <ProgressList items={stats.projectProgress} />
               </div>
             ) : null}

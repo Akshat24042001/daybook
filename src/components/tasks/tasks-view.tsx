@@ -25,6 +25,11 @@ const LOG_WORD: Record<string, [string, Hue]> = {
   done: ["Done", "mint"], progressed: ["Progressed", "teal"], attempted: ["Attempted", "butter"], skipped: ["Skipped", "rose"], dropped: ["Dropped", "rose"],
 };
 
+const TYPE_WORDS: Record<string, string> = {
+  one_off: "One-off", ongoing: "Ongoing", follow_up: "Follow-up", cadence: "Every few days", recurring: "Repeats", someday: "Someday", target: "Target",
+};
+const LAST_WORD: Record<string, string> = { done: "done", open: "planned", skipped: "skipped", progressed: "worked on", attempted: "tried", dropped: "dropped", waiting: "waiting" };
+
 function dayText(iso: string): string {
   const d = new Date(iso.length === 10 ? `${iso}T12:00:00` : iso);
   return d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
@@ -42,11 +47,12 @@ function TaskRowItem({ t }: { t: TaskListRow }) {
         <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[15px] font-medium leading-snug group-hover:underline">
           <span className={cn(st.key === "dropped" && "text-subtle line-through decoration-1")}>{t.title}</span>
           {t.project ? <Chip color={t.color}>{t.project}</Chip> : null}
-          <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", HUE[st.hue].tint, HUE[st.hue].ink)}>{st.label}</span>
+          {/* "Active" is the default and would sit on every row; only the other states earn a badge */}
+          {st.key !== "active" ? <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", HUE[st.hue].tint, HUE[st.hue].ink)}>{st.label}</span> : null}
         </p>
         <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-subtle">
-          <span>{t.type.replace(/_/g, " ")}</span>
-          {t.closed_at ? <span>{st.key === "dropped" ? "dropped" : "closed"} {dayText(t.closed_at)}</span> : t.last_date ? <span>last on {dayText(t.last_date)}{t.last_status ? ` (${t.last_status})` : ""}</span> : <span>never scheduled</span>}
+          <span>{TYPE_WORDS[t.type] ?? t.type.replace(/_/g, " ")}</span>
+          {t.closed_at ? <span>{st.key === "dropped" ? "dropped" : "closed"} {dayText(t.closed_at)}</span> : t.last_date ? <span>last {LAST_WORD[t.last_status ?? ""] ?? "planned"} {dayText(t.last_date)}</span> : <span>never scheduled</span>}
           {t.days_done > 0 ? <span>{t.days_done} {t.days_done === 1 ? "day" : "days"} done</span> : null}
           {t.minutes > 0 ? <span className="tabular">{fmtDuration(t.minutes)} logged</span> : null}
           {t.carry_count >= 2 ? <span className="text-p-butter-fg">carried {t.carry_count}×</span> : null}
@@ -127,7 +133,7 @@ export function TasksView({ tasks, log }: { tasks: TaskListRow[]; log: TaskLogRo
                 return (
                   <li key={l.entry_id}>
                     <Link href={`/task/${l.task_id}`} className="flex items-center gap-3 rounded-xl border border-l-[5px] border-border bg-surface px-3 py-2 hover:bg-muted" style={{ borderLeftColor: l.color ?? undefined }}>
-                      <span className={cn("w-24 shrink-0 rounded-full px-2 py-0.5 text-center text-[11px] font-medium", HUE[hue].tint, HUE[hue].ink)}>{word}</span>
+                      <span className={cn("w-24 shrink-0 rounded-full px-2 py-0.5 text-center text-xs font-medium", HUE[hue].tint, HUE[hue].ink)}>{word}</span>
                       <span className="min-w-0 flex-1 truncate text-sm">{l.title}</span>
                       {l.project ? <span className="hidden text-xs text-subtle sm:inline">{l.project}</span> : null}
                     </Link>

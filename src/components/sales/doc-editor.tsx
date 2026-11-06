@@ -40,7 +40,7 @@ export function DocEditor({ doc, revs, views, url, dealTitle }: { doc: DocRow; r
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent">{doc.kind}{doc.kind === "quote" ? ` · v${doc.current_rev}` : ""}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">{doc.kind}{doc.kind === "quote" ? ` · v${doc.current_rev}` : ""}</p>
           <h1 className="font-display text-2xl">{doc.title}</h1>
           {dealTitle && doc.deal_id ? <Link href={`/sales/deal/${doc.deal_id}`} className="text-sm text-accent hover:underline">{dealTitle}</Link> : null}
         </div>

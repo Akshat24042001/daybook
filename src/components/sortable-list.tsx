@@ -9,7 +9,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition, type CSSProperties, type Ref } from "react";
+import { useEffect, useId, useState, useTransition, type CSSProperties, type Ref } from "react";
 import { reorderEntriesAction } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import type { DateStr } from "@/lib/time";
@@ -66,6 +66,8 @@ export function SortableEntries<T extends { id: number }>({
 }) {
   const router = useRouter();
   const { toast } = useToast();
+  // a stable id: without one the drag library invents a different aria id on the server and in the browser (hydration warning)
+  const dndId = useId();
   const [, start] = useTransition();
   const [order, setOrder] = useState<number[]>(() => items.map((i) => i.id));
   // follow the server whenever it sends a different set or order (after a refresh, or tasks added or removed)
@@ -98,7 +100,7 @@ export function SortableEntries<T extends { id: number }>({
   }
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+    <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
       <SortableContext items={order} strategy={verticalListSortingStrategy}>
         <ul className={cn("space-y-1.5", className)}>
           {shown.map((item) => (

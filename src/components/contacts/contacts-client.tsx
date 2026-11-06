@@ -70,7 +70,7 @@ function TagChipInput({
         {tags.map((t) => (
           <span
             key={t}
-            className="flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent"
+            className="flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent"
           >
             {t}
             <button
@@ -298,7 +298,7 @@ function ContactCard({
             {contact.tags.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
                 {contact.tags.map((t) => (
-                  <span key={t} className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent">
+                  <span key={t} className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
                     {t}
                   </span>
                 ))}
@@ -510,7 +510,7 @@ export function ContactsClient({
           {/* city filter */}
           {allCities.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
-              <span className="self-center text-[11px] font-medium uppercase tracking-wide text-subtle mr-1">City</span>
+              <span className="self-center text-xs font-medium uppercase tracking-wide text-subtle mr-1">City</span>
               {allCities.map((city) => (
                 <FilterPill
                   key={city}
@@ -527,7 +527,7 @@ export function ContactsClient({
           {/* tag filter */}
           {allTags.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
-              <span className="self-center text-[11px] font-medium uppercase tracking-wide text-subtle mr-1">Tag</span>
+              <span className="self-center text-xs font-medium uppercase tracking-wide text-subtle mr-1">Tag</span>
               {allTags.map((tag) => (
                 <FilterPill
                   key={tag}

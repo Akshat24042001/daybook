@@ -25,13 +25,13 @@ export const CHANNEL_LABEL: Record<string, string> = {
 };
 
 const TABS = [
-  { href: "/sales", label: "Moves" },
-  { href: "/sales/pipeline", label: "Pipeline" },
-  { href: "/sales/radar", label: "Radar" },
-  { href: "/sales/accounts", label: "Accounts" },
-  { href: "/sales/docs", label: "Documents" },
-  { href: "/sales/review", label: "Review" },
-  { href: "/sales/settings", label: "Settings" },
+  { href: "/sales", label: "Moves", inSidebar: true },
+  { href: "/sales/pipeline", label: "Pipeline", inSidebar: true },
+  { href: "/sales/radar", label: "Radar", inSidebar: true },
+  { href: "/sales/accounts", label: "Accounts", inSidebar: true },
+  { href: "/sales/docs", label: "Documents", inSidebar: false },
+  { href: "/sales/review", label: "Review", inSidebar: false },
+  { href: "/sales/settings", label: "Settings", inSidebar: false },
 ];
 
 export function SalesTabs() {
@@ -45,6 +45,8 @@ export function SalesTabs() {
             key={t.href}
             href={t.href}
             className={cn(
+              // the desktop sidebar already lists the first four; the rest stay here
+              t.inSidebar && "md:hidden",
               "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
               active ? "border-accent bg-accent-muted text-accent" : "border-border text-subtle hover:border-accent/40 hover:text-fg",
             )}
@@ -64,7 +66,7 @@ export function Priority({ value, prev, why, compact }: { value: number; prev?: 
   const arrow = delta >= 5 ? "↑" : delta <= -5 ? "↓" : "";
   return (
     <span
-      className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular", t[1])}
+      className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold tabular", t[1])}
       title={`Priority ${value}/100${delta ? ` (${delta > 0 ? "+" : ""}${delta} since yesterday)` : ""}${why?.length ? `\n${why.join("\n")}` : ""}`}
     >
       {compact ? null : t[0]} {value}
@@ -79,5 +81,5 @@ export function Heat({ value }: { value: number }) {
 }
 
 export function Label({ children }: { children: React.ReactNode }) {
-  return <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-accent">{children}</p>;
+  return <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-accent">{children}</p>;
 }

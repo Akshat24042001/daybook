@@ -10,6 +10,7 @@ import { describeParsed, parseQuickAdd } from "@/lib/parser";
 import { logicalDate, fmtDuration } from "@/lib/time";
 import { describeTimeLog, looksLikeTimeLog, parseTimeLog } from "@/lib/timelog";
 import { voiceToQuickAdd } from "@/lib/voice";
+import { currentProject, withProject } from "@/lib/quick-add-hints";
 import { applySuggestion, insertChip, suggestionsFor, SYNTAX_CHIPS, type Suggestion } from "@/lib/quick-add-hints";
 import { useToast } from "./toast";
 import { Button, Chip, ErrorNote } from "./ui";
@@ -38,13 +39,14 @@ export function QuickAdd({ tz, boundaryMin, voiceEnabled, aiEnabled }: { tz: str
   const [sugIndex, setSugIndex] = useState(0);
   const [dismissedAt, setDismissedAt] = useState<string | null>(null);
 
+  // the project and people names are needed for autocomplete, the project picker and for understanding speech
   useEffect(() => {
-    if (!focused || names) return;
+    if (names) return;
     fetch("/api/quick-add/lookup")
       .then((r) => r.json())
       .then((j: { projects: string[]; people: string[] }) => setNames({ projects: j.projects ?? [], people: j.people ?? [] }))
       .catch(() => setNames({ projects: [], people: [] }));
-  }, [focused, names]);
+  }, [names]);
 
   const suggestions: Suggestion[] = useMemo(
     () => (focused && names && dismissedAt !== text ? suggestionsFor(text, caret, names) : []),
@@ -241,7 +243,7 @@ export function QuickAdd({ tz, boundaryMin, voiceEnabled, aiEnabled }: { tz: str
           enabled={voiceEnabled}
           className="h-11"
           onText={(t) => {
-            const next = looksLikeTimeLog(t) ? t : voiceToQuickAdd(t);
+            const next = looksLikeTimeLog(t) ? t : voiceToQuickAdd(t, names?.projects ?? []);
             setText(next);
             inputRef.current?.focus();
           }}
@@ -268,6 +270,39 @@ export function QuickAdd({ tz, boundaryMin, voiceEnabled, aiEnabled }: { tz: str
         </Button>
       </form>
 
+      {(focused || text.trim()) && names?.projects.length && !looksLikeTimeLog(text.trim()) ? (
+        <div className="mt-2 flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]" role="group" aria-label="Project">
+          <span className="shrink-0 text-xs font-semibold uppercase tracking-wider text-subtle">Project</span>
+          {[null, ...names.projects].map((name) => {
+            const on = (currentProject(text) ?? null)?.toLowerCase() === (name ?? null)?.toLowerCase();
+            return (
+              <button
+                key={name ?? "none"}
+                type="button"
+                aria-pressed={on}
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  const next = withProject(text || "", name);
+                  setText(name && !text.trim() ? `${name}: ` : next);
+                  requestAnimationFrame(() => {
+                    inputRef.current?.focus();
+                    const end = (name && !text.trim() ? `${name}: ` : next).length;
+                    inputRef.current?.setSelectionRange(end, end);
+                    setCaret(end);
+                  });
+                }}
+                className={cn(
+                  "shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                  on ? "border-transparent bg-accent text-accent-fg" : "border-border bg-surface text-subtle hover:bg-muted hover:text-fg",
+                )}
+              >
+                {name ?? "None"}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
       {focused && !suggestions.length ? (
         <div className="mt-2 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]" aria-label="Quick-add syntax">
           {SYNTAX_CHIPS.map((c) => (
@@ -285,7 +320,7 @@ export function QuickAdd({ tz, boundaryMin, voiceEnabled, aiEnabled }: { tz: str
                   setCaret(next.length);
                 });
               }}
-              className="shrink-0 whitespace-nowrap rounded-lg border border-border bg-bg px-2 py-1 font-mono text-[11px] text-subtle transition-colors hover:border-accent/40 hover:bg-accent-muted hover:text-accent"
+              className="shrink-0 whitespace-nowrap rounded-lg border border-border bg-bg px-2 py-1 font-mono text-xs text-subtle transition-colors hover:border-accent/40 hover:bg-accent-muted hover:text-accent"
             >
               {c.label}
             </button>

@@ -9,15 +9,15 @@ export type ThemePref = "system" | "light" | "dark";
 export type PaletteId = "candy" | Hue;
 
 export const PALETTES: { id: PaletteId; label: string; hint: string; swatch: string[] }[] = [
-  { id: "candy", label: "Candy", hint: "Every page in its own pastel", swatch: ["#BFD2FF", "#D9C7FF", "#BDF2D8", "#FFC7E3"] },
-  { id: "lilac", label: "Lavender", hint: "Soft purple everywhere", swatch: ["#D9C7FF", "#EBDDFF", "#FFC7E3", "#C7E6FF"] },
-  { id: "sky", label: "Sky", hint: "Cloudy blue everywhere", swatch: ["#B5DDFF", "#CFE9FF", "#D9C7FF", "#BDF2D8"] },
-  { id: "mint", label: "Mint", hint: "Fresh green everywhere", swatch: ["#B5F0D3", "#D4F7E5", "#C7E6FF", "#FFF0A8"] },
-  { id: "peach", label: "Peach", hint: "Warm apricot everywhere", swatch: ["#FFD0B0", "#FFE6C7", "#FFF0A8", "#FFC7D2"] },
-  { id: "pink", label: "Blossom", hint: "Cherry-blossom pink everywhere", swatch: ["#FFC4E0", "#FFDDEE", "#D9C7FF", "#FFD0B0"] },
-  { id: "teal", label: "Lagoon", hint: "Aqua everywhere", swatch: ["#A8EDE6", "#CFF6F1", "#C7E6FF", "#D9C7FF"] },
-  { id: "butter", label: "Butter", hint: "Sunny yellow everywhere", swatch: ["#FFE88A", "#FFF3BF", "#FFD0B0", "#BDF2D8"] },
-  { id: "rose", label: "Rose", hint: "Rosy pink-red everywhere", swatch: ["#FFB8C6", "#FFD9E0", "#FFD0B0", "#D9C7FF"] },
+  { id: "candy", label: "Candy", hint: "Every page in its own pastel", swatch: ["#9DB5F5", "#C1A4F2", "#8FDDB9", "#F5A8CF"] },
+  { id: "lilac", label: "Lavender", hint: "Soft purple everywhere", swatch: ["#C1A4F2", "#DCCBFA", "#F5A8CF", "#9CCBF5"] },
+  { id: "sky", label: "Sky", hint: "Cloudy blue everywhere", swatch: ["#8FC7F2", "#B8DEF8", "#C1A4F2", "#8FDDB9"] },
+  { id: "mint", label: "Mint", hint: "Fresh green everywhere", swatch: ["#8FDDB9", "#BDEFD6", "#9CCBF5", "#F7DC6F"] },
+  { id: "peach", label: "Peach", hint: "Warm apricot everywhere", swatch: ["#F5B98C", "#F9D5B3", "#F7DC6F", "#F5A8B8"] },
+  { id: "pink", label: "Blossom", hint: "Cherry-blossom pink everywhere", swatch: ["#F5A8CF", "#F9CCE4", "#C1A4F2", "#F5B98C"] },
+  { id: "teal", label: "Lagoon", hint: "Aqua everywhere", swatch: ["#8CD9D1", "#BDEDE8", "#9CCBF5", "#C1A4F2"] },
+  { id: "butter", label: "Butter", hint: "Sunny yellow everywhere", swatch: ["#F5D34F", "#FAE89A", "#F5B98C", "#8FDDB9"] },
+  { id: "rose", label: "Rose", hint: "Rosy pink-red everywhere", swatch: ["#F5A0B3", "#F9CBD5", "#F5B98C", "#C1A4F2"] },
 ];
 
 const THEME_KEY = "daybook-theme";

@@ -166,16 +166,29 @@ export interface PlanView {
   plannedAt: Date | null;
 }
 
+/** The next day after `from` that is a working day (Friday gives Monday when weekends are off). */
+export function nextWorkingDayAfter(ctx: Ctx, from: DateStr): DateStr {
+  let d = addDays(from, 1);
+  for (let i = 0; i < 7 && !isWorkingDay(ctx, d); i++) d = addDays(d, 1);
+  return d;
+}
+
 export async function planView(ctx: Ctx, date: DateStr): Promise<PlanView> {
+  // Planning is the one place that moves tasks, and only for the day you are really planning: today, or the next working day
+  // (Friday evening plans Monday).
+  // Looking at any other day (last week, next month, a day you reach by clicking the arrows) must change nothing:
+  // it used to drag every unresolved task onto whatever date you happened to open and bump its "carried" count,
+  // which is why tasks seemed to come back by themselves.
+  const planning = date >= ctx.today && date <= nextWorkingDayAfter(ctx, ctx.today);
   // Auto-carry unresolved entries to the plan date without asking. A carry counts only once its day is over: an entry
   // from today may still be done tonight, so the rollover counts it at the boundary if it was left untouched.
   // nothing is carried onto a day off: it waits for the next working day
-  const stale = isWorkingDay(ctx, date) ? await unresolvedEntries(date) : [];
+  const stale = planning && isWorkingDay(ctx, date) ? await unresolvedEntries(date) : [];
   for (const e of stale) {
     await addEntry(ctx, e.task_id, date, { source: "carried", carriedFrom: e.date });
     if (e.status === "open" && e.date < ctx.today) await q("update tasks set carry_count = carry_count + 1 where id = $1", [e.task_id]);
   }
-  await materializeDay(ctx, date, { cadence: true });
+  if (planning) await materializeDay(ctx, date, { cadence: true });
   const triage: EntryView[] = [];
   const entries = await entriesForDate(date);
   const onDay = new Set(entries.map((e) => e.task_id));

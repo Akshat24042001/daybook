@@ -94,8 +94,8 @@ export function MoveCard({ m, googleReady, onGone }: { m: MoveRow; googleReady: 
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", k.tone)}>{k.label}</span>
-            <span className="text-[11px] text-subtle">{overdue ? `due ${ago(move.due_at)}` : `due ${ago(move.due_at)}`}</span>
+            <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", k.tone)}>{k.label}</span>
+            <span className="text-xs text-subtle">{overdue ? `due ${ago(move.due_at)}` : `due ${ago(move.due_at)}`}</span>
             {move.stage_name ? <Chip className="text-[10px]">{move.stage_name}</Chip> : null}
           </div>
           <p className="mt-1 text-sm font-semibold leading-snug">{move.title}</p>

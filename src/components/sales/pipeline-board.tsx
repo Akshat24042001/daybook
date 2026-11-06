@@ -97,13 +97,13 @@ function CardBody({ d, s }: { d: DealCard; s: Stage | undefined }) {
         <Priority value={d.priority} prev={d.priority_prev} why={d.priority_why} compact />
       </div>
       {d.person_name ? <p className="truncate text-xs text-subtle">{d.person_name}{d.company_name && d.company_name !== d.title ? ` · ${d.company_name}` : ""}</p> : null}
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-subtle">
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-subtle">
         {d.value_amount ? <span className="font-medium text-fg">{money(d.value_amount, d.currency)}</span> : null}
         {d.last_channel ? <span className="inline-flex items-center gap-1"><ChannelIcon channel={d.last_channel} className="h-3 w-3" />{ago(d.last_touch_at)}</span> : <span>no touch yet</span>}
         <span className={cn(stuck && "font-semibold text-bad")}>{days}d here</span>
         {d.open_moves ? <span className="text-accent">{d.open_moves} move{d.open_moves > 1 ? "s" : ""}</span> : null}
       </div>
-      {d.priority_why?.[0] ? <p className="mt-1 line-clamp-1 text-[11px] text-subtle">{d.priority_why[0]}</p> : null}
+      {d.priority_why?.[0] ? <p className="mt-1 line-clamp-1 text-xs text-subtle">{d.priority_why[0]}</p> : null}
     </>
   );
 }
@@ -121,7 +121,7 @@ function DraggableCard({ d, s, onMove, targets }: { d: DealCard; s: Stage | unde
         </Link>
       </div>
       {targets.length ? (
-        <Select value="" onChange={(e) => e.target.value && onMove(d, Number(e.target.value))} aria-label="Move to stage" className="mt-2 h-7 text-[11px] md:hidden">
+        <Select value="" onChange={(e) => e.target.value && onMove(d, Number(e.target.value))} aria-label="Move to stage" className="mt-2 h-7 text-xs md:hidden">
           <option value="">Move to…</option>
           {targets.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </Select>
@@ -284,7 +284,7 @@ export function PipelineBoard({ stages, deals, transitions }: { stages: Stage[];
       ) : (
         <>
           <p className="hidden text-xs text-subtle md:block">Drag a card by its handle. While you drag, the stages it can move to light up; the rest fade.</p>
-          <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
+          <DndContext id="pipeline-board" sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
             <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-4 md:mx-0 md:px-0">
               {cols.map((s) => {
                 const list = filtered.filter((d) => d.stage_id === s.id);

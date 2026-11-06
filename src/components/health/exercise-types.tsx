@@ -61,9 +61,9 @@ export function HowToDialog({ info, name, amount, unit, open, onClose }: {
               <div>
                 <div className="rounded-2xl bg-muted/50 p-3">
                   <ExerciseFigure rig={info.rig} controls fps={60} className="mx-auto h-72 w-full max-w-sm" label={`${info.name} demonstration`} />
-                  <p className="mt-1 text-center text-[11px] text-subtle">Drag to turn it around · double-click to reset</p>
+                  <p className="mt-1 text-center text-xs text-subtle">Drag to turn it around · double-click to reset</p>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold">
+                <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-semibold">
                   <span className={cn("rounded-full px-2 py-0.5 capitalize", LEVEL_TONE[info.level])}>{info.level}</span>
                   <span className="rounded-full bg-muted px-2 py-0.5 text-subtle">{info.needs ?? "No equipment"}</span>
                 </div>
@@ -77,7 +77,7 @@ export function HowToDialog({ info, name, amount, unit, open, onClose }: {
                   <ol className="space-y-1.5">
                     {info.steps.map((s, i) => (
                       <li key={i} className="flex gap-2">
-                        <span className="tabular mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-accent-fg">{i + 1}</span>
+                        <span className="tabular mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-fg">{i + 1}</span>
                         <span>{s}</span>
                       </li>
                     ))}
@@ -90,10 +90,10 @@ export function HowToDialog({ info, name, amount, unit, open, onClose }: {
                   </ul>
                 </section>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <p className="rounded-xl border border-border p-3 text-xs"><strong className="block text-[11px] uppercase tracking-wider text-good">Easier</strong>{info.easier}</p>
-                  <p className="rounded-xl border border-border p-3 text-xs"><strong className="block text-[11px] uppercase tracking-wider text-bad">Harder</strong>{info.harder}</p>
+                  <p className="rounded-xl border border-border p-3 text-xs"><strong className="block text-xs uppercase tracking-wider text-good">Easier</strong>{info.easier}</p>
+                  <p className="rounded-xl border border-border p-3 text-xs"><strong className="block text-xs uppercase tracking-wider text-bad">Harder</strong>{info.harder}</p>
                 </div>
-                <p className="text-[11px] text-subtle">Stop if anything hurts (beyond normal muscle effort). Form cues follow standard coaching guidance.</p>
+                <p className="text-xs text-subtle">Stop if anything hurts (beyond normal muscle effort). Form cues follow standard coaching guidance.</p>
               </div>
             </div>
           ) : (
@@ -182,8 +182,8 @@ function Card({ t, onHowTo }: { t: ExerciseTypeData; onHowTo: () => void }) {
               <span className="tabular font-semibold">{t.defaultAmount}</span>{" "}
               <span className="text-subtle">{t.unit === "seconds" ? "seconds a set (hold or keep going)" : "reps a set (times in a row)"}</span>
             </p>
-            {info ? <p className="line-clamp-1 text-[11px] text-subtle" title={info.muscles}>{info.muscles}</p> : <p className="text-[11px] text-subtle">Your own exercise</p>}
-            <p className="mt-auto text-[11px] text-subtle">
+            {info ? <p className="line-clamp-1 text-xs text-subtle" title={info.muscles}>{info.muscles}</p> : <p className="text-xs text-subtle">Your own exercise</p>}
+            <p className="mt-auto text-xs text-subtle">
               {t.lastUsed ? `Last done ${t.lastUsed}` : "Not logged yet"}
               {t.sets30d ? ` · ${t.sets30d} set${t.sets30d === 1 ? "" : "s"} in 30 days` : ""}
               {!t.active ? " · hidden" : ""}
@@ -194,10 +194,10 @@ function Card({ t, onHowTo }: { t: ExerciseTypeData; onHowTo: () => void }) {
       </div>
       {!editing ? (
         <div className="flex border-t border-border text-subtle">
-          <button type="button" onClick={() => setEditing(true)} className="flex flex-1 items-center justify-center gap-1 py-1.5 text-[11px] font-medium hover:bg-muted hover:text-fg" title="Change the name, amount or unit">
+          <button type="button" onClick={() => setEditing(true)} className="flex flex-1 items-center justify-center gap-1 py-1.5 text-xs font-medium hover:bg-muted hover:text-fg" title="Change the name, amount or unit">
             <Pencil className="h-3 w-3" /> Edit
           </button>
-          <button type="button" disabled={pending} onClick={() => save(!t.active)} className="flex flex-1 items-center justify-center gap-1 border-l border-border py-1.5 text-[11px] font-medium hover:bg-muted hover:text-fg" title={t.active ? "Hide it from logging and Telegram pings" : "Show it again"}>
+          <button type="button" disabled={pending} onClick={() => save(!t.active)} className="flex flex-1 items-center justify-center gap-1 border-l border-border py-1.5 text-xs font-medium hover:bg-muted hover:text-fg" title={t.active ? "Hide it from logging and Telegram pings" : "Show it again"}>
             {t.active ? <><EyeOff className="h-3 w-3" /> Hide</> : <><Eye className="h-3 w-3" /> Show</>}
           </button>
           <button type="button" disabled={pending} onClick={remove} className="flex items-center justify-center border-l border-border px-3 py-1.5 hover:bg-bad-muted hover:text-bad" aria-label={`Delete ${t.name}`} title="Delete">

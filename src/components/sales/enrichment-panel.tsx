@@ -63,7 +63,7 @@ export function EnrichmentPanel({ kind, id, data, groups, enrichedAt, title }: {
             if (!rows.length) return null;
             return (
               <div key={g.group}>
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-accent">{g.group}</p>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-accent">{g.group}</p>
                 <dl className="divide-y divide-border rounded-xl border border-border">
                   {rows.map(([k, label]) => {
                     const f = data[k];

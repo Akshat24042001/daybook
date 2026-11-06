@@ -212,17 +212,17 @@ export function ExerciseFigure({
       {controls ? (
         <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-center justify-center gap-1 p-1.5">
           {(["front", "side", "top"] as const).map((k) => (
-            <button key={k} type="button" onClick={() => { setSpin(false); setView(VIEWS[k]); }} className="rounded-lg bg-surface/90 px-2 py-1 text-[11px] font-semibold capitalize text-subtle shadow-sm hover:text-fg">
+            <button key={k} type="button" onClick={() => { setSpin(false); setView(VIEWS[k]); }} className="rounded-lg bg-surface/90 px-2 py-1 text-xs font-semibold capitalize text-subtle shadow-sm hover:text-fg">
               {k}
             </button>
           ))}
-          <button type="button" onClick={() => { setSpin(false); setView(defaultView(rig)); }} className="rounded-lg bg-surface/90 px-2 py-1 text-[11px] font-semibold text-subtle shadow-sm hover:text-fg" aria-label="Reset the view">
+          <button type="button" onClick={() => { setSpin(false); setView(defaultView(rig)); }} className="rounded-lg bg-surface/90 px-2 py-1 text-xs font-semibold text-subtle shadow-sm hover:text-fg" aria-label="Reset the view">
             <RotateCcw className="h-3 w-3" />
           </button>
-          <button type="button" onClick={() => setSpin((v) => !v)} aria-pressed={spin} className={cn("inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold shadow-sm", spin ? "bg-accent text-accent-fg" : "bg-surface/90 text-subtle hover:text-fg")}>
+          <button type="button" onClick={() => setSpin((v) => !v)} aria-pressed={spin} className={cn("inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold shadow-sm", spin ? "bg-accent text-accent-fg" : "bg-surface/90 text-subtle hover:text-fg")}>
             <Move3d className="h-3 w-3" /> Spin
           </button>
-          <button type="button" onClick={() => setPaused((v) => !v)} className="rounded-lg bg-surface/90 px-2 py-1 text-[11px] font-semibold text-subtle shadow-sm hover:text-fg" aria-label={paused ? "Play" : "Pause"}>
+          <button type="button" onClick={() => setPaused((v) => !v)} className="rounded-lg bg-surface/90 px-2 py-1 text-xs font-semibold text-subtle shadow-sm hover:text-fg" aria-label={paused ? "Play" : "Pause"}>
             {paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
           </button>
         </div>

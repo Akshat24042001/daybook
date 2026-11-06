@@ -82,11 +82,11 @@ function ProjectCard({
           }}
         >
           <label className="block">
-            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-subtle">Name</span>
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-subtle">Name</span>
             <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus className="h-9" />
           </label>
           <div>
-            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-subtle">Colour</span>
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-subtle">Colour</span>
             <div className="flex flex-wrap items-center gap-1.5">
               {SWATCHES.map((c) => (
                 <button
@@ -109,7 +109,7 @@ function ProjectCard({
             </div>
           </div>
           <label className="block">
-            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-subtle">Weekly time goal</span>
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-subtle">Weekly time goal</span>
             <div className="flex items-center gap-2">
               <Input
                 type="number"

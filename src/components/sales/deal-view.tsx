@@ -220,7 +220,7 @@ export function DealView({ d }: { d: DealPageData }) {
                         {x.total ? `${money(x.total, x.currency ?? "USD")} · ` : ""}{x.view_count ? `opened ${x.view_count}x, last ${ago(x.last_viewed_at)}` : x.sent_at ? "not opened yet" : "draft"}
                       </p>
                       <div className="mt-1.5 flex items-center gap-1">
-                        <code className="truncate rounded bg-muted px-1.5 py-0.5 text-[11px]">{url.replace(/^https?:\/\//, "")}</code>
+                        <code className="truncate rounded bg-muted px-1.5 py-0.5 text-xs">{url.replace(/^https?:\/\//, "")}</code>
                         <Button size="sm" variant="ghost" className="h-6 px-1.5" onClick={() => void navigator.clipboard.writeText(url).then(() => toast("Link copied. Send it instead of an attachment."))}>
                           <Copy className="h-3 w-3" />
                         </Button>
@@ -334,14 +334,14 @@ function TimelineItem({ i, onDelete }: { i: InteractionRow; onDelete: () => void
       <div className="flex items-start gap-2">
         <span className={cn("mt-0.5 rounded-lg p-1", CHANNEL_TINT[i.channel] ?? "bg-muted text-subtle")}><ChannelIcon channel={i.channel} className="h-3.5 w-3.5" /></span>
         <div className="min-w-0 flex-1">
-          <p className="flex flex-wrap items-center gap-1 text-[11px] text-subtle">
+          <p className="flex flex-wrap items-center gap-1 text-xs text-subtle">
             <Dir className="h-3 w-3" /> {CHANNEL_LABEL[i.channel] ?? i.channel} · {i.direction === "in" ? "from them" : i.direction === "out" ? "from you" : i.direction === "both" ? "both" : "note"} · {fmtDate(i.occurred_at)}
             {i.confidence === "assumed" ? <span title="Logged when you tapped a Daybook send link">· via link</span> : null}
             {i.person_name ? <span>· {i.person_name}</span> : null}
           </p>
           <p className="text-sm">{i.summary || i.subject || (i.body ?? "").slice(0, 200)}</p>
           {i.body && (i.summary || i.body.length > 200) ? (
-            <button type="button" className="text-[11px] text-accent" onClick={() => setOpen((o) => !o)}>{open ? "Hide" : "Show full text"}</button>
+            <button type="button" className="text-xs text-accent" onClick={() => setOpen((o) => !o)}>{open ? "Hide" : "Show full text"}</button>
           ) : null}
           {open ? <pre className="mt-1 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-2 font-sans text-xs">{i.body}</pre> : null}
         </div>
@@ -363,7 +363,7 @@ function Promises({ dealId, mine, theirs, onChange }: { dealId: number; mine: Co
   });
   const List = ({ items, label }: { items: CommitmentRow[]; label: string }) => (
     <div>
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-subtle">{label}</p>
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-subtle">{label}</p>
       {items.length ? (
         <ul className="space-y-1">
           {items.map((c) => {
@@ -421,7 +421,7 @@ function Payments({ dealId, currency, payments, onChange }: { dealId: number; cu
               {p.status === "paid" ? (
                 <button type="button" onClick={() => start(async () => { await markPaidAction(p.id, new Date().toISOString().slice(0, 10), "due"); onChange(); })} className="rounded-full bg-good-muted px-2 text-xs text-good">paid</button>
               ) : (
-                <Button size="sm" variant="outline" className="h-6 px-2 text-[11px]" onClick={() => start(async () => {
+                <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => start(async () => {
                   const r = await markPaidAction(p.id, new Date().toISOString().slice(0, 10));
                   if (!r.ok) toast(r.error, "error");
                   onChange();

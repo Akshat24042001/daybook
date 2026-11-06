@@ -46,7 +46,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         {tiles.map(([l, v]) => (
           <div key={l} className="rounded-2xl border border-border bg-surface px-3 py-2.5">
-            <p className="text-[11px] uppercase tracking-wide text-subtle">{l}</p>
+            <p className="text-xs uppercase tracking-wide text-subtle">{l}</p>
             <p className="font-display text-xl tabular">{v}</p>
           </div>
         ))}

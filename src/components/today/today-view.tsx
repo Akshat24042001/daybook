@@ -1,12 +1,12 @@
 "use client";
 
 import {
-  Building2, CheckCircle2, ChevronDown, Clock3, Coffee, Flag, Car, Heart, ListTodo, Star, Target, Sparkles, Users,
+  Bell, Building2, CheckCircle2, ChevronDown, Clock3, Coffee, Flag, Car, Heart, ListTodo, Star, Target, Sparkles, Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
-import { setScoreAction, setStatusAction, setStepsAction, setWorkedOverrideAction, switchStateAction, toggleMustAction } from "@/app/actions";
+import { addToDayAction, snoozeCadenceAction, setScoreAction, setStatusAction, setStepsAction, setWorkedOverrideAction, switchStateAction, toggleMustAction } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import { HUE, type Hue } from "@/lib/hue";
 import { ACTIVITIES, ACTIVITY, type ActivityKind } from "@/lib/activity";
@@ -58,6 +58,8 @@ export function TodayView(props: {
   asideTop?: React.ReactNode;
   targets: { id: number; title: string; met: boolean; behind: boolean; hasGoal: boolean; period: string }[];
   projects: { id: number; name: string }[];
+  /** every-N-days tasks that are due and not on today's list yet */
+  nudges: { id: number; title: string; project: string | null; color: string | null; daysSince: number; limit: number; never: boolean }[];
   /** the moment the End of day card appears (18:00 local on this day) */
   endOfDayFrom: string;
   /** tasks with a "show from" time still in the future: off the list until then */
@@ -106,6 +108,13 @@ export function TodayView(props: {
     ? props.workedOverride
     : props.workedAtLoad + (working ? (Date.now() - loadedAt.current) / 60000 : 0);
 
+  function nudge(taskId: number, what: "add" | "snooze") {
+    start(async () => {
+      const r = what === "add" ? await addToDayAction(taskId, date) : await snoozeCadenceAction(taskId);
+      if (!r.ok) toast(r.error ?? "That did not work.", "error");
+      else router.refresh();
+    });
+  }
   const all = SECTION_ORDER.flatMap((k) => sections[k]);
   const selectedRow = all.find((r) => r.id === selected) ?? null;
   const mustCount = sections.must.length + all.filter((r) => r.mustDo && !sections.must.includes(r) && r.status !== "dropped").length;
@@ -140,6 +149,9 @@ export function TodayView(props: {
   }
 
   const empty = all.length === 0;
+  const planned = all.filter((r) => r.status !== "dropped");
+  const finished = planned.filter((r) => r.status === "done").length;
+  const pct = planned.length ? Math.round((finished / planned.length) * 100) : 0;
   const stateLabel = optimisticKind === "off" ? "Off" : ACTIVITY[optimisticKind].label;
 
   return (
@@ -159,7 +171,7 @@ export function TodayView(props: {
               className="rounded-xl px-2 py-1 text-right transition-colors hover:bg-muted"
               aria-label="Worked time today. Click to view and edit time segments"
             >
-              <span className="block text-[11px] font-medium uppercase tracking-wide text-subtle">
+              <span className="block text-xs font-medium uppercase tracking-wide text-subtle">
                 Worked{props.workedOverride !== null ? " ✎" : ""}
               </span>
               <span className="tabular block text-2xl font-medium leading-tight">{fmtDuration(worked)}</span>
@@ -175,6 +187,15 @@ export function TodayView(props: {
             ) : null}
           </div>
         </div>
+
+        {planned.length > 0 ? (
+          <div className="mt-3 flex items-center gap-3" aria-label={`${finished} of ${planned.length} done`}>
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+              <div className="h-full rounded-full bg-[linear-gradient(90deg,hsl(var(--sky-fill)),hsl(var(--mint-fill)))] transition-[width] duration-500" style={{ width: `${pct}%` }} />
+            </div>
+            <span className="tabular shrink-0 text-xs font-semibold text-subtle">{finished} of {planned.length} done</span>
+          </div>
+        ) : null}
 
         {/* where you are right now: a compact status bar; ending the day is a separate action, not a place */}
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-surface p-1.5 shadow-[var(--shadow-sm)]">
@@ -264,7 +285,7 @@ export function TodayView(props: {
               ) : (
                 SECTION_LABEL[key]
               )}
-              <span className={cn("rounded-full px-1.5 py-0.5 text-[11px] font-medium normal-case tracking-normal", HUE[SECTION_HUE[key]].tint, HUE[SECTION_HUE[key]].ink)}>{rows.length}</span>
+              <span className={cn("rounded-full px-1.5 py-0.5 text-xs font-medium normal-case tracking-normal", HUE[SECTION_HUE[key]].tint, HUE[SECTION_HUE[key]].ink)}>{rows.length}</span>
             </h2>
             {!isCollapsed ? (
               <SortableEntries
@@ -299,6 +320,28 @@ export function TodayView(props: {
       })}
 
 
+      {props.nudges.length > 0 ? (
+        <section aria-label="Due for a nudge" className="rounded-3xl bg-p-peach p-3 text-p-peach-fg">
+          <h2 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
+            <Bell className="h-3.5 w-3.5" /> Due for a nudge
+            <span className="font-medium normal-case tracking-normal opacity-80">repeating tasks that have gone quiet</span>
+          </h2>
+          <ul className="space-y-1.5">
+            {props.nudges.map((n) => (
+              <li key={n.id} className="flex items-center gap-2 rounded-2xl bg-surface/80 px-3 py-2 text-fg">
+                <span className="h-8 w-1 shrink-0 rounded-full" style={{ background: n.color ?? "hsl(var(--peach-fill))" }} aria-hidden />
+                <Link href={`/task/${n.id}`} className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{n.title}</span>
+                  <span className="block text-xs text-subtle">{n.never ? `never done · every ${n.limit} days` : `${n.daysSince} days since last · every ${n.limit} days`}{n.project ? ` · ${n.project}` : ""}</span>
+                </Link>
+                <Button size="sm" variant="primary" onClick={() => nudge(n.id, "add")}>Add to today</Button>
+                <Button size="sm" variant="ghost" onClick={() => nudge(n.id, "snooze")} title="Skip tomorrow's nudge too">Later</Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {props.later.length > 0 ? (
         <section aria-label="Later today">
           <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-subtle">
@@ -306,7 +349,7 @@ export function TodayView(props: {
               <ChevronDown className={cn("h-4 w-4 transition-transform", !laterOpen && "-rotate-90")} />
               Later today
             </button>
-            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium normal-case tracking-normal text-fg">{props.later.length}</span>
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium normal-case tracking-normal text-fg">{props.later.length}</span>
             <span className="font-normal normal-case tracking-normal">appear on the list at their time</span>
           </h2>
           {laterOpen ? (

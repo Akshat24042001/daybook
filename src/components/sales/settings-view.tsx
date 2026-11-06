@@ -255,7 +255,7 @@ function StageEditor({ stages, transitions }: { stages: Stage[]; transitions: Tr
       <h3 className="mt-5 text-sm font-semibold">Allowed moves</h3>
       <p className="mb-2 text-xs text-subtle">Row = from, column = to. Each cell: blank (not allowed), free, or what it needs.</p>
       <div className="overflow-x-auto">
-        <table className="text-[11px]">
+        <table className="text-xs">
           <thead><tr><th className="sticky left-0 bg-surface p-1 text-left">from \ to</th>{stages.map((s) => <th key={s.id} className="p-1 align-bottom"><div className="w-16 truncate text-left" title={s.name}>{s.name}</div></th>)}</tr></thead>
           <tbody>
             {stages.map((f) => (

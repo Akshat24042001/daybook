@@ -134,7 +134,7 @@ export function SleepCard({ date, minutes, quality }: { date: DateStr; minutes: 
               {f}
             </button>
           ))}
-          {opt.quality ? <span className="ml-1 text-[11px] text-subtle">tap again to remove</span> : null}
+          {opt.quality ? <span className="ml-1 text-xs text-subtle">tap again to remove</span> : null}
         </div>
       ) : null}
     </Card>

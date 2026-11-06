@@ -30,7 +30,7 @@ function List({ icon: Icon, title, items, tone }: { icon: typeof Trophy; title: 
   if (!items.length) return null;
   return (
     <div>
-      <p className={cn("mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide", tone)}>
+      <p className={cn("mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide", tone)}>
         <Icon className="h-3.5 w-3.5" />
         {title}
       </p>
@@ -73,7 +73,7 @@ export function SummaryCard({ s, footer }: { s: DiarySummaryView; footer?: React
       <p className="text-sm leading-relaxed text-fg/90">{s.summary}</p>
       {s.highlights.length ? (
         <div className="rounded-xl bg-hl/60 p-3">
-          <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-accent">
+          <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-accent">
             <Sparkles className="h-3.5 w-3.5" />
             Worth remembering
           </p>
@@ -259,7 +259,7 @@ export function DiaryPanel({
                 recording && "animate-pulse",
               )}
             />
-            <div className="inline-flex rounded-lg bg-muted p-0.5 text-[11px] font-semibold" role="group" aria-label="Spoken language">
+            <div className="inline-flex rounded-lg bg-muted p-0.5 text-xs font-semibold" role="group" aria-label="Spoken language">
               {([["multi", "English / हिंदी"], ["gu", "ગુજરાતી"]] as const).map(([k, l]) => (
                 <button
                   key={k}
@@ -339,7 +339,7 @@ export function DiaryPanel({
         {capture}
         {entries.length ? (
           <Card className="p-4">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-subtle">Your notes</p>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-subtle">Your notes</p>
             <ul className="space-y-4">
               {entries.map((e) => <EntryItem key={e.id} e={e} />)}
             </ul>
@@ -349,7 +349,7 @@ export function DiaryPanel({
       <div className="lg:col-span-3">
         <Card className="p-5">
           <div className="mb-4 flex items-center justify-between gap-2">
-            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-subtle">
+            <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-subtle">
               <Sparkles className="h-3.5 w-3.5 text-accent" /> Day summary
             </p>
             {aiEnabled ? (
@@ -363,7 +363,7 @@ export function DiaryPanel({
             <SummaryCard
               s={summary}
               footer={
-                <p className="border-t border-border pt-3 text-[11px] text-subtle">
+                <p className="border-t border-border pt-3 text-xs text-subtle">
                   Based on {summary.entryCount} note{summary.entryCount === 1 ? "" : "s"} and your tracked tasks, time and health
                   {summary.model ? ` · ${summary.model.replace(/:free$/, "")}` : ""}
                   {summary.entryCount !== entries.length ? " · new notes since, tap Refresh" : ""}

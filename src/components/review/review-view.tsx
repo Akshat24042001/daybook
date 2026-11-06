@@ -66,7 +66,7 @@ function Scorecard({ data }: { data: ReviewData }) {
         const cur = def.get(data.current);
         return (
           <div key={def.label} className="rounded-2xl border border-border bg-surface px-4 py-3 shadow-[var(--shadow-sm)]">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-subtle">{def.label}</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-subtle">{def.label}</p>
             <p className="tabular font-display text-2xl leading-tight">{cur === null ? "–" : def.fmt(cur)}</p>
             <div className="mt-1 flex flex-col gap-0.5">
               <Change cur={cur} ref={def.get(data.previous)} def={def} vs={`last ${unit}`} />
@@ -85,7 +85,7 @@ function ReviewList({ icon: Icon, title, items, tone }: { icon: typeof Trophy; t
   if (!items.length) return null;
   return (
     <div>
-      <p className={cn("mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide", tone)}>
+      <p className={cn("mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide", tone)}>
         <Icon className="h-3.5 w-3.5" /> {title}
       </p>
       <ul className="space-y-1.5 text-sm">
@@ -119,7 +119,7 @@ function AiReview({ data, aiEnabled, onUseDecisions }: { data: ReviewData; aiEna
   return (
     <Card className="p-5">
       <div className="mb-4 flex items-center justify-between gap-2">
-        <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-subtle">
+        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-subtle">
           <Sparkles className="h-3.5 w-3.5 text-accent" /> {data.inProgress ? `The ${noun} so far` : `Your ${noun} in review`}
         </p>
         {aiEnabled ? (
@@ -156,13 +156,13 @@ function AiReview({ data, aiEnabled, onUseDecisions }: { data: ReviewData; aiEna
           </div>
           {r.decisions.length ? (
             <div className="rounded-xl bg-hl/60 p-4">
-              <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-accent">
+              <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-accent">
                 <Target className="h-3.5 w-3.5" /> Decisions for next {noun}
               </p>
               <ol className="space-y-1.5 text-sm">
                 {r.decisions.map((d, i) => (
                   <li key={i} className="flex gap-2">
-                    <span className="tabular flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface text-[11px] font-bold text-accent">{i + 1}</span>
+                    <span className="tabular flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface text-xs font-bold text-accent">{i + 1}</span>
                     <span>{d}</span>
                   </li>
                 ))}
@@ -172,7 +172,7 @@ function AiReview({ data, aiEnabled, onUseDecisions }: { data: ReviewData; aiEna
               </Button>
             </div>
           ) : null}
-          {r.model ? <p className="text-[11px] text-subtle">Written by {r.model.replace(/:free$/, "")} from your numbers and daily diary summaries.</p> : null}
+          {r.model ? <p className="text-xs text-subtle">Written by {r.model.replace(/:free$/, "")} from your numbers and daily diary summaries.</p> : null}
         </div>
       ) : (
         <div className="flex flex-col items-center gap-2 py-8 text-center">
@@ -303,7 +303,7 @@ function IntentionsCard({
           <p className="text-sm font-semibold">{title}</p>
           <p className="text-xs text-subtle">{subtitle}</p>
         </div>
-        {markable && items.length ? <span className="tabular rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-subtle">{done}/{items.length} done</span> : null}
+        {markable && items.length ? <span className="tabular rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-subtle">{done}/{items.length} done</span> : null}
         {!editing && items.length ? (
           <button type="button" onClick={() => setEditing(true)} aria-label="Edit intentions" className="rounded-md p-1 text-subtle hover:bg-muted hover:text-fg">
             <Pencil className="h-3.5 w-3.5" />
@@ -319,7 +319,7 @@ function IntentionsCard({
               <IntentionRow key={i} it={it} onMark={(v) => mark(i, v)} />
             ) : (
               <li key={i} className="flex gap-2 text-sm">
-                <span className="tabular flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-muted text-[11px] font-bold text-accent">{i + 1}</span>
+                <span className="tabular flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-muted text-xs font-bold text-accent">{i + 1}</span>
                 {it.text}
               </li>
             ),
@@ -351,14 +351,14 @@ function DayStrip({ data, today }: { data: ReviewData; today: DateStr }) {
           className="group flex min-h-[112px] flex-col rounded-xl border border-border bg-surface p-3 transition-all hover:border-accent/40 hover:shadow-[var(--shadow-md)]"
         >
           <div className="flex items-baseline justify-between gap-1">
-            <span className="text-[11px] font-semibold uppercase text-subtle">{weekdayName(d.date).slice(0, 3)}</span>
-            <span className="tabular text-[11px] text-subtle">{fmtDateShort(d.date)}</span>
+            <span className="text-xs font-semibold uppercase text-subtle">{weekdayName(d.date).slice(0, 3)}</span>
+            <span className="tabular text-xs text-subtle">{fmtDateShort(d.date)}</span>
           </div>
           <div className="mt-1.5 flex items-center gap-1.5">
             <span className="tabular text-lg font-bold leading-none" title="Your score">{d.score ?? "–"}</span>
             {d.rating !== null ? <span className={cn("tabular rounded-md px-1.5 py-0.5 text-[10px] font-bold", ratingTone(d.rating))} title="AI day rating">AI {d.rating}</span> : null}
           </div>
-          <p className="tabular mt-1 text-[11px] text-subtle">
+          <p className="tabular mt-1 text-xs text-subtle">
             {d.workedH ? `${d.workedH}h work` : "no work"}{d.sleepH !== null ? ` · ${d.sleepH}h sleep` : ""}
           </p>
           {d.headline ? <p className="mt-1.5 line-clamp-2 text-xs leading-snug text-fg/80 group-hover:text-fg">{d.headline}</p> : null}

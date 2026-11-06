@@ -53,8 +53,8 @@ function StepsList({ steps, live }: { steps: Step[]; live?: boolean }) {
               {s.error ? "failed" : `${s.rows ?? 0} rows${s.ms !== undefined ? ` · ${s.ms} ms` : ""}`}
             </span>
           </div>
-          {!live ? <pre className="mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-subtle">{s.sql}</pre> : null}
-          {s.error ? <p className="mt-1 text-[11px] text-bad">{s.error}</p> : null}
+          {!live ? <pre className="mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-subtle">{s.sql}</pre> : null}
+          {s.error ? <p className="mt-1 text-xs text-bad">{s.error}</p> : null}
         </li>
       ))}
     </ol>
@@ -81,7 +81,7 @@ function Message({ m, onAsk, isLast, onChanged }: { m: MessageView; onAsk: (q: s
         <Blocks blocks={blocks} onAsk={onAsk} onChanged={onChanged} />
         {m.steps.length || m.model ? (
           <div>
-            <button onClick={() => setShowSteps(!showSteps)} className="flex items-center gap-1.5 text-[11px] text-subtle hover:text-fg">
+            <button onClick={() => setShowSteps(!showSteps)} className="flex items-center gap-1.5 text-xs text-subtle hover:text-fg">
               <Database className="h-3 w-3" />
               {m.steps.length ? `${m.steps.length} ${m.steps.length === 1 ? "query" : "queries"}` : "no queries"}
               {m.model ? <span>· {m.model.replace(/:free$/, "")}</span> : null}
@@ -164,7 +164,7 @@ function ModelSheet({
                   {m.recommended ? <span className="shrink-0 rounded-full bg-good-muted px-1.5 py-0.5 text-[10px] font-semibold text-good">in Auto</span> : null}
                   {value === m.id ? <Check className="ml-auto h-4 w-4 shrink-0 text-accent" /> : null}
                 </div>
-                <p className="truncate font-mono text-[11px] text-subtle">{m.id}</p>
+                <p className="truncate font-mono text-xs text-subtle">{m.id}</p>
                 <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-medium">
                   <span className="rounded-md bg-muted px-1.5 py-0.5">{fmtCtx(m.context)} context</span>
                   {m.maxOutput ? <span className="rounded-md bg-muted px-1.5 py-0.5">{fmtCtx(m.maxOutput)} out</span> : null}
@@ -304,7 +304,7 @@ function ChatList({
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                   <button
-                    className={cn("rounded-md p-1 text-subtle hover:bg-surface hover:text-bad", confirm === c.id && "bg-bad/10 px-1.5 text-[11px] font-medium text-bad")}
+                    className={cn("rounded-md p-1 text-subtle hover:bg-surface hover:text-bad", confirm === c.id && "bg-bad/10 px-1.5 text-xs font-medium text-bad")}
                     title="Delete"
                     aria-label={confirm === c.id ? "Tap again to delete" : "Delete chat"}
                     onClick={async () => {
@@ -549,7 +549,7 @@ export function AssistantApp({
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {SUGGESTIONS.map((g) => (
                   <div key={g.group}>
-                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-subtle">{g.group}</p>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-subtle">{g.group}</p>
                     <div className="space-y-1.5">
                       {g.items.map((s) => (
                         <button

@@ -1,6 +1,7 @@
 "use client";
 
-import { CheckCircle2, CircleAlert, Monitor, Moon, Send, Sun } from "lucide-react";
+import { CheckCircle2, ChevronRight, CircleAlert, Monitor, Moon, Send, Sun } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import {
@@ -11,7 +12,6 @@ import type { SettingsPatch } from "@/lib/settings";
 import { cn } from "@/lib/cn";
 import { PALETTES, getPalette, getThemePref, setPalette, setThemePref, type PaletteId, type ThemePref } from "@/lib/theme";
 import { useToast } from "../toast";
-import { ExerciseTypes, type ExerciseTypeData } from "../health/exercise-types";
 import { Button, Card, ErrorNote, Field, Input, Select } from "../ui";
 
 type S = Required<SettingsPatch>;
@@ -90,11 +90,10 @@ function Appearance() {
 }
 
 export function SettingsClient({
-  settings, people, types, status,
+  settings, people, status,
 }: {
   settings: S;
   people: { id: number; name: string; relation: string | null }[];
-  types: ExerciseTypeData[];
   status: {
     telegramToken: boolean; telegramLinked: boolean; ownerFromEnv: boolean; voice: boolean; auth: string;
     lastTick: string | null; lastTickAgeSec: number | null; appUrl: string; https: boolean;
@@ -267,8 +266,11 @@ export function SettingsClient({
         </Card>
       </div>
 
-      <Block title="Exercise types" hint="Name, default amount and unit. The bot starts each ping from the last one you used.">
-        <ExerciseTypes types={types} />
+      <Block title="Exercise types" hint="The movements the exercise pings pick from.">
+        <Link href="/health/exercises" className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-4 text-sm font-medium transition-colors hover:bg-muted">
+          <span>Open the exercise library<span className="block text-xs font-normal text-subtle">Add, edit or hide exercises; see how each is done.</span></span>
+          <ChevronRight className="h-4 w-4 text-subtle" />
+        </Link>
       </Block>
 
       <Block title="People" hint="Used for follow-ups (with) and personal requests (requested by).">

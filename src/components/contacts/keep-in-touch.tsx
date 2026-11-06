@@ -102,7 +102,7 @@ export function TouchFooter({ state }: { state: TouchState | undefined }) {
             value={state.everyDays === null ? "never" : String(state.everyDays)}
             disabled={pending}
             onChange={(e) => run(() => setTouchIntervalAction(state.contactId, e.target.value === "never" ? null : Number(e.target.value)))}
-            className="h-7 w-[7.5rem] rounded-lg px-2 text-[11px]"
+            className="h-7 w-[7.5rem] rounded-lg px-2 text-xs"
           >
             {[7, 14, 30, 60, 90].map((d) => <option key={d} value={d}>{d === 7 ? "Weekly" : d === 14 ? "Every 2 weeks" : d === 30 ? "Monthly" : d === 60 ? "Every 2 months" : "Quarterly"}</option>)}
             <option value="never">Don&apos;t nudge</option>
@@ -111,7 +111,7 @@ export function TouchFooter({ state }: { state: TouchState | undefined }) {
             type="button"
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
-            className={cn("h-7 rounded-lg px-2.5 text-[11px] font-semibold transition-colors", open ? "bg-accent text-accent-fg" : "bg-accent-muted text-accent hover:bg-accent/20")}
+            className={cn("h-7 rounded-lg px-2.5 text-xs font-semibold transition-colors", open ? "bg-accent text-accent-fg" : "bg-accent-muted text-accent hover:bg-accent/20")}
           >
             Log touch
           </button>
@@ -137,7 +137,7 @@ export function ReachOut({ due, limit = 5, title = "Reach out", compact = false 
       <div className="mb-3 flex items-center gap-2">
         <HeartHandshake className="h-4 w-4 text-warn" />
         <h2 className="text-sm font-semibold">{title}</h2>
-        <span className="tabular rounded-full bg-warn-muted px-2 py-0.5 text-[11px] font-semibold text-warn">{due.length}</span>
+        <span className="tabular rounded-full bg-warn-muted px-2 py-0.5 text-xs font-semibold text-warn">{due.length}</span>
         <span className="ml-auto hidden text-xs text-subtle sm:inline">People you haven&apos;t been in touch with for a while</span>
       </div>
       <ul className="divide-y divide-border/60">

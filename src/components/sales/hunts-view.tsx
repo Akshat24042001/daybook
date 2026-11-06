@@ -129,9 +129,9 @@ function RunLog({ id }: { id: number }) {
   const [busy, start] = useTransition();
   return (
     <details className="mt-2" onToggle={(e) => { if ((e.target as HTMLDetailsElement).open && !runs) start(async () => { const r = await huntRunsAction(id); if (r.ok) setRuns(r.runs); }); }}>
-      <summary className="cursor-pointer text-[11px] text-subtle">Recent runs {busy ? "…" : ""}</summary>
+      <summary className="cursor-pointer text-xs text-subtle">Recent runs {busy ? "…" : ""}</summary>
       {runs ? (
-        <ul className="mt-1 space-y-1.5 text-[11px]">
+        <ul className="mt-1 space-y-1.5 text-xs">
           {runs.length === 0 ? <li className="text-subtle">No runs yet.</li> : runs.map((r) => (
             <li key={r.id} className="rounded-lg bg-muted px-2 py-1.5">
               <span className={cn("font-medium", r.status === "error" ? "text-bad" : r.status === "running" ? "text-accent" : "text-good")}>{r.status}</span>
@@ -190,12 +190,12 @@ export function HuntsPanel({ hunts, searchCap, providers, tz }: { hunts: HuntVie
                 <div key={l} className="rounded-xl bg-muted px-1 py-1.5"><p className="font-display text-lg tabular leading-none">{n}</p><p className="mt-0.5 text-[10px] text-subtle">{l} · 7d</p></div>
               ))}
             </div>
-            <p className="mt-2 text-[11px] text-subtle">
+            <p className="mt-2 text-xs text-subtle">
               {h.last_run ? <>Last run {ago(h.last_run.started_at)} · <span className={h.last_run.status === "error" ? "text-bad" : ""}>{h.last_run.status === "running" ? "running now" : `${h.last_run.found} new`}</span></> : "Never run"}
               {h.enabled && h.next_run_at ? <> · next {new Date(h.next_run_at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: tz })}</> : null}
               {" · "}≈{h.searches_per_day} searches a day
             </p>
-            {h.last_run?.error ? <p className="mt-1 text-[11px] text-bad">{h.last_run.error}</p> : null}
+            {h.last_run?.error ? <p className="mt-1 text-xs text-bad">{h.last_run.error}</p> : null}
             <div className="mt-3 flex flex-wrap gap-1.5">
               <Button size="sm" variant="primary" disabled={busy} onClick={() => start(async () => {
                 const r = await runHuntAction(h.id);

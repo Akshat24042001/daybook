@@ -191,7 +191,7 @@ function RefForm({
                 type="button"
                 onClick={() => toggleSuggestedTag(t)}
                 className={cn(
-                  "rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors",
+                  "rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
                   f.tags.includes(t)
                     ? "bg-accent text-accent-fg"
                     : "bg-muted text-subtle hover:text-fg",

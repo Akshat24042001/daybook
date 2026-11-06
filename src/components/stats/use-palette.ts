@@ -19,17 +19,17 @@ export interface Palette {
 
 // Mirrors the pastel tokens in globals.css: periwinkle for data, mint / butter / rose only for good / watch / bad.
 const LIGHT: Palette = {
-  accent: "#8FA8F5",
-  accentSoft: "#D6E0FF",
-  ink: "#2E2A4A",
-  subtle: "#6B6788",
-  grid: "#E4DDF5",
-  amber: "#F0C85A",
-  red: "#F29AAE",
-  blue: "#8FA8F5",
-  good: "#6FD1A6",
+  accent: "#7C98F0",
+  accentSoft: "#C9D6FF",
+  ink: "#241F3A",
+  subtle: "#5E5A78",
+  grid: "#D9D0F0",
+  amber: "#EBB93A",
+  red: "#EE7F9A",
+  blue: "#7C98F0",
+  good: "#4FC08F",
   surface: "#ffffff",
-  heat: ["#F0EAFB", "#E4D9FB", "#D3C2F8", "#C0A8F4", "#AE90EF", "#9B77E8", "#835DDB"],
+  heat: ["#EDE6FA", "#DDD0F8", "#C9B5F4", "#B398EE", "#9C7BE6", "#865FDB", "#6F45C9"],
 };
 const DARK: Palette = {
   accent: "#A9BCFF",

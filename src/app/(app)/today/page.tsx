@@ -8,7 +8,7 @@ import { getDay } from "@/lib/services/days";
 import { entriesForDate } from "@/lib/services/entries";
 import { currentState, segmentsForDate, workedForDate } from "@/lib/services/segments";
 import { toLocalInput, toRow, type RowData, type SegmentData } from "@/lib/view-types";
-import { listTargets } from "@/lib/services/goals";
+import { cadenceToNudge, listTargets } from "@/lib/services/goals";
 import { q } from "@/lib/db";
 import { aiConfigured } from "@/lib/ai";
 import { DiaryPanel } from "@/components/diary/diary-panel";
@@ -40,6 +40,11 @@ export default async function TodayPage() {
     listEntries(ctx.today).catch(() => []),
     getSummary(ctx.today).catch(() => null),
   ]);
+  // repeating "every N days" tasks that are due: they used to show up only if you opened Plan
+  const onToday = new Set(entries.map((e) => e.task_id));
+  const nudges = (await cadenceToNudge(ctx).catch(() => []))
+    .filter((c) => !onToday.has(c.task.id))
+    .map((c) => ({ id: c.task.id, title: c.task.title, project: c.task.project_name ?? null, color: c.task.project_color ?? null, daysSince: c.daysSince, limit: c.limit, never: !c.lastDoneDay }));
   const weekStart = periodBounds("week", ctx.today).start;
   const [weekReview, touch, unfinished] = await Promise.all([
     getReview("week", weekStart).catch(() => null),
@@ -81,6 +86,7 @@ export default async function TodayPage() {
       voiceEnabled={voiceConfigured()}
       targets={activeTargets}
       projects={projects}
+      nudges={nudges}
       endOfDayFrom={atLogical(ctx.today, 18 * 60, ctx.tz, ctx.boundaryMin).toISOString()}
       later={sec.later.map((e) => ({ id: e.task_id, title: e.title, from: e.show_from ?? "" }))}
       asideTop={

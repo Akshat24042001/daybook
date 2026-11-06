@@ -3,7 +3,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   BarChart3, BookMarked, BookOpen, Bot, Briefcase, CalendarCheck, ClipboardList, FolderOpen, HeartPulse, KanbanSquare, LayoutGrid, Monitor, Moon, PenLine, Radar, Settings, Sun, Target,
-  History, Search, Users, X, Building2, ListChecks, Undo2,
+  History, Search, Users, X, Building2, ListChecks, Undo2, CalendarDays, LogOut,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -84,6 +84,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "Daily",
     items: [
       { href: "/today", label: "Today", Icon: Sun },
+      { href: "/calendar", label: "Calendar", Icon: CalendarDays },
       { href: "/assistant", label: "Assistant", Icon: Bot },
       { href: "/plan", label: "Plan", Icon: ClipboardList },
       { href: "/tasks", label: "All tasks", Icon: ListChecks },
@@ -129,6 +130,7 @@ const MOBILE_MAIN: NavItem[] = [
   { href: "/stats", label: "Stats", Icon: BarChart3 },
 ];
 const MOBILE_MORE: NavItem[] = [
+  { href: "/calendar", label: "Calendar", Icon: CalendarDays },
   { href: "/sales/pipeline", label: "Pipeline", Icon: KanbanSquare },
   { href: "/sales/radar", label: "Radar", Icon: Radar },
   { href: "/diary", label: "Diary", Icon: BookOpen },
@@ -145,6 +147,18 @@ const MOBILE_MORE: NavItem[] = [
   { href: "/refs", label: "References", Icon: BookMarked },
   { href: "/settings", label: "Settings", Icon: Settings },
 ];
+
+/** A plain form post: it works without JavaScript and always lands on the login page. */
+function SignOut({ className, children }: { className?: string; children?: React.ReactNode }) {
+  return (
+    <form action="/api/auth/logout" method="post">
+      <button type="submit" className={className} title="Sign out of Daybook">
+        <LogOut className="h-4 w-4" />
+        {children}
+      </button>
+    </form>
+  );
+}
 
 function SideLink({ item, active }: { item: NavItem; active: boolean }) {
   const { href, label, Icon } = item;
@@ -232,6 +246,9 @@ export function AppShell({
           <div className="border-t border-border pt-3">
             <SideLink item={{ href: "/settings", label: "Settings", Icon: Settings }} active={active("/settings")} />
             <div className="mt-1 flex items-center justify-between px-1"><PaletteToggle /><ThemeToggle /></div>
+            <SignOut className="mt-1 flex w-full items-center gap-2.5 rounded-full px-3 py-1.5 text-sm font-medium text-subtle transition-colors hover:bg-muted hover:text-fg">
+              Sign out
+            </SignOut>
           </div>
         </aside>
 
@@ -278,7 +295,7 @@ export function AppShell({
             key={href}
             href={href}
             aria-current={active(href) ? "page" : undefined}
-            className={cn("flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium", active(href) ? HUE[hueForPath(href)].ink : "text-subtle")}
+            className={cn("flex flex-col items-center gap-0.5 py-2 text-xs font-medium", active(href) ? HUE[hueForPath(href)].ink : "text-subtle")}
           >
             <span className={cn("flex h-7 w-12 items-center justify-center rounded-full transition-colors", active(href) && HUE[hueForPath(href)].tint)}>
               <Icon className={cn("h-5 w-5", active(href) && "stroke-[2.4]")} />
@@ -290,7 +307,7 @@ export function AppShell({
           type="button"
           onClick={() => setMoreOpen(true)}
           aria-haspopup="dialog"
-          className={cn("flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium", moreActive ? "text-accent" : "text-subtle")}
+          className={cn("flex flex-col items-center gap-0.5 py-2 text-xs font-medium", moreActive ? "text-accent" : "text-subtle")}
         >
           <span className={cn("flex h-7 w-12 items-center justify-center rounded-full", moreActive && "bg-accent-muted")}>
             <LayoutGrid className="h-5 w-5" />
@@ -331,6 +348,9 @@ export function AppShell({
                 </Link>
               ))}
             </div>
+            <SignOut className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl border border-border py-3 text-sm font-medium text-subtle hover:bg-muted hover:text-fg">
+              Sign out
+            </SignOut>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

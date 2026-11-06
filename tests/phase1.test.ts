@@ -405,3 +405,21 @@ describe("misc", () => {
     expect(await one("select 1 as x")).toEqual({ x: 1 });
   });
 });
+
+describe("Plan only changes data for the day you are really planning", () => {
+  it("looking at a past or far-future day carries nothing and leaves carry counts alone", async () => {
+    const today = await ctxAt("2026-09-16 21:00"); // Wednesday
+    const a = await add(today, "Unfinished thing");
+    await setEntryStatus(today, a.entry!.id, "skipped"); // skipping counts once, by design
+    const before = (await getTask(a.task.id))!.carry_count;
+    const t = await ctxAt("2026-09-17 10:00");
+    await planView(t, "2026-09-30"); // two weeks ahead
+    await planView(t, "2026-09-10"); // last week
+    const rows = await q<{ date: string }>("select date from day_entries where task_id = $1", [a.task.id]);
+    expect(rows.map((r) => r.date)).toEqual(["2026-09-16"]);
+    expect((await getTask(a.task.id))!.carry_count).toBe(before); // looking changed nothing
+    // planning tomorrow is the real thing and does carry
+    await planView(t, "2026-09-18");
+    expect((await q<{ date: string }>("select date from day_entries where task_id = $1 order by date", [a.task.id])).map((r) => r.date)).toEqual(["2026-09-16", "2026-09-18"]);
+  });
+});
