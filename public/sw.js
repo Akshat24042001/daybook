@@ -1,6 +1,6 @@
 /* Daybook service worker: makes the app installable and keeps the shell usable offline.
    Data pages are always fetched from the network (never served stale); only static assets are cached. */
-const CACHE = "daybook-static-v1";
+const CACHE = "daybook-static-v2"; // v2: new pastel icons; bumping drops the old cached copies
 const OFFLINE_URL = "/offline.html";
 
 self.addEventListener("install", (event) => {
