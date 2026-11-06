@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { safeEqual } from "@/lib/clock";
 import { UserError } from "@/lib/db";
+import { journaled } from "@/lib/undo";
 import { TOOLS } from "@/lib/mcp/tools";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +44,7 @@ async function handle(m: Rpc): Promise<object | null> {
       if (!tool) return err(m.id, -32602, `Unknown tool: ${String(m.params?.name)}`);
       const args = (m.params?.arguments && typeof m.params.arguments === "object" ? m.params.arguments : {}) as Record<string, unknown>;
       try {
-        const out = await tool.run(args);
+        const out = tool.readOnly ? await tool.run(args) : (await journaled("claude", () => tool.run(args))).value;
         return ok(m.id, { content: [{ type: "text", text: JSON.stringify(out, null, 2) }] });
       } catch (e) {
         // tool failures are results the model can read and react to, not protocol errors

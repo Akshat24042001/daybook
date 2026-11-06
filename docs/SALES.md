@@ -137,6 +137,8 @@ Radar > **Hunts**. A hunt is an AI that searches the web for buyers on a schedul
 - **Cost**: the form shows roughly how many searches a day a schedule spends. Paid providers (Tavily, Serper, Brave)
   stop at your daily cap in Settings; after that the free DuckDuckGo fallback runs, which is much weaker. Hourly
   hunts with many searches need a paid plan or a higher cap.
+- **Plan & platforms** shows exactly what the radar is doing: this week's country and today's industry, the next 7 days of rotation, every platform and whether it is on, paid-search spending, what each source looks at today and when it runs next, every hunt's schedule and last queries, and a log of the last 60 searches that really ran.
+- **Hide** any lead (or a whole list) to tuck it away; tick "Show hidden leads" to see and restore them.
 - A starter hunt, "Daily deep sweep" at 08:30, is created the first time you open the page. Edit or delete it freely.
 
 ## Tracked documents

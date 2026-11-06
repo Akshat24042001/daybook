@@ -25,7 +25,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     const id = nextId.current++;
     setItems((cur) => [...cur.slice(-2), { id, message, kind, action }]);
     // a toast with a button stays long enough to reach it
-    setTimeout(() => setItems((cur) => cur.filter((t) => t.id !== id)), kind === "error" || action ? 6500 : 2800);
+    setTimeout(() => setItems((cur) => cur.filter((t) => t.id !== id)), kind === "error" ? 6500 : action ? 9000 : 2800);
   }, []);
   const value = useMemo(() => ({ toast }), [toast]);
   return (

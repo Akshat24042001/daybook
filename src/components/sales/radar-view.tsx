@@ -1,10 +1,10 @@
 "use client";
 
-import { ExternalLink, Loader2, Plus, Radar, Sparkles } from "lucide-react";
+import { Eye, EyeOff, ExternalLink, Loader2, Plus, Radar, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
-  addRadarItemAction, addSourceAction, digestNowAction, radarDraftAction, radarStatusAction, radarToDealAction, runRadarAction, toggleSourceAction,
+  addRadarItemAction, addSourceAction, digestNowAction, radarDraftAction, radarHideAction, radarStatusAction, radarToDealAction, runRadarAction, toggleSourceAction,
 } from "@/app/sales-actions";
 import { Button, Chip, Field, Input, Select, Sheet, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
@@ -13,11 +13,13 @@ import type { MoveRow } from "@/lib/sales/moves";
 import { ago } from "./util";
 import { MoveCard } from "./moves-view";
 import { HuntsPanel } from "./hunts-view";
+import { PlanPanel } from "./plan-panel";
+import type { RadarPlan } from "@/lib/sales/radar-plan";
 import type { HuntView } from "@/lib/sales/hunts";
 
 export interface RadarItem {
   id: number; title: string; body: string | null; url: string | null; score: number | null; status: string; found_at: string; posted_at: string | null;
-  source: string | null; category: string | null; deal_id: number | null; hunt?: string | null;
+  source: string | null; category: string | null; deal_id: number | null; hunt?: string | null; hidden?: boolean;
   fit: { why?: string; angle?: string; money_leak?: string | null; country?: string; industry?: string; services?: string[]; buyer?: string; budget?: string | null; urgency?: string } | null;
 }
 export interface SourceRow {
@@ -40,7 +42,7 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
     router.refresh();
   });
   return (
-    <li className="rounded-2xl border border-border bg-surface p-3">
+    <li className={cn("rounded-2xl border border-border bg-surface p-3", it.hidden && "border-dashed opacity-60")}>
       <div className="flex items-start gap-3">
         <span className={cn("mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-display text-sm tabular", (it.score ?? 0) >= 75 ? "bg-p-mint text-p-mint-fg" : (it.score ?? 0) >= 60 ? "bg-p-sky text-p-sky-fg" : "bg-muted text-subtle")}>
           {it.score ?? "?"}
@@ -73,6 +75,9 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
           })}><Plus className="h-3.5 w-3.5" /> Make it a lead</Button>
         )}
         {it.url?.startsWith("http") ? <a href={it.url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 rounded-xl px-3 text-xs text-accent hover:bg-muted">Open <ExternalLink className="h-3 w-3" /></a> : null}
+        <Button size="sm" variant="ghost" onClick={() => act(() => radarHideAction([it.id], !it.hidden), false)}>
+          {it.hidden ? <><Eye className="h-3.5 w-3.5" /> Unhide</> : <><EyeOff className="h-3.5 w-3.5" /> Hide</>}
+        </Button>
         <Button size="sm" variant="ghost" onClick={() => act(() => radarStatusAction(it.id, "skipped"))}>Skip</Button>
         <Button size="sm" variant="ghost" onClick={() => act(() => radarStatusAction(it.id, "rejected"))}>Not relevant</Button>
       </div>
@@ -80,16 +85,19 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
   );
 }
 
-export function RadarView({ items, sources, googleReady, focus, searchProviders, hunts, searchCap, tz }: { items: RadarItem[]; sources: SourceRow[]; googleReady: boolean; focus: { country: string; industry: string }; searchProviders: string[]; hunts: HuntView[]; searchCap: number; tz: string }) {
-  const [tab, setTab] = useState<"qualified" | "new" | "rejected" | "hunts" | "sources">("qualified");
+export function RadarView({ items, sources, googleReady, focus, searchProviders, hunts, plan, searchCap, tz }: { items: RadarItem[]; sources: SourceRow[]; googleReady: boolean; focus: { country: string; industry: string }; searchProviders: string[]; hunts: HuntView[]; plan: RadarPlan; searchCap: number; tz: string }) {
+  const [tab, setTab] = useState<"qualified" | "new" | "rejected" | "hunts" | "plan" | "sources">("qualified");
+  const [showHidden, setShowHidden] = useState(false);
   const [busy, start] = useTransition();
   const [add, setAdd] = useState(false);
   const [paste, setPaste] = useState({ title: "", body: "", url: "" });
   const [src, setSrc] = useState({ name: "", kind: "rss" as "rss" | "search" | "reddit" | "gnews", value: "", category: "requirement" });
   const { toast } = useToast();
   const router = useRouter();
-  const list = items.filter((i) => (tab === "qualified" ? i.status === "qualified" : tab === "new" ? i.status === "new" : ["rejected", "skipped"].includes(i.status)));
-  const counts = { qualified: items.filter((i) => i.status === "qualified").length, new: items.filter((i) => i.status === "new").length, rejected: items.filter((i) => ["rejected", "skipped"].includes(i.status)).length };
+  const hiddenCount = items.filter((i) => i.hidden).length;
+  const visible = showHidden ? items : items.filter((i) => !i.hidden);
+  const list = visible.filter((i) => (tab === "qualified" ? i.status === "qualified" : tab === "new" ? i.status === "new" : ["rejected", "skipped"].includes(i.status)));
+  const counts = { qualified: visible.filter((i) => i.status === "qualified").length, new: visible.filter((i) => i.status === "new").length, rejected: visible.filter((i) => ["rejected", "skipped"].includes(i.status)).length };
   const broken = sources.filter((s) => s.enabled && s.last_error).length;
 
   return (
@@ -115,11 +123,34 @@ export function RadarView({ items, sources, googleReady, focus, searchProviders,
         </div>
       </div>
       <div className="flex flex-wrap gap-1.5">
-        {([["qualified", `Qualified · ${counts.qualified}`], ["new", `Scoring · ${counts.new}`], ["rejected", `Below the bar · ${counts.rejected}`], ["hunts", `Hunts · ${hunts.filter((h) => h.enabled).length} on`], ["sources", `Sources${broken ? ` · ${broken} failing` : ""}`]] as const).map(([k, l]) => (
+        {([["qualified", `Qualified · ${counts.qualified}`], ["new", `Scoring · ${counts.new}`], ["rejected", `Below the bar · ${counts.rejected}`], ["hunts", `Hunts · ${hunts.filter((h) => h.enabled).length} on`], ["plan", "Plan & platforms"], ["sources", `Sources${broken ? ` · ${broken} failing` : ""}`]] as const).map(([k, l]) => (
           <button key={k} type="button" onClick={() => setTab(k)} className={cn("rounded-full border px-3 py-1 text-xs", tab === k ? "border-accent bg-accent-muted text-accent" : "border-border text-subtle")}>{l}</button>
         ))}
       </div>
-      {tab === "hunts" ? (
+      {["qualified", "new", "rejected"].includes(tab) ? (
+        <div className="flex flex-wrap items-center gap-3 text-xs text-subtle">
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> Show hidden leads ({hiddenCount})</label>
+          {list.some((i) => !i.hidden) ? (
+            <button type="button" className="rounded-full border border-border px-2.5 py-1 hover:bg-muted" disabled={busy} onClick={() => start(async () => {
+              const ids = list.filter((i) => !i.hidden).map((i) => i.id);
+              if (ids.length > 3 && !confirm(`Hide all ${ids.length} leads in this list? You can bring them back with “Show hidden leads”.`)) return;
+              const r = await radarHideAction(ids, true);
+              toast(r.ok ? `Hid ${r.changed} lead${r.changed === 1 ? "" : "s"}` : r.error, r.ok ? "ok" : "error");
+              router.refresh();
+            })}>Hide all in this list</button>
+          ) : null}
+          {showHidden && list.some((i) => i.hidden) ? (
+            <button type="button" className="rounded-full border border-border px-2.5 py-1 hover:bg-muted" disabled={busy} onClick={() => start(async () => {
+              const r = await radarHideAction(list.filter((i) => i.hidden).map((i) => i.id), false);
+              toast(r.ok ? `Unhid ${r.changed}` : r.error, r.ok ? "ok" : "error");
+              router.refresh();
+            })}>Unhide all shown</button>
+          ) : null}
+        </div>
+      ) : null}
+      {tab === "plan" ? (
+        <PlanPanel plan={plan} />
+      ) : tab === "hunts" ? (
         <HuntsPanel hunts={hunts} searchCap={searchCap} providers={searchProviders} tz={tz} />
       ) : tab !== "sources" ? (
         list.length ? <ul className="grid gap-3 lg:grid-cols-2">{list.map((it) => <ItemCard key={it.id} it={it} googleReady={googleReady} />)}</ul>

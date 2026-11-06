@@ -60,3 +60,19 @@ shared. The schedule is data: the existing every-minute tick queues a due hunt a
 deployed or cron-configured. A run never repeats recent queries, learns from leads you kept or skipped, and is honest
 when there is no search key (it says so instead of reporting zero as success). Search cost is shown before saving.
 **Row-level security** now covers every `sales_*` table (migration 030), and a test fails if a future sales table lacks it.
+
+**Universal undo.** Every change made through the app, Telegram or Claude (MCP) is one *action*. A trigger on each data
+table records the row's "before" state and what changed (`change_log`, grouped by `change_actions`), so Undo works on
+everything, including features added later (a test fails if a table lacks the trigger; a migration that adds a table
+must call `journal_install()`). Undo replays an action backwards; Redo is an undo of the undo. Newer changes to the same
+row block an undo until they are undone first, so nothing is silently overwritten. Rows go back by retrying around
+foreign keys, so cascades (deleting a task and its entries) restore completely. Writes made outside an action (the
+minute tick, crawlers) are not recorded. 30 days of history. Not covered: sales settings (they hold secrets), AI chats,
+and message captures, which keep their own undo. The newest action arrives with every page render, so any screen gets an
+Undo toast with no wiring; Ctrl/Cmd+Z undoes the last one; History lists all of it.
+
+**Hiding leads.** A hidden lead is only tucked away (`hidden` flag): it leaves the lists, the digest and Moves, stays in
+the database, and comes back with "Show hidden leads".
+
+**All tasks.** `/tasks` lists every task whatever its state (active, completed, dropped, waiting) with search and a
+project filter, a "Day by day" log of everything done, skipped or dropped, and Reopen for closed tasks.

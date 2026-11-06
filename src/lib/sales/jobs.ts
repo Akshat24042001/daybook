@@ -59,7 +59,11 @@ export async function runJobs(handlers: Record<string, Handler>, budgetMs: numbe
     }
   }
   // keep the table small
-  if (Math.random() < 0.02) await q("delete from sales_jobs where status in ('done','failed') and created_at < now() - interval '14 days'");
+  if (Math.random() < 0.02) {
+    await q("delete from sales_jobs where status in ('done','failed') and created_at < now() - interval '14 days'");
+    await q("delete from sales_search_log where at < now() - interval '30 days'");
+    await q("delete from change_actions where created_at < now() - interval '30 days'"); // the undo history keeps 30 days
+  }
   return { ran, failed };
 }
 

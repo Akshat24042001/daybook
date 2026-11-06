@@ -3,7 +3,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   BarChart3, BookMarked, BookOpen, Bot, Briefcase, CalendarCheck, ClipboardList, FolderOpen, HeartPulse, KanbanSquare, LayoutGrid, Monitor, Moon, PenLine, Radar, Settings, Sun, Target,
-  History, Search, Users, X, Building2,
+  History, Search, Users, X, Building2, ListChecks, Undo2,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -15,6 +15,7 @@ import { NavProgress } from "./nav-progress";
 import { QuickAdd } from "./quick-add";
 import { StaleBanner } from "./stale-banner";
 import { ToastProvider } from "./toast";
+import { UndoWatcher, type RecentAction } from "./undo-watcher";
 
 type Theme = "system" | "light" | "dark";
 
@@ -63,6 +64,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/today", label: "Today", Icon: Sun },
       { href: "/assistant", label: "Assistant", Icon: Bot },
       { href: "/plan", label: "Plan", Icon: ClipboardList },
+      { href: "/tasks", label: "All tasks", Icon: ListChecks },
       { href: "/unfinished", label: "Unfinished", Icon: History },
       { href: "/diary", label: "Diary", Icon: BookOpen },
       { href: "/scratch", label: "Scratchpad", Icon: PenLine },
@@ -92,6 +94,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/projects", label: "Projects", Icon: FolderOpen },
       { href: "/contacts", label: "Contacts", Icon: Users },
       { href: "/refs", label: "References", Icon: BookMarked },
+      { href: "/history", label: "History", Icon: Undo2 },
     ],
   },
 ];
@@ -101,12 +104,14 @@ const MOBILE_MAIN: NavItem[] = [
   { href: "/today", label: "Today", Icon: Sun },
   { href: "/plan", label: "Plan", Icon: ClipboardList },
   { href: "/sales", label: "Sales", Icon: Briefcase },
-  { href: "/diary", label: "Diary", Icon: BookOpen },
+  { href: "/stats", label: "Stats", Icon: BarChart3 },
 ];
 const MOBILE_MORE: NavItem[] = [
   { href: "/sales/pipeline", label: "Pipeline", Icon: KanbanSquare },
   { href: "/sales/radar", label: "Radar", Icon: Radar },
-  { href: "/stats", label: "Stats", Icon: BarChart3 },
+  { href: "/diary", label: "Diary", Icon: BookOpen },
+  { href: "/tasks", label: "All tasks", Icon: ListChecks },
+  { href: "/history", label: "History", Icon: Undo2 },
   { href: "/assistant", label: "Assistant", Icon: Bot },
   { href: "/scratch", label: "Scratchpad", Icon: PenLine },
   { href: "/unfinished", label: "Unfinished", Icon: History },
@@ -157,12 +162,14 @@ export function AppShell({
   boundaryMin,
   voiceEnabled,
   aiEnabled,
+  undo,
   children,
 }: {
   tz: string;
   boundaryMin: number;
   voiceEnabled: boolean;
   aiEnabled: boolean;
+  undo: RecentAction | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -176,6 +183,7 @@ export function AppShell({
 
   return (
     <ToastProvider>
+      <UndoWatcher action={undo} />
       <StaleBanner />
       <div className="flex min-h-dvh w-full">
         {/* desktop sidebar */}

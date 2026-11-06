@@ -83,8 +83,12 @@ async function duckduckgo(query: string, n: number): Promise<SearchHit[]> {
   return out;
 }
 
-/** One search. Counts against the daily cap except for the keyless fallback. */
-export async function webSearch(query: string, n = 8): Promise<SearchHit[]> {
+async function logSearch(provider: string, query: string, hits: number, label?: string, error?: string): Promise<void> {
+  await q("insert into sales_search_log (provider, query, hits, label, error) values ($1,$2,$3,$4,$5)", [provider, query.slice(0, 400), hits, label ?? null, error?.slice(0, 200) ?? null]).catch(() => {});
+}
+
+/** One search. Counts against the daily cap except for the keyless fallback. `label` says who asked (shown on Radar > Plan). */
+export async function webSearch(query: string, n = 8, label?: string): Promise<SearchHit[]> {
   const cfg = await salesConfig();
   const paidLeft = (await used()) < cfg.radar.search_daily_cap;
   const chain: [string, (q: string, n: number) => Promise<SearchHit[]>][] = [];
@@ -97,9 +101,11 @@ export async function webSearch(query: string, n = 8): Promise<SearchHit[]> {
     try {
       const hits = await fn(query, n);
       if (name !== "duckduckgo") await count(name);
+      await logSearch(name, query, hits.length, label);
       if (hits.length || name === "duckduckgo") return hits;
     } catch (e) {
       last = e as Error;
+      await logSearch(name, query, 0, label, last.message);
     }
   }
   if (last) console.warn("[search] all providers failed:", last.message);

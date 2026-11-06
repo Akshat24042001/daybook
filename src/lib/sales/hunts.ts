@@ -291,7 +291,7 @@ export async function runHunt(id: number, trigger = "schedule", budgetMs = 45_00
     // three at a time: fast enough for the time budget, gentle enough for free search tiers
     for (let i = 0; i < plan.queries.length; i += 3) {
       if (Date.now() - started > budgetMs - 8_000) break;
-      const results = await Promise.allSettled(plan.queries.slice(i, i + 3).map((query) => webSearch(query, 10)));
+      const results = await Promise.allSettled(plan.queries.slice(i, i + 3).map((query) => webSearch(query, 10, `hunt: ${h.name}`)));
       for (const r of results) {
         searched += 1;
         if (r.status !== "fulfilled") continue;

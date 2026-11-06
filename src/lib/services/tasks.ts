@@ -313,3 +313,67 @@ export async function appendNote(ctx: Ctx, taskId: number, text: string): Promis
   await createRemark(taskId, text);
   return (await getTask(taskId))!;
 }
+
+// ------------------------------------------------------------------ the All tasks page
+
+export interface TaskListRow {
+  id: number;
+  title: string;
+  type: string;
+  state: "active" | "done" | "dropped";
+  project: string | null;
+  color: string | null;
+  is_personal: boolean;
+  estimate_min: number | null;
+  carry_count: number;
+  created_at: string;
+  closed_at: string | null;
+  last_date: string | null;
+  last_status: string | null;
+  minutes: number;
+  waiting: boolean;
+  days_done: number;
+}
+
+/** Every task, newest activity first, whatever its state: active, completed, dropped or waiting. */
+export async function allTasks(limit = 2000): Promise<TaskListRow[]> {
+  return q<TaskListRow>(
+    `select t.id, t.title, t.type, t.state, p.name as project, p.color, t.is_personal, t.estimate_min, t.carry_count, t.created_at, t.closed_at,
+            l.last_date, l.last_status,
+            coalesce((select sum(minutes) from time_logs where task_id = t.id), 0)::int as minutes,
+            (t.waiting_until is not null and t.waiting_until >= (now() at time zone 'utc')::date - 1) as waiting,
+            (select count(*)::int from day_entries where task_id = t.id and status in ('done','progressed')) as days_done
+     from tasks t left join projects p on p.id = t.project_id
+     left join lateral (select e.date as last_date, e.status as last_status from day_entries e where e.task_id = t.id order by e.date desc, e.id desc limit 1) l on true
+     order by coalesce(t.closed_at, l.last_date::timestamptz, t.created_at) desc, t.id desc limit $1`,
+    [limit],
+  );
+}
+
+export interface TaskLogRow {
+  entry_id: number;
+  task_id: number;
+  title: string;
+  project: string | null;
+  color: string | null;
+  date: string;
+  status: string;
+  at: string;
+}
+
+/** Every day a task was finished, progressed, skipped or dropped: the "what did I actually do" log. */
+export async function taskLog(limit = 600): Promise<TaskLogRow[]> {
+  return q<TaskLogRow>(
+    `select e.id as entry_id, e.task_id, t.title, p.name as project, p.color, e.date, e.status, e.updated_at as at
+     from day_entries e join tasks t on t.id = e.task_id left join projects p on p.id = t.project_id
+     where e.status in ('done','progressed','skipped','dropped','attempted') order by e.date desc, e.updated_at desc limit $1`,
+    [limit],
+  );
+}
+
+/** Brings a completed or dropped task back to life. */
+export async function reopenTask(id: number): Promise<void> {
+  const t = await one<{ id: number }>("select id from tasks where id = $1", [id]);
+  if (!t) throw new UserError("That task no longer exists.");
+  await q("update tasks set state = 'active', closed_at = null where id = $1", [id]);
+}

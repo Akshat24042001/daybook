@@ -194,7 +194,7 @@ async function desiredGlobal(cfg: SalesConfig, now: number): Promise<Desired[]> 
   // radar
   const radar = await q<{ id: number; title: string; score: number; found_at: string; source: string | null }>(
     `select r.id, r.title, r.score, r.found_at, s.name as source from sales_radar_items r left join sales_radar_sources s on s.id = r.source_id
-     where r.status = 'qualified' and r.deal_id is null and r.found_at > now() - interval '5 days'`,
+     where r.status = 'qualified' and not r.hidden and r.deal_id is null and r.found_at > now() - interval '5 days'`,
   );
   for (const r of radar) out.push({ deal_id: null, radar_item_id: r.id, kind: "radar", title: r.title.slice(0, 140), why: `Radar ${r.score}/100${r.source ? ` from ${r.source}` : ""}. Reply fast or skip.`, channel: null, due_at: new Date(t(r.found_at)), key: `radar:${r.id}`, heat: r.score });
   void cfg;

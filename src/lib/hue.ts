@@ -24,7 +24,7 @@ export const HUE: Record<Hue, { tint: string; ink: string; fill: string; ring: s
 
 /** The hue of each page, by path prefix (longest match wins). */
 const PAGE_HUE: [string, Hue][] = [
-  ["/today", "sky"], ["/task", "sky"], ["/projects", "sky"],
+  ["/today", "sky"], ["/task", "sky"], ["/tasks", "sky"], ["/history", "lilac"], ["/projects", "sky"],
   ["/plan", "lilac"], ["/diary", "lilac"], ["/review", "lilac"], ["/assistant", "lilac"], ["/scratch", "lilac"], ["/refs", "lilac"],
   ["/unfinished", "butter"],
   ["/sales/pipeline", "mint"], ["/sales/radar", "teal"], ["/sales/accounts", "peach"], ["/sales", "sky"],

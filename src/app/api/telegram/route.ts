@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { safeEqual } from "@/lib/clock";
+import { journaled } from "@/lib/undo";
 import { handleUpdate, type TgUpdate } from "@/lib/telegram/bot";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
   try {
-    await handleUpdate(update);
+    // buttons and messages that change something show up in History and can be undone from the app
+    await journaled("telegram", () => handleUpdate(update));
   } catch (e) {
     console.error("[telegram] update failed:", (e as Error).name, (e as Error).message);
   }

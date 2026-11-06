@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { UserError } from "@/lib/db";
+import { journaled } from "@/lib/undo";
 import { makeCtx } from "@/lib/settings";
 import type { DateStr } from "@/lib/time";
 import {
@@ -27,7 +28,7 @@ function refresh() {
  * Saves a note and, when asked, refreshes the day's AI summary. A failed summary never loses the note:
  * the result is still ok, with `summaryError` set.
  */
-export async function addDiaryEntryAction(
+async function addDiaryEntryActionImpl(
   date: DateStr,
   body: string,
   source: DiarySource,
@@ -54,7 +55,7 @@ export async function addDiaryEntryAction(
   }
 }
 
-export async function updateDiaryEntryAction(id: number, body: string): Promise<Result> {
+async function updateDiaryEntryActionImpl(id: number, body: string): Promise<Result> {
   try {
     const row = await updateEntry(id, body);
     if (!row) throw new UserError("That note no longer exists.");
@@ -65,7 +66,7 @@ export async function updateDiaryEntryAction(id: number, body: string): Promise<
   }
 }
 
-export async function deleteDiaryEntryAction(id: number): Promise<Result> {
+async function deleteDiaryEntryActionImpl(id: number): Promise<Result> {
   try {
     await deleteEntry(id);
     refresh();
@@ -75,7 +76,7 @@ export async function deleteDiaryEntryAction(id: number): Promise<Result> {
   }
 }
 
-export async function summarizeDiaryAction(date: DateStr): Promise<Result<{ summary: DiarySummary }>> {
+async function summarizeDiaryActionImpl(date: DateStr): Promise<Result<{ summary: DiarySummary }>> {
   try {
     if (!DATE.test(date)) throw new UserError("Pick a valid date.");
     const ctx = await makeCtx();
@@ -85,4 +86,18 @@ export async function summarizeDiaryAction(date: DateStr): Promise<Result<{ summ
   } catch (e) {
     return fail(e);
   }
+}
+
+// Every action here is undoable: see lib/undo.ts
+export async function addDiaryEntryAction(...args: Parameters<typeof addDiaryEntryActionImpl>): ReturnType<typeof addDiaryEntryActionImpl> {
+  return (await journaled("web", () => addDiaryEntryActionImpl(...args))).value;
+}
+export async function updateDiaryEntryAction(...args: Parameters<typeof updateDiaryEntryActionImpl>): ReturnType<typeof updateDiaryEntryActionImpl> {
+  return (await journaled("web", () => updateDiaryEntryActionImpl(...args))).value;
+}
+export async function deleteDiaryEntryAction(...args: Parameters<typeof deleteDiaryEntryActionImpl>): ReturnType<typeof deleteDiaryEntryActionImpl> {
+  return (await journaled("web", () => deleteDiaryEntryActionImpl(...args))).value;
+}
+export async function summarizeDiaryAction(...args: Parameters<typeof summarizeDiaryActionImpl>): ReturnType<typeof summarizeDiaryActionImpl> {
+  return (await journaled("web", () => summarizeDiaryActionImpl(...args))).value;
 }

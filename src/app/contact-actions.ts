@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { UserError } from "@/lib/db";
+import { journaled } from "@/lib/undo";
 import { makeCtx } from "@/lib/settings";
 import { logTouch, setTouchInterval, snoozeTouch, type TouchKind } from "@/lib/services/keep-in-touch";
 
@@ -9,7 +10,7 @@ type Result = { ok: true } | { ok: false; error: string };
 
 async function run(fn: () => Promise<void>): Promise<Result> {
   try {
-    await fn();
+    await journaled("web", fn);
     revalidatePath("/contacts");
     revalidatePath("/today");
     return { ok: true };

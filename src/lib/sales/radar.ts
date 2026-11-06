@@ -19,7 +19,7 @@ import { fetchFeed, strip, webSearch } from "./search";
 
 const UA = "Mozilla/5.0 (compatible; DaybookRadar/1.0)";
 
-interface SourceRow {
+export interface SourceRow {
   id: number;
   key: string;
   name: string;
@@ -53,7 +53,7 @@ export async function syncCatalog(db: { query: (sql: string, params?: unknown[])
   }
 }
 
-function fill(template: string, focus: { country: string; industry: string }): string {
+export function fill(template: string, focus: { country: string; industry: string }): string {
   return template.replace(/\{country\}/g, focus.country).replace(/\{industry\}/g, focus.industry).replace(/\{year\}/g, String(new Date().getUTCFullYear()));
 }
 
@@ -91,6 +91,22 @@ async function getJson<T>(url: string, headers: Record<string, string> = {}): Pr
 }
 
 const DEV_RE = /\b(ai|a\.i\.|automation|automate|developer|engineer|app|software|full.?stack|react|node|python|n8n|zapier|make\.com|chatbot|agent|llm|gpt|vision|website|web|mobile|ios|android|flutter|integration|crm|data entry|support|operations|backend|frontend|saas|mvp)\b/i;
+
+/** In words: exactly what a source will look at right now, with this week's country and today's industry filled in. */
+export function describeSource(s: Pick<SourceRow, "kind" | "config">, focus: { country: string; industry: string }): string {
+  const c = s.config;
+  switch (s.kind) {
+    case "reddit": return `r/${String(c.sub)}${c.q ? `, searching “${fill(String(c.q), focus)}”` : ", newest posts"}`;
+    case "hn": return `Hacker News: “${String(c.q ?? "")}”`;
+    case "hn_freelancer": return "Hacker News monthly “Seeking freelancer” thread";
+    case "rss": return `Feed ${fill(String(c.url), focus)}`;
+    case "gnews": return `Google News: “${fill(String(c.q), focus)}” (last 3 days)`;
+    case "search": return `Web search: “${fill(String(c.q), focus)}”`;
+    case "json": return `Job API: ${String(c.api)}${c.q ? ` for “${fill(String(c.q), focus)}”` : ""}`;
+    case "email": return "Alert emails from your Gmail";
+    default: return s.kind;
+  }
+}
 
 async function fetchSource(s: SourceRow, focus: { country: string; industry: string }): Promise<RawItem[]> {
   const c = s.config;
@@ -138,7 +154,7 @@ async function fetchSource(s: SourceRow, focus: { country: string; industry: str
       return (await fetchFeed(url)).slice(0, 20).map((x) => ({ title: x.title, url: x.url, body: x.body, author: x.author, posted_at: x.date }));
     }
     case "search": {
-      const hits = await webSearch(fill(String(c.q), focus), 8);
+      const hits = await webSearch(fill(String(c.q), focus), 8, `source: ${s.name}`);
       return hits.map((h) => ({ title: h.title, url: h.url, body: h.snippet, posted_at: h.date ?? null }));
     }
     case "json":
@@ -375,6 +391,13 @@ export async function radarToDeal(id: number): Promise<number> {
   return dealId;
 }
 
+/** Tucks leads away (or brings them back) without judging them: hidden leads stay in the database. */
+export async function setRadarHidden(ids: number[], hidden: boolean): Promise<number> {
+  if (!ids.length) return 0;
+  const rows = await q<{ id: number }>("update sales_radar_items set hidden = $2 where id = any($1::int[]) and hidden <> $2 returning id", [ids.slice(0, 500), hidden]);
+  return rows.length;
+}
+
 export async function setRadarStatus(id: number, status: "skipped" | "rejected" | "new"): Promise<void> {
   await q("update sales_radar_items set status = $2 where id = $1", [id, status]);
   await q("update sales_moves set status = 'skipped', done_at = now() where dedupe_key = $1 and status = 'open'", [`radar:${id}`]);
@@ -395,7 +418,7 @@ export async function hunt(budgetMs = 45_000): Promise<number> {
   let added = 0;
   for (const query of queries) {
     if (Date.now() > deadline - 10_000) break;
-    const hits = await webSearch(query, 8).catch(() => []);
+    const hits = await webSearch(query, 8, "daily hunt").catch(() => []);
     added += await storeItems(null, hits.map((h) => ({ title: h.title, url: h.url, body: `[hunt: ${focus.industry} / ${focus.country}] ${h.snippet}`, posted_at: h.date ?? null })));
   }
   if (Date.now() < deadline - 15_000) await runRadar(Math.max(10_000, deadline - Date.now() - 20_000), { force: true, categories: ["hiring", "review", "funding"] });
@@ -418,7 +441,7 @@ export async function dailyDigest(budgetMs = 50_000): Promise<string> {
   }
   const top = await q<{ id: number; title: string; url: string | null; score: number; fit: Verdict | null; status: string }>(
     `select id, title, url, score, fit, status from sales_radar_items
-     where found_at > now() - interval '48 hours' and digest_sent_at is null and (status = 'qualified' or (status = 'rejected' and score >= 40))
+     where found_at > now() - interval '48 hours' and not hidden and digest_sent_at is null and (status = 'qualified' or (status = 'rejected' and score >= 40))
      order by (status = 'qualified') desc, score desc limit 8`,
   );
   const good = top.filter((t) => t.status === "qualified");

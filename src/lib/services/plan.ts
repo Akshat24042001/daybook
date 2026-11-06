@@ -173,7 +173,7 @@ export async function planView(ctx: Ctx, date: DateStr): Promise<PlanView> {
   const stale = isWorkingDay(ctx, date) ? await unresolvedEntries(date) : [];
   for (const e of stale) {
     await addEntry(ctx, e.task_id, date, { source: "carried", carriedFrom: e.date });
-    if (e.status === "open" && e.date < ctx.today) await getPool().query("update tasks set carry_count = carry_count + 1 where id = $1", [e.task_id]);
+    if (e.status === "open" && e.date < ctx.today) await q("update tasks set carry_count = carry_count + 1 where id = $1", [e.task_id]);
   }
   await materializeDay(ctx, date, { cadence: true });
   const triage: EntryView[] = [];

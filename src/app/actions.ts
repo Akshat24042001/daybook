@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { one, q, UserError } from "@/lib/db";
+import { journaled } from "@/lib/undo";
 import { describeParsed, parseQuickAdd, type ParsedQuickAdd, type TaskType } from "@/lib/parser";
 import { makeCtx, updateSettings, type Ctx, type SettingsPatch } from "@/lib/settings";
 import { zonedInstant, addDays, atLogical, parseHM, type DateStr, type TargetPeriod } from "@/lib/time";
@@ -22,7 +23,7 @@ import {
   type StateKind,
 } from "@/lib/services/segments";
 import {
-  appendNote, cleanShowFrom, createRemark, deleteRemark, createFromParsed, deleteTask, ensurePerson, ensureProject, findDuplicates, getTask, makeSomeday, updateTask,
+  appendNote, cleanShowFrom, createRemark, deleteRemark, createFromParsed, deleteTask, ensurePerson, ensureProject, findDuplicates, getTask, makeSomeday, reopenTask, updateTask,
   type TaskPatch,
 } from "@/lib/services/tasks";
 import { sendMessage, telegramConfigured } from "@/lib/telegram/api";
@@ -40,7 +41,9 @@ async function run<T extends object = object>(
 ): Promise<ActionResult<T>> {
   try {
     const ctx = await makeCtx();
-    const data = (await fn(ctx)) ?? ({} as T);
+    // one undoable action: whatever fn writes can be undone from the Undo pill or History
+    const { value } = await journaled("web", async () => (await fn(ctx)) ?? ({} as T));
+    const data = value;
     // Revalidate only the paths that changed, not the entire layout tree.
     for (const p of paths ?? []) revalidatePath(p);
     return { ok: true, ...data } as Ok<T>;
@@ -343,6 +346,11 @@ export async function updateTaskAction(id: number, patch: TaskPatch) {
   }, ["/today", "/goals"]);
 }
 
+export async function reopenTaskAction(id: number) {
+  return run(async () => {
+    await reopenTask(id);
+  }, ["/tasks", "/today", "/plan", "/unfinished"]);
+}
 export async function deleteTaskAction(id: number) {
   return run(async () => {
     await deleteTask(id);

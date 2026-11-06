@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { UserError } from "@/lib/db";
+import { journaled } from "@/lib/undo";
 import { makeCtx } from "@/lib/settings";
 import type { DateStr } from "@/lib/time";
 import type { FileData } from "@/lib/scratch";
@@ -23,7 +24,7 @@ async function checkDate(date: DateStr) {
   if (date > ctx.today) throw new UserError("The scratchpad cannot hold a future day.");
 }
 
-export async function createScratchAction(date: DateStr, kind: string, data?: unknown): Promise<Result<{ id: number }>> {
+async function createScratchActionImpl(date: DateStr, kind: string, data?: unknown): Promise<Result<{ id: number }>> {
   try {
     await checkDate(date);
     const row = await createItem(date, kind, "", data);
@@ -35,7 +36,7 @@ export async function createScratchAction(date: DateStr, kind: string, data?: un
 }
 
 /** Autosave target: no revalidate, the editor already shows what was saved. */
-export async function saveScratchAction(id: number, patch: { title?: string; data?: unknown }): Promise<Result> {
+async function saveScratchActionImpl(id: number, patch: { title?: string; data?: unknown }): Promise<Result> {
   try {
     await updateItem(id, patch);
     return { ok: true };
@@ -44,7 +45,7 @@ export async function saveScratchAction(id: number, patch: { title?: string; dat
   }
 }
 
-export async function deleteScratchAction(id: number): Promise<Result> {
+async function deleteScratchActionImpl(id: number): Promise<Result> {
   try {
     await deleteItem(id);
     revalidatePath("/scratch");
@@ -54,7 +55,7 @@ export async function deleteScratchAction(id: number): Promise<Result> {
   }
 }
 
-export async function copyScratchToTodayAction(id: number): Promise<Result<{ date: DateStr }>> {
+async function copyScratchToTodayActionImpl(id: number): Promise<Result<{ date: DateStr }>> {
   try {
     const ctx = await makeCtx();
     await copyItem(id, ctx.today);
@@ -66,7 +67,7 @@ export async function copyScratchToTodayAction(id: number): Promise<Result<{ dat
 }
 
 /** Step 1 of a file upload: returns the new item and a short-lived link the browser puts the file to. */
-export async function startUploadAction(
+async function startUploadActionImpl(
   date: DateStr,
   kind: "file" | "voice",
   file: { name: string; mime: string; size: number },
@@ -82,7 +83,7 @@ export async function startUploadAction(
 }
 
 /** Step 2: confirms the file arrived and returns a link to show it. */
-export async function finishUploadAction(
+async function finishUploadActionImpl(
   id: number,
   extra: { width?: number; height?: number; duration?: number; transcript?: string } = {},
 ): Promise<Result<{ data: FileData; url: string | null }>> {
@@ -94,4 +95,24 @@ export async function finishUploadAction(
   } catch (e) {
     return fail(e);
   }
+}
+
+// Every action here is undoable: see lib/undo.ts
+export async function createScratchAction(...args: Parameters<typeof createScratchActionImpl>): ReturnType<typeof createScratchActionImpl> {
+  return (await journaled("web", () => createScratchActionImpl(...args))).value;
+}
+export async function saveScratchAction(...args: Parameters<typeof saveScratchActionImpl>): ReturnType<typeof saveScratchActionImpl> {
+  return (await journaled("web", () => saveScratchActionImpl(...args))).value;
+}
+export async function deleteScratchAction(...args: Parameters<typeof deleteScratchActionImpl>): ReturnType<typeof deleteScratchActionImpl> {
+  return (await journaled("web", () => deleteScratchActionImpl(...args))).value;
+}
+export async function copyScratchToTodayAction(...args: Parameters<typeof copyScratchToTodayActionImpl>): ReturnType<typeof copyScratchToTodayActionImpl> {
+  return (await journaled("web", () => copyScratchToTodayActionImpl(...args))).value;
+}
+export async function startUploadAction(...args: Parameters<typeof startUploadActionImpl>): ReturnType<typeof startUploadActionImpl> {
+  return (await journaled("web", () => startUploadActionImpl(...args))).value;
+}
+export async function finishUploadAction(...args: Parameters<typeof finishUploadActionImpl>): ReturnType<typeof finishUploadActionImpl> {
+  return (await journaled("web", () => finishUploadActionImpl(...args))).value;
 }

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { one, q, UserError } from "@/lib/db";
+import { journaled } from "@/lib/undo";
 import { completeMove, sendMoveEmail } from "@/lib/sales/act";
 import { salesConfig, updateSalesConfig, type SalesConfig } from "@/lib/sales/config";
 import {
@@ -15,7 +16,7 @@ import { enqueue } from "@/lib/sales/jobs";
 import { type GoChannel } from "@/lib/sales/links";
 import { addCustomMove, draftForMove, refreshMoves, setMoveStatus, snoozeMove, type MoveRow } from "@/lib/sales/moves";
 import { deleteHunt, recentRuns, runHuntNow, saveHunt, setHuntEnabled, type HuntInput, type HuntRun } from "@/lib/sales/hunts";
-import { radarToDeal, runRadar, qualifyPending, setRadarStatus, dailyDigest } from "@/lib/sales/radar";
+import { radarToDeal, runRadar, qualifyPending, setRadarHidden, setRadarStatus, dailyDigest } from "@/lib/sales/radar";
 import { deleteStage, moveDeal, saveStage, setTransition, type Category, type Requirement } from "@/lib/sales/stages";
 import { fileStore, newPath } from "@/lib/storage";
 
@@ -23,7 +24,7 @@ type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
 async function run<T extends object = object>(fn: () => Promise<T | void>, paths: string[] = ["/sales"]): Promise<Result<T>> {
   try {
-    const out = (await fn()) ?? ({} as T);
+    const out = (await journaled("web", async () => (await fn()) ?? ({} as T))).value;
     for (const p of paths) revalidatePath(p, p.includes("[") ? "page" : undefined);
     return { ok: true, ...(out as T) };
   } catch (e) {
@@ -264,6 +265,9 @@ export async function radarToDealAction(id: number) {
 }
 export async function radarStatusAction(id: number, status: "skipped" | "rejected" | "new") {
   return run(() => setRadarStatus(id, status), ["/sales/radar", "/sales"]);
+}
+export async function radarHideAction(ids: number[], hidden: boolean) {
+  return run<{ changed: number }>(async () => ({ changed: await setRadarHidden(ids.filter(Number.isInteger), hidden) }), ["/sales/radar"]);
 }
 export async function runRadarAction() {
   return run<{ added: number; scored: number }>(async () => {

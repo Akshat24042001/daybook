@@ -28,6 +28,8 @@ Lets Claude read your day and your sales pipeline, add tasks, tick tasks off and
 | `sales_hunts` | read | Your scheduled AI lead hunts and what each found this week |
 | `sales_run_hunt` | write | Start a lead hunt now |
 
+Every write shows up in the app's History and can be undone there.
+
 Deliberately **not** included: sending messages to clients, moving or closing deals, deleting anything. Those stay
 with you, in the app or in Telegram.
 
