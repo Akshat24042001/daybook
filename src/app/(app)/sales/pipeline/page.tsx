@@ -18,7 +18,7 @@ export default async function PipelinePage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl">Pipeline</h1>
-          <p className="text-sm text-subtle">Stages move on their own as conversations happen. Heat shows how alive each deal is right now.</p>
+          <p className="text-sm text-subtle">Stages move on their own as conversations happen. Priority (0 to 100) rises and falls with real engagement, so whoever needs you most is on top.</p>
         </div>
         <NewDealButton />
       </div>

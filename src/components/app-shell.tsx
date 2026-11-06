@@ -165,7 +165,7 @@ export function AppShell({
         {/* desktop sidebar */}
         <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r border-border bg-surface/60 px-3 py-5 md:flex">
           <Link href="/today" className="flex items-center gap-2.5 px-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent text-accent-fg shadow-[0_2px_8px_hsl(var(--accent)/0.35)]">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand text-bg shadow-[0_2px_8px_hsl(var(--brand)/0.30)]">
               <BookOpen className="h-4 w-4" />
             </span>
             <span className="font-display text-xl">Daybook</span>
@@ -199,7 +199,7 @@ export function AppShell({
           <header className="pt-safe sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur md:border-0 md:bg-transparent md:backdrop-blur-0">
             <div className="flex items-center justify-between px-4 py-2 md:hidden">
               <Link href="/today" className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-accent-fg">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand text-bg">
                   <BookOpen className="h-3.5 w-3.5" />
                 </span>
                 <span className="font-display text-lg">Daybook</span>

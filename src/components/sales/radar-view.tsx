@@ -40,7 +40,7 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
   return (
     <li className="rounded-2xl border border-border bg-surface p-3">
       <div className="flex items-start gap-3">
-        <span className={cn("mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-display text-sm tabular", (it.score ?? 0) >= 75 ? "bg-good-muted text-good" : (it.score ?? 0) >= 60 ? "bg-accent-muted text-accent" : "bg-muted text-subtle")}>
+        <span className={cn("mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-display text-sm tabular", (it.score ?? 0) >= 75 ? "bg-p-mint text-p-mint-fg" : (it.score ?? 0) >= 60 ? "bg-p-sky text-p-sky-fg" : "bg-muted text-subtle")}>
           {it.score ?? "?"}
         </span>
         <div className="min-w-0 flex-1">
@@ -51,7 +51,7 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
           </p>
           {f.why ? <p className="mt-1 text-xs">{f.why}</p> : null}
           {f.angle ? <p className="mt-1 text-xs text-accent">💡 {f.angle}</p> : null}
-          {f.money_leak ? <p className="mt-1 rounded-lg bg-warn-muted px-2 py-1 text-xs text-warn">{f.money_leak}</p> : null}
+          {f.money_leak ? <p className="mt-1 rounded-lg bg-p-butter px-2 py-1 text-xs text-p-butter-fg">{f.money_leak}</p> : null}
           {f.services?.length ? <div className="mt-1 flex flex-wrap gap-1">{f.services.map((s) => <Chip key={s} className="text-[10px]">{s}</Chip>)}</div> : null}
           {it.body ? <details className="mt-1"><summary className="cursor-pointer text-[11px] text-subtle">Full post</summary><p className="mt-1 whitespace-pre-line text-xs text-subtle">{it.body.slice(0, 2500)}</p></details> : null}
         </div>

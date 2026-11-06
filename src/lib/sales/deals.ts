@@ -32,6 +32,9 @@ export interface DealRow {
   next_action: string | null;
   next_action_at: string | null;
   heat: number;
+  priority: number;
+  priority_prev: number | null;
+  priority_why: string[];
   summary: string | null;
   requirements: string | null;
   budget: string | null;
@@ -81,7 +84,7 @@ export const DEAL_CARD_SQL = `
   left join sales_people im on im.id = d.intermediary_id`;
 
 export async function listDeals(where = "true", params: unknown[] = []): Promise<DealCard[]> {
-  return q<DealCard>(`${DEAL_CARD_SQL} where ${where} order by d.heat desc, d.updated_at desc`, params);
+  return q<DealCard>(`${DEAL_CARD_SQL} where ${where} order by d.priority desc, d.updated_at desc`, params);
 }
 
 export async function getDeal(id: number): Promise<DealCard | null> {
@@ -344,23 +347,8 @@ export async function deletePayment(id: number): Promise<void> {
 
 // ------------------------------------------------------------------ heat
 
-/**
- * 0 to 100: how alive the deal is right now. Stage probability sets the floor, a recent reply lifts it, silence decays
- * it, and a quote being opened in the last two days adds a jolt.
- */
+/** Priority and heat (kept equal) for all deals, or one deal and its company. See priority.ts. */
 export async function refreshHeat(dealId?: number): Promise<void> {
-  await q(
-    `update sales_deals d set heat = least(100, greatest(0, round(
-        coalesce(d.probability, s.probability) * 0.5
-        + 40 * exp(-greatest(0, extract(epoch from now() - coalesce(d.last_inbound_at, d.created_at)) / 86400.0) / 7.0)
-        + case when exists (select 1 from sales_doc_views v join sales_docs x on x.id = v.doc_id where x.deal_id = d.id and v.viewed_at > now() - interval '48 hours') then 20 else 0 end
-        - case when d.last_outbound_at > coalesce(d.last_inbound_at, d.created_at) then least(20, extract(epoch from now() - d.last_outbound_at) / 86400.0) else 0 end
-      )))::int
-     from sales_stages s where s.id = d.stage_id and ($1::int is null or d.id = $1) and s.category in ('open','won')`,
-    [dealId ?? null],
-  );
-  await q(
-    "update sales_deals d set heat = 0 from sales_stages s where s.id = d.stage_id and s.category in ('lost','parked') and ($1::int is null or d.id = $1)",
-    [dealId ?? null],
-  );
+  const { refreshPriorities } = await import("./priority");
+  await refreshPriorities(dealId);
 }

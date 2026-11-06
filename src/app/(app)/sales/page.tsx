@@ -28,11 +28,11 @@ export default async function SalesPage() {
   );
   const focus = focusFor(cfg, new Date());
   const tiles = [
-    { label: "Open pipeline", value: money(k?.open_usd ?? 0), sub: `${k?.deals ?? 0} deals` },
-    { label: "Weighted", value: money(k?.weighted ?? 0), sub: "by stage probability" },
-    { label: "Won, not paid", value: money(k?.won_unpaid ?? 0), sub: "cash to collect" },
-    { label: "Replies waiting", value: String(k?.replies ?? 0), sub: `${k?.meetings ?? 0} meetings in 24h` },
-    { label: "Fresh radar leads", value: String(k?.radar ?? 0), sub: `${focus.country} · ${focus.industry}` },
+    { label: "Open pipeline", value: money(k?.open_usd ?? 0), sub: `${k?.deals ?? 0} deals`, tone: "bg-p-sky text-p-sky-fg" },
+    { label: "Weighted", value: money(k?.weighted ?? 0), sub: "by stage probability", tone: "bg-p-lavender text-p-lavender-fg" },
+    { label: "Won, not paid", value: money(k?.won_unpaid ?? 0), sub: "cash to collect", tone: "bg-p-mint text-p-mint-fg" },
+    { label: "Replies waiting", value: String(k?.replies ?? 0), sub: `${k?.meetings ?? 0} meetings in 24h`, tone: "bg-p-rose text-p-rose-fg" },
+    { label: "Fresh radar leads", value: String(k?.radar ?? 0), sub: `${focus.country} · ${focus.industry}`, tone: "bg-p-butter text-p-butter-fg" },
   ];
   return (
     <div className="space-y-5">
@@ -45,10 +45,10 @@ export default async function SalesPage() {
       </div>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
         {tiles.map((t) => (
-          <div key={t.label} className="rounded-2xl border border-border bg-surface px-3 py-2.5">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-subtle">{t.label}</p>
-            <p className="font-display text-xl tabular">{t.value || "0"}</p>
-            <p className="truncate text-[11px] text-subtle">{t.sub}</p>
+          <div key={t.label} className={`rounded-2xl px-3 py-2.5 ${t.tone}`}>
+            <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">{t.label}</p>
+            <p className="font-display text-xl tabular text-current">{t.value || "0"}</p>
+            <p className="truncate text-[11px] opacity-80">{t.sub}</p>
           </div>
         ))}
       </div>

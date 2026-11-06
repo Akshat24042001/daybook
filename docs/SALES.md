@@ -8,7 +8,7 @@ find at least one qualified opportunity a day, and track every quote until the m
 | Screen | What it is for |
 |---|---|
 | **Moves** (`/sales`) | Everything that needs you, ranked: replies waiting, promises, follow-ups, hot quotes, money, new radar leads. Draft in your voice, send in one tap, it logs itself. |
-| **Pipeline** | Board by stage. Stages move by themselves as conversations happen. Heat (0 to 100) shows how alive each deal is. |
+| **Pipeline** | Board by stage with drag and drop (allowed stages light up while you drag, the rest fade), or a list ranked by priority. Sort cards by priority, value, last touch, time in stage or newest. Stages also move by themselves as conversations happen. |
 | **Deal** | Where we are (auto-written), timeline across every channel, last touch per channel, promises both ways, documents and their opens, money, people (decision makers, referrer, intermediary), research, stage history. |
 | **Radar** | Leads found on the internet, scored against your offers, with the angle to open with. Sources on/off and their hit rates. |
 | **Accounts** | Companies and people, with 50+ researched fields each. Merge duplicates, import from Contacts. |
@@ -63,6 +63,24 @@ them alone.
 - Closed or parked deals stop generating chase moves. Parked deals come back as a "Revisit" move on their date.
 - Intermediaries: a deal can have a referrer and an intermediary (agency, broker, consultant, partner) with commission
   (percent or fixed). Turn on "follow-ups go to the intermediary" when the client only talks through them.
+
+## Priority
+
+Every deal has a priority from 0 to 100, recomputed every 10 minutes, with the reasons shown and a trend arrow against
+yesterday. Hot is 70+, Warm 45+, Steady 20+, Cold below.
+
+| Part | Points | What drives it |
+|---|---|---|
+| Engagement | 0 to 35 | How recently they engaged, this person or anyone at the same company; fades over about a week |
+| Momentum | 0 to 10 | Replies in the last 14 days; minus a bit when they are cooling compared to the 14 days before |
+| Intent | 0 to 15 | Quote opened in the last 48 hours (3+ opens counts more), a meeting in the next 3 days |
+| Value | 0 to 15 | Deal size on a log scale |
+| Stage | 0 to 15 | How far along it is |
+| Urgency | 0 to 10 | Overdue moves, your promises due now |
+| Comeback | +15 | They, or their company, wrote again after 60+ days of silence |
+
+Parked and lost deals stay low until there is fresh contact; finished projects stay low unless something needs you.
+So a lead that went quiet for six months jumps back to the top the day they write again.
 
 ## Capture: how logging happens without you typing
 

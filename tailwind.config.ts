@@ -25,6 +25,13 @@ const config: Config = {
         bad: token("bad"),
         "bad-muted": token("bad-muted"),
         hl: token("hl"),
+        brand: token("brand"),
+        "p-mint": token("p-mint"), "p-mint-fg": token("p-mint-fg"),
+        "p-butter": token("p-butter"), "p-butter-fg": token("p-butter-fg"),
+        "p-sky": token("p-sky"), "p-sky-fg": token("p-sky-fg"),
+        "p-lavender": token("p-lavender"), "p-lavender-fg": token("p-lavender-fg"),
+        "p-peach": token("p-peach"), "p-peach-fg": token("p-peach-fg"),
+        "p-rose": token("p-rose"), "p-rose-fg": token("p-rose-fg"),
       },
       fontFamily: {
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],

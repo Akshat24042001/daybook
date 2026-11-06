@@ -4,34 +4,39 @@
 
 /* ── Light theme ─────────────────────────────────────────────────────────── */
 :root {
-  /* Aivaura palette (aivaura.com): warm paper ground, ink text, one confident blue */
-  --bg:         90  12% 97%;
+  /* Palette from the Vector pricing guide: paper, ink, navy, teal, with soft pastel tints */
+  --bg:         216 38% 97%;   /* paper  #F6F8FB */
   --surface:    0   0%  100%;
-  --muted:      90  10% 93%;
-  --border:     90  6%  86%;
-  --fg:         220 13% 9%;
-  --subtle:     127 4%  38%;
+  --muted:      210 40% 95%;   /* ice    #EEF3F8 */
+  --border:     212 29% 87%;   /* line   #D5DEE8 */
+  --fg:         218 11% 19%;   /* ink    #2B2F36 */
+  --subtle:     215 12% 40%;   /* slate  #5A6472 */
+  --brand:      215 51% 25%;   /* navy   #1F3A5F */
 
-  /* Aivaura blue #2F55E4, white text on it */
-  --accent:     227 77% 54%;
+  --accent:     180 80% 27%;   /* teal   #0E7C7B */
   --accent-fg:  0   0%  100%;
-  --accent-muted: 227 80% 95%;
+  --accent-muted: 178 45% 92%;
 
-  /* Semantic */
-  --good:       155 56% 28%;
-  --good-muted: 150 40% 92%;
-  --warn:       34  90% 38%;
-  --warn-muted: 38  80% 92%;
-  --bad:        2   66% 46%;
-  --bad-muted:  2   70% 94%;
+  --good:       152 60% 27%;
+  --good-muted: 150 42% 92%;
+  --warn:       38  88% 30%;
+  --warn-muted: 47  100% 90%;  /* butter #FFF4CE */
+  --bad:        2   62% 44%;
+  --bad-muted:  0   75% 95%;
 
-  /* Must-do highlight */
-  --hl:         227 80% 92%;
+  --hl:         47  100% 88%;  /* butter highlighter */
 
-  /* Shadows */
-  --shadow-sm:  0 1px 3px hsl(220 13% 9% / 0.06), 0 1px 2px hsl(220 13% 9% / 0.04);
-  --shadow-md:  0 4px 12px hsl(220 13% 9% / 0.08), 0 2px 4px hsl(220 13% 9% / 0.04);
-  --shadow-lg:  0 8px 24px hsl(220 13% 9% / 0.10), 0 4px 8px hsl(220 13% 9% / 0.05);
+  /* pastel tints (background / text on it) */
+  --p-mint:     168 37% 92%;  --p-mint-fg:     168 55% 24%;
+  --p-butter:   47  100% 90%; --p-butter-fg:   36  85% 28%;
+  --p-sky:      205 80% 94%;  --p-sky-fg:      207 60% 32%;
+  --p-lavender: 255 70% 95%;  --p-lavender-fg: 258 38% 42%;
+  --p-peach:    25  90% 93%;  --p-peach-fg:    18  60% 38%;
+  --p-rose:     340 70% 95%;  --p-rose-fg:     340 45% 40%;
+
+  --shadow-sm:  0 1px 2px hsl(215 51% 25% / 0.05), 0 1px 3px hsl(215 51% 25% / 0.05);
+  --shadow-md:  0 4px 12px hsl(215 51% 25% / 0.07), 0 2px 4px hsl(215 51% 25% / 0.04);
+  --shadow-lg:  0 10px 28px hsl(215 51% 25% / 0.10), 0 4px 8px hsl(215 51% 25% / 0.05);
 
   color-scheme: light;
 }
@@ -39,61 +44,80 @@
 /* ── Dark theme ──────────────────────────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg:         120 5%  4%;
-    --surface:    120 5%  8%;
-    --muted:      120 5%  11%;
-    --border:     120 4%  17%;
-    --fg:         135 13% 94%;
-    --subtle:     133 4%  57%;
+    --bg:         215 39% 10%;   /* deep navy ink, never pure black */
+    --surface:    216 37% 14%;
+    --muted:      216 35% 18%;
+    --border:     215 28% 24%;
+    --fg:         213 37% 92%;
+    --subtle:     211 14% 66%;
+    --brand:      216 55% 80%;   /* pastel navy */
 
-    --accent:     227 82% 62%;
-    --accent-fg:  0   0%  100%;
-    --accent-muted: 227 50% 16%;
+    --accent:     175 53% 63%;   /* pastel teal */
+    --accent-fg:  215 39% 10%;
+    --accent-muted: 177 38% 18%;
 
-    --good:       152 48% 56%;
-    --good-muted: 152 35% 13%;
-    --warn:       38  86% 60%;
-    --warn-muted: 38  55% 13%;
-    --bad:        2   72% 64%;
-    --bad-muted:  2   45% 14%;
+    --good:       150 50% 66%;
+    --good-muted: 152 32% 16%;
+    --warn:       44  85% 66%;
+    --warn-muted: 44  40% 17%;
+    --bad:        4   78% 74%;
+    --bad-muted:  2   38% 18%;
 
-    --hl:         227 45% 20%;
+    --hl:         44  40% 21%;
 
-    --shadow-sm:  0 1px 3px hsl(0 0% 0% / 0.30), 0 1px 2px hsl(0 0% 0% / 0.20);
-    --shadow-md:  0 4px 12px hsl(0 0% 0% / 0.40), 0 2px 4px hsl(0 0% 0% / 0.20);
-    --shadow-lg:  0 8px 24px hsl(0 0% 0% / 0.50), 0 4px 8px hsl(0 0% 0% / 0.25);
+    --p-mint:     168 28% 18%;  --p-mint-fg:     165 50% 74%;
+    --p-butter:   44  38% 18%;  --p-butter-fg:   44  85% 72%;
+    --p-sky:      207 35% 20%;  --p-sky-fg:      205 75% 78%;
+    --p-lavender: 258 25% 21%;  --p-lavender-fg: 255 70% 82%;
+    --p-peach:    20  30% 19%;  --p-peach-fg:    22  85% 76%;
+    --p-rose:     340 25% 20%;  --p-rose-fg:     340 70% 82%;
+
+    --shadow-sm:  0 1px 2px hsl(0 0% 0% / 0.30), 0 1px 3px hsl(0 0% 0% / 0.20);
+    --shadow-md:  0 4px 12px hsl(0 0% 0% / 0.35), 0 2px 4px hsl(0 0% 0% / 0.20);
+    --shadow-lg:  0 10px 28px hsl(0 0% 0% / 0.45), 0 4px 8px hsl(0 0% 0% / 0.25);
 
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --bg:         120 5%  4%;
-  --surface:    120 5%  8%;
-  --muted:      120 5%  11%;
-  --border:     120 4%  17%;
-  --fg:         135 13% 94%;
-  --subtle:     133 4%  57%;
+  --bg:         215 39% 10%;   /* deep navy ink, never pure black */
+  --surface:    216 37% 14%;
+  --muted:      216 35% 18%;
+  --border:     215 28% 24%;
+  --fg:         213 37% 92%;
+  --subtle:     211 14% 66%;
+  --brand:      216 55% 80%;   /* pastel navy */
 
-  --accent:     227 82% 62%;
-  --accent-fg:  0   0%  100%;
-  --accent-muted: 227 50% 16%;
+  --accent:     175 53% 63%;   /* pastel teal */
+  --accent-fg:  215 39% 10%;
+  --accent-muted: 177 38% 18%;
 
-  --good:       152 48% 56%;
-  --good-muted: 152 35% 13%;
-  --warn:       38  86% 60%;
-  --warn-muted: 38  55% 13%;
-  --bad:        2   72% 64%;
-  --bad-muted:  2   45% 14%;
+  --good:       150 50% 66%;
+  --good-muted: 152 32% 16%;
+  --warn:       44  85% 66%;
+  --warn-muted: 44  40% 17%;
+  --bad:        4   78% 74%;
+  --bad-muted:  2   38% 18%;
 
-  --hl:         227 45% 20%;
+  --hl:         44  40% 21%;
 
-  --shadow-sm:  0 1px 3px hsl(0 0% 0% / 0.30), 0 1px 2px hsl(0 0% 0% / 0.20);
-  --shadow-md:  0 4px 12px hsl(0 0% 0% / 0.40), 0 2px 4px hsl(0 0% 0% / 0.20);
-  --shadow-lg:  0 8px 24px hsl(0 0% 0% / 0.50), 0 4px 8px hsl(0 0% 0% / 0.25);
+  --p-mint:     168 28% 18%;  --p-mint-fg:     165 50% 74%;
+  --p-butter:   44  38% 18%;  --p-butter-fg:   44  85% 72%;
+  --p-sky:      207 35% 20%;  --p-sky-fg:      205 75% 78%;
+  --p-lavender: 258 25% 21%;  --p-lavender-fg: 255 70% 82%;
+  --p-peach:    20  30% 19%;  --p-peach-fg:    22  85% 76%;
+  --p-rose:     340 25% 20%;  --p-rose-fg:     340 70% 82%;
+
+  --shadow-sm:  0 1px 2px hsl(0 0% 0% / 0.30), 0 1px 3px hsl(0 0% 0% / 0.20);
+  --shadow-md:  0 4px 12px hsl(0 0% 0% / 0.35), 0 2px 4px hsl(0 0% 0% / 0.20);
+  --shadow-lg:  0 10px 28px hsl(0 0% 0% / 0.45), 0 4px 8px hsl(0 0% 0% / 0.25);
 
   color-scheme: dark;
 }
+
+/* headings in navy; zero specificity so any text-* class still wins */
+:where(.font-display) { color: hsl(var(--brand)); }
 
 /* ── Base ────────────────────────────────────────────────────────────────── */
 html {

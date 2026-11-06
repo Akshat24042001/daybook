@@ -9,7 +9,7 @@ describe("startup migrations", () => {
     // pretend the Sales migration has not run yet
     const sales = await q<{ t: string }>("select table_name as t from information_schema.tables where table_schema = 'public' and table_name like 'sales\\_%'");
     for (const { t } of sales) await q(`drop table if exists ${t} cascade`);
-    await q("delete from schema_migrations where name = '026_sales.sql'");
+    await q("delete from schema_migrations where name >= '026'");
 
     await Promise.all([bootstrap(), bootstrap(), bootstrap()]);
 

@@ -57,14 +57,25 @@ export function SalesTabs() {
   );
 }
 
-export function Heat({ value }: { value: number }) {
-  const tone = value >= 70 ? "bg-bad" : value >= 45 ? "bg-warn" : value >= 20 ? "bg-accent" : "bg-subtle/40";
+/** Priority 0-100 with its tier, the trend since yesterday, and the reasons on hover. */
+export function Priority({ value, prev, why, compact }: { value: number; prev?: number | null; why?: string[] | null; compact?: boolean }) {
+  const t = value >= 70 ? ["Hot", "bg-p-rose text-p-rose-fg"] : value >= 45 ? ["Warm", "bg-p-peach text-p-peach-fg"] : value >= 20 ? ["Steady", "bg-p-sky text-p-sky-fg"] : ["Cold", "bg-muted text-subtle"];
+  const delta = prev === null || prev === undefined ? 0 : value - prev;
+  const arrow = delta >= 5 ? "↑" : delta <= -5 ? "↓" : "";
   return (
-    <span className="inline-flex items-center gap-1 text-[11px] tabular text-subtle" title={`Heat ${value}/100: how alive this deal is`}>
-      <span className={cn("h-2 w-2 rounded-full", tone)} />
-      {value}
+    <span
+      className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular", t[1])}
+      title={`Priority ${value}/100${delta ? ` (${delta > 0 ? "+" : ""}${delta} since yesterday)` : ""}${why?.length ? `\n${why.join("\n")}` : ""}`}
+    >
+      {compact ? null : t[0]} {value}
+      {arrow ? <span className={delta > 0 ? "text-good" : "text-bad"}>{arrow}</span> : null}
     </span>
   );
+}
+
+/** Kept for older call sites. */
+export function Heat({ value }: { value: number }) {
+  return <Priority value={value} compact />;
 }
 
 export function Label({ children }: { children: React.ReactNode }) {

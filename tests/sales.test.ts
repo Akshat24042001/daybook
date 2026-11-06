@@ -276,3 +276,48 @@ describe("links and markdown", () => {
     expect(html).not.toContain("<script>");
   });
 });
+
+describe("priority", () => {
+  const base = {
+    id: 1, category: "open", role: "engaged", probability: 20, value_usd: 10_000, company: "Acme", last_in: null, company_last_in: null, company_other_in: null,
+    first_recent: null, before_recent: null, in_14: 0, in_prev_14: 0, views_48h: 0, meeting_soon: null, overdue_moves: 0, promises_due: 0, priority: 0, priority_on: null,
+  };
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+
+  it("is hot when they just replied and are reading the quote, and cools with silence", async () => {
+    const { scoreDeal } = await import("@/lib/sales/priority");
+    const hot = scoreDeal({ ...base, last_in: hoursAgo(2), company_last_in: hoursAgo(2), in_14: 3, views_48h: 3, role: "proposal", probability: 50 });
+    expect(hot.score).toBeGreaterThanOrEqual(70);
+    expect(hot.why.join(" ")).toMatch(/Quote opened 3x/);
+    const cold = scoreDeal({ ...base, last_in: hoursAgo(24 * 30), company_last_in: hoursAgo(24 * 30) });
+    expect(cold.score).toBeLessThan(hot.score - 30);
+  });
+
+  it("brings a parked deal back to the top when they return after months", async () => {
+    const { scoreDeal } = await import("@/lib/sales/priority");
+    const parked = scoreDeal({ ...base, category: "parked", role: "nurture", last_in: hoursAgo(24 * 200), company_last_in: hoursAgo(24 * 200) });
+    expect(parked.score).toBeLessThanOrEqual(15);
+    const back = scoreDeal({ ...base, category: "parked", role: "nurture", last_in: hoursAgo(5), company_last_in: hoursAgo(5), first_recent: hoursAgo(30), before_recent: hoursAgo(24 * 200), in_14: 2 });
+    expect(back.score).toBeGreaterThanOrEqual(60);
+    expect(back.why.join(" ")).toMatch(/Back after 7 months of silence/);
+  });
+
+  it("counts someone else at the same company writing", async () => {
+    const { scoreDeal } = await import("@/lib/sales/priority");
+    const r = scoreDeal({ ...base, last_in: hoursAgo(24 * 90), company_last_in: hoursAgo(3), company_other_in: hoursAgo(3), in_14: 1 });
+    expect(r.why[0]).toMatch(/Someone else at Acme wrote/);
+    expect(r.score).toBeGreaterThan(40);
+  });
+
+  it("stores priority with yesterday's value for the trend", async () => {
+    const id = await createDeal({ title: "Trend", stage_role: "engaged", value_amount: 5000, currency: "USD" });
+    await q("update sales_deals set priority = 10, priority_on = current_date - 1 where id = $1", [id]);
+    await logInteraction({ deal_id: id, channel: "whatsapp", direction: "in", source: "test" });
+    await refreshMoves(id);
+    const d = await one<{ priority: number; priority_prev: number; heat: number; priority_why: string[] }>("select priority, priority_prev, heat, priority_why from sales_deals where id = $1", [id]);
+    expect(d!.priority_prev).toBe(10);
+    expect(d!.priority).toBeGreaterThan(40);
+    expect(d!.heat).toBe(d!.priority);
+    expect(d!.priority_why[0]).toMatch(/They engaged/);
+  });
+});

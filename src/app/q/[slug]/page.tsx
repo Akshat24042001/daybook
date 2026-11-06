@@ -59,7 +59,7 @@ export default async function PublicDoc({ params, searchParams }: { params: Prom
         {sp.done === "accept" ? <div className="qcallout">Thank you. Your acceptance is recorded and {cfg.owner.name.split(" ")[0]} has been notified.</div> : null}
         {sp.done === "changes" ? <div className="qcallout">Thanks, your note has been sent. You will hear back shortly.</div> : null}
         {sp.e ? <div className="qcallout bad">Please add your name and try again.</div> : null}
-        {superseded ? <div className="qcallout">This is an older version. <a href={`/q/${slug}`}>See the latest (v{latestSent!.rev})</a>.</div> : null}
+        {superseded ? <div className="qcallout warm">This is an older version. <a href={`/q/${slug}`}>See the latest (v{latestSent!.rev})</a>.</div> : null}
 
         <p className="qlabel">{doc.kind === "quote" ? "Proposal" : doc.kind === "brief" ? "Opportunity brief" : "Document"}</p>
         <h1>{doc.title}</h1>
@@ -103,7 +103,7 @@ export default async function PublicDoc({ params, searchParams }: { params: Prom
               </>
             ) : null}
             {rev.terms ? (<><h2>Terms</h2><div className="qprose small" dangerouslySetInnerHTML={{ __html: mdToHtml(rev.terms) }} /></>) : null}
-            {validUntil ? <p className="qsub">Valid until {validUntil.toISOString().slice(0, 10)}.</p> : null}
+            {validUntil ? <div className="qcallout warm">Valid until {validUntil.toISOString().slice(0, 10)}.</div> : null}
 
             {!superseded ? (
               doc.accepted_at ? (
@@ -152,36 +152,37 @@ export default async function PublicDoc({ params, searchParams }: { params: Prom
 }
 
 const CSS = `
-.qdoc{--bg:#0A0B0A;--raised:#131513;--raised2:#1A1D1A;--fg:#EEF2EF;--muted:#8D968F;--accent:#2F55E4;--accent-h:#2F63F5;--soft:rgba(47,85,228,.14);--line:rgba(238,242,239,.10);
-  min-height:100dvh;background:var(--bg);color:var(--fg);font-family:var(--q-body),Arial,sans-serif;font-size:16px;line-height:1.6;color-scheme:dark}
-@media (prefers-color-scheme: light){.qdoc{--bg:#F7F8F6;--raised:#FFFFFF;--raised2:#EEF0EC;--fg:#14161A;--muted:#5E665F;--line:rgba(20,22,26,.12);color-scheme:light}}
+.qdoc{--bg:#F6F8FB;--raised:#FFFFFF;--raised2:#F6F8FB;--fg:#2B2F36;--muted:#5A6472;--navy:#1F3A5F;--accent:#0E7C7B;--accent-h:#0B6968;--soft:#E3F2EF;--butter:#FFF4CE;--mustard:#E0A100;--line:#D5DEE8;--th:#1F3A5F;--th-fg:#FFFFFF;
+  min-height:100dvh;background:var(--bg);color:var(--fg);font-family:var(--q-body),Arial,sans-serif;font-size:16px;line-height:1.6;color-scheme:light}
+@media (prefers-color-scheme: dark){.qdoc{--bg:#0F1722;--raised:#152030;--raised2:#1B283B;--fg:#E6ECF3;--muted:#9AA5B1;--navy:#A9C1E6;--accent:#6FD3CB;--accent-h:#8FE0D9;--soft:rgba(111,211,203,.12);--butter:rgba(242,201,76,.12);--line:#26364A;--th:#1B283B;--th-fg:#E6ECF3;color-scheme:dark}}
 .qdoc a{color:var(--accent)}
 .qh,.qf{max-width:900px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:20px 24px}
 .qh{border-bottom:1px solid var(--line)}
 .qf{border-top:1px solid var(--line);font-family:var(--q-mono),monospace;font-size:12px;color:var(--muted);margin-top:48px}
-.qbrand{font-family:var(--q-display),sans-serif;font-weight:800;letter-spacing:.04em;font-size:16px}
+.qbrand{font-family:var(--q-display),sans-serif;font-weight:800;letter-spacing:.04em;font-size:16px;color:var(--navy)}
 .qmeta{font-size:13px;color:var(--muted);text-align:right}
 .qmain{max-width:900px;margin:0 auto;padding:32px 24px}
-.qmain h1{font-family:var(--q-display),sans-serif;font-weight:800;font-size:clamp(30px,6vw,50px);line-height:1.05;margin:4px 0 20px;text-wrap:balance}
-.qmain h2{font-family:var(--q-display),sans-serif;font-weight:700;font-size:22px;margin:36px 0 12px;padding-top:24px;border-top:1px solid var(--line)}
+.qmain h1{color:var(--navy);font-family:var(--q-display),sans-serif;font-weight:800;font-size:clamp(30px,6vw,50px);line-height:1.05;margin:4px 0 20px;text-wrap:balance}
+.qmain h2{color:var(--navy);font-family:var(--q-display),sans-serif;font-weight:700;font-size:22px;margin:36px 0 12px;padding-top:24px;border-top:1px solid var(--line)}
 .qmain h3,.qmain h4{font-family:var(--q-display),sans-serif;font-weight:700;margin:20px 0 8px}
 .qlabel{font-family:var(--q-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin:0 0 6px;display:block}
 .qsub,.qnote{color:var(--muted);font-size:14px}
 .qprose p{margin:0 0 12px;max-width:64ch}.qprose ul,.qprose ol{margin:0 0 12px 20px}.qprose li{margin:4px 0}.qprose.small{font-size:14px;color:var(--muted)}
-.qtablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:4px}
-table{width:100%;border-collapse:collapse;min-width:520px}th{background:var(--raised);text-align:left;font-weight:600;padding:12px 14px;font-size:14px}
+.qtablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--raised)}
+table{width:100%;border-collapse:collapse;min-width:520px}th{background:var(--th);color:var(--th-fg);text-align:left;font-weight:600;padding:12px 14px;font-size:14px}
 td{padding:12px 14px;border-top:1px solid var(--line);vertical-align:top}tr:nth-child(even) td{background:var(--raised2)}.r{text-align:right;white-space:nowrap}
 .qdesc{color:var(--muted);font-size:14px;margin-top:2px}
 .qtotals{margin:12px 0 0 auto;max-width:360px}.qtotals div{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)}
-.qgrand{font-family:var(--q-display),sans-serif;font-weight:800;font-size:20px;border-bottom:0!important}
+.qgrand{font-family:var(--q-display),sans-serif;font-weight:800;font-size:20px;border-bottom:0!important;color:var(--navy)}
 .qplan{list-style:none;padding:0;margin:0}.qplan li{display:flex;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid var(--line)}
-.qcallout{background:var(--soft);border-left:3px solid var(--accent);padding:14px 18px;border-radius:0 4px 4px 0;margin:16px 0}
+.qcallout{background:var(--soft);border-left:3px solid var(--accent);padding:14px 18px;border-radius:0 8px 8px 0;margin:16px 0}
+.qcallout.warm{background:var(--butter);border-left-color:var(--mustard)}
 .qcallout.bad{border-left-color:#C0392B}
 .qactions{margin-top:36px;padding-top:24px;border-top:1px solid var(--line);display:grid;gap:20px}
 .qform{display:grid;gap:8px;max-width:440px}
 .qform input,.qform textarea{background:transparent;border:0;border-bottom:1px solid var(--line);color:var(--fg);font:inherit;padding:8px 0;outline:none}
 .qform input:focus,.qform textarea:focus{border-bottom-color:var(--accent)}
-.qbtn{display:inline-flex;justify-content:center;align-items:center;background:var(--accent);color:#fff!important;border:0;border-radius:3px;padding:12px 20px;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;margin-top:8px}
+.qbtn{display:inline-flex;justify-content:center;align-items:center;background:var(--accent);color:var(--bg)!important;border:0;border-radius:8px;padding:12px 20px;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;margin-top:8px}
 .qbtn:hover{background:var(--accent-h)}.qbtn.outline{background:transparent;border:1px solid var(--line);color:var(--fg)!important}.qbtn.outline:hover{border-color:var(--accent)}
 .qchanges summary{cursor:pointer;color:var(--muted);font-size:14px}.qchanges .qform{margin-top:12px}
 .qcontact{margin-top:32px;color:var(--muted);font-size:14px}

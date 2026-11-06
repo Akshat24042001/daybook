@@ -19,7 +19,7 @@ import { CaptureBox } from "./capture-box";
 import { EnrichmentPanel } from "./enrichment-panel";
 import { MoveCard } from "./moves-view";
 import { StageMoveSheet, type PendingMove } from "./pipeline-board";
-import { ago, ChannelIcon, CHANNEL_LABEL, fmtDate, Heat, Label, money } from "./util";
+import { ago, ChannelIcon, CHANNEL_LABEL, fmtDate, Label, money, Priority } from "./util";
 
 export interface DealPageData {
   deal: DealCard;
@@ -100,8 +100,10 @@ export function DealView({ d }: { d: DealPageData }) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold text-white" style={{ background: deal.stage_color }}>{deal.stage_name}</span>
-              <Heat value={deal.heat} />
+              <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold" style={{ background: `${deal.stage_color}26`, borderColor: `${deal.stage_color}80` }}>
+                <span className="h-2 w-2 rounded-full" style={{ background: deal.stage_color }} />{deal.stage_name}
+              </span>
+              <Priority value={deal.priority} prev={deal.priority_prev} why={deal.priority_why} />
               <Chip>{deal.source}{deal.source_detail && !/^https?:/.test(deal.source_detail) ? `: ${deal.source_detail.slice(0, 40)}` : ""}</Chip>
               {deal.source_detail && /^https?:/.test(deal.source_detail) ? <a href={deal.source_detail} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-accent">source <ExternalLink className="h-3 w-3" /></a> : null}
               {deal.country ? <Chip>{deal.country}</Chip> : null}
@@ -133,6 +135,9 @@ export function DealView({ d }: { d: DealPageData }) {
           ))}
           <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setEdit(true)}>Edit details</Button>
         </div>
+        {deal.priority_why?.length ? (
+          <p className="mt-2 text-xs text-subtle">Why this priority: {deal.priority_why.join(" · ")}</p>
+        ) : null}
         {d.touches.length ? (
           <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border pt-3">
             <span className="text-xs text-subtle">Last touch:</span>
@@ -209,7 +214,7 @@ export function DealView({ d }: { d: DealPageData }) {
                           {x.kind === "quote" ? <FileText className="mr-1 inline h-3.5 w-3.5" /> : <Link2 className="mr-1 inline h-3.5 w-3.5" />}
                           {x.title}{x.kind === "quote" ? ` v${x.current_rev}` : ""}
                         </Link>
-                        <Chip className={cn(x.status === "accepted" && "bg-good-muted text-good", x.status === "viewed" && "bg-accent-muted text-accent")}>{x.status}</Chip>
+                        <Chip className={cn(x.status === "accepted" && "bg-p-mint text-p-mint-fg", x.status === "viewed" && "bg-p-sky text-p-sky-fg", x.status === "changes" && "bg-p-butter text-p-butter-fg")}>{x.status}</Chip>
                       </div>
                       <p className="mt-0.5 text-xs text-subtle">
                         {x.total ? `${money(x.total, x.currency ?? "USD")} · ` : ""}{x.view_count ? `opened ${x.view_count}x, last ${ago(x.last_viewed_at)}` : x.sent_at ? "not opened yet" : "draft"}
@@ -318,13 +323,18 @@ export function DealView({ d }: { d: DealPageData }) {
   );
 }
 
+const CHANNEL_TINT: Record<string, string> = {
+  whatsapp: "bg-p-mint text-p-mint-fg", email: "bg-p-sky text-p-sky-fg", linkedin: "bg-p-lavender text-p-lavender-fg", call: "bg-p-peach text-p-peach-fg",
+  meeting: "bg-p-butter text-p-butter-fg", in_person: "bg-p-butter text-p-butter-fg", instagram: "bg-p-rose text-p-rose-fg", document: "bg-p-sky text-p-sky-fg",
+};
+
 function TimelineItem({ i, onDelete }: { i: InteractionRow; onDelete: () => void }) {
   const [open, setOpen] = useState(false);
   const Dir = i.direction === "in" ? ArrowDownLeft : i.direction === "out" ? ArrowUpRight : Users;
   return (
     <li className="rounded-xl border border-border p-2.5">
       <div className="flex items-start gap-2">
-        <span className={cn("mt-0.5 rounded-lg p-1", i.direction === "in" ? "bg-accent-muted text-accent" : "bg-muted text-subtle")}><ChannelIcon channel={i.channel} className="h-3.5 w-3.5" /></span>
+        <span className={cn("mt-0.5 rounded-lg p-1", CHANNEL_TINT[i.channel] ?? "bg-muted text-subtle")}><ChannelIcon channel={i.channel} className="h-3.5 w-3.5" /></span>
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-center gap-1 text-[11px] text-subtle">
             <Dir className="h-3 w-3" /> {CHANNEL_LABEL[i.channel] ?? i.channel} · {i.direction === "in" ? "from them" : i.direction === "out" ? "from you" : i.direction === "both" ? "both" : "note"} · {fmtDate(i.occurred_at)}
