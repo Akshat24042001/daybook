@@ -84,7 +84,7 @@ export function PlanClient(props: {
         <div className="flex items-center justify-between gap-2">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-subtle">Plan</p>
-            <h1 className="font-display text-3xl leading-tight">{props.dateLabel}</h1>
+            <h1 className="font-display text-2xl sm:text-3xl leading-tight">{props.dateLabel}</h1>
           </div>
           <div className="flex items-center gap-1">
             <Button variant="outline" size="icon" aria-label="Previous day" onClick={() => go(addDays(date, -1))}>

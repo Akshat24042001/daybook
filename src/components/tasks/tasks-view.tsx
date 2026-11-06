@@ -96,10 +96,10 @@ export function TasksView({ tasks, log }: { tasks: TaskListRow[]; log: TaskLogRo
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4">
+    <div className="mx-auto max-w-6xl space-y-4">
       <header>
         <p className={cn("text-xs font-semibold uppercase tracking-wider", HUE.sky.ink)}>All tasks</p>
-        <h1 className="font-display text-3xl leading-tight">Every task, in one place</h1>
+        <h1 className="font-display text-2xl sm:text-3xl leading-tight">Every task, in one place</h1>
         <p className="mt-1 text-sm text-subtle">Active, completed, dropped and waiting. Open any task to see its history. “Day by day” lists every day something was done, skipped or dropped.</p>
       </header>
       <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0" role="tablist">

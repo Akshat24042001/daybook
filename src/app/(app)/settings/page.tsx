@@ -19,7 +19,7 @@ export default async function SettingsPage() {
   const envOwner = (process.env.TELEGRAM_OWNER_CHAT_ID ?? "").trim();
   const last = s.last_tick_at;
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-4xl">
     <SettingsClient
       settings={{
         timezone: s.timezone,

@@ -18,8 +18,8 @@ The **Status** column says what was done about each item in this change; "Open" 
 
 | Flaw | Where | Status |
 | --- | --- | --- |
-| Every page has a different left edge and width. Plan, Tasks, History centre a 56rem column; Projects, Goals, Sales run full width. Switching pages makes the whole layout jump. | all | Partly: the shared `PageHeader` exists and Calendar and the exercise library use it. **Open: move the other pages onto it and onto one width.** |
-| Four different heading sizes and styles for the page title (`text-3xl` display, `text-2xl`, plain `h1`, kicker or no kicker). | all | Partly: `PageHeader` built; adoption on older pages is **Open**. |
+| Every page has a different left edge and width. Plan, Tasks, History centre a 56rem column; Projects, Goals, Sales run full width. Switching pages makes the whole layout jump. | all | Partly: the shared `PageHeader` exists and Calendar and the exercise library use it. Fixed for width: every page now uses the same 72rem column (Settings 56rem, being a form). |
+| Four different heading sizes and styles for the page title (`text-3xl` display, `text-2xl`, plain `h1`, kicker or no kicker). | all | Partly: every page title now shares one size (2xl, 3xl from tablet up); the full icon-bubble `PageHeader` is only on Calendar and the exercise library. **Open.** |
 | Dates in five formats on one screen: `2026-11-06`, `Fri, Nov 13`, `6 Nov 2026`, `11/07/2026`, `Nov 7`. Raw ISO dates leak into the task page ("added 2026-11-06", "Today is 2026-11-06"). | task page, lists | Partly: task page and All tasks use friendly dates; some lists still show ISO dates. **Open.** |
 | The quick-add bar is the loudest element on every page, even where adding makes no sense (Settings, History). | all | Open: collapse to a compact bar on pages that are not about tasks. |
 | Tiny grey metadata (11 to 12px, `text-subtle` on pastel) is hard to read. | all | Fixed: deeper ink colour; 11px text raised to 12px (10px kbd and group labels unchanged). |

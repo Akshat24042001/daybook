@@ -37,7 +37,7 @@ export default async function ScratchPage({ searchParams }: { searchParams: Prom
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
+    <div className="mx-auto max-w-6xl space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-subtle">Scratchpad</p>

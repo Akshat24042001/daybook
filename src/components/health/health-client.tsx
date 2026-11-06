@@ -122,7 +122,7 @@ export function HealthClient(props: {
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-3xl">Health</h1>
+          <h1 className="font-display text-2xl sm:text-3xl leading-tight">Health</h1>
           <p className="mt-1 text-sm text-subtle">{props.dateLabel}</p>
         </div>
         {props.paused ? <span className="rounded-full bg-warn-muted px-2.5 py-1 text-xs font-medium text-warn">Pings paused</span> : null}

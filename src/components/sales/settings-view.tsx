@@ -70,7 +70,7 @@ export function SettingsView({ d }: { d: SettingsData }) {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="font-display text-2xl">Sales settings</h1>
+        <h1 className="font-display text-2xl sm:text-3xl leading-tight">Sales settings</h1>
         <p className="text-sm text-subtle">Everything here can be changed any time. Nothing needs a redeploy.</p>
       </div>
 

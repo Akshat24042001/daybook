@@ -398,7 +398,7 @@ export function ReviewView({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-subtle">{noun === "week" ? "Weekly review" : "Monthly review"}</p>
-          <h1 className="font-display text-2xl">{isCurrent ? (noun === "week" ? "This week" : "This month") : label}</h1>
+          <h1 className="font-display text-2xl sm:text-3xl leading-tight">{isCurrent ? (noun === "week" ? "This week" : "This month") : label}</h1>
           <p className="text-sm text-subtle">
             {isCurrent ? `${label} · day ${dayNo} of ${totalDays}` : label}
           </p>

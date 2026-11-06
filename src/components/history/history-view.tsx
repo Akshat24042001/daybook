@@ -93,10 +93,10 @@ export function HistoryView({ actions }: { actions: ActionItem[] }) {
     else groups.push({ label, items: [a] });
   }
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="mx-auto max-w-6xl space-y-5">
       <header>
         <p className="text-xs font-semibold uppercase tracking-wider text-p-lilac-fg">History</p>
-        <h1 className="font-display text-3xl leading-tight">Everything you changed</h1>
+        <h1 className="font-display text-2xl sm:text-3xl leading-tight">Everything you changed</h1>
         <p className="mt-1 text-sm text-subtle">
           Every change from the app, Telegram and Claude is kept for 30 days. Tap Undo to put it back, Redo to change your mind again.
           On a computer, Ctrl+Z (⌘Z on a Mac) undoes the last one. If a newer change touched the same thing, undo that first.

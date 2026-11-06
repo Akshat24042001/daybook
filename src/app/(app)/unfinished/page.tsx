@@ -22,7 +22,7 @@ export default async function UnfinishedPage() {
     untilLabel: fmtRelDay(w.until, ctx.today),
   }));
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-6xl">
       <UnfinishedClient rows={rows} waiting={waiting} />
     </div>
   );

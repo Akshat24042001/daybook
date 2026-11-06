@@ -475,7 +475,7 @@ export function ContactsClient({
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl">Contacts</h1>
+          <h1 className="font-display text-2xl sm:text-3xl leading-tight">Contacts</h1>
           <p className="mt-1 text-sm text-subtle">
             {contacts.length} {contacts.length === 1 ? "person" : "people"} · filter by city or tag below
           </p>

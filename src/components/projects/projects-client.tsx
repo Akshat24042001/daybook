@@ -308,7 +308,7 @@ export function ProjectsClient({
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl">Projects</h1>
+          <h1 className="font-display text-2xl sm:text-3xl leading-tight">Projects</h1>
           <p className="mt-1 text-sm text-subtle">
             Type <code className="rounded bg-muted px-1 py-0.5 text-xs">Name:</code> in the quick-add bar to create a project automatically.
           </p>

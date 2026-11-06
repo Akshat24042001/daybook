@@ -19,7 +19,7 @@ export default async function HealthPage() {
     healthOverview(ctx.today, ctx.s.step_goal, 7, undefined, ctx.s.working_days),
   ]);
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-6xl">
     <HealthClient
       date={ctx.today}
       dateLabel={fmtDateLong(ctx.today)}

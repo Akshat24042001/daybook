@@ -209,7 +209,7 @@ export function UnfinishedClient({ rows, waiting = [] }: { rows: UnfinishedRow[]
     <div className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-3xl leading-none">Unfinished</h1>
+          <h1 className="font-display text-2xl sm:text-3xl leading-tight">Unfinished</h1>
           <p className="mt-1 max-w-xl text-sm text-subtle">
             Open tasks from earlier days that are not on today or any later day. Bring back what still matters; close the rest.
           </p>

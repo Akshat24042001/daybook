@@ -111,7 +111,7 @@ export function RadarView({ items, sources, googleReady, focus, searchProviders,
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl">Radar</h1>
+          <h1 className="font-display text-2xl sm:text-3xl leading-tight">Radar</h1>
           <p className="text-sm text-subtle">{sources.filter((s) => s.enabled).length} sources on · focus this week <b>{focus.country}</b>, today <b>{focus.industry}</b> · search: {searchProviders.join(", ")}</p>
         </div>
         <div className="flex flex-wrap gap-2">

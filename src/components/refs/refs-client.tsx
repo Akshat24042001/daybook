@@ -399,7 +399,7 @@ export function RefsClient({ refs, allTags, voiceEnabled }: { refs: Ref[]; allTa
       {/* header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl">References</h1>
+          <h1 className="font-display text-2xl sm:text-3xl leading-tight">References</h1>
           <p className="mt-1 text-sm text-subtle">
             Links, notes, and quotes — all searchable by tag or keyword.
           </p>
