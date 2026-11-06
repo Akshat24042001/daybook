@@ -14,7 +14,7 @@ vi.mock("@/lib/sales/llm", async (orig) => {
 
 import { one, q } from "@/lib/db";
 import { addPayment, createDeal, getDeal, logInteraction, markPaid, addCommitment } from "@/lib/sales/deals";
-import { acceptQuote, createQuote, docBySlug, getDoc, markDocSent, newRevision, recordView, saveRevision } from "@/lib/sales/docs";
+import { acceptQuote, createQuote, docBySlug, getDoc, markDocSent, newRevision, recordView, requestChanges, saveRevision } from "@/lib/sales/docs";
 import { emailDomain, normLinkedin, normPhone, resolvePerson, upsertPerson, waDigits } from "@/lib/sales/identity";
 import { capture, parseWhatsAppExport, processCapture, undoCapture } from "@/lib/sales/ingest";
 import { mdToHtml } from "@/lib/sales/md";
@@ -196,6 +196,52 @@ describe("tracked quotes", () => {
     const pays = await q<{ amount: number }>("select amount from sales_payments where deal_id = $1 order by id", [id]);
     expect(pays.map((p) => Number(p.amount))).toEqual([1800, 1800]);
     expect((await docBySlug(doc.slug))?.status).toBe("accepted");
+  });
+});
+
+describe("quote acceptance guards", () => {
+  async function sentQuote() {
+    const id = await createDeal({ title: "Guarded", stage_role: "discovery", value_amount: 1000, currency: "USD" });
+    const docId = await createQuote(id);
+    await saveRevision(docId, { items: [{ name: "Build", qty: 1, unit_price: 1000 }], payment_plan: [{ label: "All", percent: 100, when: "on acceptance" }] });
+    return { id, docId, slug: (await getDoc(docId))!.slug };
+  }
+
+  it("cannot accept a proposal that was never sent", async () => {
+    const { slug } = await sentQuote();
+    await expect(acceptQuote(slug, "Rahul")).rejects.toThrow(/not been sent/);
+  });
+
+  it("accepts the version that was sent, not a draft being edited, and refuses a stale page", async () => {
+    const { id, docId, slug } = await sentQuote();
+    await markDocSent(docId);
+    await newRevision(docId, "draft v2"); // v2 is a draft: not sent
+    await expect(acceptQuote(slug, "Rahul", 2)).rejects.toThrow(/newer version/);
+    await acceptQuote(slug, "Rahul", 1);
+    expect(await role(id)).toBe("won");
+    expect(Number((await one<{ n: number }>("select count(*)::int as n from sales_payments where deal_id = $1", [id]))!.n)).toBe(1);
+  });
+
+  it("refuses an expired proposal", async () => {
+    const { docId, slug } = await sentQuote();
+    await markDocSent(docId);
+    await q("update sales_quote_revisions set sent_at = now() - interval '400 days' where doc_id = $1", [docId]);
+    await expect(acceptQuote(slug, "Rahul")).rejects.toThrow(/expired/);
+  });
+
+  it("two simultaneous accepts make the payments once", async () => {
+    const { id, docId, slug } = await sentQuote();
+    await markDocSent(docId);
+    await Promise.all([acceptQuote(slug, "Rahul", 1), acceptQuote(slug, "Rahul", 1)]);
+    expect(Number((await one<{ n: number }>("select count(*)::int as n from sales_payments where deal_id = $1", [id]))!.n)).toBe(1);
+  });
+
+  it("a late change request cannot undo an accepted proposal", async () => {
+    const { docId, slug } = await sentQuote();
+    await markDocSent(docId);
+    await acceptQuote(slug, "Rahul", 1);
+    await expect(requestChanges(slug, "Rahul", "actually, cheaper?")).rejects.toThrow(/already accepted/);
+    expect((await docBySlug(slug))?.status).toBe("accepted");
   });
 });
 

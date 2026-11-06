@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   const row = await salesRow();
   if (!safeEqual(token, row.capture_token)) return NextResponse.json({ ok: false, error: "bad token" }, { status: 403, headers: CORS });
   const text = String(body.text ?? "").slice(0, 60_000);
-  const images = Array.isArray(body.images) ? (body.images as unknown[]).filter((x): x is string => typeof x === "string" && x.startsWith("data:image/")).slice(0, 4) : [];
+  const images = Array.isArray(body.images) ? (body.images as unknown[]).filter((x): x is string => typeof x === "string" && x.startsWith("data:image/") && x.length <= 4_000_000).slice(0, 4) : [];
   if (!text.trim() && !images.length) return NextResponse.json({ ok: false, error: "nothing to capture" }, { status: 400, headers: CORS });
   const chat = await ownerChat();
   const id = await capture(

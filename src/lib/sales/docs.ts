@@ -256,12 +256,18 @@ export async function addViewSeconds(viewId: number, seconds: number): Promise<v
 }
 
 /** The client clicked Accept: the deal is Won, the payment plan becomes payments, you get pinged (and called if set). */
-export async function acceptQuote(slug: string, name: string): Promise<void> {
+export async function acceptQuote(slug: string, name: string, seenRev?: number | null): Promise<void> {
   const doc = await docBySlug(slug);
   if (!doc || doc.kind !== "quote") throw new UserError("Quote not found.");
   if (doc.accepted_at) return;
-  const rev = await one<RevisionRow>("select * from sales_quote_revisions where doc_id = $1 and rev = $2", [doc.id, doc.current_rev]);
-  await q("update sales_docs set accepted_at = now(), accepted_by = $2, status = 'accepted' where id = $1", [doc.id, name.slice(0, 120)]);
+  // what the client accepts is the latest revision that was actually sent, never a draft you are still editing
+  const rev = await one<RevisionRow>("select * from sales_quote_revisions where doc_id = $1 and sent_at is not null order by rev desc limit 1", [doc.id]);
+  if (!rev) throw new UserError("This proposal has not been sent yet.");
+  if (seenRev && seenRev !== rev.rev) throw new UserError("A newer version exists. Reload the page and review it first.");
+  if (Date.now() > new Date(rev.sent_at!).getTime() + rev.validity_days * 86_400_000) throw new UserError("This proposal has expired.");
+  // claim it atomically: two clicks (or two tabs) must not create the payments and the pings twice
+  const claimed = await one<{ id: number }>("update sales_docs set accepted_at = now(), accepted_by = $2, status = 'accepted' where id = $1 and accepted_at is null returning id", [doc.id, name.slice(0, 120)]);
+  if (!claimed) return;
   if (!doc.deal_id || !rev) return;
   await logInteraction({ deal_id: doc.deal_id, channel: "document", direction: "in", summary: `${name} accepted "${doc.title}" v${rev.rev} (${rev.currency} ${rev.total})`, source: "docs", external_id: `accept:${doc.id}` });
   await q("update sales_deals set value_amount = $2, currency = $3 where id = $1", [doc.deal_id, rev.total, rev.currency]);
@@ -288,6 +294,8 @@ export async function acceptQuote(slug: string, name: string): Promise<void> {
 export async function requestChanges(slug: string, name: string, note: string): Promise<void> {
   const doc = await docBySlug(slug);
   if (!doc) throw new UserError("Not found.");
+  // an accepted proposal stays accepted: late notes would flip it back to "changes" and hide the signed deal
+  if (doc.accepted_at) throw new UserError("This proposal was already accepted.");
   await q("update sales_docs set status = 'changes', client_note = $2, updated_at = now() where id = $1", [doc.id, `${name}: ${note}`.slice(0, 2000)]);
   if (doc.deal_id) {
     await logInteraction({ deal_id: doc.deal_id, channel: "document", direction: "in", summary: `${name} asked for changes on "${doc.title}"`, body: note.slice(0, 4000), source: "docs" });

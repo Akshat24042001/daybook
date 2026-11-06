@@ -36,3 +36,20 @@ the AI may move deals forward but never closes them, and client actions and paym
 are used. Personal WhatsApp and LinkedIn are captured by forwarding, exports, screenshots or the bookmarklet, never by
 unofficial automation (account ban risk). Client messages are never auto-sent: Daybook drafts, you tap. Telegram callbacks
 use the `zs:` prefix because `sl:` is sleep. Full design: docs/SALES.md.
+
+**Colour.** Every colour answers a question, so a hue tells you what kind of thing you are looking at before you read it.
+Eight hues, defined once in `src/lib/hue.ts` and in the tokens of `globals.css` (light and dark):
+sky = action (Today, tasks, projects) · mint = success and money (pipeline, health, done) · butter = attention (must-dos,
+Unfinished, carried) · rose = urgent or negative (overdue, over a limit, lost) · lilac = thinking and rest (Plan, Review,
+Diary, sleep) · peach = people (Contacts, Accounts, follow-ups) · teal = measuring (Stats, Goals, Radar, timed tasks) ·
+pink = leisure and social (Instagram, personal time). Where it shows: the sidebar icon of each page and a soft wash behind
+that page's header; the dot and count of each section on Today; the left edge of every task, in its project's own colour;
+the label chips on Plan; the bar and title of every Stats tile. Text always uses the deep shade of a hue and fills the
+pastel one, so contrast stays readable in both themes. A new colour needs a new meaning first.
+
+**Reordering.** Drag the grip at the left of a task on Today or Plan; the new order is saved to `day_entries.sort`
+(`reorderEntries`). Timed tasks sort by their time and finished ones stay put, so they have no grip. On Plan, must-dos
+and the rest are two lists because must-dos always sit on top. Keyboard works too (focus the grip, Space, arrows).
+
+**Claude connector (MCP).** `/api/mcp`, off until `MCP_TOKEN` is set. Reads the day and the pipeline; writes only add a
+task, tick a task off and log the day's numbers. Nothing can message a client, move a deal or delete. See docs/MCP.md.

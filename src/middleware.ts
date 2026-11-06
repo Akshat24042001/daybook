@@ -7,6 +7,8 @@ function isPublicPath(pathname: string): boolean {
   return (
     pathname === "/login" ||
     pathname === "/api/telegram" ||
+    // MCP: no browser session; the route checks its own bearer token (MCP_TOKEN)
+    pathname === "/api/mcp" ||
     pathname.startsWith("/api/cron/") ||
     pathname.startsWith("/api/auth/") ||
     // Sales: client-facing documents and links (no password for clients), and token/secret-checked webhooks

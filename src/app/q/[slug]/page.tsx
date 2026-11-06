@@ -27,13 +27,19 @@ export default async function PublicDoc({ params, searchParams }: { params: Prom
   if (doc.kind === "link") redirect(`/l/${slug}`);
   const cfg = await salesConfig();
   const wantRev = sp.rev ? Number(sp.rev) : null;
+  const owner = await isOwnerRequest();
+  // Clients only ever see revisions that were sent. You (signed in) can also preview the draft.
+  const sentOnly = owner ? "" : "and sent_at is not null";
   const latestSent = doc.kind === "quote"
-    ? await one<RevisionRow>("select * from sales_quote_revisions where doc_id = $1 and (sent_at is not null or rev = $2) order by (sent_at is not null) desc, rev desc limit 1", [doc.id, doc.current_rev])
+    ? await one<RevisionRow>(owner
+      ? "select * from sales_quote_revisions where doc_id = $1 and (sent_at is not null or rev = $2) order by (sent_at is not null) desc, rev desc limit 1"
+      : "select * from sales_quote_revisions where doc_id = $1 and sent_at is not null order by rev desc limit 1",
+      owner ? [doc.id, doc.current_rev] : [doc.id])
     : null;
   const rev = doc.kind === "quote"
-    ? (wantRev ? await one<RevisionRow>("select * from sales_quote_revisions where doc_id = $1 and rev = $2", [doc.id, wantRev]) : latestSent)
+    ? (wantRev ? await one<RevisionRow>(`select * from sales_quote_revisions where doc_id = $1 and rev = $2 ${sentOnly}`, [doc.id, wantRev]) : latestSent)
     : null;
-  const owner = await isOwnerRequest();
+  if (doc.kind === "quote" && !rev) notFound();
   const h = await headers();
   let viewId: number | null = null;
   if (!owner) {
@@ -44,6 +50,7 @@ export default async function PublicDoc({ params, searchParams }: { params: Prom
   }
   const superseded = rev && latestSent && rev.rev < latestSent.rev;
   const validUntil = rev?.sent_at ? new Date(new Date(rev.sent_at).getTime() + rev.validity_days * 86_400_000) : null;
+  const expired = !!validUntil && validUntil.getTime() < Date.now();
   const sub = rev ? rev.items.reduce((s, i) => s + Number(i.qty) * Number(i.unit_price), 0) : 0;
 
   return (
@@ -58,7 +65,7 @@ export default async function PublicDoc({ params, searchParams }: { params: Prom
         {owner ? <p className="qnote">You are signed in to Daybook, so this visit is not counted as a client view.</p> : null}
         {sp.done === "accept" ? <div className="qcallout">Thank you. Your acceptance is recorded and {cfg.owner.name.split(" ")[0]} has been notified.</div> : null}
         {sp.done === "changes" ? <div className="qcallout">Thanks, your note has been sent. You will hear back shortly.</div> : null}
-        {sp.e ? <div className="qcallout bad">Please add your name and try again.</div> : null}
+        {sp.e === "stale" ? <div className="qcallout bad">This proposal changed or expired. Reload the page to see the latest version.</div> : sp.e ? <div className="qcallout bad">Please add your name and try again.</div> : null}
         {superseded ? <div className="qcallout warm">This is an older version. <a href={`/q/${slug}`}>See the latest (v{latestSent!.rev})</a>.</div> : null}
 
         <p className="qlabel">{doc.kind === "quote" ? "Proposal" : doc.kind === "brief" ? "Opportunity brief" : "Document"}</p>
@@ -103,15 +110,16 @@ export default async function PublicDoc({ params, searchParams }: { params: Prom
               </>
             ) : null}
             {rev.terms ? (<><h2>Terms</h2><div className="qprose small" dangerouslySetInnerHTML={{ __html: mdToHtml(rev.terms) }} /></>) : null}
-            {validUntil ? <div className="qcallout warm">Valid until {validUntil.toISOString().slice(0, 10)}.</div> : null}
+            {validUntil ? <div className="qcallout warm">{expired ? "This proposal expired on" : "Valid until"} {validUntil.toISOString().slice(0, 10)}.{expired ? " Ask for an updated one." : ""}</div> : null}
 
-            {!superseded ? (
+            {!superseded && (rev.sent_at || owner) && !expired ? (
               doc.accepted_at ? (
                 <div className="qcallout">Accepted by {doc.accepted_by} on {new Date(doc.accepted_at).toISOString().slice(0, 10)}.</div>
               ) : (
                 <section className="qactions">
                   <form action="/api/sales/respond" method="post" className="qform">
                     <input type="hidden" name="slug" value={slug} />
+                    <input type="hidden" name="rev" value={rev.rev} />
                     <input type="hidden" name="action" value="accept" />
                     <label className="qlabel" htmlFor="qa-name">Your name</label>
                     <input id="qa-name" name="name" required placeholder="Full name" autoComplete="name" />

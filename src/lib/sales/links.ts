@@ -8,7 +8,11 @@ import { safeEqual } from "../clock";
 import { waDigits } from "./identity";
 
 function secret(): string {
-  return process.env.AUTH_SECRET?.trim() || process.env.CRON_SECRET?.trim() || `daybook-sales:${process.env.ADMIN_PASSWORD ?? "dev"}`;
+  const s = process.env.AUTH_SECRET?.trim() || process.env.CRON_SECRET?.trim();
+  if (s) return s;
+  // never sign with a guessable key in production: anyone could forge "go" links and view beacons
+  if (process.env.NODE_ENV === "production") throw new Error("AUTH_SECRET (or CRON_SECRET) must be set to sign sales links.");
+  return `daybook-sales:${process.env.ADMIN_PASSWORD ?? "dev"}`;
 }
 
 export function sign(value: string): string {
