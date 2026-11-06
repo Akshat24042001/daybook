@@ -49,9 +49,17 @@ async function runMigrations(client: pg.Client) {
   for (const f of files) {
     if (applied.has(f)) continue;
     const sql = fs.readFileSync(path.join(migrationsDir, f), "utf8");
-    console.log(`[bootstrap] applying migration ${f}`);
     await client.query("begin");
     try {
+      // Two cold starts at once must never apply the same migration twice: take a lock for this transaction
+      // (works through Supabase's transaction pooler) and check again once we hold it.
+      await client.query("select pg_advisory_xact_lock(727274001)");
+      const done = await client.query("select 1 from schema_migrations where name = $1", [f]);
+      if (done.rowCount) {
+        await client.query("commit");
+        continue;
+      }
+      console.log(`[bootstrap] applying migration ${f}`);
       await client.query(sql);
       await client.query("insert into schema_migrations (name) values ($1)", [f]);
       await client.query("commit");
