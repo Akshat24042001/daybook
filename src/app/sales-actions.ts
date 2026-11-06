@@ -9,7 +9,8 @@ import {
   addCommitment, addPayment, createDeal, deletePayment, markPaid, setCommitment, updateDeal, deleteDeal,
 } from "@/lib/sales/deals";
 import { createLinkDoc, createQuote, deleteDoc, markDocSent, newRevision, saveRevision, type RevisionRow } from "@/lib/sales/docs";
-import { auditCompany, enrichCompany, enrichPerson } from "@/lib/sales/enrich";
+import { auditCompany } from "@/lib/sales/enrich";
+import { researchRadarItem, researchView, startResearch, type ResearchView } from "@/lib/sales/research";
 import { ensureCompany, mergePeople, upsertPerson } from "@/lib/sales/identity";
 import { capture, processCapture, undoCapture, type CaptureResult } from "@/lib/sales/ingest";
 import { enqueue } from "@/lib/sales/jobs";
@@ -249,14 +250,25 @@ export async function deleteDocAction(id: number) {
 // ------------------------------------------------------------------ enrichment
 export async function enrichAction(kind: "company" | "person" | "audit", id: number, now = false) {
   return run(async () => {
-    if (now) {
-      if (kind === "company") await enrichCompany(id);
-      else if (kind === "person") await enrichPerson(id);
-      else await auditCompany(id);
-      return;
-    }
-    await enqueue(kind === "company" ? "enrich_company" : kind === "person" ? "enrich_person" : "audit_website", { id }, { dedupeKey: `${kind}:${id}:${Date.now()}` });
+    // company and person research is the deep, staged kind: it starts now and reports progress, it does not block
+    if (kind === "company") await startResearch({ subject: "company", id, trigger: "manual" });
+    else if (kind === "person") await startResearch({ subject: "person", id, trigger: "manual" });
+    else if (now) await auditCompany(id);
+    else await enqueue("audit_website", { id }, { dedupeKey: `audit:${id}:${Date.now()}` });
   }, [...ALL, "/sales/accounts"]);
+}
+
+/** Research the company (and contact) behind a radar lead. Pass a name or website when the lead does not say. */
+export async function researchLeadAction(itemId: number, override?: { company?: string; website?: string }) {
+  return run<{ runId: number }>(async () => ({ runId: await researchRadarItem(itemId, override ?? {}, "manual") }), ["/sales/radar"]);
+}
+/** Everything known about a lead's company and people, plus the live progress of any research. Safe to poll. */
+export async function researchViewAction(a: { radarItemId?: number; companyId?: number }): Promise<{ ok: true; view: ResearchView } | { ok: false; error: string }> {
+  try {
+    return { ok: true, view: await researchView(a) }; // a plain read: no undo entry, so polling it leaves no trace
+  } catch (e) {
+    return { ok: false, error: e instanceof UserError ? e.message : "Could not load the research." };
+  }
 }
 
 // ------------------------------------------------------------------ radar

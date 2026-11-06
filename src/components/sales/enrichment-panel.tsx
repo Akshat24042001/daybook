@@ -2,7 +2,7 @@
 
 import { Loader2, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { enrichAction } from "@/app/sales-actions";
 import { Button } from "@/components/ui";
 import { useToast } from "@/components/toast";
@@ -18,13 +18,29 @@ export function EnrichmentPanel({ kind, id, data, groups, enrichedAt, title }: {
   const { toast } = useToast();
   const router = useRouter();
   const filled = Object.values(data ?? {}).filter((f) => f?.v !== null && f?.v !== undefined && f?.v !== "").length;
+  // research now runs in the background in stages: after starting it, refresh every few seconds until the profile changes
+  const [waiting, setWaiting] = useState(false);
+  const [startedWith] = useState(enrichedAt);
+  useEffect(() => {
+    if (!waiting) return;
+    if (enrichedAt !== startedWith) {
+      setWaiting(false);
+      toast("Profile updated");
+      return;
+    }
+    const t = setInterval(() => router.refresh(), 6000);
+    const stop = setTimeout(() => setWaiting(false), 4 * 60_000);
+    return () => {
+      clearInterval(t);
+      clearTimeout(stop);
+    };
+  }, [waiting, enrichedAt, startedWith, router, toast]);
   const run = () =>
     start(async () => {
-      toast("Researching. This takes about a minute…");
       const r = await enrichAction(kind, id, true);
-      if (!r.ok) toast(r.error, "error");
-      else toast("Profile updated");
-      router.refresh();
+      if (!r.ok) return toast(r.error, "error");
+      toast("Research started. It takes a couple of minutes and runs in the background.");
+      setWaiting(true);
     });
   return (
     <section className="rounded-2xl border border-border bg-surface p-4">
@@ -35,8 +51,8 @@ export function EnrichmentPanel({ kind, id, data, groups, enrichedAt, title }: {
         </div>
         <div className="flex gap-2">
           {filled ? <Button size="sm" variant="ghost" onClick={() => setShowEmpty((s) => !s)}>{showEmpty ? "Hide empty" : "Show empty"}</Button> : null}
-          <Button size="sm" variant="outline" onClick={run} disabled={busy}>
-            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} {enrichedAt ? "Research again" : "Research now"}
+          <Button size="sm" variant="outline" onClick={run} disabled={busy || waiting}>
+            {busy || waiting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} {waiting ? "Researching…" : enrichedAt ? "Research again" : "Research now"}
           </Button>
         </div>
       </div>

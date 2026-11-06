@@ -1,13 +1,15 @@
 "use client";
 
-import { CheckCircle2, CircleAlert, Send } from "lucide-react";
+import { CheckCircle2, CircleAlert, Monitor, Moon, Send, Sun } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   createPersonAction, testNotificationAction, updatePersonAction,
   updateSettingsAction,
 } from "@/app/actions";
 import type { SettingsPatch } from "@/lib/settings";
+import { cn } from "@/lib/cn";
+import { PALETTES, getPalette, getThemePref, setPalette, setThemePref, type PaletteId, type ThemePref } from "@/lib/theme";
 import { useToast } from "../toast";
 import { ExerciseTypes, type ExerciseTypeData } from "../health/exercise-types";
 import { Button, Card, ErrorNote, Field, Input, Select } from "../ui";
@@ -37,6 +39,53 @@ function Status({ ok, label, detail }: { ok: boolean; label: string; detail: str
         <p className="text-xs text-subtle">{detail}</p>
       </div>
     </li>
+  );
+}
+
+/** Look and feel: nine pastel palettes (Candy gives every page its own) and light, Dusk or follow-my-device. */
+function Appearance() {
+  const [palette, setP] = useState<PaletteId>("candy");
+  const [theme, setT] = useState<ThemePref>("system");
+  useEffect(() => {
+    setP(getPalette());
+    setT(getThemePref());
+  }, []);
+  const modes: [ThemePref, string, typeof Sun][] = [["system", "Auto", Monitor], ["light", "Light", Sun], ["dark", "Dusk", Moon]];
+  return (
+    <Card className="space-y-4 p-4">
+      <div>
+        <p className="mb-2 text-sm font-semibold">Palette</p>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+          {PALETTES.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              aria-pressed={palette === p.id}
+              onClick={() => { setPalette(p.id); setP(p.id); }}
+              title={p.hint}
+              className={cn("rounded-2xl border-2 p-2 text-left transition-all hover:-translate-y-0.5", palette === p.id ? "border-[hsl(var(--lilac-fill))] bg-muted shadow-[var(--shadow-sm)]" : "border-border bg-surface")}
+            >
+              <span className="flex overflow-hidden rounded-xl">
+                {p.swatch.map((c) => <span key={c} className="h-9 flex-1" style={{ background: c }} />)}
+              </span>
+              <span className="mt-1.5 block text-xs font-semibold">{p.label}</span>
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-subtle">{PALETTES.find((p) => p.id === palette)?.hint}. Saved on this device.</p>
+      </div>
+      <div>
+        <p className="mb-2 text-sm font-semibold">Light or dark</p>
+        <div className="flex flex-wrap gap-2">
+          {modes.map(([id, label, Icon]) => (
+            <button key={id} type="button" aria-pressed={theme === id} onClick={() => { setThemePref(id); setT(id); }}
+              className={cn("flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium", theme === id ? "border-transparent bg-[linear-gradient(135deg,hsl(var(--accent-fill)),hsl(var(--lilac-fill)))] text-accent-fg" : "border-border bg-surface")}>
+              <Icon className="h-4 w-4" /> {label === "Dusk" ? "Dusk (dark)" : label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -108,6 +157,10 @@ export function SettingsClient({
         <h1 className="font-display text-3xl">Settings</h1>
         <p className="mt-1 text-sm text-subtle">Everything here can be changed at any time.</p>
       </header>
+
+      <Block title="Appearance" hint="Make Daybook yours.">
+        <Appearance />
+      </Block>
 
       <Block title="Connections">
         <Card className="divide-y divide-border">

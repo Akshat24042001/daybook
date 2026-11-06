@@ -76,3 +76,13 @@ the database, and comes back with "Show hidden leads".
 
 **All tasks.** `/tasks` lists every task whatever its state (active, completed, dropped, waiting) with search and a
 project filter, a "Day by day" log of everything done, skipped or dropped, and Reopen for closed tasks.
+
+**Look.** The whole app is pastel (`globals.css`, `lib/theme.ts`). Eight hues, one per kind of thing, and each page lives in
+one hue: `[data-hue]` on the shell re-tints the canvas gradient, cards, chips and borders, so no component needs to know
+which page it is on. Nine palettes (Candy gives every page its own; the others paint every page one pastel), light or
+"Dusk" dark, chosen in Settings or from the sidebar, saved per device. Rounded type (Nunito, Fredoka), pill buttons, icon
+bubbles on every tile and section. Task rows take a wash of their project's colour.
+
+**Research.** Deep lead research runs as a chain of jobs (site, search, synth, person) with a log and a source list per run, so
+each step fits a serverless time slot and progress is visible. Anything verifiable (emails, phones, socials, domain age,
+email provider) is extracted by code and overrides the AI's version. The old `enrich_company` and `enrich_person` jobs now start this pipeline.

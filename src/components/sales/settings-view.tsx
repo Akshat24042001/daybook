@@ -157,6 +157,7 @@ export function SettingsView({ d }: { d: SettingsData }) {
           <Field label="Instant alert at score"><Input value={String(radar.alert_score)} onChange={(e) => setRadar({ ...radar, alert_score: Number(e.target.value) || 0 })} inputMode="numeric" /></Field>
           <Field label="Digest hour (0-23)"><Input value={String(radar.digest_hour)} onChange={(e) => setRadar({ ...radar, digest_hour: Number(e.target.value) || 0 })} inputMode="numeric" /></Field>
           <Field label="Max paid-tier searches a day" hint="Protects the free quotas. Tavily 1,000 a month is about 30 a day."><Input value={String(radar.search_daily_cap)} onChange={(e) => setRadar({ ...radar, search_daily_cap: Number(e.target.value) || 0 })} inputMode="numeric" /></Field>
+          <Field label="Research leads automatically from score" hint="Qualified radar leads at or above this score get their company, contact details and people researched on their own. 101 turns it off."><Input value={String(radar.auto_research_score)} onChange={(e) => setRadar({ ...radar, auto_research_score: Number(e.target.value) || 0 })} inputMode="numeric" /></Field>
           <Field label="Searches per company research"><Input value={String(radar.enrich_queries)} onChange={(e) => setRadar({ ...radar, enrich_queries: Number(e.target.value) || 0 })} inputMode="numeric" /></Field>
         </div>
         <div className="mt-3 flex justify-end"><Button variant="primary" disabled={busy} onClick={() => save({ countries: lines(countries), industries: lines(industries), radar })}>Save</Button></div>

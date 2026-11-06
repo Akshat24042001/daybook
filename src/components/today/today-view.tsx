@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Building2, ChevronDown, Coffee, Flag, Car, Target, Sparkles,
+  Building2, CheckCircle2, ChevronDown, Clock3, Coffee, Flag, Car, Heart, ListTodo, Star, Target, Sparkles, Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -35,6 +35,7 @@ const MORE = ACTIVITIES.filter((a) => !STATES.some((s) => s.kind === a.kind));
 const SCORES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 /** Each section of the day has the colour of what it holds (see lib/hue.ts). */
+const SECTION_ICON: Record<SectionKey, React.ComponentType<{ className?: string }>> = { must: Star, timed: Clock3, followups: Users, other: ListTodo, personal: Heart, done: CheckCircle2 };
 const SECTION_HUE: Record<SectionKey, Hue> = { must: "butter", timed: "teal", followups: "peach", other: "sky", personal: "pink", done: "mint" };
 
 export function TodayView(props: {
@@ -247,7 +248,9 @@ export function TodayView(props: {
         return (
           <section key={key} aria-label={SECTION_LABEL[key]}>
             <h2 className={cn("mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider", HUE[SECTION_HUE[key]].ink)}>
-              <span className={cn("h-2.5 w-2.5 rounded-full", HUE[SECTION_HUE[key]].fill)} aria-hidden />
+              <span className={cn("flex h-6 w-6 items-center justify-center rounded-full text-fg/80", HUE[SECTION_HUE[key]].fill)} aria-hidden>
+                {(() => { const I = SECTION_ICON[key]; return <I className="h-3.5 w-3.5" />; })()}
+              </span>
               {collapsible ? (
                 <button
                   type="button"

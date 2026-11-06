@@ -147,10 +147,13 @@ export function EntryRow({
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
         // the left edge carries the project's colour, so a glance down the list shows which project each task belongs to
-        style={{ transform: `translateX(${dx}px)`, transition: dx === 0 ? "transform 160ms ease-out" : "none", borderLeftColor: row.projectColor ?? undefined }}
+        style={{ transform: `translateX(${dx}px)`, transition: dx === 0 ? "transform 160ms ease-out" : "none", borderLeftColor: row.projectColor ?? undefined,
+          // the whole row takes a wash of its project's colour
+          ...(row.projectColor && !(row.mustDo && !closed) ? { background: `color-mix(in srgb, ${row.projectColor} 13%, hsl(var(--surface)))` } : null) }}
         className={cn(
           "flex items-center gap-3 border border-border border-l-[5px] px-3 py-2.5",
           row.mustDo && !closed ? "highlighter border-y-transparent border-r-transparent" : "bg-surface",
+          "rounded-2xl",
           (closed || parked) && "opacity-70",
         )}
       >

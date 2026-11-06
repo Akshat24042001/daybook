@@ -2,8 +2,8 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import {
-  AlertTriangle, ArrowDownRight, ArrowUpRight, BookOpen, ChevronRight, Info, Lightbulb, Maximize2, Minus,
-  SlidersHorizontal, Sparkles, X,
+  AlertTriangle, ArrowDownRight, ArrowUpRight, BarChart3, BookOpen, CalendarClock, CalendarDays, CheckCircle2, ChevronRight, Clock, Dumbbell,
+  Flame, Footprints, Hourglass, Info, Instagram, Lightbulb, Maximize2, Minus, Moon, PieChart, SlidersHorizontal, Sparkles, Star, X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -60,6 +60,13 @@ function Delta({ cur, prev, unit = "", digits = 1, lowerIsBetter = false, neutra
 }
 
 /** A chart card: headline number in the header, chart below, click anywhere for the detail dialog. */
+/** An icon for each measure, so a tile is recognisable at a glance. */
+const TILE_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  "Day score": Star, "Hours worked": Clock, "Tasks done": CheckCircle2, "Your day, hour by hour": CalendarClock, "Unaccounted time": Hourglass,
+  "Hours by project": PieChart, Consistency: Flame, "Weekday patterns": CalendarDays, Steps: Footprints, Exercise: Dumbbell, Sleep: Moon,
+  Instagram: Instagram, "Diary · AI day rating": BookOpen,
+};
+
 function Tile({
   title, value, delta, sub, warn, onOpen, children, className, action, hue = "teal",
 }: {
@@ -81,15 +88,19 @@ function Tile({
     <Card
       onClick={onOpen}
       className={cn(
-        "group flex cursor-pointer flex-col p-4 transition-all hover:border-accent/40 hover:shadow-[var(--shadow-md)]",
-        warn && "border-warn/40",
+        "group flex cursor-pointer flex-col p-4 transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]",
+        HUE[warn ? "butter" : hue].soft, HUE[warn ? "butter" : hue].edge,
         className,
       )}
     >
       <div className="mb-2 flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <span className={cn("mb-1.5 block h-1 w-8 rounded-full", HUE[warn ? "butter" : hue].fill)} aria-hidden />
-          <p className={cn("text-[11px] font-semibold uppercase tracking-wider", HUE[warn ? "butter" : hue].ink)}>{title}</p>
+          <p className={cn("flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider", HUE[warn ? "butter" : hue].ink)}>
+            <span className={cn("flex h-7 w-7 items-center justify-center rounded-full", HUE[warn ? "butter" : hue].fill, "text-fg/80")} aria-hidden>
+              {(() => { const I = TILE_ICON[title] ?? BarChart3; return <I className="h-3.5 w-3.5" />; })()}
+            </span>
+            {title}
+          </p>
           {value !== undefined ? (
             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
               <span className={cn("tabular font-display text-2xl leading-tight", warn && "text-warn")}>{value}</span>

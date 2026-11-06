@@ -9,7 +9,7 @@ import { esc, sendMessage } from "../telegram/api";
 import { inQuietHours } from "../telegram/notify";
 import { focusFor, salesConfig, salesRow } from "./config";
 import { dealContext } from "./context";
-import { auditCompany, enrichCompany, enrichPerson } from "./enrich";
+import { auditCompany } from "./enrich";
 import { processCapture } from "./ingest";
 import { enqueue, runJobs, type Handler } from "./jobs";
 import { baseUrl } from "./links";
@@ -17,6 +17,7 @@ import { llm } from "./llm";
 import { draftForMove, refreshMoves } from "./moves";
 import { ownerChat, push } from "./notify";
 import { reportHunt, runHunt, scheduleHunts } from "./hunts";
+import { personStage, researchRadarItem, searchStage, siteStage, startResearch, synthStage } from "./research";
 import { dailyDigest, hunt, qualifyPending, runRadar } from "./radar";
 import { weeklyReview, reviewMessage } from "./review";
 import { movesMessage, processAndReport, report } from "./telegram";
@@ -38,11 +39,27 @@ export const HANDLERS: Record<string, Handler> = {
   async refresh_moves(p) {
     await refreshMoves(p.deal_id ? Number(p.deal_id) : undefined);
   },
+  // the old "enrich" jobs now start the deep, staged research (live log, sources, people, contacts)
   async enrich_company(p) {
-    await enrichCompany(Number(p.id));
+    await startResearch({ subject: "company", id: Number(p.id), trigger: "auto" });
   },
   async enrich_person(p) {
-    await enrichPerson(Number(p.id));
+    await startResearch({ subject: "person", id: Number(p.id), trigger: "auto" });
+  },
+  async research_company(p) {
+    await siteStage(Number(p.runId));
+  },
+  async research_search(p) {
+    await searchStage(Number(p.runId));
+  },
+  async research_synth(p) {
+    await synthStage(Number(p.runId));
+  },
+  async research_person(p) {
+    await personStage(Number(p.runId));
+  },
+  async radar_research(p) {
+    await researchRadarItem(Number(p.id), {}, "auto");
   },
   async audit_website(p) {
     await auditCompany(Number(p.id));

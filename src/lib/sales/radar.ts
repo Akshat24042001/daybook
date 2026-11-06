@@ -339,6 +339,8 @@ export async function qualifyPending(budgetMs = 45_000): Promise<number> {
         await q("update sales_radar_sources set items_qualified = items_qualified + 1 where id = (select source_id from sales_radar_items where id = $1)", [b.id]);
         const fresh = !b.posted_at || Date.now() - new Date(b.posted_at).getTime() < 12 * 3_600_000;
         if (score >= cfg.radar.alert_score && fresh && b.hunt_notify !== false) await alertItem(b.id);
+        // a strong lead gets researched on its own: company, contact details, the people behind it
+        if (score >= cfg.radar.auto_research_score) await enqueue("radar_research", { id: b.id }, { dedupeKey: `radar_research:${b.id}` });
       }
       done += 1;
     }

@@ -10,6 +10,7 @@ import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { cn } from "@/lib/cn";
 import { HUE, hueForPath, type Hue } from "@/lib/hue";
+import { PALETTES, applyTheme, getPalette, getThemePref, setPalette, setThemePref, type PaletteId, type ThemePref } from "@/lib/theme";
 import { CommandPalette } from "./command-palette";
 import { NavProgress } from "./nav-progress";
 import { QuickAdd } from "./quick-add";
@@ -17,40 +18,61 @@ import { StaleBanner } from "./stale-banner";
 import { ToastProvider } from "./toast";
 import { UndoWatcher, type RecentAction } from "./undo-watcher";
 
-type Theme = "system" | "light" | "dark";
-
 function useTheme() {
-  const [theme, setTheme] = useState<Theme>("system");
+  const [theme, setTheme] = useState<ThemePref>("system");
   useEffect(() => {
-    const stored = (localStorage.getItem("daybook-theme") as Theme) ?? "system";
-    setTheme(stored);
-    document.documentElement.dataset.theme = stored === "system" ? "" : stored;
+    setTheme(getThemePref());
     // the "t" shortcut switches theme too: keep the label in sync
-    const onTheme = (e: Event) => setTheme((e as CustomEvent<Theme>).detail);
+    const onTheme = (e: Event) => setTheme((e as CustomEvent<ThemePref>).detail);
     window.addEventListener("daybook:theme", onTheme);
     return () => window.removeEventListener("daybook:theme", onTheme);
   }, []);
-  const cycle = () => {
-    const next: Theme = theme === "system" ? "light" : theme === "light" ? "dark" : "system";
-    setTheme(next);
-    localStorage.setItem("daybook-theme", next);
-    document.documentElement.dataset.theme = next === "system" ? "" : next;
-  };
+  const cycle = () => setThemePref(theme === "system" ? "light" : theme === "light" ? "dark" : "system");
   return { theme, cycle };
+}
+
+/** The chosen pastel palette ("candy" = each page in its own pastel). */
+function usePalette() {
+  const [palette, setPaletteState] = useState<PaletteId>("candy");
+  useEffect(() => {
+    setPaletteState(getPalette());
+    const on = (e: Event) => setPaletteState((e as CustomEvent<PaletteId>).detail);
+    window.addEventListener("daybook:palette-change", on);
+    return () => window.removeEventListener("daybook:palette-change", on);
+  }, []);
+  const next = () => setPalette(PALETTES[(PALETTES.findIndex((p) => p.id === palette) + 1) % PALETTES.length].id);
+  return { palette, next };
 }
 
 function ThemeToggle() {
   const { theme, cycle } = useTheme();
-  const label = theme === "light" ? "Light" : theme === "dark" ? "Dark" : "Auto";
+  const label = theme === "light" ? "Light" : theme === "dark" ? "Dusk" : "Auto";
   const Icon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
   return (
     <button
       onClick={cycle}
       title={`Theme: ${label}. Click to cycle.`}
-      className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-subtle transition-colors hover:bg-muted hover:text-fg"
+      className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium text-subtle transition-colors hover:bg-muted hover:text-fg"
     >
       <Icon className="h-4 w-4" />
       <span>{label}</span>
+    </button>
+  );
+}
+
+function PaletteToggle() {
+  const { palette, next } = usePalette();
+  const cur = PALETTES.find((p) => p.id === palette) ?? PALETTES[0];
+  return (
+    <button
+      onClick={next}
+      title={`Palette: ${cur.label}. Click for the next one (or choose in Settings).`}
+      aria-label={`Palette ${cur.label}. Change palette`}
+      className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium text-subtle transition-colors hover:bg-muted hover:text-fg"
+    >
+      <span className="flex -space-x-1">
+        {cur.swatch.slice(0, 3).map((c) => <span key={c} className="h-3.5 w-3.5 rounded-full ring-2 ring-surface" style={{ background: c }} />)}
+      </span>
     </button>
   );
 }
@@ -132,28 +154,17 @@ function SideLink({ item, active }: { item: NavItem; active: boolean }) {
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm font-medium transition-colors",
-        active ? cn(hue.tint, hue.ink) : "text-subtle hover:bg-muted hover:text-fg",
+        "relative flex items-center gap-2.5 rounded-full px-2 py-1.5 text-sm font-medium transition-colors",
+        active ? cn(hue.pill, hue.ink, "font-semibold shadow-[var(--shadow-sm)]") : "text-subtle hover:bg-muted hover:text-fg",
       )}
     >
       {active ? <span className={cn("absolute -left-3 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full", hue.fill)} aria-hidden /> : null}
       {/* every page keeps its own colour, lit or not, so the sidebar doubles as a legend */}
-      <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg", hue.tint, hue.ink, active && "bg-surface/60")}>
+      <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full", hue.tint, hue.ink, active && "bg-surface/70")}>
         <Icon className={cn("h-[17px] w-[17px]", active && "stroke-[2.3]")} />
       </span>
       {label}
     </Link>
-  );
-}
-
-/** A soft wash of the page's colour behind the header, so each area of the app feels like its own place. */
-function PageWash({ hue }: { hue: Hue }) {
-  return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-56"
-      style={{ background: `linear-gradient(to bottom, hsl(var(${HUE[hue].wash})) 0%, transparent 100%)` }}
-    />
   );
 }
 
@@ -180,24 +191,29 @@ export function AppShell({
   const [moreOpen, setMoreOpen] = useState(false);
   const moreActive = MOBILE_MORE.some((i) => active(i.href));
   useEffect(() => setMoreOpen(false), [pathname]);
+  const { palette } = usePalette();
+  // "candy" paints each page in its own pastel; any other palette paints every page the same
+  const hue: Hue = palette === "candy" ? hueForPath(pathname) : palette;
 
   return (
     <ToastProvider>
       <UndoWatcher action={undo} />
+      <div data-hue={hue} className="relative min-h-dvh w-full text-fg">
+      <div className="canvas fixed inset-0 -z-10" aria-hidden />
       <StaleBanner />
       <div className="flex min-h-dvh w-full">
         {/* desktop sidebar */}
-        <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r border-border bg-surface/60 px-3 py-5 md:flex">
+        <aside className="sticky top-3 m-3 hidden h-[calc(100dvh-1.5rem)] w-56 shrink-0 flex-col rounded-[1.75rem] border border-border bg-surface/75 px-3 py-5 shadow-[var(--shadow-md)] backdrop-blur-xl md:flex">
           <Link href="/today" className="flex items-center gap-2.5 px-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand text-bg shadow-[0_2px_8px_hsl(var(--brand)/0.30)]">
-              <BookOpen className="h-4 w-4" />
+            <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,hsl(var(--lilac-fill)),hsl(var(--sky-fill)))] text-p-lilac-fg shadow-[var(--shadow-sm)]">
+              <BookOpen className="h-[18px] w-[18px]" />
             </span>
             <span className="font-display text-xl">Daybook</span>
           </Link>
           <button
             type="button"
             onClick={() => window.dispatchEvent(new CustomEvent("daybook:palette"))}
-            className="mt-5 flex items-center gap-2 rounded-xl border border-border bg-bg px-3 py-2 text-sm text-subtle transition-colors hover:border-accent/40 hover:text-fg"
+            className="mt-5 flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-sm text-subtle transition-colors hover:text-fg"
           >
             <Search className="h-4 w-4" />
             <span className="flex-1 text-left">Search</span>
@@ -213,19 +229,18 @@ export function AppShell({
               </div>
             ))}
           </nav>
-          <div className="flex items-center justify-between border-t border-border pt-3">
+          <div className="border-t border-border pt-3">
             <SideLink item={{ href: "/settings", label: "Settings", Icon: Settings }} active={active("/settings")} />
-            <ThemeToggle />
+            <div className="mt-1 flex items-center justify-between px-1"><PaletteToggle /><ThemeToggle /></div>
           </div>
         </aside>
 
         <div className="relative flex min-w-0 flex-1 flex-col">
-          <PageWash hue={hueForPath(pathname)} />
-          <header className="pt-safe sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur md:border-0 md:bg-transparent md:backdrop-blur-0">
+          <header className="pt-safe sticky top-0 z-30 border-b border-border bg-surface/70 backdrop-blur-xl md:border-0 md:bg-transparent md:backdrop-blur-0">
             <div className="flex items-center justify-between px-4 py-2 md:hidden">
               <Link href="/today" className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand text-bg">
-                  <BookOpen className="h-3.5 w-3.5" />
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[linear-gradient(135deg,hsl(var(--lilac-fill)),hsl(var(--sky-fill)))] text-p-lilac-fg">
+                  <BookOpen className="h-4 w-4" />
                 </span>
                 <span className="font-display text-lg">Daybook</span>
               </Link>
@@ -238,11 +253,12 @@ export function AppShell({
                 >
                   <Search className="h-4 w-4" />
                 </button>
+                <PaletteToggle />
                 <ThemeToggle />
               </div>
             </div>
             <div className="px-4 pb-3 pt-1 md:px-6 md:pt-5 xl:px-8">
-              <Suspense fallback={<div className="h-[52px] rounded-2xl border border-border bg-surface" />}>
+              <Suspense fallback={<div className="h-[52px] rounded-full border border-border bg-surface" />}>
                 <QuickAdd tz={tz} boundaryMin={boundaryMin} voiceEnabled={voiceEnabled} aiEnabled={aiEnabled} />
               </Suspense>
             </div>
@@ -255,7 +271,7 @@ export function AppShell({
       {/* mobile bottom navigation */}
       <nav
         aria-label="Main"
-        className="pb-safe fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-surface/95 backdrop-blur md:hidden"
+        className="fixed inset-x-3 bottom-[calc(0.6rem+env(safe-area-inset-bottom))] z-30 grid grid-cols-5 rounded-[1.75rem] border border-border bg-surface/90 px-1 shadow-[var(--shadow-lg)] backdrop-blur-xl md:hidden"
       >
         {MOBILE_MAIN.map(({ href, label, Icon }) => (
           <Link
@@ -282,6 +298,8 @@ export function AppShell({
           More
         </button>
       </nav>
+
+      </div>
 
       <Dialog.Root open={moreOpen} onOpenChange={setMoreOpen}>
         <Dialog.Portal>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, EyeOff, ExternalLink, Loader2, Plus, Radar, Sparkles } from "lucide-react";
+import { CheckCircle2, Eye, EyeOff, ExternalLink, Loader2, Plus, Radar, Search, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
@@ -14,12 +14,13 @@ import { ago } from "./util";
 import { MoveCard } from "./moves-view";
 import { HuntsPanel } from "./hunts-view";
 import { PlanPanel } from "./plan-panel";
+import { ResearchSheet } from "./research-sheet";
 import type { RadarPlan } from "@/lib/sales/radar-plan";
 import type { HuntView } from "@/lib/sales/hunts";
 
 export interface RadarItem {
   id: number; title: string; body: string | null; url: string | null; score: number | null; status: string; found_at: string; posted_at: string | null;
-  source: string | null; category: string | null; deal_id: number | null; hunt?: string | null; hidden?: boolean;
+  source: string | null; category: string | null; deal_id: number | null; hunt?: string | null; hidden?: boolean; company_id?: number | null; researched_at?: string | null;
   fit: { why?: string; angle?: string; money_leak?: string | null; country?: string; industry?: string; services?: string[]; buyer?: string; budget?: string | null; urgency?: string } | null;
 }
 export interface SourceRow {
@@ -31,6 +32,7 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
   const [move, setMove] = useState<MoveRow | null>(null);
   const [busy, start] = useTransition();
   const [gone, setGone] = useState(false);
+  const [research, setResearch] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
   if (gone) return null;
@@ -61,7 +63,12 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
         </div>
       </div>
       {move ? <div className="mt-3"><MoveCard m={move} googleReady={googleReady} onGone={() => setGone(true)} /></div> : null}
+      {research ? <ResearchSheet open onOpenChange={setResearch} radarItemId={it.id} companyId={it.company_id ?? undefined} title={it.title.slice(0, 60)} /> : null}
       <div className="mt-3 flex flex-wrap gap-1.5">
+        <Button size="sm" variant="outline" onClick={() => setResearch(true)} title="Everything known about the company and the people behind this lead">
+          {it.researched_at ? <CheckCircle2 className="h-3.5 w-3.5 text-good" /> : it.company_id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+          {it.researched_at ? "Research" : it.company_id ? "Researching…" : "Research"}
+        </Button>
         {!move ? <Button size="sm" variant="primary" disabled={busy} onClick={() => start(async () => {
           const r = await radarDraftAction(it.id);
           if (!r.ok) return toast(r.error, "error");

@@ -15,8 +15,8 @@ export default async function RadarPage() {
   await seedHunts();
   const [items, sources, cfg, google, hunts, plan] = await Promise.all([
     q<RadarItem>(
-      `select r.id, r.title, r.body, r.url, r.score, r.status, r.found_at, r.posted_at, r.deal_id, r.fit, r.hidden, s.name as source, s.category, h.name as hunt
-       from sales_radar_items r left join sales_radar_sources s on s.id = r.source_id left join sales_hunts h on h.id = r.hunt_id
+      `select r.id, r.title, r.body, r.url, r.score, r.status, r.found_at, r.posted_at, r.deal_id, r.fit, r.hidden, r.company_id, co.enriched_at as researched_at, s.name as source, s.category, h.name as hunt
+       from sales_radar_items r left join sales_radar_sources s on s.id = r.source_id left join sales_hunts h on h.id = r.hunt_id left join sales_companies co on co.id = r.company_id
        where r.found_at > now() - interval '10 days' and r.status in ('qualified','new','rejected','skipped')
        order by (r.status = 'qualified') desc, r.score desc nulls last, r.found_at desc limit 300`,
     ),

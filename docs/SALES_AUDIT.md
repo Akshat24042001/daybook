@@ -38,3 +38,11 @@ Method: read the code path by path, then wrote a failing test for each bug befor
 3. **Preview detection is a user-agent guess.** iMessage, Signal and Discord previews are not all in the list, so a preview can count as a tap or an open. Move-level `external_id` stops double logging; the noise is cosmetic.
 4. **The capture token can be sent in the URL query** (needed for the share-sheet shortcut). It then appears in server logs. Prefer the header or body form where the client allows it.
 5. **`/api/sales/file/<slug>`** hands out the file for any document with an attachment, regardless of status. Fine today; worth gating on "sent" if you attach internal files later.
+
+## Design notes on research (November 2026)
+
+- Contact details and domain facts are extracted by code from the fetched pages and DNS, then written over whatever the AI produced
+  for the same fields, so an email, phone or registration date can never be invented.
+- Work emails for people are pattern guesses, always tagged `est` and shown as "guess, unverified". Nothing is sent to an address
+  because of a guess.
+- Public sources only: the company's own site, search results, Wikidata, RDAP and public DNS. No LinkedIn scraping, no logins.

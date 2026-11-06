@@ -41,6 +41,8 @@ export interface SalesConfig {
     alert_score: number;
     search_daily_cap: number;
     enrich_queries: number;
+    /** qualified radar leads at or above this score are researched automatically (company, contacts, people); 101 turns it off */
+    auto_research_score: number;
   };
   brief_hour: number;
   review_dow: number;
@@ -93,7 +95,7 @@ export const DEFAULT_CONFIG: SalesConfig = {
   reengage_days: 7,
   reply_within_hours: 3,
   ghost_revisit_days: 60,
-  radar: { min_score: 60, daily_min: 1, digest_hour: 9, alert_score: 85, search_daily_cap: 25, enrich_queries: 5 },
+  radar: { min_score: 60, daily_min: 1, digest_hour: 9, alert_score: 85, search_daily_cap: 25, enrich_queries: 5, auto_research_score: 70 },
   brief_hour: 9,
   review_dow: 7,
   review_hour: 18,

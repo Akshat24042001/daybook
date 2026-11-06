@@ -1,13 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Plus_Jakarta_Sans } from "next/font/google";
+import { Fredoka, Nunito } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/sw-register";
 
-const sans = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
-const display = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-display", weight: ["500", "600", "700"], display: "swap" });
+// Rounded, friendly type to match the pastel look: Nunito for reading, Fredoka for headings and numbers
+const sans = Nunito({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
+const display = Fredoka({ subsets: ["latin"], variable: "--font-display", weight: ["500", "600", "700"], display: "swap" });
 
 // Applies the saved theme before first paint so dark mode never flashes light.
-const THEME_SCRIPT = `try{var t=localStorage.getItem("daybook-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}`;
+// (data-theme is always "light" or "dark": "follow my device" is resolved here and kept up to date)
+const THEME_SCRIPT = `(function(){var d=document.documentElement,m=window.matchMedia("(prefers-color-scheme: dark)");function t(){var s="system";try{s=localStorage.getItem("daybook-theme")||"system"}catch(e){}return s==="light"||s==="dark"?s:"system"}function a(){var p=t();d.dataset.theme=p==="dark"||(p==="system"&&m.matches)?"dark":"light"}a();m.addEventListener&&m.addEventListener("change",function(){if(t()==="system")a()})})()`;
 
 export const metadata: Metadata = {
   title: { default: "Daybook", template: "%s · Daybook" },
@@ -23,8 +25,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F6F7F9" },
-    { media: "(prefers-color-scheme: dark)", color: "#16181D" },
+    { media: "(prefers-color-scheme: light)", color: "#F1EAFD" },
+    { media: "(prefers-color-scheme: dark)", color: "#16121F" },
   ],
 };
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { getThemePref, setThemePref } from "@/lib/theme";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   BarChart3, BookMarked, BookOpen, Bot, CalendarCheck, ClipboardList, CornerDownLeft, Download, FileText, FolderOpen,
@@ -55,15 +56,8 @@ function focusQuickAdd() {
 }
 
 function cycleTheme() {
-  const cur = (localStorage.getItem("daybook-theme") ?? "system") as "system" | "light" | "dark";
-  const next = cur === "system" ? "light" : cur === "light" ? "dark" : "system";
-  try {
-    localStorage.setItem("daybook-theme", next);
-  } catch {
-    /* ignore */
-  }
-  document.documentElement.dataset.theme = next === "system" ? "" : next;
-  window.dispatchEvent(new CustomEvent("daybook:theme", { detail: next }));
+  const cur = getThemePref();
+  setThemePref(cur === "system" ? "light" : cur === "light" ? "dark" : "system");
 }
 
 // ------------------------------------------------------------------ palette items

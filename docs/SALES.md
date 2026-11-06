@@ -141,6 +141,28 @@ Radar > **Hunts**. A hunt is an AI that searches the web for buyers on a schedul
 - **Hide** any lead (or a whole list) to tuck it away; tick "Show hidden leads" to see and restore them.
 - A starter hunt, "Daily deep sweep" at 08:30, is created the first time you open the page. Edit or delete it freely.
 
+## Deep research on leads
+
+Every lead can be researched, and the result is one tap away at any time: Radar > a lead > **Research**. Strong leads
+(score 70 and up, changeable in Settings) are researched automatically the moment they are scored. It uses public
+sources only and runs in stages, so you can watch it work and nothing is lost if a step is slow.
+
+1. **Their website**: the home page plus about, team, contact, careers, services, pricing and news pages. It pulls out
+   emails, phones, social profiles, addresses and the company's own structured data (staff count, founders, rating).
+   It also reads the domain: registration date and age, registrar, where their email runs (Google Workspace,
+   Microsoft 365...) and which tools they send email with. These facts come straight off the pages and DNS, never from the AI.
+2. **The web**: twelve targeted searches on revenue, size, leadership, reviews and complaints, news, funding, hiring,
+   competitors and customers, plus people searches.
+3. **The profile**: the AI writes 60-plus company facts from that evidence only, each with its source and a confidence,
+   and estimates revenue when it is not published (marked as an estimate, with the maths).
+4. **The people**: named leadership and key people become contacts; each decision maker is researched in turn (career,
+   background, what they care about, an opening line). Their work email is worked out from how colleagues' addresses look
+   and is always labelled a **guess, unverified**.
+
+The research sheet shows the company, how to reach them, every person, all the facts, **where each came from** (every
+page and search used) and a plain log of what the researcher did. A lead that names no company says so and lets you type
+one. "Wrong company?" re-runs it on the right one. The same profile appears on the deal and the account.
+
 ## Tracked documents
 
 Send links, not attachments. Quotes, opportunity briefs, files and any URL (Loom, Drive, a case study) get an unguessable

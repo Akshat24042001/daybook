@@ -8,20 +8,20 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-1.5 rounded-xl text-sm font-medium transition-all duration-150 disabled:opacity-40 disabled:pointer-events-none select-none",
+  "inline-flex items-center justify-center gap-1.5 rounded-full text-sm font-semibold transition-all duration-150 disabled:opacity-40 disabled:pointer-events-none select-none",
   {
     variants: {
       variant: {
         primary:
-          "bg-accent text-accent-fg shadow-[0_1px_3px_hsl(var(--accent-fill)/0.5)] hover:brightness-[0.97] hover:shadow-[0_2px_8px_hsl(var(--accent-fill)/0.6)] active:scale-[0.97]",
+          "bg-[linear-gradient(135deg,hsl(var(--accent-fill)),hsl(var(--lilac-fill)))] text-accent-fg shadow-[var(--shadow-sm)] hover:brightness-[1.04] hover:shadow-[var(--shadow-md)] active:scale-[0.97]",
         soft:
-          "bg-muted text-fg hover:bg-border active:scale-[0.97]",
+          "bg-muted text-fg hover:brightness-[0.96] active:scale-[0.97]",
         outline:
-          "border border-border bg-surface text-fg hover:bg-muted hover:border-accent/40 active:scale-[0.97]",
+          "border border-border bg-surface text-fg hover:bg-muted active:scale-[0.97]",
         ghost:
           "text-subtle hover:bg-muted hover:text-fg active:scale-[0.97]",
         danger:
-          "bg-bad text-bad-on shadow-[0_1px_3px_hsl(var(--bad-fill)/0.45)] hover:brightness-[0.97] active:scale-[0.97]",
+          "bg-[linear-gradient(135deg,hsl(var(--bad-fill)),hsl(var(--peach-fill)))] text-bad-on shadow-[var(--shadow-sm)] hover:brightness-[1.03] active:scale-[0.97]",
       },
       size: {
         sm:   "h-8 px-3 text-xs",
@@ -99,12 +99,15 @@ export function Sheet({
   onOpenChange,
   title,
   description,
+  wide,
   children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: string;
+  /** a roomier sheet for long content such as a research profile */
+  wide?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -112,7 +115,7 @@ export function Sheet({
       <Dialog.Portal>
         <Dialog.Overlay className="sheet-overlay fixed inset-0 z-40 bg-black/40" />
         <Dialog.Content
-          className="sheet-content fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-border bg-surface p-4 pb-safe shadow-xl sm:bottom-auto sm:top-[12vh] sm:rounded-2xl"
+          className={cn("sheet-content fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[90vh] w-full overflow-y-auto rounded-t-[1.75rem] border border-border bg-surface bg-[linear-gradient(160deg,hsl(var(--muted)/0.8),transparent_55%)] p-4 pb-safe shadow-[var(--shadow-lg)] sm:bottom-auto sm:top-[8vh] sm:rounded-[1.75rem]", wide ? "max-w-3xl" : "max-w-lg")}
           aria-describedby={description ? undefined : undefined}
         >
           <div className="mb-3 flex items-start justify-between gap-3">
@@ -653,7 +656,7 @@ export function ComboInput({
 }
 
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("rounded-2xl border border-border bg-surface shadow-[var(--shadow-sm)]", className)} {...props} />;
+  return <div className={cn("rounded-3xl border border-border bg-surface bg-[linear-gradient(155deg,hsl(var(--muted)/0.75),transparent_65%)] shadow-[var(--shadow-sm)]", className)} {...props} />;
 }
 
 /** A shimmering placeholder block for loading states. */
@@ -681,10 +684,10 @@ export function EmptyState({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col items-center rounded-2xl border border-dashed border-border px-6 py-8 text-center", className)}>
+    <div className={cn("flex flex-col items-center rounded-3xl border-2 border-dashed border-border bg-surface/60 px-6 py-8 text-center", className)}>
       {Icon ? (
-        <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-accent-muted text-accent">
-          <Icon className="h-5 w-5" />
+        <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-3xl bg-[linear-gradient(135deg,hsl(var(--p-lilac)),hsl(var(--p-sky)))] text-p-lilac-fg shadow-[var(--shadow-sm)]">
+          <Icon className="h-6 w-6" />
         </span>
       ) : null}
       <p className="text-sm font-semibold">{title}</p>
