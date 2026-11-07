@@ -278,10 +278,29 @@ Each item has a CATEGORY that changes how to score it:
 - review: public complaints that show a broken process (no replies, missed calls, lost orders). Score by how directly an offer fixes it.
 - tender: a public RFP; score by fit and whether a small agency can bid.
 Return a JSON array, one object per item: {"i": item number, "score": 0-100, "buyer": "direct_client|agency|job_full_time|signal|candidate|spam|other",
-"country", "industry", "company", "contact" (person name if visible), "website" (if visible), "services": [matching offers, short],
+"country", "industry", "company" (exactly as written in the post, else null), "contact" (a person's name exactly as written, else null),
+"website" (only if it appears in the post, else null), "services": [matching offers, short],
 "budget" (if stated), "urgency": "high|medium|low", "why": one line on the fit, "angle": the specific value-first opener idea in one line,
 "money_leak": for signals, one honest line estimating what the problem costs them per year with the assumption stated, else null}.
 Be strict and honest. Never inflate a score to fill a quota.`;
+}
+
+/**
+ * Keeps only what the post actually says. A company, contact or website the AI "found" is dropped unless it appears
+ * in the post's title, text or link, so a lead never arrives with an invented name attached.
+ */
+export function groundFit<T extends { company?: string | null; contact?: string | null; website?: string | null }>(v: T, title: string, body: string | null, url: string | null): T {
+  const hay = `${title}\n${body ?? ""}\n${url ?? ""}`.toLowerCase();
+  const inText = (x: string | null | undefined) => {
+    const t = (x ?? "").trim();
+    return t.length >= 2 && hay.includes(t.toLowerCase()) ? t : null;
+  };
+  let website: string | null = null;
+  if (v.website) {
+    const host = v.website.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split(/[/?#]/)[0];
+    if (host && hay.includes(host)) website = v.website;
+  }
+  return { ...v, company: inText(v.company), contact: inText(v.contact), website };
 }
 
 /** Scores unscored items in batches. */
@@ -309,8 +328,9 @@ export async function qualifyPending(budgetMs = 45_000): Promise<number> {
       break;
     }
     for (let i = 0; i < batch.length; i++) {
-      const v = verdicts.find((x) => Number(x.i) === i + 1) ?? verdicts[i];
+      const raw = verdicts.find((x) => Number(x.i) === i + 1) ?? verdicts[i];
       const b = batch[i];
+      const v = raw ? groundFit(raw, b.title, b.body, b.url) : raw;
       if (!v) {
         await q("update sales_radar_items set score = 0, status = 'rejected' where id = $1", [b.id]);
         continue;
@@ -434,7 +454,7 @@ export async function dailyDigest(budgetMs = 50_000): Promise<string> {
     { text: `${i + 1}. ✍️ Draft`, callback_data: `zs:rd:${t.id}` },
     { text: "➕ Lead", callback_data: `zs:rl:${t.id}` },
     { text: "Skip", callback_data: `zs:rs:${t.id}` },
-    ...(t.url?.startsWith("http") ? [{ text: "Open", url: t.url }] : []),
+    ...(t.url?.startsWith("http") ? [{ text: "Open post", url: t.url }] : []),
   ]);
   kb.push([{ text: "Open radar", url: `${baseUrl()}/sales/radar` }]);
   await push(`🎯 <b>Today's opportunities</b> · focus ${esc(focus.country)}, ${esc(focus.industry)}\n${good.length < cfg.radar.daily_min ? "Feeds were thin; this includes the best of the hunt.\n" : ""}\n${lines.join("\n")}`, { inline_keyboard: kb });

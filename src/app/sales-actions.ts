@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { one, q, UserError } from "@/lib/db";
-import { completeMove, sendMoveEmail } from "@/lib/sales/act";
+import { completeMove, markOpened, sendMoveEmail, targetsFor } from "@/lib/sales/act";
 import { salesConfig, updateSalesConfig, type SalesConfig } from "@/lib/sales/config";
 import {
   addCommitment, addPayment, createDeal, deletePayment, markPaid, setCommitment, updateDeal, deleteDeal,
@@ -12,8 +12,7 @@ import { auditCompany, enrichCompany, enrichPerson } from "@/lib/sales/enrich";
 import { ensureCompany, mergePeople, upsertPerson } from "@/lib/sales/identity";
 import { capture, processCapture, undoCapture, type CaptureResult } from "@/lib/sales/ingest";
 import { enqueue } from "@/lib/sales/jobs";
-import { type GoChannel } from "@/lib/sales/links";
-import { addCustomMove, draftForMove, refreshMoves, setMoveStatus, snoozeMove, type MoveRow } from "@/lib/sales/moves";
+import { addCustomMove, draftForMove, getMove, refreshMoves, setMoveStatus, snoozeMove, type MoveRow } from "@/lib/sales/moves";
 import { radarToDeal, runRadar, qualifyPending, setRadarStatus, dailyDigest } from "@/lib/sales/radar";
 import { deleteStage, moveDeal, saveStage, setTransition, type Category, type Requirement } from "@/lib/sales/stages";
 import { fileStore, newPath } from "@/lib/storage";
@@ -38,13 +37,28 @@ const ALL = ["/sales", "/sales/pipeline", "/sales/deal/[id]"];
 export async function draftMoveAction(id: number, channel?: string) {
   return run<{ move: MoveRow | null }>(async () => ({ move: await draftForMove(id, channel) }), []);
 }
-export async function moveDoneAction(id: number, channel: GoChannel | "other", text?: string) {
+/** You confirmed you sent it via this button: log it on that channel and close the move. */
+export async function moveSentAction(id: number, targetId: string, text?: string) {
   return run(async () => {
-    await completeMove(id, channel, { text, assumed: false });
+    const m = await getMove(id);
+    if (!m) throw new UserError("That move is gone.");
+    const t = targetsFor(m, false).find((x) => x.id === targetId) ?? targetsFor(m, true).find((x) => x.id === targetId);
+    await completeMove(id, t?.log ?? null, { text, where: t?.where ?? null });
   }, ALL);
 }
+/** Remembers which button you opened (and keeps your edited draft). Logs nothing. */
+export async function moveOpenedAction(id: number, targetId: string, text?: string, subject?: string | null) {
+  return run(async () => {
+    if (text !== undefined) await q("update sales_moves set draft = $2, draft_subject = coalesce($3, draft_subject) where id = $1", [id, text, subject ?? null]);
+    await markOpened(id, targetId);
+  }, []);
+}
 export async function moveStatusAction(id: number, status: "done" | "skipped" | "open") {
-  return run(() => setMoveStatus(id, status), ALL);
+  return run(async () => {
+    // "done" without a channel closes the move and logs nothing: you did it some other way
+    if (status === "done") await completeMove(id, null);
+    else await setMoveStatus(id, status);
+  }, ALL);
 }
 export async function snoozeMoveAction(id: number, hours: number) {
   return run(() => snoozeMove(id, hours), ALL);
@@ -353,7 +367,7 @@ export async function radarDraftAction(itemId: number) {
       );
     }
     if (!mv) throw new UserError("Lead not found.");
-    return { move: await draftForMove(mv.id, "linkedin") };
+    return { move: await draftForMove(mv.id) };
   }, []);
 }
 

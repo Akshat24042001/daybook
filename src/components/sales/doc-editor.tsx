@@ -46,7 +46,7 @@ export function DocEditor({ doc, revs, views, url, dealTitle }: { doc: DocRow; r
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Chip>{doc.status}</Chip>
-          <Button size="sm" variant="outline" onClick={() => void navigator.clipboard.writeText(url).then(() => toast("Link copied"))}><Copy className="h-3.5 w-3.5" /> Copy link</Button>
+          <Button size="sm" variant="outline" onClick={() => void navigator.clipboard.writeText(url).then(() => toast("Link copied"), () => toast("Your browser blocked copying. Select the text and copy it by hand.", "error"))}><Copy className="h-3.5 w-3.5" /> Copy link</Button>
           <a href={url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 rounded-xl px-3 text-xs text-accent hover:bg-muted">Preview <ExternalLink className="h-3 w-3" /></a>
           {!doc.sent_at || (doc.kind === "quote" && !locked) ? (
             <Button size="sm" variant="primary" disabled={busy} onClick={() => act(async () => {

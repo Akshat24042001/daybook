@@ -321,3 +321,63 @@ describe("priority", () => {
     expect(d!.priority_why[0]).toMatch(/They engaged/);
   });
 });
+
+describe("buttons only promise what they do", () => {
+  it("a Reddit lead gets 'Reply on Reddit', never a LinkedIn button it cannot honour", async () => {
+    const { replyTargets } = await import("@/lib/sales/reply-targets");
+    const t = replyTargets({ source_url: "https://www.reddit.com/r/smallbusiness/comments/abc/x", radar_only: true, radar_category: "requirement", person_name: "u/clinicowner", draft: "hi" });
+    expect(t.map((x) => x.id)).toEqual(["platform"]);
+    expect(t[0].label).toBe("Reply on Reddit");
+    expect(t[0].kind).toBe("copy_open");
+    expect(t[0].url).toContain("reddit.com");
+  });
+  it("LinkedIn appears as a profile only when one is saved, otherwise as an honest search", async () => {
+    const { replyTargets } = await import("@/lib/sales/reply-targets");
+    const withProfile = replyTargets({ linkedin: "in/rahul-mehta", person_name: "Rahul Mehta", draft: "hi" });
+    expect(withProfile.find((x) => x.id === "linkedin")?.url).toBe("https://www.linkedin.com/in/rahul-mehta");
+    const without = replyTargets({ person_name: "Rahul Mehta", company_name: "Noor Jewels", draft: "hi" });
+    expect(without.find((x) => x.id === "linkedin")).toBeUndefined();
+    const search = without.find((x) => x.id === "find_linkedin")!;
+    expect(search.label).toBe("Find on LinkedIn");
+    expect(search.log).toBeNull();
+    expect(search.url).toContain("linkedin.com/search/results/people/?keywords=Rahul%20Mehta%20Noor%20Jewels");
+    // a username is not a name: no LinkedIn search for it
+    expect(replyTargets({ person_name: "u/someone", draft: "hi" })).toEqual([]);
+  });
+  it("a hiring signal sends you to find the decision maker, not to message a job board", async () => {
+    const { replyTargets } = await import("@/lib/sales/reply-targets");
+    const t = replyTargets({ source_url: "https://www.linkedin.com/jobs/view/123", radar_only: true, radar_category: "hiring", company_name: "Acme Logistics", draft: "hi" });
+    expect(t[0].kind).toBe("find");
+    expect(t.some((x) => x.id === "find_dm" && x.label === "Find who decides at Acme Logistics")).toBe(true);
+    expect(t.every((x) => x.log === null)).toBe(true);
+  });
+  it("drafts are written for the place they will be sent", async () => {
+    const { draftChannel } = await import("@/lib/sales/reply-targets");
+    expect(draftChannel({ source_url: "https://news.ycombinator.com/item?id=1", radar_only: true })).toBe("hn");
+    expect(draftChannel({ source_url: "https://www.upwork.com/freelance-jobs/apply/x", radar_only: true })).toBe("upwork");
+    expect(draftChannel({ phones: ["+971501234567"], source_url: "https://www.reddit.com/r/x" })).toBe("whatsapp");
+  });
+  it("radar fields the post does not contain are dropped", async () => {
+    const { groundFit } = await import("@/lib/sales/radar");
+    const g = groundFit({ company: "Bright Smiles Dental", contact: "Dr. Sarah Lee", website: "brightsmiles.ca" }, "Our dental clinic misses calls", "We are a 3-chair clinic in Toronto", "https://reddit.com/r/x");
+    expect(g).toMatchObject({ company: null, contact: null, website: null });
+    const kept = groundFit({ company: "Noor Jewels", contact: null, website: "https://noorjewels.ae" }, "Noor Jewels needs an inventory app", "see noorjewels.ae", null);
+    expect(kept).toMatchObject({ company: "Noor Jewels", website: "https://noorjewels.ae" });
+  });
+  it("opening a link logs nothing; only confirming 'sent' does, on the channel you opened", async () => {
+    const { completeMove, confirmSent, markOpened } = await import("@/lib/sales/act");
+    const pid = await upsertPerson({ name: "Meera Shah", phone: "+919820011122" });
+    const id = await createDeal({ person_id: pid, title: "Confirm flow", stage_role: "engaged" });
+    const mv = (await one<{ id: number }>("insert into sales_moves (deal_id, kind, title, draft, dedupe_key) values ($1,'custom','Send plan','Hi Meera','t1') returning id", [id]))!.id;
+    await markOpened(mv, "whatsapp");
+    expect(await q("select 1 from sales_interactions where deal_id = $1", [id])).toHaveLength(0);
+    const r = await confirmSent(mv);
+    expect(r.where).toBe("WhatsApp");
+    const logged = await q<{ channel: string; confidence: string }>("select channel, confidence from sales_interactions where deal_id = $1", [id]);
+    expect(logged).toEqual([{ channel: "whatsapp", confidence: "sure" }]);
+    // "done another way" closes without logging a message
+    const mv2 = (await one<{ id: number }>("insert into sales_moves (deal_id, kind, title, dedupe_key) values ($1,'custom','Call later','t2') returning id", [id]))!.id;
+    await completeMove(mv2, null);
+    expect(await q("select 1 from sales_interactions where deal_id = $1", [id])).toHaveLength(1);
+  });
+});

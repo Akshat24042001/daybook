@@ -9,13 +9,13 @@ import { unzipSync, strFromU8 } from "fflate";
 import { one, q, UserError } from "../db";
 import type { Ctx } from "../settings";
 import { downloadFile, editMessage, esc, sendMessage, type Button, type InlineMarkup } from "../telegram/api";
-import { completeMove, openUrlFor, sendMoveEmail } from "./act";
+import { completeMove, confirmSent, sendMoveEmail, targetsFor } from "./act";
 import { focusFor, salesConfig } from "./config";
 import { iso } from "./context";
 import { deleteDeal } from "./deals";
 import { googleConfigured } from "./google";
 import { capture, processCapture, undoCapture, type CaptureResult } from "./ingest";
-import { baseUrl, goLink, type GoChannel } from "./links";
+import { baseUrl, goLink } from "./links";
 import { draftForMove, getMove, KIND_LABEL, listMoves, setMoveStatus, snoozeMove, type MoveRow } from "./moves";
 import { radarToDeal, setRadarStatus } from "./radar";
 import { moveDeal, stageByRole } from "./stages";
@@ -251,7 +251,7 @@ export async function movesMessage(limit = 8): Promise<{ text: string; markup: I
   const lines = moves.map((m, i) => `${i + 1}. <b>${esc(KIND_LABEL[m.kind] ?? m.kind)}</b> · ${esc(m.title.slice(0, 110))}${m.why ? `\n   <i>${esc(m.why.slice(0, 140))}</i>` : ""}`);
   const rows: Button[][] = moves.map((m, i) => [
     { text: `${i + 1} ✍️ Draft`, callback_data: `zs:md:${m.id}` },
-    { text: "✅", callback_data: `zs:mx:${m.id}` },
+    { text: "Done", callback_data: `zs:mx:${m.id}` },
     { text: "⏰ +1d", callback_data: `zs:mz:${m.id}:24` },
     { text: "Skip", callback_data: `zs:mk:${m.id}` },
   ]);
@@ -259,31 +259,44 @@ export async function movesMessage(limit = 8): Promise<{ text: string; markup: I
   return { text: `⚡ <b>Moves</b>\n\n${lines.join("\n")}`, markup: { inline_keyboard: rows } };
 }
 
+const T_EMOJI: Record<string, string> = { whatsapp: "🟢", gmail: "✉️", mail: "✉️", linkedin: "🔷", find_linkedin: "🔎", find_dm: "🔎", website: "🌐", call: "📞", platform: "↗️" };
+
 async function moveCard(m: MoveRow): Promise<{ text: string; markup: InlineMarkup }> {
-  const channel = (m.channel ?? "whatsapp") as GoChannel;
+  const google = await googleConfigured();
+  const targets = targetsFor(m, google);
   const head = `<b>${esc(KIND_LABEL[m.kind] ?? m.kind)}</b> · ${esc(m.title)}${m.person_name ? `\n👤 ${esc(m.person_name)}${m.company_name ? ` · ${esc(m.company_name)}` : ""}` : ""}`;
-  const draft = m.draft ? `\n\n${m.draft_subject ? `<b>Subject:</b> ${esc(m.draft_subject)}\n` : ""}<code>${esc(m.draft)}</code>\n<i>Tap the text to copy.</i>` : "";
+  const draft = m.draft ? `\n\n${m.draft_subject ? `<b>Subject:</b> ${esc(m.draft_subject)}\n` : ""}<code>${esc(m.draft)}</code>` : "";
+  // say exactly what each button does; Telegram cannot copy for you, so the copy step is spelled out
+  const how = m.draft
+    ? targets.filter((t) => t.kind !== "find").map((t) => `• <b>${esc(t.label)}</b>: ${esc(t.kind === "copy_open" ? `tap the text above to copy it first. ${t.hint.replace(/^Copies [^.]*\. /, "")}` : t.hint)}`).join("\n")
+    : "";
   const rows: Button[][] = [];
-  const send: Button[] = [];
-  for (const c of ["whatsapp", "email", "linkedin", "call"] as GoChannel[]) {
-    const target = openUrlFor(m, c);
-    if (!target) continue;
-    if (c === "email" && (await googleConfigured()) && m.emails?.length) {
-      send.push({ text: "✉️ Send from Gmail", callback_data: `zs:me:${m.id}` });
-      continue;
+  const buttons: Button[] = [];
+  for (const t of targets) {
+    if (!m.draft && t.kind !== "find") continue;
+    const label = `${T_EMOJI[t.id] ?? "↗️"} ${t.label}`;
+    if (t.kind === "send") buttons.push({ text: label, callback_data: `zs:me:${m.id}` });
+    else if (t.kind === "find") {
+      if (t.url?.startsWith("https://")) buttons.push({ text: label, url: t.url });
+    } else {
+      const link = httpsOnly(goLink(m.id, t.id));
+      if (link) buttons.push({ text: label, url: link });
     }
-    const link = httpsOnly(goLink(m.id, c));
-    if (link) send.push({ text: { whatsapp: "🟢 WhatsApp", email: "✉️ Mail", linkedin: "🔷 LinkedIn", call: "📞 Call", instagram: "📸 IG", sms: "SMS" }[c], url: link });
   }
-  if (send.length) rows.push(send.slice(0, 3));
+  for (let i = 0; i < buttons.length; i += 2) rows.push(buttons.slice(i, i + 2));
   rows.push([
     { text: m.draft ? "🔁 Redraft" : "✍️ Draft", callback_data: `zs:md:${m.id}` },
-    { text: "✅ Done", callback_data: `zs:mx:${m.id}` },
+    ...(m.draft && targets.some((t) => t.log) ? [{ text: "✅ Sent it", callback_data: `zs:ms:${m.id}` }] : []),
+  ]);
+  rows.push([
+    { text: "Done another way", callback_data: `zs:mx:${m.id}` },
     { text: "⏰ +1d", callback_data: `zs:mz:${m.id}:24` },
     { text: "Skip", callback_data: `zs:mk:${m.id}` },
   ]);
-  void channel;
-  return { text: `${head}${draft}`, markup: { inline_keyboard: rows } };
+  const note = m.draft
+    ? `\n\n${how}${how ? "\n" : ""}<i>Opening a link never counts as sent. Tap ✅ Sent it once it has gone, and it is logged.</i>`
+    : targets.length ? "" : "\n\n<i>No phone, email or LinkedIn saved for them yet.</i>";
+  return { text: `${head}${draft}${note}`, markup: { inline_keyboard: rows } };
 }
 
 async function pipelineMessage(): Promise<string> {
@@ -311,7 +324,7 @@ async function radarMessage(): Promise<{ text: string; markup: InlineMarkup }> {
         { text: `${i + 1} ✍️ Draft`, callback_data: `zs:rd:${t.id}` },
         { text: "➕ Lead", callback_data: `zs:rl:${t.id}` },
         { text: "Skip", callback_data: `zs:rs:${t.id}` },
-        ...(t.url?.startsWith("https://") ? [{ text: "Open", url: t.url }] : []),
+        ...(t.url?.startsWith("https://") ? [{ text: "Open post", url: t.url }] : []),
       ]),
     },
   };
@@ -355,9 +368,14 @@ export async function salesCallback(chat: number, mid: number | undefined, parts
       return undefined;
     }
     case "mx":
-      await completeMove(id, "other");
-      await setMoveStatus(id, "done");
-      return "Done ✅";
+      // done some other way: closes the move, logs no message
+      await completeMove(id, null);
+      return "Closed. Nothing logged.";
+    case "ms": {
+      const r = await confirmSent(id, await googleConfigured());
+      if (mid) await edit(r.where ? `✅ Logged as sent on ${esc(r.where)}.` : "✅ Done. Open one of the buttons first next time, so I know where it went.");
+      return r.where ? `Logged on ${r.where}` : "Done";
+    }
     case "mk":
       await setMoveStatus(id, "skipped");
       return "Skipped";
@@ -417,7 +435,7 @@ export async function salesCallback(chat: number, mid: number | undefined, parts
               [id, `radar:${id}`],
             );
           }
-          const m = await draftForMove(mv!.id, "linkedin");
+          const m = await draftForMove(mv!.id);
           if (!m) throw new UserError("Lead not found.");
           const card = await moveCard(m);
           await editMessage(chat, wait, card.text, card.markup);

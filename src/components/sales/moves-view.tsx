@@ -1,16 +1,17 @@
 "use client";
 
-import { Check, Clock, Copy, ExternalLink, Loader2, Mail, MessageCircle, Phone, RefreshCw, Sparkles, X, Linkedin, Plus } from "lucide-react";
+import { Check, Clock, Copy, ExternalLink, Globe, Linkedin, Loader2, Mail, MessageCircle, Phone, Plus, RefreshCw, Search, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
-  addMoveAction, draftMoveAction, moveDoneAction, moveStatusAction, refreshMovesAction, saveDraftAction, sendMoveEmailAction, snoozeMoveAction,
+  addMoveAction, draftMoveAction, moveOpenedAction, moveSentAction, moveStatusAction, refreshMovesAction, sendMoveEmailAction, snoozeMoveAction,
 } from "@/app/sales-actions";
 import { Button, Chip, Input, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import type { MoveRow } from "@/lib/sales/moves";
+import { platformOf, replyTargets, targetInput, type Target } from "@/lib/sales/reply-targets";
 import { ago } from "./util";
 
 // red = act now, yellow = needs attention, green = money and good news, blue = a new action to start, grey = housekeeping
@@ -35,25 +36,38 @@ const KIND: Record<string, { label: string; tone: string }> = {
   custom: { label: "To do", tone: "bg-muted text-subtle" },
 };
 
-function waUrl(phone: string | null | undefined, text: string): string {
-  let d = (phone ?? "").replace(/\D/g, "");
-  if (d.length === 10 && /^[6-9]/.test(d)) d = `91${d}`;
-  return `https://wa.me/${d}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
+/** Copies text; when the browser refuses (some Safari setups), says so plainly instead of failing silently. */
+async function copyText(text: string, toast: (m: string, k?: "ok" | "error") => void, ok = "Copied"): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(ok);
+    return true;
+  } catch {
+    toast("Your browser blocked copying. Select the text in the box and copy it by hand.", "error");
+    return false;
+  }
 }
+
+const TARGET_ICON: Record<string, typeof Mail> = {
+  whatsapp: MessageCircle, gmail: Mail, mail: Mail, linkedin: Linkedin, find_linkedin: Search, find_dm: Search, website: Globe, call: Phone, platform: ExternalLink,
+};
 
 export function MoveCard({ m, googleReady, onGone }: { m: MoveRow; googleReady: boolean; onGone: (id: number) => void }) {
   const [move, setMove] = useState(m);
   const [text, setText] = useState(m.draft ?? "");
   const [subject, setSubject] = useState(m.draft_subject ?? "");
   const [busy, setBusy] = useState<string | null>(null);
+  const [awaiting, setAwaiting] = useState<Target | null>(null);
   const [, start] = useTransition();
   const { toast } = useToast();
   const k = KIND[move.kind] ?? KIND.custom;
-  const phone = move.phones?.[0];
-  const email = move.emails?.[0];
   const overdue = new Date(move.due_at).getTime() < Date.now();
+  const targets = replyTargets(targetInput({ ...move, draft: text, draft_subject: subject }, googleReady));
+  const sendable = targets.filter((t) => t.kind !== "find");
+  const research = targets.filter((t) => t.kind === "find");
+  const platform = platformOf(targetInput(move, googleReady).source_url);
 
-  const act = (label: string, fn: () => Promise<{ ok: boolean; error?: string }>, gone = true) =>
+  const run = (label: string, fn: () => Promise<{ ok: boolean; error?: string }>, gone = true) =>
     start(async () => {
       setBusy(label);
       const r = await fn();
@@ -62,10 +76,10 @@ export function MoveCard({ m, googleReady, onGone }: { m: MoveRow; googleReady: 
       else if (gone) onGone(move.id);
     });
 
-  const draft = (channel?: string) =>
+  const draft = () =>
     start(async () => {
       setBusy("draft");
-      const r = await draftMoveAction(move.id, channel);
+      const r = await draftMoveAction(move.id);
       setBusy(null);
       if (!r.ok) return toast(r.error, "error");
       if (r.move) {
@@ -75,18 +89,22 @@ export function MoveCard({ m, googleReady, onGone }: { m: MoveRow; googleReady: 
       }
     });
 
-  const sendVia = (channel: "whatsapp" | "email" | "linkedin" | "call") => {
-    if (text !== (move.draft ?? "")) void saveDraftAction(move.id, text, subject);
-    if (channel === "email" && googleReady && email) return act("email", () => sendMoveEmailAction(move.id, text, subject || `Re: ${move.deal_title ?? ""}`));
-    if (channel === "whatsapp") window.open(waUrl(phone, text), "_blank");
-    if (channel === "email") window.open(`mailto:${email ?? ""}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`, "_blank");
-    if (channel === "linkedin") {
-      void navigator.clipboard?.writeText(text);
-      toast("Draft copied. Paste it in LinkedIn.");
-      if (move.linkedin) window.open(/^https?:/.test(move.linkedin) ? move.linkedin : `https://www.linkedin.com/in/${move.linkedin.replace(/^in\//, "")}`, "_blank");
+  const use = (t: Target) => {
+    if (t.kind === "find") {
+      window.open(t.url!, "_blank", "noopener");
+      return;
     }
-    if (channel === "call" && phone) window.location.href = `tel:${phone.replace(/[^\d+]/g, "")}`;
-    act(channel, () => moveDoneAction(move.id, channel, text));
+    if (t.kind === "send") {
+      if (!confirm(t.hint.replace("Sends right now", "Send this now"))) return;
+      return run("gmail", () => sendMoveEmailAction(move.id, text, subject || `Re: ${move.deal_title ?? ""}`));
+    }
+    if (t.kind === "copy_open") {
+      void copyText(text, toast, "Text copied. Paste it there.");
+    }
+    void moveOpenedAction(move.id, t.id, text, subject);
+    if (t.kind === "call") window.location.href = t.url!;
+    else window.open(t.url!, "_blank", "noopener");
+    setAwaiting(t);
   };
 
   return (
@@ -95,37 +113,34 @@ export function MoveCard({ m, googleReady, onGone }: { m: MoveRow; googleReady: 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", k.tone)}>{k.label}</span>
-            <span className="text-[11px] text-subtle">{overdue ? `due ${ago(move.due_at)}` : `due ${ago(move.due_at)}`}</span>
+            <span className="text-[11px] text-subtle">due {ago(move.due_at)}</span>
             {move.stage_name ? <Chip className="text-[10px]">{move.stage_name}</Chip> : null}
           </div>
           <p className="mt-1 text-sm font-semibold leading-snug">{move.title}</p>
           {move.why ? <p className="mt-0.5 text-xs text-subtle">{move.why}</p> : null}
-          {move.person_name || move.deal_title ? (
+          {move.deal_id && (move.person_name || move.deal_title) ? (
             <p className="mt-1 text-xs">
-              {move.deal_id ? (
-                <Link href={`/sales/deal/${move.deal_id}`} className="font-medium text-accent hover:underline">
-                  {move.person_name ?? move.deal_title}
-                  {move.company_name && move.person_name ? ` · ${move.company_name}` : ""}
-                </Link>
-              ) : (
-                move.deal_title
-              )}
+              <Link href={`/sales/deal/${move.deal_id}`} className="font-medium text-accent hover:underline">
+                {move.person_name ?? move.deal_title}
+                {move.company_name && move.person_name ? ` · ${move.company_name}` : ""}
+              </Link>
             </p>
           ) : null}
-          {move.radar_url ? (
-            <a href={move.radar_url} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-accent hover:underline">
-              Open post <ExternalLink className="h-3 w-3" />
-            </a>
+          {platform && move.radar_item_id && !move.deal_id ? (
+            <p className="mt-1 text-xs text-subtle">
+              Posted on <b className="text-fg">{platform.name}</b>
+              {platform.replyable ? "; you answer it there." : "; it is a signal, nobody asked you directly."}
+            </p>
           ) : null}
         </div>
         <div className="flex shrink-0 gap-1">
-          <Button size="icon" variant="ghost" title="Done" aria-label="Done" onClick={() => act("done", () => moveStatusAction(move.id, "done"))}>
+          <Button size="icon" variant="ghost" title="Done another way: closes it without logging a message" aria-label="Done another way" onClick={() => run("done", () => moveStatusAction(move.id, "done"))}>
             <Check className="h-4 w-4" />
           </Button>
-          <Button size="icon" variant="ghost" title="Tomorrow" aria-label="Snooze to tomorrow" onClick={() => act("snooze", () => snoozeMoveAction(move.id, 24))}>
+          <Button size="icon" variant="ghost" title="Remind me tomorrow" aria-label="Snooze to tomorrow" onClick={() => run("snooze", () => snoozeMoveAction(move.id, 24))}>
             <Clock className="h-4 w-4" />
           </Button>
-          <Button size="icon" variant="ghost" title="Skip" aria-label="Skip" onClick={() => act("skip", () => moveStatusAction(move.id, "skipped"))}>
+          <Button size="icon" variant="ghost" title="Skip: not doing this one" aria-label="Skip" onClick={() => run("skip", () => moveStatusAction(move.id, "skipped"))}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -133,44 +148,59 @@ export function MoveCard({ m, googleReady, onGone }: { m: MoveRow; googleReady: 
 
       {move.draft || text ? (
         <div className="mt-3 space-y-2">
-          {move.channel === "email" || subject ? <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" className="h-9 text-sm" /> : null}
+          {move.channel === "email" || move.channel === "gmail" || move.channel === "mail" || subject ? <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" className="h-9 text-sm" /> : null}
           <Textarea value={text} onChange={(e) => setText(e.target.value)} className="min-h-[90px] text-sm" />
         </div>
       ) : null}
 
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        <Button size="sm" variant={move.draft ? "outline" : "primary"} disabled={busy === "draft"} onClick={() => draft()}>
-          {busy === "draft" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : move.draft ? <RefreshCw className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}
-          {move.draft ? "Redraft" : "Draft in my voice"}
-        </Button>
-        {text ? (
-          <>
-            {phone ? (
-              <Button size="sm" variant="outline" onClick={() => sendVia("whatsapp")}>
-                <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
-              </Button>
-            ) : null}
-            {email ? (
-              <Button size="sm" variant="outline" disabled={busy === "email"} onClick={() => sendVia("email")}>
-                {busy === "email" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />} {googleReady ? "Send email" : "Email"}
-              </Button>
-            ) : null}
-            {move.linkedin || (!phone && !email) ? (
-              <Button size="sm" variant="outline" onClick={() => sendVia("linkedin")}>
-                <Linkedin className="h-3.5 w-3.5" /> LinkedIn
-              </Button>
-            ) : null}
-            <Button size="sm" variant="ghost" onClick={() => void navigator.clipboard?.writeText(text).then(() => toast("Copied"))}>
-              <Copy className="h-3.5 w-3.5" /> Copy
+      {awaiting ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-accent-muted px-3 py-2 text-sm">
+          <span className="font-medium text-accent">Did you send it{awaiting.kind === "call" ? "" : ` on ${awaiting.where}`}?{awaiting.kind === "call" ? " Did you speak?" : ""}</span>
+          <Button size="sm" variant="primary" onClick={() => run("sent", () => moveSentAction(move.id, awaiting.id, text))}>Yes, {awaiting.kind === "call" ? "we spoke" : "sent"}</Button>
+          <Button size="sm" variant="ghost" onClick={() => setAwaiting(null)}>Not yet</Button>
+          <span className="w-full text-[11px] text-subtle">Only "Yes" logs it on the timeline. Nothing is recorded just because a link was opened.</span>
+        </div>
+      ) : (
+        <div className="mt-3 space-y-2">
+          <div className="flex flex-wrap gap-1.5">
+            <Button size="sm" variant={text ? "outline" : "primary"} disabled={busy === "draft"} onClick={draft}>
+              {busy === "draft" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : text ? <RefreshCw className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}
+              {text ? "Redraft" : `Draft for ${platform?.replyable && (!move.deal_id || !sendable.some((t) => t.id !== "platform")) ? platform.name : sendable[0]?.where ?? "email"}`}
             </Button>
-          </>
-        ) : null}
-        {phone ? (
-          <Button size="sm" variant="ghost" onClick={() => sendVia("call")}>
-            <Phone className="h-3.5 w-3.5" /> Call
-          </Button>
-        ) : null}
-      </div>
+            {text
+              ? sendable.map((t) => {
+                  const I = TARGET_ICON[t.id] ?? ExternalLink;
+                  return (
+                    <Button key={t.id} size="sm" variant="outline" disabled={busy === t.id} title={t.hint} onClick={() => use(t)}>
+                      {busy === t.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <I className="h-3.5 w-3.5" />} {t.label}
+                    </Button>
+                  );
+                })
+              : null}
+            {text ? (
+              <Button size="sm" variant="ghost" onClick={() => void copyText(text, toast)}>
+                <Copy className="h-3.5 w-3.5" /> Copy
+              </Button>
+            ) : null}
+            {research.map((t) => {
+              const I = TARGET_ICON[t.id] ?? ExternalLink;
+              return (
+                <Button key={t.id} size="sm" variant="ghost" title={t.hint} onClick={() => use(t)}>
+                  <I className="h-3.5 w-3.5" /> {t.label}
+                </Button>
+              );
+            })}
+          </div>
+          {text && sendable.length ? (
+            <ul className="space-y-0.5 text-[11px] text-subtle">
+              {sendable.map((t) => <li key={t.id}><b className="font-medium text-fg">{t.label}:</b> {t.hint}</li>)}
+            </ul>
+          ) : null}
+          {text && !sendable.length ? (
+            <p className="text-[11px] text-subtle">No way to reach them is saved yet. {research.length ? "Use the search above to find them, then add their phone, email or LinkedIn on the deal." : "Add their phone, email or LinkedIn on the deal."} Until then, copy the text.</p>
+          ) : null}
+        </div>
+      )}
     </li>
   );
 }
