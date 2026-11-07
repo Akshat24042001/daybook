@@ -10,7 +10,7 @@ import { Button, Field, Input, Select, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import type { SalesConfig } from "@/lib/sales/config";
-import { CURRENCIES, money } from "./format";
+import { CURRENCIES, currencyLabel, currencySymbol, money } from "./format";
 import type { Stage, Transition } from "@/lib/sales/stages";
 
 export interface SettingsData {
@@ -60,7 +60,7 @@ export function SettingsView({ d }: { d: SettingsData }) {
   const [defCur, setDefCur] = useState((c.default_currency || "INR").toUpperCase());
   const [repCur, setRepCur] = useState((c.report_currency || "INR").toUpperCase());
   const savedRep = (c.report_currency || "INR").toUpperCase();
-  const curOptions = (v: string) => [...new Set([...CURRENCIES, v])].map((x) => <option key={x} value={x}>{x}</option>);
+  const curOptions = (v: string) => [...new Set([...CURRENCIES, v])].map((x) => <option key={x} value={x}>{currencyLabel(x)}</option>);
   const saveCurrency = () => {
     const rates: Record<string, number> = Object.fromEntries(lines(fx).map((l) => l.split("=")).filter((p) => p.length === 2 && Number(p[1]) > 0).map(([k, v]) => [k.trim().toUpperCase(), Number(v)]));
     const patch: Partial<SalesConfig> = { fx: rates, default_currency: defCur, report_currency: repCur };
@@ -199,7 +199,7 @@ export function SettingsView({ d }: { d: SettingsData }) {
 
       <Card id="targets" title="Targets" sub="What you are aiming for. Insights works out your pace, the forecast and the outreach it takes from your own conversion rates.">
         <div className="grid gap-3 sm:grid-cols-3">
-          <Field label={`Monthly revenue target (${savedRep})`} hint={`Won deal value per month, in your report currency. 0 turns the target off.${targets.monthly_revenue > 0 ? ` Now ${money(targets.monthly_revenue, savedRep)}.` : ""}`}><Input value={String(targets.monthly_revenue)} onChange={(e) => setTargets({ ...targets, monthly_revenue: Math.max(0, Math.round(Number(e.target.value.replace(/[^0-9.]/g, "")) || 0)) })} inputMode="numeric" /></Field>
+          <Field label={`Monthly revenue target (${currencySymbol(savedRep)} ${savedRep})`} hint={`Won deal value per month, in your report currency. 0 turns the target off.${targets.monthly_revenue > 0 ? ` Now ${money(targets.monthly_revenue, savedRep)}.` : ""}`}><Input value={String(targets.monthly_revenue)} onChange={(e) => setTargets({ ...targets, monthly_revenue: Math.max(0, Math.round(Number(e.target.value.replace(/[^0-9.]/g, "")) || 0)) })} inputMode="numeric" /></Field>
           <Field label="New conversations a week" hint="Used by the weekly review."><Input value={String(targets.weekly_conversations)} onChange={(e) => setTargets({ ...targets, weekly_conversations: Math.max(0, Number(e.target.value) || 0) })} inputMode="numeric" /></Field>
           <Field label="Outreach messages a day" hint="Shown on Today: first messages and follow-ups you send."><Input value={String(targets.daily_outreach)} onChange={(e) => setTargets({ ...targets, daily_outreach: Math.max(0, Number(e.target.value) || 0) })} inputMode="numeric" /></Field>
         </div>

@@ -18,7 +18,7 @@ const { setup, check, choose } = require("./lib.cjs");
   await offers.getByLabel(/One line on what it does/).fill("Answers every call, books appointments, 24/7");
   await offers.getByRole("button", { name: "Package", exact: true }).click();
   await offers.getByLabel("Package name", { exact: true }).fill("Starter");
-  check("a new package starts in INR", (await offers.getByLabel("Currency", { exact: true }).innerText()).includes("INR"));
+  check("a new package starts in ₹ INR", (await offers.getByLabel("Currency", { exact: true }).innerText()).includes("₹ INR"));
   await choose(page, offers.getByLabel("Currency", { exact: true }), /^AED$/);
   await offers.getByLabel("Timeline", { exact: true }).fill("2 weeks");
   await offers.getByLabel("Item", { exact: true }).first().fill("Setup");

@@ -6,7 +6,7 @@ const { setup, check, choose } = require("./lib.cjs");
   await go("/sales/settings");
   const card = (id) => page.locator(`section#${id}`);
 
-  await card("targets").getByLabel("Monthly revenue target (INR)").fill("20,00,000");
+  await card("targets").getByLabel("Monthly revenue target (₹ INR)").fill("20,00,000");
   await card("targets").getByLabel("New conversations a week").fill("12");
   await card("targets").getByLabel("Outreach messages a day").fill("4");
   await card("targets").getByRole("button", { name: "Save" }).click();
@@ -16,16 +16,16 @@ const { setup, check, choose } = require("./lib.cjs");
   check("target hint shows Indian grouping", (await card("targets").innerText()).includes("₹20,00,000"));
 
   // currency: INR by default, USD can be picked; switching the report currency converts the target
-  check("default currency INR", (await card("currency").getByLabel("Default currency").innerText()).includes("INR"));
+  check("default currency shows ₹ INR", (await card("currency").getByLabel("Default currency").innerText()).includes("₹ INR"));
   check("report currency INR", (await card("currency").getByLabel("Report currency").innerText()).includes("INR"));
-  await choose(page, card("currency").getByLabel("Report currency"), /^USD$/);
+  await choose(page, card("currency").getByLabel("Report currency"), /^\$ USD$/);
   await card("currency").getByRole("button", { name: "Save" }).click();
   await page.waitForTimeout(1500);
   cfg = (await one("select config from sales_settings where id = 1")).config;
   check("report currency USD saved, target converted to $24,000", cfg.report_currency === "USD" && cfg.targets.monthly_revenue === 24000, { cur: cfg.report_currency, t: cfg.targets });
   await go("/sales/settings");
-  check("target label follows the report currency", (await card("targets").getByLabel("Monthly revenue target (USD)").inputValue()) === "24000");
-  await choose(page, card("currency").getByLabel("Report currency"), /^INR$/);
+  check("target label follows the report currency", (await card("targets").getByLabel("Monthly revenue target ($ USD)").inputValue()) === "24000");
+  await choose(page, card("currency").getByLabel("Report currency"), /^₹ INR$/);
   await card("currency").getByRole("button", { name: "Save" }).click();
   await page.waitForTimeout(1500);
   cfg = (await one("select config from sales_settings where id = 1")).config;
@@ -65,7 +65,7 @@ const { setup, check, choose } = require("./lib.cjs");
 
   // reload shows saved values
   await go("/sales/settings");
-  check("reload shows saved target", (await card("targets").getByLabel("Monthly revenue target (INR)").inputValue()) === "2000000");
+  check("reload shows saved target", (await card("targets").getByLabel("Monthly revenue target (₹ INR)").inputValue()) === "2000000");
   check("reload shows saved check-in days", (await card("after-sale").getByLabel(/Check in after delivery/).inputValue()) === "15, 60");
   check("reload shows retainer unchecked", !(await card("after-sale").getByLabel("Offer a monthly retainer at delivery").isChecked()));
   check("offers hint links to Playbook", (await page.locator('a[href="/sales/playbook#offers"]').count()) === 1);

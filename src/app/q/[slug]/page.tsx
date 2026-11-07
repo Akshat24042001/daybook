@@ -9,6 +9,7 @@ import { sign } from "@/lib/sales/links";
 import { mdToHtml } from "@/lib/sales/md";
 import { isOwnerRequest, visitorId } from "@/lib/sales/visitor";
 import { ViewBeacon } from "./beacon";
+import { currencySymbol } from "@/components/sales/format";
 
 const display = Archivo({ subsets: ["latin"], weight: ["700", "800"], variable: "--q-display" });
 const body = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--q-body" });
@@ -17,7 +18,11 @@ const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["500"], variable: "--q
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: { absolute: "Aivaura" }, robots: { index: false, follow: false } };
 
-const money = (n: number, c: string) => `${c} ${Number(n).toLocaleString(c === "INR" ? "en-IN" : "en-US", { maximumFractionDigits: 2 })}`;
+// ₹1,50,000 for rupees; a code with a space where there is no common symbol (AED 5,000)
+const money = (n: number, c: string) => {
+  const sym = currencySymbol(c);
+  return `${sym}${sym.length === 3 && /^[A-Z]+$/.test(sym) ? " " : ""}${Number(n).toLocaleString(c === "INR" ? "en-IN" : "en-US", { maximumFractionDigits: 2 })}`;
+};
 
 export default async function PublicDoc({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { slug } = await params;

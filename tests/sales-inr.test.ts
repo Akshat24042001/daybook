@@ -12,7 +12,7 @@ vi.mock("@/lib/sales/llm", async (orig) => {
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { one, q } from "@/lib/db";
-import { fromUsd, money, toUsd } from "@/components/sales/format";
+import { currencyLabel, currencySymbol, fromUsd, money, toUsd } from "@/components/sales/format";
 import { reportMoney, salesConfig, updateSalesConfig } from "@/lib/sales/config";
 import { createDeal } from "@/lib/sales/deals";
 import { salesDaily } from "@/lib/sales/activity";
@@ -43,6 +43,13 @@ describe("formatting", () => {
     expect(money(1_250_000, "INR")).toBe("₹12,50,000");
     expect(money(4200, "USD")).toBe("$4,200");
     expect(money(null)).toBe("");
+    expect(money(5000, "inr")).toBe("₹5,000");
+    expect(currencySymbol("INR")).toBe("₹");
+    expect(currencySymbol(undefined)).toBe("₹");
+    expect(currencySymbol("AED")).toBe("AED");
+    expect(currencyLabel("INR")).toBe("₹ INR");
+    expect(currencyLabel("USD")).toBe("$ USD");
+    expect(currencyLabel("AED")).toBe("AED");
   });
   it("converts through USD at the saved rates", () => {
     const fx = { USD: 1, INR: 0.012, AED: 0.2723 };

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { listDocs } from "@/lib/sales/docs";
 import { Chip } from "@/components/ui";
+import { money } from "@/components/sales/format";
 
 export const metadata: Metadata = { title: "Documents" };
 export const dynamic = "force-dynamic";
@@ -25,7 +26,7 @@ export default async function DocsPage() {
                 <td className="p-2"><Link href={`/sales/docs/${d.id}`} className="font-medium hover:text-accent">{d.title}</Link><p className="text-xs text-subtle">{d.kind}{d.kind === "quote" ? ` v${d.current_rev}` : ""}</p></td>
                 <td className="p-2 text-xs">{d.deal_id ? <Link href={`/sales/deal/${d.deal_id}`} className="text-accent hover:underline">{d.deal_title}</Link> : ""}</td>
                 <td className="p-2"><Chip>{d.status}</Chip></td>
-                <td className="p-2 text-right text-xs tabular">{d.total ? `${d.currency} ${Number(d.total).toLocaleString()}` : ""}</td>
+                <td className="p-2 text-right text-xs tabular">{d.total ? money(Number(d.total), d.currency ?? "INR") : ""}</td>
                 <td className="p-2 text-right text-xs tabular">{d.view_count}</td>
                 <td className="p-2 text-xs text-subtle">{fmt(d.last_viewed_at)}</td>
               </tr>

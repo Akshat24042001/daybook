@@ -21,7 +21,7 @@ import { CaptureBox } from "./capture-box";
 import { EnrichmentPanel } from "./enrichment-panel";
 import { MoveCard } from "./moves-view";
 import { StageMoveSheet, type PendingMove } from "./pipeline-board";
-import { ago, ChannelIcon, CHANNEL_LABEL, CURRENCIES, fmtDate, Label, money, Priority } from "./util";
+import { ago, ChannelIcon, CHANNEL_LABEL, CURRENCIES, currencyLabel, currencySymbol, fmtDate, Label, money, Priority } from "./util";
 
 export interface QuotePackage { offerId: number; index: number; offer: string; name: string; currency: string; total: number; items: number; timeline: string; fits: boolean }
 
@@ -315,8 +315,8 @@ export function DealView({ d }: { d: DealPageData }) {
       <Sheet open={edit} onOpenChange={setEdit} title="Deal details">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2"><Field label="Title"><Input value={f.title} onChange={set("title")} /></Field></div>
-          <Field label="Value"><Input value={String(f.value_amount)} onChange={set("value_amount")} inputMode="decimal" /></Field>
-          <Field label="Currency"><Select value={f.currency} onChange={set("currency")}>{[...new Set([...CURRENCIES, f.currency])].map((c) => <option key={c}>{c}</option>)}</Select></Field>
+          <Field label={`Value (${currencySymbol(f.currency)})`}><Input value={String(f.value_amount)} onChange={set("value_amount")} inputMode="decimal" /></Field>
+          <Field label="Currency"><Select value={f.currency} onChange={set("currency")}>{[...new Set([...CURRENCIES, f.currency])].map((c) => <option key={c} value={c}>{currencyLabel(c)}</option>)}</Select></Field>
           <Field label="Win probability % (blank = stage default)"><Input value={String(f.probability)} onChange={set("probability")} inputMode="numeric" /></Field>
           <Field label="Expected close"><Input type="date" value={f.expected_close} onChange={set("expected_close")} /></Field>
           <Field label="Source">
@@ -459,7 +459,7 @@ function Payments({ dealId, currency, payments, onChange }: { dealId: number; cu
       </ul>
       <div className="flex flex-wrap gap-1.5 border-t border-border pt-2">
         <Input value={label} onChange={(e) => setLabel(e.target.value)} className="h-8 w-28 text-xs" />
-        <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={currency} inputMode="decimal" className="h-8 w-24 text-xs" />
+        <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={`${currencySymbol(currency)} amount`} inputMode="decimal" className="h-8 w-24 text-xs" />
         <Input type="date" value={due} onChange={(e) => setDue(e.target.value)} className="h-8 w-36 text-xs" />
         <Button size="sm" variant="outline" disabled={!amount} onClick={() => start(async () => {
           const r = await addPaymentAction(dealId, label, Number(amount), currency, due || null);

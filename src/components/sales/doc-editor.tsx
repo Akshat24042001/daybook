@@ -8,7 +8,7 @@ import { deleteDocAction, markDocSentAction, newRevisionAction, saveBriefAction,
 import { Button, Chip, Field, Input, Select, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import type { DocRow, PaymentStep, QuoteItem, RevisionRow } from "@/lib/sales/docs";
-import { ago, CURRENCIES, fmtDate, money } from "./util";
+import { ago, CURRENCIES, currencyLabel, currencySymbol, fmtDate, money } from "./util";
 
 export interface ViewRow { id: number; rev: number | null; viewed_at: string; country: string | null; city: string | null; device: string | null; seconds: number; visitor: string | null }
 
@@ -87,7 +87,7 @@ export function DocEditor({ doc, revs, views, url, dealTitle }: { doc: DocRow; r
                         <Input value={it.description ?? ""} onChange={(e) => setItem(i, { description: e.target.value })} placeholder="What is included" className="h-8 text-xs" />
                       </div>
                       <Input value={String(it.qty)} onChange={(e) => setItem(i, { qty: Number(e.target.value) || 0 })} inputMode="decimal" className="h-9 text-sm" aria-label="Quantity" />
-                      <Input value={String(it.unit_price)} onChange={(e) => setItem(i, { unit_price: Number(e.target.value) || 0 })} inputMode="decimal" className="h-9 text-sm" aria-label="Price" />
+                      <Input value={String(it.unit_price)} onChange={(e) => setItem(i, { unit_price: Number(e.target.value) || 0 })} inputMode="decimal" className="h-9 text-sm" aria-label="Price" placeholder={currencySymbol(r.currency)} />
                       <button type="button" aria-label="Remove item" onClick={() => setR({ ...r, items: items.filter((_, j) => j !== i) })} className="h-9 text-subtle hover:text-bad"><Trash2 className="mx-auto h-4 w-4" /></button>
                     </div>
                   ))}
@@ -95,7 +95,7 @@ export function DocEditor({ doc, revs, views, url, dealTitle }: { doc: DocRow; r
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <Field label="Currency"><Select value={r.currency ?? "INR"} onChange={(e) => setR({ ...r, currency: e.target.value })}>{[...new Set([...CURRENCIES, r.currency ?? "INR"])].map((c) => <option key={c}>{c}</option>)}</Select></Field>
+                <Field label="Currency"><Select value={r.currency ?? "INR"} onChange={(e) => setR({ ...r, currency: e.target.value })}>{[...new Set([...CURRENCIES, r.currency ?? "INR"])].map((c) => <option key={c} value={c}>{currencyLabel(c)}</option>)}</Select></Field>
                 <Field label="Discount"><Input value={String(r.discount ?? 0)} onChange={(e) => setR({ ...r, discount: Number(e.target.value) || 0 })} inputMode="decimal" /></Field>
                 <Field label="Tax %"><Input value={String(r.tax_pct ?? 0)} onChange={(e) => setR({ ...r, tax_pct: Number(e.target.value) || 0 })} inputMode="decimal" /></Field>
               </div>

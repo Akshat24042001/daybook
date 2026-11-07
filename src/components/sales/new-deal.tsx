@@ -6,7 +6,7 @@ import { useState, useTransition } from "react";
 import { createDealAction } from "@/app/sales-actions";
 import { Button, Field, Input, Select, Sheet, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
-import { CURRENCIES } from "./format";
+import { CURRENCIES, currencyLabel, currencySymbol } from "./format";
 
 /** defaultCurrency: Sales settings > Default currency (INR unless you changed it). */
 export function NewDealButton({ defaultCurrency = "INR" }: { defaultCurrency?: string }) {
@@ -58,10 +58,10 @@ export function NewDealButton({ defaultCurrency = "INR" }: { defaultCurrency?: s
               <option value="discovery">Discovery</option>
             </Select>
           </Field>
-          <Field label="Value"><Input value={f.value_amount} onChange={set("value_amount")} inputMode="decimal" placeholder="Optional" /></Field>
+          <Field label={`Value (${currencySymbol(f.currency)})`}><Input value={f.value_amount} onChange={set("value_amount")} inputMode="decimal" placeholder={`${currencySymbol(f.currency)} optional`} /></Field>
           <Field label="Currency">
             <Select value={f.currency} onChange={set("currency")}>
-              {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              {CURRENCIES.map((c) => <option key={c} value={c}>{currencyLabel(c)}</option>)}
             </Select>
           </Field>
         </div>

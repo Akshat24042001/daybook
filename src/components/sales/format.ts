@@ -25,11 +25,25 @@ export function toUsd(amount: number, cur: string, fx: Record<string, number>): 
   return rate && rate > 0 ? amount * rate : amount;
 }
 
+const SYMBOL: Record<string, string> = { INR: "₹", USD: "$", GBP: "£", EUR: "€", CAD: "CA$", AUD: "A$", SGD: "S$", CNY: "CN¥" };
+
+/** The symbol for a currency (₹ for INR), or its code where there is no common one (AED, SAR). */
+export function currencySymbol(cur: string | null | undefined): string {
+  const c = (cur || "INR").toUpperCase();
+  return SYMBOL[c] ?? c;
+}
+
+/** How a currency reads in a picker: "₹ INR", "$ USD", "AED". */
+export function currencyLabel(cur: string): string {
+  const c = cur.toUpperCase();
+  return SYMBOL[c] ? `${SYMBOL[c]} ${c}` : c;
+}
+
 export function money(n: number | null | undefined, cur = "INR"): string {
   if (n === null || n === undefined || !Number.isFinite(Number(n))) return "";
   const v = Number(n);
-  const sym: Record<string, string> = { USD: "$", INR: "₹", GBP: "£", EUR: "€", AED: "AED ", CAD: "CA$", AUD: "A$", SGD: "S$", SAR: "SAR " };
-  return `${sym[cur] ?? `${cur} `}${v.toLocaleString(cur === "INR" ? "en-IN" : "en-US", { maximumFractionDigits: 0 })}`;
+  const c = (cur || "INR").toUpperCase();
+  return `${SYMBOL[c] ?? `${c} `}${v.toLocaleString(c === "INR" ? "en-IN" : "en-US", { maximumFractionDigits: 0 })}`;
 }
 
 export function fmtDate(d: string | Date | null | undefined): string {

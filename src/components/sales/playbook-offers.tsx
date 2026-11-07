@@ -9,7 +9,7 @@ import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import type { BlockKind, BlockRow } from "@/lib/sales/blocklist";
 import type { Offer, Package } from "@/lib/sales/offers";
-import { CURRENCIES, money } from "./format";
+import { CURRENCIES, currencyLabel, currencySymbol, money } from "./format";
 
 const total = (p: Package) => p.items.reduce((a, i) => a + (Number(i.qty) || 0) * (Number(i.unit_price) || 0), 0);
 const emptyPkg = (currency = "INR"): Package => ({ name: "Standard", currency, items: [{ name: "", description: "", qty: 1, unit_price: 0 }], scope: "", timeline: "" });
@@ -46,7 +46,7 @@ function OfferEditor({ offer, onDone, defaultCurrency }: { offer: Partial<Offer>
             <div key={i} className="rounded-lg border border-border p-3">
               <div className="grid gap-2 sm:grid-cols-[1fr_90px_1fr_auto]">
                 <Input value={p.name} onChange={(e) => setPkg(i, { name: e.target.value })} placeholder="Package name" aria-label="Package name" />
-                <Select value={p.currency} onChange={(e) => setPkg(i, { currency: e.target.value })} aria-label="Currency">{[...new Set([...CURRENCIES, p.currency])].map((c) => <option key={c}>{c}</option>)}</Select>
+                <Select value={p.currency} onChange={(e) => setPkg(i, { currency: e.target.value })} aria-label="Currency">{[...new Set([...CURRENCIES, p.currency])].map((c) => <option key={c} value={c}>{currencyLabel(c)}</option>)}</Select>
                 <Input value={p.timeline} onChange={(e) => setPkg(i, { timeline: e.target.value })} placeholder="Timeline, e.g. 3 weeks" aria-label="Timeline" />
                 <Button size="icon" variant="ghost" aria-label="Remove package" onClick={() => setPkgs((a) => a.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
               </div>
@@ -56,7 +56,7 @@ function OfferEditor({ offer, onDone, defaultCurrency }: { offer: Partial<Offer>
                     <Input value={it.name} onChange={(e) => setItem(i, k, { name: e.target.value })} placeholder="Line item" aria-label="Item" className="col-span-3 sm:col-span-1" />
                     <Input value={it.description} onChange={(e) => setItem(i, k, { description: e.target.value })} placeholder="Description" aria-label="Description" className="hidden sm:block" />
                     <Input value={String(it.qty)} onChange={(e) => setItem(i, k, { qty: Number(e.target.value) || 0 })} inputMode="decimal" aria-label="Quantity" />
-                    <Input value={String(it.unit_price)} onChange={(e) => setItem(i, k, { unit_price: Number(e.target.value.replace(/[^0-9.]/g, "")) || 0 })} inputMode="decimal" aria-label="Unit price" />
+                    <Input value={String(it.unit_price)} onChange={(e) => setItem(i, k, { unit_price: Number(e.target.value.replace(/[^0-9.]/g, "")) || 0 })} inputMode="decimal" aria-label="Unit price" placeholder={currencySymbol(p.currency)} />
                     <Button size="icon" variant="ghost" aria-label="Remove item" onClick={() => setPkg(i, { items: p.items.filter((_, j) => j !== k) })}><X className="h-4 w-4" /></Button>
                   </div>
                 ))}
