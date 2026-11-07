@@ -1,5 +1,7 @@
 "use client";
 
+import type { LinkGroup } from "@/lib/sales/quick-links-types";
+import { QuickLinks } from "./quick-links";
 import { ArrowDownLeft, ArrowUpRight, Check, Copy, ExternalLink, FileText, Link2, Loader2, Plus, Sparkles, Trash2, Upload, Users, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -46,6 +48,7 @@ export interface DealPageData {
   /** offer packages a quote can start from, best fit first */
   packages?: QuotePackage[];
   baseUrl: string;
+  links: LinkGroup[];
 }
 
 function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
@@ -165,6 +168,12 @@ export function DealView({ d }: { d: DealPageData }) {
           </div>
         ) : null}
       </div>
+
+      {d.links.length ? (
+        <div className="rounded-2xl border border-border bg-surface p-4">
+          <QuickLinks groups={d.links} />
+        </div>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
         <div className="space-y-4">

@@ -8,6 +8,7 @@ import { radarPlan } from "@/lib/sales/radar-plan";
 import { listHunts, seedHunts } from "@/lib/sales/hunts";
 import { searchConfigured } from "@/lib/sales/search";
 import { RadarView, type RadarItem, type SourceRow } from "@/components/sales/radar-view";
+import { radarQuickLinks } from "@/lib/sales/quick-links";
 
 export const metadata: Metadata = { title: "Radar" };
 export const dynamic = "force-dynamic";
@@ -27,5 +28,7 @@ export default async function RadarPage() {
     listHunts(),
     radarPlan(),
   ]);
+  const links = await radarQuickLinks(items.map((i) => i.id));
+  for (const it of items) it.links = links[it.id] ?? [];
   return <RadarView items={items} sources={sources} googleReady={google} focus={await currentFocus(cfg)} searchProviders={searchConfigured()} hunts={hunts} plan={plan} searchCap={cfg.radar.search_daily_cap} tz={(await getSettings()).timezone} />;
 }

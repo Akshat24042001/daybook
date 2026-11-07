@@ -12,7 +12,7 @@ vi.mock("@/lib/sales/llm", async (orig) => {
       if (/extract the real people/i.test(system)) {
         return { people: [
           { name: "Aisha Khan", title: "Founder and CEO", linkedin: "https://www.linkedin.com/in/aishakhan?trk=x", is_decision_maker: true, why: "owns the decision" },
-          { name: "Omar Saeed", title: "Head of Operations", is_decision_maker: true, why: "runs dispatch" },
+          { name: "Omar Saeed", title: "Head of Operations", linkedin: "https://www.linkedin.com/in/omar-saeed-invented", is_decision_maker: true, why: "runs dispatch" },
           { name: "Bob", title: "Driver", is_decision_maker: false },
           { name: "Acme Freight", title: "n/a" },
           { name: "Sara Lee", title: "Customer (testimonial)", is_decision_maker: false },
@@ -40,7 +40,8 @@ const PAGES: Record<string, string> = {
     <a href="https://www.linkedin.com/company/acme-freight">in</a></body></html>`,
   "https://acmefreight.com/about": `<html><body>${"Founded in 2012 by Aisha Khan. ".repeat(15)}</body></html>`,
   "https://acmefreight.com/contact": `<html><body>${"Contact us. ".repeat(40)}<a href="mailto:info@acmefreight.com">info@acmefreight.com</a> aisha.khan@acmefreight.com <a href="tel:+97145550100">call</a></body></html>`,
-  "https://acmefreight.com/team": `<html><body>${"Our leadership team. Aisha Khan, CEO. Omar Saeed, Operations. ".repeat(10)}</body></html>`,
+  // the CEO's profile is on the team page, so research may keep it; nobody else's profile appears anywhere
+  "https://acmefreight.com/team": `<html><body>${"Our leadership team. Aisha Khan, CEO (linkedin.com/in/aishakhan). Omar Saeed, Operations. ".repeat(10)}</body></html>`,
   "https://acmefreight.com/careers": `<html><body>${"We are hiring dispatchers. ".repeat(20)}</body></html>`,
 };
 vi.mock("@/lib/sales/search", async (orig) => {
@@ -153,6 +154,8 @@ describe("the research pipeline", () => {
     const people = await q<{ full_name: string; title: string; is_decision_maker: boolean; linkedin: string | null }>("select full_name, title, is_decision_maker, linkedin from sales_people where company_id = $1 order by full_name", [cid]);
     expect(people.map((p) => p.full_name)).toEqual(["Aisha Khan", "Omar Saeed", "Sara Lee"]);
     expect(people[0]).toMatchObject({ is_decision_maker: true, linkedin: "https://www.linkedin.com/in/aishakhan" });
+    // the AI "found" a profile for Omar that appears nowhere in what was read: it must not be saved
+    expect(people.find((p) => p.full_name === "Omar Saeed")?.linkedin).toBeNull();
     const personRuns = await q<{ id: number; subject_id: number }>("select id, subject_id from sales_research_runs where subject = 'person' order by id");
     expect(personRuns).toHaveLength(2); // only the decision makers
 

@@ -12,6 +12,8 @@ import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import type { MoveRow } from "@/lib/sales/moves";
 import { platformOf } from "@/lib/sales/reply-targets";
+import type { LinkGroup } from "@/lib/sales/quick-links-types";
+import { QuickLinks } from "./quick-links";
 import { ago } from "./util";
 import { MoveCard } from "./moves-view";
 import { HuntsPanel } from "./hunts-view";
@@ -26,6 +28,7 @@ export interface RadarItem {
   fit: { why?: string; angle?: string; money_leak?: string | null; country?: string; industry?: string; services?: string[]; buyer?: string; budget?: string | null; urgency?: string; company?: string | null; website?: string | null; contact?: string | null } | null;
   known?: { deal_id: number | null; deal_title: string | null; stage: string | null; category: string | null; lost_reason: string | null; why: string } | null;
   blocked?: string | null;
+  links?: LinkGroup[];
 }
 export interface SourceRow {
   id: number; key: string; name: string; kind: string; category: string; enabled: boolean; interval_hours: number; note: string | null;
@@ -79,6 +82,7 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
           {f.money_leak ? <p className="mt-1 rounded-lg bg-p-butter px-2 py-1 text-xs text-p-butter-fg">{f.money_leak}</p> : null}
           {f.services?.length ? <div className="mt-1 flex flex-wrap gap-1">{f.services.map((s) => <Chip key={s} className="text-[10px]">{s}</Chip>)}</div> : null}
           {it.body ? <details className="mt-1"><summary className="cursor-pointer text-xs text-subtle">Full post</summary><p className="mt-1 whitespace-pre-line text-xs text-subtle">{it.body.slice(0, 2500)}</p></details> : null}
+          {it.links?.length ? <div className="mt-2 rounded-xl bg-muted/50 p-2.5"><QuickLinks groups={it.links} fold={2} /></div> : null}
         </div>
       </div>
       {move ? <div className="mt-3"><MoveCard m={move} googleReady={googleReady} onGone={() => setGone(true)} /></div> : null}

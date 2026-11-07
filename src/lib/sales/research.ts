@@ -22,6 +22,19 @@ import {
 } from "./research-extract";
 import { fetchPage, webSearch, type SearchHit } from "./search";
 
+/**
+ * A LinkedIn profile or email the AI reports is kept only if it literally appears in what was read (pages, search
+ * results). A plausible-looking address the model made up never reaches your contacts.
+ */
+export function seenIn(text: string, value: string | null | undefined): boolean {
+  const v = (value ?? "").trim().toLowerCase();
+  if (!v) return false;
+  const li = v.match(/linkedin\.com\/in\/([^/?#\s]+)/);
+  const needle = li ? `linkedin.com/in/${decodeURIComponent(li[1])}` : v;
+  const hay = text.toLowerCase();
+  return hay.includes(needle) || (!!li && hay.includes(`linkedin.com/in/${li[1]}`));
+}
+
 export const STAGE_LABEL: Record<string, string> = {
   queued: "Waiting to start", site: "Reading their website", search: "Searching the web", synth: "Writing the profile", people: "Finding the people", done: "Done",
 };
@@ -371,11 +384,11 @@ export async function synthStage(runId: number): Promise<void> {
       for (const p of (people.people ?? []).slice(0, 8)) {
         const name = String(p.name ?? "").trim();
         if (!NAME_OK.test(name) || name.toLowerCase() === c.name.toLowerCase()) continue;
-        const email = typeof p.email === "string" && /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(p.email) ? p.email.toLowerCase() : null;
+        const email = typeof p.email === "string" && /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(p.email) && seenIn(evidenceText, p.email) ? p.email.toLowerCase() : null;
         const id = await upsertPerson({ name, title: p.title ?? null, company_id: c.id, email, country: c.country });
         found += 1;
         names.push(name);
-        if (typeof p.linkedin === "string" && /linkedin\.com\/in\//i.test(p.linkedin)) await q("update sales_people set linkedin = coalesce(linkedin, $2) where id = $1", [id, p.linkedin.split("?")[0]]);
+        if (typeof p.linkedin === "string" && /linkedin\.com\/in\//i.test(p.linkedin) && seenIn(evidenceText, p.linkedin)) await q("update sales_people set linkedin = coalesce(linkedin, $2) where id = $1", [id, p.linkedin.split("?")[0]]);
         if (p.is_decision_maker) {
           await q("update sales_people set is_decision_maker = true where id = $1", [id]);
           decisionMakers.push(id);
@@ -499,7 +512,7 @@ Rules:
       `update sales_people set enrichment = $2, enriched_at = now(), title = coalesce(title, $3), city = coalesce(city, $4), country = coalesce(country, $5),
          linkedin = coalesce(linkedin, $6), is_decision_maker = coalesce(is_decision_maker, $7), updated_at = now() where id = $1`,
       [p.id, JSON.stringify(out), str(out.current_title), str(out.location_city), str(out.location_country),
-        str(out.linkedin_url)?.includes("linkedin.com") ? str(out.linkedin_url) : null, typeof out.is_decision_maker?.v === "boolean" ? out.is_decision_maker.v : null],
+        str(out.linkedin_url)?.includes("linkedin.com") && seenIn(evidence.join("\n"), str(out.linkedin_url)) ? str(out.linkedin_url) : null, typeof out.is_decision_maker?.v === "boolean" ? out.is_decision_maker.v : null],
     );
     const filled = Object.values(out).filter((f) => f?.v !== null && f?.v !== undefined && f?.v !== "").length;
     await say(runId, `Profile written: ${filled} facts${out.email_guess ? `, best-guess email ${String(out.email_guess.v)} (unverified)` : ""}.`);

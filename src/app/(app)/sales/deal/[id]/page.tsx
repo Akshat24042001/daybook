@@ -12,6 +12,7 @@ import { allowedTargets } from "@/lib/sales/stages";
 import { blockedDealIds } from "@/lib/sales/blocklist";
 import { listOffers, packageTotal, packagesFor } from "@/lib/sales/offers";
 import { DealView, type DealPageData } from "@/components/sales/deal-view";
+import { dealQuickLinks } from "@/lib/sales/quick-links";
 
 export const metadata: Metadata = { title: "Deal" };
 export const dynamic = "force-dynamic";
@@ -41,12 +42,13 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const packages = packagesFor(await listOffers({ activeOnly: true }), deal.services ?? []).map((p) => ({
     offerId: p.offer.id, index: p.index, offer: p.offer.name, name: p.pkg.name, currency: p.pkg.currency, total: packageTotal(p.pkg), items: p.pkg.items.length, timeline: p.pkg.timeline, fits: p.fits,
   }));
+  const links = await dealQuickLinks(id);
   const meetings = await q<DealPageData["meetings"][number]>("select id, title, starts_at, link from sales_meetings where deal_id = $1 and not cancelled order by starts_at desc limit 10", [id]);
   return (
     <DealView
       d={{
         deal, targets, timeline: tl, touches, commitments: commits, payments: pays, docs, moves, people, company, person, events, meetings,
-        companyFields: COMPANY_FIELDS, personFields: PERSON_FIELDS, googleReady: google, voiceEnabled: voiceConfigured(), baseUrl: baseUrl(), blocked, packages,
+        companyFields: COMPANY_FIELDS, personFields: PERSON_FIELDS, googleReady: google, voiceEnabled: voiceConfigured(), baseUrl: baseUrl(), blocked, packages, links,
       }}
     />
   );

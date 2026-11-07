@@ -4,6 +4,7 @@
  * searches for this week's country and today's industry, and if even that comes up short it says so honestly and shows
  * the best of what it found.
  */
+import { authorProfile, textContacts } from "./quick-links";
 import { createHash } from "node:crypto";
 import { one, q } from "../db";
 import { esc } from "../telegram/api";
@@ -373,7 +374,7 @@ export async function qualifyPending(budgetMs = 45_000): Promise<number> {
 }
 
 export async function alertItem(id: number): Promise<void> {
-  const it = await one<{ id: number; title: string; url: string | null; score: number; fit: Verdict | null; alerted_at: string | null; source: string | null; known: Known | null; blocked: string | null }>(
+  const it = await one<{ id: number; title: string; body: string | null; author: string | null; url: string | null; score: number; fit: Verdict | null; alerted_at: string | null; source: string | null; known: Known | null; blocked: string | null }>(
     "select r.*, s.name as source from sales_radar_items r left join sales_radar_sources s on s.id = r.source_id where r.id = $1",
     [id],
   );
@@ -382,9 +383,22 @@ export async function alertItem(id: number): Promise<void> {
   const f = it.fit;
   const k = it.known;
   const knownLine = k ? `👋 <b>You already know them</b> (${esc(k.why)})${k.deal_title ? `: ${esc(k.deal_title)}, ${esc(k.stage ?? "")}${k.lost_reason ? ` (lost: ${esc(k.lost_reason)})` : ""}` : ""}\n` : "";
-  const text = `🎯 <b>Hot lead ${it.score}/100</b>${it.source ? ` · ${esc(it.source)}` : ""}\n<b>${esc(it.title.slice(0, 200))}</b>\n${knownLine}${f?.why ? `${esc(f.why)}\n` : ""}${f?.angle ? `💡 ${esc(f.angle)}` : ""}`;
+  // contacts the poster wrote, as plain text: Telegram makes emails and numbers tappable (buttons cannot hold mailto/tel)
+  const written = textContacts(`${it.title}\n${it.body ?? ""}`);
+  const reach = [
+    ...written.filter((l) => l.kind === "email").map((l) => `✉️ ${esc(l.value ?? "")}`),
+    ...written.filter((l) => l.kind === "call").map((l) => `📞 ${esc(l.value ?? "")}`),
+  ];
+  const text = `🎯 <b>Hot lead ${it.score}/100</b>${it.source ? ` · ${esc(it.source)}` : ""}\n<b>${esc(it.title.slice(0, 200))}</b>\n${knownLine}${f?.why ? `${esc(f.why)}\n` : ""}${f?.angle ? `💡 ${esc(f.angle)}` : ""}${reach.length ? `\n\n<b>In their post:</b> ${reach.join(" · ")}` : ""}`;
   const row = [{ text: "✍️ Draft reply", callback_data: `zs:rd:${id}` }, { text: "➕ Lead", callback_data: `zs:rl:${id}` }, { text: "Skip", callback_data: `zs:rs:${id}` }];
-  await push(text, { inline_keyboard: [row, ...(it.url?.startsWith("http") ? [[{ text: "Open post", url: it.url }]] : [])] });
+  const links: { text: string; url: string }[] = [];
+  if (it.url?.startsWith("https://")) links.push({ text: "↗️ Open post", url: it.url });
+  const author = authorProfile(it.url, it.author);
+  if (author?.href.startsWith("https://")) links.push({ text: `👤 ${author.label.slice(0, 30)}`, url: author.href });
+  for (const w of written.filter((l) => (l.kind === "website" || l.kind === "whatsapp") && l.href.startsWith("https://")).slice(0, 2)) links.push({ text: `${w.kind === "whatsapp" ? "🟢 WhatsApp" : `🌐 ${w.label.slice(0, 24)}`}`, url: w.href });
+  const linkRows = [];
+  for (let i = 0; i < links.length; i += 2) linkRows.push(links.slice(i, i + 2));
+  await push(text, { inline_keyboard: [row, ...linkRows, [{ text: "📇 All links and research", url: `${baseUrl()}/sales/radar` }]] });
 }
 
 /** Turns a radar item into a company, a person (when named) and a New deal with a first-touch move. */
