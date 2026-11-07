@@ -9,7 +9,8 @@ import { one, q } from "../db";
 import { esc } from "../telegram/api";
 import { salesConfig, type SalesConfig } from "./config";
 import { currentFocus } from "./focus";
-import { createDeal } from "./deals";
+import { screenRadarItem, type Known } from "./blocklist";
+import { createDeal, logInteraction } from "./deals";
 import { ensureCompany, upsertPerson } from "./identity";
 import { enqueue } from "./jobs";
 import { baseUrl } from "./links";
@@ -336,7 +337,9 @@ export async function qualifyPending(budgetMs = 45_000): Promise<number> {
       const score = Math.max(0, Math.min(100, Math.round(Number(v.score) || 0)));
       const status = score >= (b.hunt_min ?? cfg.radar.min_score) && !["candidate", "spam"].includes(v.buyer) ? "qualified" : "rejected";
       await q("update sales_radar_items set score = $2, status = $3, fit = $4, angle = $5 where id = $1", [b.id, score, status, JSON.stringify(v), v.angle ?? null]);
-      if (status === "qualified") {
+      // do-not-contact leads are dropped here, before they can alert you; known contacts are tagged
+      const screen = status === "qualified" ? await screenRadarItem(b.id).catch(() => null) : null;
+      if (status === "qualified" && screen !== "blocked") {
         await q("update sales_radar_sources set items_qualified = items_qualified + 1 where id = (select source_id from sales_radar_items where id = $1)", [b.id]);
         const fresh = !b.posted_at || Date.now() - new Date(b.posted_at).getTime() < 12 * 3_600_000;
         if (score >= cfg.radar.alert_score && fresh && b.hunt_notify !== false) await alertItem(b.id);
@@ -350,14 +353,16 @@ export async function qualifyPending(budgetMs = 45_000): Promise<number> {
 }
 
 export async function alertItem(id: number): Promise<void> {
-  const it = await one<{ id: number; title: string; url: string | null; score: number; fit: Verdict | null; alerted_at: string | null; source: string | null }>(
+  const it = await one<{ id: number; title: string; url: string | null; score: number; fit: Verdict | null; alerted_at: string | null; source: string | null; known: Known | null; blocked: string | null }>(
     "select r.*, s.name as source from sales_radar_items r left join sales_radar_sources s on s.id = r.source_id where r.id = $1",
     [id],
   );
-  if (!it || it.alerted_at) return;
+  if (!it || it.alerted_at || it.blocked) return;
   await q("update sales_radar_items set alerted_at = now() where id = $1", [id]);
   const f = it.fit;
-  const text = `🎯 <b>Hot lead ${it.score}/100</b>${it.source ? ` · ${esc(it.source)}` : ""}\n<b>${esc(it.title.slice(0, 200))}</b>\n${f?.why ? `${esc(f.why)}\n` : ""}${f?.angle ? `💡 ${esc(f.angle)}` : ""}`;
+  const k = it.known;
+  const knownLine = k ? `👋 <b>You already know them</b> (${esc(k.why)})${k.deal_title ? `: ${esc(k.deal_title)}, ${esc(k.stage ?? "")}${k.lost_reason ? ` (lost: ${esc(k.lost_reason)})` : ""}` : ""}\n` : "";
+  const text = `🎯 <b>Hot lead ${it.score}/100</b>${it.source ? ` · ${esc(it.source)}` : ""}\n<b>${esc(it.title.slice(0, 200))}</b>\n${knownLine}${f?.why ? `${esc(f.why)}\n` : ""}${f?.angle ? `💡 ${esc(f.angle)}` : ""}`;
   const row = [{ text: "✍️ Draft reply", callback_data: `zs:rd:${id}` }, { text: "➕ Lead", callback_data: `zs:rl:${id}` }, { text: "Skip", callback_data: `zs:rs:${id}` }];
   await push(text, { inline_keyboard: [row, ...(it.url?.startsWith("http") ? [[{ text: "Open post", url: it.url }]] : [])] });
 }
@@ -368,6 +373,19 @@ export async function radarToDeal(id: number): Promise<number> {
   if (!it) throw new Error("radar item missing");
   if (it.deal_id) return it.deal_id;
   const f = it.fit ?? ({} as Verdict);
+  // already in your pipeline (and not a lost deal): add it to that deal instead of creating a duplicate
+  const known = (await one<{ known: Known | null }>("select known from sales_radar_items where id = $1", [id]))?.known;
+  if (known?.deal_id && known.category !== "lost" && (await one("select 1 from sales_deals where id = $1", [known.deal_id]))) {
+    await logInteraction({
+      deal_id: known.deal_id, channel: "note", direction: "internal", source: "radar",
+      body: [it.title, (it.body ?? "").slice(0, 1500), it.url ?? ""].filter(Boolean).join("\n"),
+      summary: `Radar found them again: ${it.title.slice(0, 200)}`, external_id: `radar:${id}`,
+    });
+    await q("update sales_radar_items set deal_id = $2, status = 'converted' where id = $1", [id, known.deal_id]);
+    await q("update sales_moves set status = 'done', done_at = now() where dedupe_key = $1", [`radar:${id}`]);
+    await enqueue("refresh_moves", { deal_id: known.deal_id }, { dedupeKey: `refresh_moves:${known.deal_id}` });
+    return known.deal_id;
+  }
   const companyId = f.company || f.website ? await ensureCompany(f.company ?? null, { website: f.website ?? null, country: f.country ?? null, industry: f.industry ?? null }) : null;
   const personName = f.contact || it.author;
   const personId = personName ? await upsertPerson({ name: personName, company_id: companyId, country: f.country ?? null }) : null;

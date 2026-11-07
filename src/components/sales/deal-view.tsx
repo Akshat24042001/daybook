@@ -21,6 +21,8 @@ import { MoveCard } from "./moves-view";
 import { StageMoveSheet, type PendingMove } from "./pipeline-board";
 import { ago, ChannelIcon, CHANNEL_LABEL, fmtDate, Label, money, Priority } from "./util";
 
+export interface QuotePackage { offerId: number; index: number; offer: string; name: string; currency: string; total: number; items: number; timeline: string; fits: boolean }
+
 export interface DealPageData {
   deal: DealCard;
   targets: (Stage & { requires: string })[];
@@ -39,6 +41,10 @@ export interface DealPageData {
   personFields: { group: string; fields: [string, string][] }[];
   googleReady: boolean;
   voiceEnabled: boolean;
+  /** company or person is on the do-not-contact list */
+  blocked?: boolean;
+  /** offer packages a quote can start from, best fit first */
+  packages?: QuotePackage[];
   baseUrl: string;
 }
 
@@ -120,6 +126,7 @@ export function DealView({ d }: { d: DealPageData }) {
             <p className="text-xs text-subtle">{Math.floor((Date.now() - new Date(deal.stage_changed_at).getTime()) / 86_400_000)}d in stage{deal.stage_sla ? ` (limit ${deal.stage_sla})` : ""}</p>
           </div>
         </div>
+        {d.blocked ? <p className="mt-3 rounded-md bg-p-rose px-3 py-2 text-xs text-p-rose-fg">On your do-not-contact list: no outreach moves are made for this deal. Their messages to you are still logged. Manage the list in <a href="/sales/playbook#dnc" className="font-medium underline">Playbook</a>.</p> : null}
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-subtle">Move to:</span>
           {d.targets.map((t) => (
@@ -134,6 +141,15 @@ export function DealView({ d }: { d: DealPageData }) {
             </button>
           ))}
           <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setEdit(true)}>Edit details</Button>
+          {!d.blocked && (d.company?.website || deal.company_name || deal.person_name) ? (
+            <Button size="sm" variant="ghost" className="text-bad hover:text-bad" title="Stop all outreach to them, now and in future radar leads"
+              onClick={() => {
+                const [kind, value] = d.company?.website ? ["domain", d.company.website] as const : deal.company_name ? ["company", deal.company_name] as const : ["person", deal.person_name!] as const;
+                const why = prompt(`Never contact ${value} again? Optional: why (e.g. "asked not to be contacted").`, "");
+                if (why === null) return;
+                act(async () => (await import("@/app/sales-actions")).addBlockAction(kind, value, why || "from deal"), "Added to do-not-contact");
+              }}>Do not contact</Button>
+          ) : null}
         </div>
         {deal.priority_why?.length ? (
           <p className="mt-2 text-xs text-subtle">Why this priority: {deal.priority_why.join(" · ")}</p>
@@ -202,7 +218,7 @@ export function DealView({ d }: { d: DealPageData }) {
             </Section>
           ) : null}
 
-          <Section title="Documents" action={<DocButtons dealId={deal.id} companyId={d.company?.id ?? null} />}>
+          <Section title="Documents" action={<DocButtons dealId={deal.id} companyId={d.company?.id ?? null} packages={d.packages ?? []} />}>
             {d.docs.length ? (
               <ul className="space-y-2">
                 {d.docs.map((x) => {
@@ -497,8 +513,9 @@ function AddPerson({ dealId }: { dealId: number }) {
   );
 }
 
-function DocButtons({ dealId, companyId }: { dealId: number; companyId: number | null }) {
+function DocButtons({ dealId, companyId, packages }: { dealId: number; companyId: number | null; packages: QuotePackage[] }) {
   const [busy, start] = useTransition();
+  const [pickPkg, setPickPkg] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
@@ -516,11 +533,39 @@ function DocButtons({ dealId, companyId }: { dealId: number; companyId: number |
     });
   return (
     <div className="flex flex-wrap gap-1">
-      <Button size="sm" variant="ghost" disabled={busy} onClick={() => start(async () => {
+      <Button size="sm" variant="ghost" disabled={busy} onClick={() => (packages.length ? setPickPkg(true) : start(async () => {
         const r = await createQuoteAction(dealId);
         if (!r.ok) return toast(r.error, "error");
         router.push(`/sales/docs/${r.id}`);
-      })}><FileText className="h-3.5 w-3.5" /> Quote</Button>
+      }))}><FileText className="h-3.5 w-3.5" /> Quote</Button>
+      <Sheet open={pickPkg} onOpenChange={setPickPkg} title="Start a quote" description="From a package in your offer catalogue, or blank. You can edit everything before sending.">
+        <ul className="space-y-1.5">
+          {packages.map((p) => (
+            <li key={`${p.offerId}:${p.index}`}>
+              <button type="button" disabled={busy} className="flex w-full items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5 text-left text-sm hover:bg-muted"
+                onClick={() => start(async () => {
+                  const r = await createQuoteAction(dealId, { offerId: p.offerId, index: p.index });
+                  if (!r.ok) return toast(r.error, "error");
+                  router.push(`/sales/docs/${r.id}`);
+                })}>
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">{p.offer} · {p.name}</span>
+                  <span className="block text-xs text-subtle">{p.items} line item{p.items === 1 ? "" : "s"}{p.timeline ? ` · ${p.timeline}` : ""}{p.fits ? " · matches this deal" : ""}</span>
+                </span>
+                <span className="shrink-0 tabular text-sm">{p.currency} {Math.round(p.total).toLocaleString("en-US")}</span>
+              </button>
+            </li>
+          ))}
+          <li>
+            <button type="button" disabled={busy} className="w-full rounded-lg px-3 py-2.5 text-left text-sm text-subtle hover:bg-muted"
+              onClick={() => start(async () => {
+                const r = await createQuoteAction(dealId);
+                if (!r.ok) return toast(r.error, "error");
+                router.push(`/sales/docs/${r.id}`);
+              })}>Blank quote (one line from the deal value)</button>
+          </li>
+        </ul>
+      </Sheet>
       <Button size="sm" variant="ghost" onClick={() => setLinkOpen(true)}><Link2 className="h-3.5 w-3.5" /> Link</Button>
       <Button size="sm" variant="ghost" disabled={busy} onClick={() => fileRef.current?.click()}><Upload className="h-3.5 w-3.5" /> File</Button>
       {companyId ? (

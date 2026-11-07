@@ -20,6 +20,10 @@ import { deleteHunt, recentRuns, runHuntNow, saveHunt, setHuntEnabled, type Hunt
 import { radarToDeal, runRadar, qualifyPending, setRadarHidden, setRadarStatus, dailyDigest } from "@/lib/sales/radar";
 import { deleteStage, moveDeal, saveStage, setTransition, type Category, type Requirement } from "@/lib/sales/stages";
 import { fileStore, newPath } from "@/lib/storage";
+import { addBlock, removeBlock, type BlockKind } from "@/lib/sales/blocklist";
+import { deleteOffer, saveOffer } from "@/lib/sales/offers";
+import { renameObjection, saveAnswer, suggestAnswer, syncObjections } from "@/lib/sales/objections";
+import { deleteProof, draftProof, saveProof } from "@/lib/sales/proofs";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -200,8 +204,8 @@ export async function deletePaymentAction(id: number) {
 }
 
 // ------------------------------------------------------------------ documents
-export async function createQuoteAction(dealId: number) {
-  return run<{ id: number }>(async () => ({ id: await createQuote(dealId) }), ["/sales/docs", ...ALL]);
+export async function createQuoteAction(dealId: number, from?: { offerId: number; index: number }) {
+  return run<{ id: number }>(async () => ({ id: await createQuote(dealId, undefined, from) }), ["/sales/docs", ...ALL]);
 }
 export async function saveRevisionAction(docId: number, r: Partial<RevisionRow>, title?: string) {
   return run(async () => {
@@ -401,4 +405,53 @@ export async function clipAction(text: string, url: string, title: string) {
     const result = await processCapture(id);
     return { result: { ...result, capture_id: id } as CaptureResult };
   }, ALL);
+}
+
+// ------------------------------------------------------------------ do not contact
+export async function addBlockAction(kind: BlockKind, value: string, reason?: string | null) {
+  return run<{ id: number }>(async () => ({ id: await addBlock(kind, value, reason) }), ["/sales", "/sales/radar", "/sales/playbook", "/sales/deal/[id]"]);
+}
+export async function removeBlockAction(id: number) {
+  return run(() => removeBlock(id), ["/sales/playbook", "/sales/radar"]);
+}
+
+// ------------------------------------------------------------------ offers
+export async function saveOfferAction(o: Parameters<typeof saveOffer>[0]) {
+  return run<{ id: number }>(async () => ({ id: await saveOffer(o) }), ["/sales/playbook"]);
+}
+export async function deleteOfferAction(id: number) {
+  return run(() => deleteOffer(id), ["/sales/playbook"]);
+}
+
+// ------------------------------------------------------------------ objections
+export async function syncObjectionsAction() {
+  return run<{ n: number }>(async () => ({ n: await syncObjections() }), ["/sales/playbook"]);
+}
+export async function saveObjectionAnswerAction(id: number, answer: string) {
+  return run(() => saveAnswer(id, answer), ["/sales/playbook"]);
+}
+export async function renameObjectionAction(id: number, label: string) {
+  return run(() => renameObjection(id, label), ["/sales/playbook"]);
+}
+export async function suggestObjectionAnswerAction(id: number) {
+  return run<{ answer: string }>(async () => ({ answer: await suggestAnswer(id) }), ["/sales/playbook"]);
+}
+
+// ------------------------------------------------------------------ proof library
+export async function saveProofAction(p: Parameters<typeof saveProof>[0]) {
+  return run<{ id: number }>(async () => ({ id: await saveProof(p) }), ["/sales/playbook"]);
+}
+export async function deleteProofAction(id: number) {
+  return run(() => deleteProof(id), ["/sales/playbook"]);
+}
+/** Writes drafts now for delivered or paid deals that have none (up to five). */
+export async function draftProofsAction() {
+  return run<{ n: number }>(async () => {
+    const ids = await q<{ id: number }>(
+      `select d.id from sales_deals d join sales_stages s on s.id = d.stage_id
+       where s.role in ('delivered','paid') and not exists (select 1 from sales_proofs p where p.deal_id = d.id) order by d.updated_at desc limit 5`,
+    );
+    for (const r of ids) await draftProof(r.id);
+    return { n: ids.length };
+  }, ["/sales/playbook"]);
 }

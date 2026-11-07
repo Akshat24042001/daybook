@@ -1,5 +1,6 @@
 /** Sales settings: one row, a JSON config merged over these defaults so new options appear without a migration. */
 import { one, q } from "../db";
+import { offerLines } from "./offers";
 
 export type Autonomy = "suggest" | "draft" | "auto";
 
@@ -168,7 +169,11 @@ export async function salesRow(): Promise<SalesSettingsRow> {
 
 export async function salesConfig(): Promise<SalesConfig> {
   const row = await salesRow();
-  return merge(DEFAULT_CONFIG, row.config ?? {});
+  const cfg = merge(DEFAULT_CONFIG, row.config ?? {});
+  // the offer catalogue (Sales > Playbook) is the source of truth once it has anything in it
+  const lines = await offerLines();
+  if (lines.length) cfg.offers = lines;
+  return cfg;
 }
 
 export async function updateSalesConfig(patch: Partial<SalesConfig>): Promise<SalesConfig> {

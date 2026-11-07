@@ -53,6 +53,13 @@ export async function dealContext(dealId: number, opts: { interactions?: number 
   if (d.budget) lines.push(`BUDGET: ${d.budget}`);
   if (d.timeline) lines.push(`TIMELINE: ${d.timeline}`);
   if (d.objections?.length) lines.push(`OBJECTIONS: ${d.objections.join("; ")}`);
+  // your tested answers from the objection library (Sales > Playbook)
+  const answers = await q<{ label: string; answer: string }>(
+    `select distinct o.label, o.answer from sales_deal_objections x join sales_objections o on o.id = x.objection_id
+     where x.deal_id = $1 and o.answer is not null order by o.label`,
+    [dealId],
+  ).catch(() => []);
+  if (answers.length) lines.push(`YOUR BEST ANSWERS TO THEIR OBJECTIONS (use the substance, in your own words):\n${answers.map((a) => `- ${a.label}: ${a.answer}`).join("\n")}`);
   if (commits.length) lines.push(`OPEN PROMISES:\n${commits.map((c) => `- ${c.owner === "me" ? "I promised" : "They promised"}: ${c.text}${c.due_at ? ` (by ${iso(c.due_at).slice(0, 10)})` : ""}`).join("\n")}`);
   if (docs.length) lines.push(`DOCUMENTS: ${docs.map((x) => `${x.title} v${x.current_rev} ${x.status}, opened ${x.view_count}x`).join("; ")}`);
   if (recent.length) {

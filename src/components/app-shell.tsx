@@ -142,7 +142,7 @@ function SideLink({ item, active }: { item: NavItem; active: boolean }) {
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13.5px] font-medium transition-colors",
+        "flex h-7 items-center gap-2.5 rounded-md px-2.5 text-[13.5px] font-medium transition-colors",
         active ? "bg-muted text-fg" : "text-subtle hover:bg-muted/70 hover:text-fg",
       )}
     >
@@ -185,7 +185,7 @@ export function AppShell({
       <StaleBanner />
       <div className="flex min-h-dvh w-full">
         {/* desktop sidebar */}
-        <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-surface px-3 py-4 md:flex">
+        <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-surface px-3 py-3 md:flex">
           <Link href="/today" className="flex items-center px-2" aria-label="Daybook, go to Today">
             <Logo size={28} />
           </Link>
@@ -198,22 +198,24 @@ export function AppShell({
             <span className="flex-1 text-left">Search</span>
             <kbd className="rounded border border-border px-1.5 text-[10px] font-medium">Ctrl K</kbd>
           </button>
-          <nav className="mt-4 flex flex-1 flex-col gap-4 overflow-y-auto" aria-label="Main">
+          <nav className="mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto [scrollbar-width:thin]" aria-label="Main">
             {NAV_GROUPS.map((g) => (
               <div key={g.label}>
-                <p className="mb-1 px-2.5 text-xs font-medium text-subtle/80">{g.label}</p>
+                <p className="mb-0.5 px-2.5 text-xs font-medium text-subtle/80">{g.label}</p>
                 <div className="flex flex-col gap-0.5">
                   {g.items.map((item) => <SideLink key={item.href} item={item} active={active(item.href)} />)}
                 </div>
               </div>
             ))}
           </nav>
-          <div className="border-t border-border pt-3">
+          <div className="border-t border-border pt-2">
             <SideLink item={{ href: "/settings", label: "Settings", Icon: Settings }} active={active("/settings")} />
-            <div className="mt-1 flex items-center justify-between px-1"><ThemeToggle /></div>
-            <SignOut className="mt-0.5 flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-[13.5px] font-medium text-subtle transition-colors hover:bg-muted/70 hover:text-fg">
-              Sign out
-            </SignOut>
+            <div className="mt-0.5 flex items-center justify-between">
+              <SignOut className="flex h-7 items-center gap-2.5 rounded-md px-2.5 text-[13.5px] font-medium text-subtle transition-colors hover:bg-muted/70 hover:text-fg">
+                Sign out
+              </SignOut>
+              <ThemeToggle />
+            </div>
           </div>
         </aside>
 

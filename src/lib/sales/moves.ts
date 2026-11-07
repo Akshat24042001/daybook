@@ -9,16 +9,21 @@ import { one, q } from "../db";
 import { salesConfig, type SalesConfig } from "./config";
 import { dealContext } from "./context";
 import { refreshHeat, type DealCard, DEAL_CARD_SQL } from "./deals";
+import { blockedDealIds } from "./blocklist";
+import { listOffers, notBought, type Offer } from "./offers";
+import { proofBlock, proofFor } from "./proofs";
 import { applyEvent } from "./stages";
 import { draftMessage } from "./voice";
 
 export type MoveKind =
   | "reply" | "follow_up" | "breakup" | "reengage" | "commit_mine" | "commit_theirs" | "stale" | "quote_hot" | "quote_unseen"
-  | "quote_silent" | "payment_due" | "referral_ask" | "resurrect" | "next_action" | "radar" | "debrief" | "first_touch" | "custom";
+  | "quote_silent" | "payment_due" | "referral_ask" | "resurrect" | "next_action" | "radar" | "debrief" | "first_touch" | "custom"
+  | "checkin" | "upsell" | "retainer";
 
 const BASE: Record<MoveKind, number> = {
   quote_hot: 95, reply: 90, commit_mine: 82, payment_due: 78, debrief: 75, next_action: 70, first_touch: 62, commit_theirs: 62,
   quote_silent: 60, quote_unseen: 58, follow_up: 55, breakup: 52, reengage: 50, radar: 50, stale: 42, resurrect: 38, referral_ask: 34, custom: 60,
+  retainer: 48, upsell: 44, checkin: 40,
 };
 
 export const KIND_LABEL: Record<MoveKind, string> = {
@@ -26,6 +31,7 @@ export const KIND_LABEL: Record<MoveKind, string> = {
   commit_theirs: "Their promise", stale: "Stuck", quote_hot: "Hot: quote being read", quote_unseen: "Quote not opened",
   quote_silent: "Quote read, no reply", payment_due: "Payment", referral_ask: "Ask for referral", resurrect: "Revisit",
   next_action: "Next step", radar: "New lead", debrief: "Debrief", first_touch: "First touch", custom: "To do",
+  checkin: "Client check-in", upsell: "More work", retainer: "Retainer",
 };
 
 interface Desired {
@@ -65,7 +71,35 @@ async function bestChannel(dealId: number): Promise<string | null> {
   return r?.channel ?? null;
 }
 
-async function desiredForDeal(cfg: SalesConfig, d: DealCard, now: number): Promise<Desired[]> {
+interface Extra {
+  offers: Offer[];
+  /** the company already has another open deal, so it is already buying more: no upsell */
+  otherOpenDeal: boolean;
+}
+
+/** Revenue after delivery. Each move happens once (its key never repeats), and only in a window around its date. */
+export function postSale(cfg: SalesConfig, d: Pick<DealCard, "id" | "services" | "value_usd" | "heat">, name: string, channel: string | null, deliveredAt: number, now: number, offers: Offer[], otherOpenDeal: boolean): Desired[] {
+  const out: Desired[] = [];
+  const base = { deal_id: d.id, value_usd: d.value_usd, heat: d.heat };
+  for (const n of cfg.post_sale.checkin_days) {
+    const due = deliveredAt + n * D;
+    // shows a day early and stays three weeks; after that the moment has passed
+    if (now >= due - D && now < due + 21 * D) {
+      out.push({ ...base, kind: "checkin", title: `Check in with ${name} (${n} days after delivery)`, why: "Ask how it is working and what changed for them. Fix anything that is not, before they tell someone else.", channel, due_at: new Date(due), key: `chk:${d.id}:${n}` });
+    }
+  }
+  const after = cfg.post_sale.upsell_after_days;
+  const next = notBought(offers, d.services ?? [])[0];
+  if (after > 0 && next && !otherOpenDeal && now >= deliveredAt + after * D - D && now < deliveredAt + (after + 30) * D) {
+    out.push({ ...base, kind: "upsell", title: `Offer ${next.name} to ${name}`, why: `They bought ${(d.services ?? []).join(", ") || "from you"} and have not bought ${next.name}${next.summary ? ` (${next.summary})` : ""}. Existing clients say yes far more often than strangers.`, channel, due_at: new Date(deliveredAt + after * D), key: `ups:${d.id}` });
+  }
+  if (cfg.post_sale.retainer && now < deliveredAt + 30 * D) {
+    out.push({ ...base, kind: "retainer", title: `Offer ${name} a monthly retainer`, why: "Support, small improvements and a monthly check after delivery: steady revenue, and you stay their first call.", channel, due_at: new Date(deliveredAt + 2 * D), key: `ret:${d.id}` });
+  }
+  return out;
+}
+
+async function desiredForDeal(cfg: SalesConfig, d: DealCard, now: number, extra: Extra = { offers: [], otherOpenDeal: false }): Promise<Desired[]> {
   const out: Desired[] = [];
   const base = { deal_id: d.id, value_usd: d.value_usd, heat: d.heat };
   const lastIn = t(d.last_inbound_at);
@@ -132,6 +166,16 @@ async function desiredForDeal(cfg: SalesConfig, d: DealCard, now: number): Promi
     const asked = await one("select 1 from sales_moves where deal_id = $1 and kind = 'referral_ask' and status in ('done','skipped')", [d.id]);
     if (!asked && now - since > 21 * D) out.push({ ...base, kind: "referral_ask", title: `Ask ${name} for a referral and a testimonial`, why: "Happy clients are the cheapest pipeline you have.", channel, due_at: new Date(since + 21 * D), key: `ref:${d.id}` });
   }
+
+  // 9. after the sale: check-ins, one more piece of work, a retainer (deals delivered in the last 180 days)
+  if (role === "delivered" || role === "paid") {
+    const delivered = await one<{ at: string | null }>(
+      `select min(e.created_at) as at from sales_deal_events e join sales_stages s on s.id = e.to_stage where e.deal_id = $1 and s.role in ('delivered','paid')`,
+      [d.id],
+    );
+    const at = t(delivered?.at) || t(d.stage_changed_at);
+    if (now - at < 180 * D) out.push(...postSale(cfg, d, name, channel, at, now, extra.offers, extra.otherOpenDeal));
+  }
   return out;
 }
 
@@ -192,11 +236,18 @@ async function desiredGlobal(cfg: SalesConfig, now: number): Promise<Desired[]> 
   );
   for (const m of meets) out.push({ deal_id: m.deal_id, kind: "debrief", title: `Debrief: ${m.title}`, why: "30 seconds while it is fresh: send a voice note in Telegram, or paste the notes.", channel: null, due_at: new Date(t(m.ends_at) + 10 * 60_000), key: `deb:${m.id}` });
   // radar
-  const radar = await q<{ id: number; title: string; score: number; found_at: string; source: string | null }>(
-    `select r.id, r.title, r.score, r.found_at, s.name as source from sales_radar_items r left join sales_radar_sources s on s.id = r.source_id
-     where r.status = 'qualified' and not r.hidden and r.deal_id is null and r.found_at > now() - interval '5 days'`,
+  const radar = await q<{ id: number; title: string; score: number; found_at: string; source: string | null; known: { deal_title: string | null; stage: string | null; category: string | null; why: string } | null }>(
+    `select r.id, r.title, r.score, r.found_at, s.name as source, r.known from sales_radar_items r left join sales_radar_sources s on s.id = r.source_id
+     where r.status = 'qualified' and not r.hidden and r.deal_id is null and r.blocked is null and r.found_at > now() - interval '5 days'`,
   );
-  for (const r of radar) out.push({ deal_id: null, radar_item_id: r.id, kind: "radar", title: r.title.slice(0, 140), why: `Radar ${r.score}/100${r.source ? ` from ${r.source}` : ""}. Reply fast or skip.`, channel: null, due_at: new Date(t(r.found_at)), key: `radar:${r.id}`, heat: r.score });
+  for (const r of radar) {
+    const k = r.known;
+    // someone you already know: say so, so the reply picks up the existing relationship instead of a cold pitch
+    const why = k
+      ? `You already know them (${k.why})${k.deal_title ? `: ${k.deal_title}, ${k.stage}` : ""}. Reply as part of that relationship, not as a stranger.`
+      : `Radar ${r.score}/100${r.source ? ` from ${r.source}` : ""}. Reply fast or skip.`;
+    out.push({ deal_id: null, radar_item_id: r.id, kind: "radar", title: `${k ? "Known contact: " : ""}${r.title}`.slice(0, 140), why, channel: null, due_at: new Date(t(r.found_at)), key: `radar:${r.id}`, heat: r.score });
+  }
   void cfg;
   return out;
 }
@@ -211,7 +262,16 @@ export async function refreshMoves(dealId?: number): Promise<{ open: number }> {
     [dealId ?? null],
   );
   const desired: Desired[] = [];
-  for (const d of deals) desired.push(...(await desiredForDeal(cfg, d, now)));
+  // do not contact: no outreach moves for these deals (their messages to you are still logged)
+  const blocked = await blockedDealIds();
+  const offers = await listOffers({ activeOnly: true });
+  const openByCompany = new Map((await q<{ company_id: number; n: number }>(
+    "select d.company_id, count(*)::int as n from sales_deals d join sales_stages s on s.id = d.stage_id where s.category = 'open' and d.company_id is not null group by 1",
+  )).map((r) => [r.company_id, r.n]));
+  for (const d of deals) {
+    if (blocked.has(d.id)) continue;
+    desired.push(...(await desiredForDeal(cfg, d, now, { offers, otherOpenDeal: !!(d.company_id && openByCompany.get(d.company_id)) })));
+  }
   const global = await desiredGlobal(cfg, now);
   desired.push(...(dealId ? global.filter((g) => g.deal_id === dealId) : global));
 
@@ -333,6 +393,9 @@ const PURPOSE: Partial<Record<MoveKind, string>> = {
   debrief: "Recap email after the meeting: what we discussed, what each side will do, next date.",
   custom: "Do what the move says.",
   stale: "Move a stuck deal forward with one clear question.",
+  checkin: "Check in with a client after delivery: ask how it is working and what changed for them. One specific question about results. If something is not working, offer to fix it. No pitch.",
+  upsell: "Suggest one more thing you can do for an existing happy client, tied to what they already have and a problem they likely have now. Short, specific, easy yes or no. Name the offer in plain words.",
+  retainer: "Offer a monthly retainer after delivery: support, small improvements and a monthly check that everything runs. Frame it around keeping what you built working and improving. Ask if they want the details.",
 };
 
 /** Writes (or rewrites) the draft for a move, in the owner's voice. */
@@ -344,6 +407,8 @@ export async function draftForMove(id: number, channelOverride?: string): Promis
   let toCountry: string | null = null;
   if (m.deal_id) {
     context = await dealContext(m.deal_id);
+    // messages that should bring something new may cite approved proof that fits them (never a first touch or a breakup)
+    if (["follow_up", "reengage", "quote_silent", "resurrect", "upsell", "stale"].includes(m.kind)) context += proofBlock(await proofFor(m.deal_id));
     toCountry = (await one<{ country: string | null }>("select country from sales_deals where id = $1", [m.deal_id]))?.country ?? null;
   } else if (m.radar_item_id) {
     const r = await one<{ title: string; body: string | null; url: string | null; angle: string | null; fit: { country?: string } | null }>("select title, body, url, angle, fit from sales_radar_items where id = $1", [m.radar_item_id]);

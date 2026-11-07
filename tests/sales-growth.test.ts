@@ -351,3 +351,266 @@ describe("booking link in drafts", () => {
     expect(aiAnswer.calls.at(-1)!.system).toContain("BOOKING LINK: https://cal.com/akshat/30min");
   });
 });
+
+import { addBlock, blockedBy, knownFor, normBlock, normCompany, screenRadarItem } from "@/lib/sales/blocklist";
+import { radarToDeal } from "@/lib/sales/radar";
+import { refreshMoves } from "@/lib/sales/moves";
+import { ensureCompany, upsertPerson } from "@/lib/sales/identity";
+
+describe("do not contact and known contacts", () => {
+  it("stores values in one canonical form", () => {
+    expect(normBlock("domain", "https://www.Acme.com/about")).toBe("acme.com");
+    expect(normBlock("domain", "ravi@acme.com")).toBe("acme.com");
+    expect(normCompany("Acme Freight Pvt. Ltd.")).toBe("acme freight");
+    expect(normCompany("ACME FREIGHT LLC")).toBe("acme freight");
+    expect(normBlock("person", "Ravi")).toBeNull();
+  });
+
+  it("matches subdomains and emails against a blocked domain", () => {
+    const list = [{ id: 1, kind: "domain" as const, value: "acme.com", reason: "asked us to stop", created_at: "" }];
+    expect(blockedBy(list, { domains: ["https://shop.acme.com"] })).toContain("asked us to stop");
+    expect(blockedBy(list, { emails: ["ceo@acme.com"] })).toContain("acme.com");
+    expect(blockedBy(list, { domains: ["notacme.com"] })).toBeNull();
+  });
+
+  it("drops a blocked radar lead before it can become a move, and tags a known one", async () => {
+    await addBlock("company", "Spammy Corp Ltd", "not a fit");
+    await q(`insert into sales_radar_items (url_hash, title, status, score, fit) values
+      ('x1','Need an app','qualified',90,'{"company":"Spammy Corp"}'),
+      ('x2','Need automation','qualified',88,'{"company":"Acme Freight LLC","website":"acmefreight.com"}')`);
+    const co = await ensureCompany("Acme Freight", { website: "https://acmefreight.com" });
+    const deal = await createDeal({ title: "Acme automation", company_id: co });
+    expect(await screenRadarItem(1)).toBe("blocked");
+    expect(await screenRadarItem(2)).toBe("known");
+    const rows = await q<{ status: string; blocked: string | null; known: { deal_id: number; why: string } | null }>("select status, blocked, known from sales_radar_items order by id");
+    expect(rows[0]).toMatchObject({ status: "rejected" });
+    expect(rows[0].blocked).toContain("not a fit");
+    expect(rows[1].known).toMatchObject({ deal_id: deal, why: "same website domain" });
+
+    await refreshMoves();
+    const moves = await q<{ title: string; why: string }>("select title, why from sales_moves where kind = 'radar' and status = 'open'");
+    expect(moves).toHaveLength(1);
+    expect(moves[0].title).toMatch(/^Known contact: /);
+    expect(moves[0].why).toContain("You already know them");
+
+    // making it a lead adds it to the existing deal, it does not create a second one
+    expect(await radarToDeal(2)).toBe(deal);
+    expect((await one<{ n: number }>("select count(*)::int as n from sales_deals"))!.n).toBe(1);
+    expect((await one<{ summary: string }>("select summary from sales_interactions where deal_id = $1", [deal]))!.summary).toMatch(/^Radar found them again/);
+  });
+
+  it("finds a known person by full name, and starts fresh when their deal was lost", async () => {
+    const co = await ensureCompany("Beta Labs");
+    const p = await upsertPerson({ name: "Priya Sharma", company_id: co });
+    const lost = await createDeal({ title: "Beta old", company_id: co, person_id: p });
+    await setRole(lost, "lost");
+    const k = await knownFor({ person: "priya sharma" });
+    expect(k).toMatchObject({ person_id: p, deal_id: lost, category: "lost" });
+    await q(`insert into sales_radar_items (url_hash, title, status, score, fit) values ('y','Beta wants a CRM','qualified',80,'{"contact":"Priya Sharma"}')`);
+    const id = (await one<{ id: number }>("select id from sales_radar_items where url_hash = 'y'"))!.id;
+    await screenRadarItem(id);
+    const fresh = await radarToDeal(id);
+    expect(fresh).not.toBe(lost);
+  });
+
+  it("makes no outreach moves for a deal whose company is blocked, and re-screens waiting leads at once", async () => {
+    const co = await ensureCompany("Gamma Inc", { website: "gamma.io" });
+    const d = await createDeal({ title: "Gamma", company_id: co });
+    await refreshMoves(d);
+    expect((await q("select 1 from sales_moves where deal_id = $1 and status = 'open'", [d])).length).toBeGreaterThan(0);
+    await q(`insert into sales_radar_items (url_hash, title, status, score, fit) values ('z','Gamma hiring','qualified',80,'{"website":"https://gamma.io"}')`);
+    await addBlock("domain", "gamma.io", "asked us to stop");
+    await refreshMoves(d);
+    expect(await q("select 1 from sales_moves where deal_id = $1 and status = 'open'", [d])).toHaveLength(0);
+    expect((await one<{ status: string }>("select status from sales_radar_items where url_hash = 'z'"))!.status).toBe("rejected");
+  });
+});
+
+import { listOffers, notBought, offerCovers, packagesFor, saveOffer } from "@/lib/sales/offers";
+import { createQuote } from "@/lib/sales/docs";
+
+describe("offer catalogue", () => {
+  const offer = (name: string, keywords: string[] = []) => ({ id: 1, name, summary: null, keywords, packages: [], active: true, sort: 0 });
+
+  it("knows which offer a deal's service belongs to", () => {
+    expect(offerCovers(offer("AI agents and automation"), "AI agents")).toBe(true);
+    expect(offerCovers(offer("Mobile applications", ["apps", "iOS"]), "iOS")).toBe(true);
+    expect(offerCovers(offer("Websites that convert"), "Mobile app")).toBe(false);
+    expect(notBought([offer("Websites"), { ...offer("Voice agents"), id: 2 }], ["Websites"]).map((o) => o.name)).toEqual(["Voice agents"]);
+  });
+
+  it("copies the old list in once, then becomes the source of truth for what you sell", async () => {
+    const first = await listOffers({ seedFrom: ["Websites", "AI agents"] });
+    expect(first.map((o) => o.name)).toEqual(["Websites", "AI agents"]);
+    expect((await listOffers({ seedFrom: ["Something else"] })).length).toBe(2);
+    await saveOffer({ id: first[1].id, name: "AI agents", summary: "Agents that answer and book 24/7" });
+    expect((await salesConfig()).offers).toEqual(["Websites", "AI agents: Agents that answer and book 24/7"]);
+  });
+
+  it("starts a quote from a package, best-fitting packages first", async () => {
+    const id = await saveOffer({
+      name: "Websites", keywords: ["website"],
+      packages: [{ name: "Launch", currency: "aed", timeline: "3 weeks", scope: "5 pages, copy, launch", items: [{ name: "Design", description: "", qty: 1, unit_price: 4000 }, { name: "Build", description: "", qty: 2, unit_price: 3000 }] }],
+    });
+    await saveOffer({ name: "Voice agents", packages: [{ name: "Pilot", currency: "USD", timeline: "", scope: "", items: [{ name: "Pilot", description: "", qty: 1, unit_price: 2000 }] }] });
+    const offers = await listOffers({ activeOnly: true });
+    expect(packagesFor(offers, ["Website"]).map((p) => [p.pkg.name, p.fits])).toEqual([["Launch", true], ["Pilot", false]]);
+
+    const deal = await createDeal({ title: "Acme site", services: ["Website"], requirements: "Needs Arabic too" });
+    const doc = await createQuote(deal, undefined, { offerId: id, index: 0 });
+    const rev = (await one<{ currency: string; total: number; items: { name: string }[]; scope: string; timeline: string }>("select currency, total::float, items, scope, timeline from sales_quote_revisions where doc_id = $1", [doc]))!;
+    expect(rev).toMatchObject({ currency: "AED", total: 10000, timeline: "3 weeks" });
+    expect(rev.items.map((i) => i.name)).toEqual(["Design", "Build"]);
+    expect(rev.scope).toContain("5 pages");
+    expect(rev.scope).toContain("Needs Arabic too");
+  });
+});
+
+import { postSale } from "@/lib/sales/moves";
+
+describe("revenue after the sale", () => {
+  const deal = { id: 7, services: ["Websites"], value_usd: 5000, heat: 0 };
+  const offers = [
+    { id: 1, name: "Websites", summary: null, keywords: [], packages: [], active: true, sort: 1 },
+    { id: 2, name: "Voice agents", summary: "answer every call", keywords: [], packages: [], active: true, sort: 2 },
+  ];
+
+  it("checks in at 30 and 90 days, suggests what they have not bought, and offers a retainer, each in its window", async () => {
+    const cfg = await salesConfig();
+    const delivered = Date.parse("2026-08-01T10:00:00Z");
+    const at = (days: number) => postSale(cfg, deal, "Acme", "whatsapp", delivered, delivered + days * D, offers, false).map((m) => m.key).sort();
+    expect(at(1)).toEqual(["ret:7"]);
+    expect(at(30)).toEqual(["chk:7:30"]);
+    expect(at(46)).toEqual(["chk:7:30", "ups:7"]);
+    expect(at(60)).toEqual(["ups:7"]);
+    expect(at(90)).toEqual(["chk:7:90"]);
+    expect(at(150)).toEqual([]);
+    const up = postSale(cfg, deal, "Acme", null, delivered, delivered + 46 * D, offers, false).find((m) => m.kind === "upsell")!;
+    expect(up.title).toBe("Offer Voice agents to Acme");
+    expect(up.why).toContain("have not bought Voice agents (answer every call)");
+    // already buying more: no upsell
+    expect(postSale(cfg, deal, "Acme", null, delivered, delivered + 46 * D, offers, true).some((m) => m.kind === "upsell")).toBe(false);
+  });
+
+  it("creates the moves for a delivered deal, once", async () => {
+    await saveOffer({ name: "Voice agents" });
+    const d = await createDeal({ title: "Acme site", services: ["Websites"] });
+    await setRole(d, "delivered", { at: new Date(Date.now() - 31 * D).toISOString() });
+    await refreshMoves(d);
+    const kinds = (await q<{ kind: string }>("select kind from sales_moves where deal_id = $1 and status = 'open' order by kind", [d])).map((r) => r.kind);
+    expect(kinds).toContain("checkin");
+    const chk = (await one<{ id: number }>("select id from sales_moves where deal_id = $1 and kind = 'checkin'", [d]))!.id;
+    await q("update sales_moves set status = 'done' where id = $1", [chk]);
+    await refreshMoves(d);
+    expect((await one<{ status: string }>("select status from sales_moves where id = $1", [chk]))!.status).toBe("done");
+  });
+});
+
+import { outreachToday, salesDaily } from "@/lib/sales/activity";
+import { calendarDate } from "@/lib/time";
+
+describe("daily outreach", () => {
+  it("counts messages that open or push a conversation, not answers to them", async () => {
+    expect((await outreachToday()).active).toBe(false);
+    const d = await createDeal({ title: "Acme" });
+    const at = (h: number) => new Date(Date.now() - h * H);
+    await logInteraction({ deal_id: d, channel: "whatsapp", direction: "out", source: "t", body: "first message", occurred_at: at(10) });   // outreach
+    await logInteraction({ deal_id: d, channel: "whatsapp", direction: "in", source: "t", body: "tell me more", occurred_at: at(8) });
+    await logInteraction({ deal_id: d, channel: "whatsapp", direction: "out", source: "t", body: "sure, here it is", occurred_at: at(7) });  // a reply, not outreach
+    await logInteraction({ deal_id: d, channel: "whatsapp", direction: "out", source: "t", body: "did that help?", occurred_at: at(2) });   // a nudge after no answer: outreach
+    await logInteraction({ deal_id: d, channel: "email", direction: "out", source: "t", body: "note to self", occurred_at: at(1) });       // a follow-up on another channel: outreach
+    await logInteraction({ deal_id: d, channel: "call", direction: "out", source: "t", body: "called", occurred_at: at(1) });               // calls are not messages
+    const tz = "UTC";
+    const today = calendarDate(new Date(), tz);
+    const days = await salesDaily(calendarDate(at(48), tz), today, tz);
+    const total = days.reduce((a, x) => a + x.outreach, 0);
+    expect(total).toBe(3);
+    expect(days.reduce((a, x) => a + x.replies, 0)).toBe(1);
+    const o = await outreachToday();
+    expect(o.active).toBe(true);
+    expect(o.goal).toBe(5);
+  });
+});
+
+import { listObjections, renameObjection, saveAnswer, suggestAnswer, syncObjections } from "@/lib/sales/objections";
+import { draftProof, listProofs, proofBlock, proofFor, saveProof } from "@/lib/sales/proofs";
+import { dealContext } from "@/lib/sales/context";
+
+describe("objection library", () => {
+  it("groups the same objection said different ways, with how those deals ended", async () => {
+    const a = await createDeal({ title: "A" });
+    const b = await createDeal({ title: "B" });
+    const c = await createDeal({ title: "C" });
+    await q("update sales_deals set objections = $2 where id = $1", [a, ["too expensive for us", "need to ask my partner"]]);
+    await q("update sales_deals set objections = $2 where id = $1", [b, ["price is high"]]);
+    await q("update sales_deals set objections = $2 where id = $1", [c, ["Too expensive"]]);
+    await setRole(a, "won");
+    await setRole(b, "lost");
+    aiAnswer.value = { map: { "too expensive for us": "Price too high", "price is high": "Price too high", "Too expensive": "Price too high", "need to ask my partner": "Needs partner sign-off" } };
+    expect(await syncObjections()).toBe(4);
+    expect(await syncObjections()).toBe(0); // nothing new
+    const rows = await listObjections();
+    expect(rows[0]).toMatchObject({ label: "Price too high", deals: 3, won: 1, lost: 1, open: 1, win_rate: 50 });
+    expect(rows[1]).toMatchObject({ label: "Needs partner sign-off", deals: 1 });
+  });
+
+  it("keeps every raw objection when the AI fails, merges on rename, and feeds your answer into the deal's context", async () => {
+    const a = await createDeal({ title: "A" });
+    await q("update sales_deals set objections = $2 where id = $1", [a, ["no budget this quarter", "budget is tight"]]);
+    aiAnswer.value = () => { throw new Error("down"); };
+    expect(await syncObjections()).toBe(2);
+    let rows = await listObjections();
+    expect(rows.map((r) => r.label).sort()).toEqual(["Budget is tight", "No budget this quarter"]);
+    await renameObjection(rows.find((r) => r.label === "Budget is tight")!.id, "No budget this quarter");
+    rows = await listObjections();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].deals).toBe(1);
+    await saveAnswer(rows[0].id, "Start with a two-week pilot at a tenth of the price.");
+    expect(await dealContext(a)).toContain("No budget this quarter: Start with a two-week pilot");
+  });
+
+  it("suggests an answer from deals you won with that objection", async () => {
+    const a = await createDeal({ title: "Won deal" });
+    await q("update sales_deals set objections = $2 where id = $1", [a, ["too pricey"]]);
+    await setRole(a, "won");
+    aiAnswer.value = { map: { "too pricey": "Price too high" } };
+    await syncObjections();
+    const [o] = await listObjections();
+    const { llm } = await import("@/lib/sales/llm");
+    (llm as unknown as { mockResolvedValueOnce: (v: unknown) => void }).mockResolvedValueOnce({ text: "Fair. What does one missed order cost you a week?", model: "t" });
+    expect(await suggestAnswer(o.id)).toContain("missed order");
+    expect((await listObjections())[0]).toMatchObject({ answer_source: "ai" });
+  });
+});
+
+describe("proof library", () => {
+  it("drafts a case study for a paid deal from its record, without inventing a result", async () => {
+    const co = await ensureCompany("Acme Freight", { industry: "logistics" } as never);
+    const d = await createDeal({ title: "Acme bot", company_id: co, services: ["AI agents"], requirements: "Orders arrive on WhatsApp and get lost" });
+    await setRole(d, "paid");
+    aiAnswer.value = { title: "WhatsApp orders captured automatically", problem: "Orders on WhatsApp got lost.", solution: "An agent that files every order.", result: null };
+    const id = await draftProof(d);
+    expect(await draftProof(d)).toBe(id); // once per deal
+    const [p] = await listProofs();
+    expect(p).toMatchObject({ status: "draft", client: "Acme Freight", result: null, services: ["AI agents"] });
+  });
+
+  it("only cites approved proof that fits the lead, never a draft and never the deal's own", async () => {
+    await saveProof({ title: "Agent answers every call", services: ["AI agents"], industry: "clinics", problem: "Missed calls.", solution: "A voice agent.", result: "Missed calls down 90%", status: "approved" });
+    await saveProof({ title: "Draft one", services: ["AI agents"], status: "draft" });
+    await saveProof({ title: "Website redo", services: ["Websites"], problem: "Old site.", solution: "New site.", status: "approved" });
+    await expect(saveProof({ title: "Thin", status: "approved" })).rejects.toThrow(/problem and what you built/);
+    const lead = await createDeal({ title: "Clinic lead", services: ["AI agents"] });
+    const fit = await proofFor(lead);
+    expect(fit.map((p) => p.title)).toEqual(["Agent answers every call"]);
+    expect(proofBlock(fit)).toContain("Result: Missed calls down 90%");
+
+    const mv = (await one<{ id: number }>("insert into sales_moves (deal_id, kind, title, channel) values ($1,'follow_up','Follow-up 1 to Clinic','whatsapp') returning id", [lead]))!.id;
+    aiAnswer.value = { subject: null, message: "x" };
+    await draftForMove(mv);
+    expect(aiAnswer.calls.at(-1)!.user).toContain("PROOF YOU MAY CITE");
+    const first = (await one<{ id: number }>("insert into sales_moves (deal_id, kind, title, channel) values ($1,'first_touch','First message to Clinic','whatsapp') returning id", [lead]))!.id;
+    await draftForMove(first);
+    expect(aiAnswer.calls.at(-1)!.user).not.toContain("PROOF YOU MAY CITE");
+  });
+});

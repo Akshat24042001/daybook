@@ -21,6 +21,8 @@ import { reportHunt, runHunt, scheduleHunts } from "./hunts";
 import { personStage, researchRadarItem, searchStage, siteStage, startResearch, synthStage } from "./research";
 import { dailyDigest, hunt, qualifyPending, runRadar } from "./radar";
 import { weeklyReview, reviewMessage, reviewInsights } from "./review";
+import { syncObjections } from "./objections";
+import { draftProof, queueProofs } from "./proofs";
 import { movesMessage, processAndReport, report } from "./telegram";
 
 export const HANDLERS: Record<string, Handler> = {
@@ -39,6 +41,12 @@ export const HANDLERS: Record<string, Handler> = {
   },
   async refresh_moves(p) {
     await refreshMoves(p.deal_id ? Number(p.deal_id) : undefined);
+  },
+  async sync_objections() {
+    await syncObjections();
+  },
+  async draft_proof(p) {
+    await draftProof(Number(p.deal_id));
   },
   // the old "enrich" jobs now start the deep, staged research (live log, sources, people, contacts)
   async enrich_company(p) {
@@ -196,6 +204,9 @@ export async function runSalesTick(now: Date = new Date()): Promise<string> {
     await q("update sales_settings set last_radar_digest_on = $1 where id = 1", [today]);
     await enqueue("radar_digest", {}, { dedupeKey: `radar_digest:${today}` });
   }
+  // once a day: group new objections into the library, and draft case studies for newly paid deals
+  await enqueue("sync_objections", {}, { dedupeKey: `sync_objections:${today}` });
+  await queueProofs().catch(() => {});
   const dow = isoDow(calendarDate(now, ctx.tz)); // 1 = Monday
   if (!quiet && dow === cfg.review_dow && local.h >= cfg.review_hour && row.last_review_on !== today) {
     await q("update sales_settings set last_review_on = $1 where id = 1", [today]);

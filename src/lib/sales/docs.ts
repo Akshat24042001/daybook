@@ -5,6 +5,7 @@
  */
 import { one, q, UserError } from "../db";
 import { salesConfig } from "./config";
+import type { Package } from "./offers";
 import { getDeal, logInteraction } from "./deals";
 import { baseUrl, newSlug } from "./links";
 import { escalate, push } from "./notify";
@@ -109,20 +110,33 @@ export async function revisions(docId: number): Promise<RevisionRow[]> {
   return q<RevisionRow>("select * from sales_quote_revisions where doc_id = $1 order by rev desc", [docId]);
 }
 
-export async function createQuote(dealId: number, title?: string): Promise<number> {
+/**
+ * A new quote for a deal: blank (one line from the deal's value), or started from a package in your offer catalogue
+ * (its line items, scope, timeline and currency). Either way it is a draft you can edit before sending.
+ */
+export async function createQuote(dealId: number, title?: string, from?: { offerId: number; index: number }): Promise<number> {
   const deal = await getDeal(dealId);
   if (!deal) throw new UserError("Deal not found.");
   const cfg = await salesConfig();
+  let pkg: Package | null = null;
+  if (from) {
+    const offer = await one<{ name: string; packages: Package[] }>("select name, packages from sales_offers where id = $1", [from.offerId]);
+    pkg = offer?.packages?.[from.index] ?? null;
+    if (!pkg) throw new UserError("That package no longer exists. Pick another or start blank.");
+  }
   const doc = await one<{ id: number }>(
     "insert into sales_docs (slug, kind, deal_id, company_id, title) values ($1,'quote',$2,$3,$4) returning id",
     [newSlug(), dealId, deal.company_id, title?.trim() || `Proposal for ${deal.company_name ?? deal.title}`],
   );
-  const items: QuoteItem[] = deal.value_amount ? [{ name: deal.services?.[0] ?? "Project", description: deal.requirements?.slice(0, 300) ?? "", qty: 1, unit_price: Number(deal.value_amount) }] : [];
+  const items: QuoteItem[] = pkg
+    ? pkg.items.map((i) => ({ name: i.name, description: i.description, qty: i.qty, unit_price: i.unit_price }))
+    : deal.value_amount ? [{ name: deal.services?.[0] ?? "Project", description: deal.requirements?.slice(0, 300) ?? "", qty: 1, unit_price: Number(deal.value_amount) }] : [];
+  const scope = pkg ? [pkg.scope, deal.requirements ? `\nWhat you asked for:\n${deal.requirements}` : ""].filter(Boolean).join("\n").trim() : deal.requirements ?? "";
   await q(
-    `insert into sales_quote_revisions (doc_id, rev, currency, items, total, intro, scope, terms, payment_plan)
-     values ($1,1,$2,$3,$4,$5,$6,$7,$8)`,
-    [doc!.id, deal.currency || cfg.default_currency, JSON.stringify(items), totalOf(items, 0, 0),
-      `Hi ${deal.person_name?.split(" ")[0] ?? "there"}, here is what we discussed, in one place.`, deal.requirements ?? "", DEFAULT_TERMS, JSON.stringify(DEFAULT_PLAN)],
+    `insert into sales_quote_revisions (doc_id, rev, currency, items, total, intro, scope, timeline, terms, payment_plan)
+     values ($1,1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [doc!.id, pkg?.currency || deal.currency || cfg.default_currency, JSON.stringify(items), totalOf(items, 0, 0),
+      `Hi ${deal.person_name?.split(" ")[0] ?? "there"}, here is what we discussed, in one place.`, scope, pkg?.timeline || null, DEFAULT_TERMS, JSON.stringify(DEFAULT_PLAN)],
   );
   return doc!.id;
 }

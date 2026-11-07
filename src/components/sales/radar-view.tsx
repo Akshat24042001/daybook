@@ -1,10 +1,11 @@
 "use client";
 
-import { CheckCircle2, Eye, EyeOff, ExternalLink, Loader2, Plus, Radar, Search, Sparkles } from "lucide-react";
+import { Ban, CheckCircle2, Eye, EyeOff, ExternalLink, Loader2, Plus, Radar, Search, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
   addRadarItemAction, addSourceAction, digestNowAction, radarDraftAction, radarHideAction, radarStatusAction, radarToDealAction, runRadarAction, toggleSourceAction,
+  addBlockAction,
 } from "@/app/sales-actions";
 import { Button, Chip, Field, Input, Select, Sheet, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
@@ -21,7 +22,9 @@ import type { HuntView } from "@/lib/sales/hunts";
 export interface RadarItem {
   id: number; title: string; body: string | null; url: string | null; score: number | null; status: string; found_at: string; posted_at: string | null;
   source: string | null; category: string | null; deal_id: number | null; hunt?: string | null; hidden?: boolean; company_id?: number | null; researched_at?: string | null;
-  fit: { why?: string; angle?: string; money_leak?: string | null; country?: string; industry?: string; services?: string[]; buyer?: string; budget?: string | null; urgency?: string } | null;
+  fit: { why?: string; angle?: string; money_leak?: string | null; country?: string; industry?: string; services?: string[]; buyer?: string; budget?: string | null; urgency?: string; company?: string | null; website?: string | null; contact?: string | null } | null;
+  known?: { deal_id: number | null; deal_title: string | null; stage: string | null; category: string | null; lost_reason: string | null; why: string } | null;
+  blocked?: string | null;
 }
 export interface SourceRow {
   id: number; key: string; name: string; kind: string; category: string; enabled: boolean; interval_hours: number; note: string | null;
@@ -55,6 +58,14 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
             {it.hunt ? <span className="font-medium text-p-teal-fg">🔎 {it.hunt}</span> : null}<span>{it.source ?? "manual"}</span>{it.category ? <span>{it.category}</span> : null}<span>found {ago(it.found_at)}</span>
             {it.posted_at ? <span>posted {ago(it.posted_at)}</span> : null}{f.country ? <span>{f.country}</span> : null}{f.industry ? <span>{f.industry}</span> : null}
           </p>
+          {it.blocked ? <p className="mt-1.5 rounded-md bg-p-rose px-2 py-1 text-xs text-p-rose-fg">{it.blocked}</p> : null}
+          {it.known ? (
+            <p className="mt-1.5 rounded-md bg-p-sky px-2 py-1 text-xs text-p-sky-fg">
+              You already know them ({it.known.why})
+              {it.known.deal_id ? <> · <a href={`/sales/deal/${it.known.deal_id}`} className="font-medium underline">{it.known.deal_title}</a>, {it.known.stage}{it.known.lost_reason ? ` (lost: ${it.known.lost_reason})` : ""}</> : null}
+              {it.known.deal_id && it.known.category !== "lost" ? ". Making it a lead adds it to that deal." : null}
+            </p>
+          ) : null}
           {f.why ? <p className="mt-1 text-xs">{f.why}</p> : null}
           {f.angle ? <p className="mt-1 text-xs text-accent">💡 {f.angle}</p> : null}
           {f.money_leak ? <p className="mt-1 rounded-lg bg-p-butter px-2 py-1 text-xs text-p-butter-fg">{f.money_leak}</p> : null}
@@ -87,6 +98,16 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
         </Button>
         <Button size="sm" variant="ghost" onClick={() => act(() => radarStatusAction(it.id, "skipped"))}>Skip</Button>
         <Button size="sm" variant="ghost" onClick={() => act(() => radarStatusAction(it.id, "rejected"))}>Not relevant</Button>
+        {!it.blocked && (f.website || f.company || f.contact) ? (
+          <Button size="sm" variant="ghost" className="text-bad hover:text-bad" title="Add them to your do-not-contact list: this lead and any future one from them are dropped"
+            onClick={() => {
+              const [kind, value] = f.website ? ["domain", f.website] as const : f.company ? ["company", f.company] as const : ["person", f.contact!] as const;
+              if (!confirm(`Never contact ${value}? Future leads from them are dropped and no outreach moves are made. You can undo this in Sales > Playbook.`)) return;
+              act(() => addBlockAction(kind, value, "from radar"));
+            }}>
+            <Ban className="h-3.5 w-3.5" /> Never contact
+          </Button>
+        ) : null}
       </div>
     </li>
   );

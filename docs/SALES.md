@@ -14,6 +14,8 @@ find at least one qualified opportunity a day, and track every quote until the m
 | **Accounts** | Companies and people, with 50+ researched fields each. Merge duplicates, import from Contacts. |
 | **Documents** | Tracked quotes (with revisions), opportunity briefs, files and links. |
 | **Review** | The honest numbers: conversations started, reply rate by channel, where deals die, cash, promises broken. |
+| **Insights** | Your monthly target with pace and forecast, the weekly activity it takes, the funnel, win rate by service, country, source and deal size, quotes, what gets replies, and how fast you respond. |
+| **Playbook** | Your offers (with packages and prices), proof (case studies), the objections you hear with your best answers, and the do-not-contact list. Drafts and the radar use all of it. |
 | **Settings** | The state machine, your voice, targeting, rhythm, phone escalation, keys, Google, bookmarklet, iPhone Shortcut. |
 
 ## The state machine
@@ -116,7 +118,7 @@ the call log.
 - **At least one a day:** the morning digest counts qualified items from the last 24 hours. If short, it hunts with
   intent-signal searches for this week's country and today's industry, twice. If even that fails, it says so plainly and
   keeps hunting through the day. It never inflates a score to fill the quota.
-- Countries rotate weekly, industries daily (both lists are editable).
+- One country per week and one industry per day, chosen adaptively from results (see below); the lists are editable.
 - Replying to a radar lead from Daybook turns it into a tracked deal automatically.
 
 ## Hunts: scheduled AI lead hunting
@@ -212,3 +214,71 @@ DuckDuckGo fallback, but search-based sources and research will be thin.
 Nothing to run by hand. On every cold start Daybook applies new `db/migrations/*.sql`, seeds defaults, and syncs the radar
 source catalogue from `src/lib/sales/radar-catalog.ts` (new sources appear, your on/off switches are kept). Sales work runs
 inside the existing every-minute tick.
+
+## Learning from results
+
+Daybook records what every message was for and how it went, and uses that everywhere.
+
+**Which messages got a reply.** A message sent from a move remembers the move (first message, follow-up 2, re-engage...),
+the channel, and whether you sent the AI draft as is, edited it, or wrote your own. A message counts as answered when
+they reply (or you speak) before your next message, within 14 days. Messages less than 3 days old with no answer are left
+out until they have had a fair chance. Several messages within 30 minutes count as one send. Insights shows reply rates by
+purpose, channel, time of day, weekday, length and draft use; a finding is only stated with at least 5 sends and a real
+gap. **Drafts use it:** each new draft is shown your real messages of the same kind that got replies, closest first.
+
+**Adaptive targeting.** Each country (weekly) and industry (daily) on your lists earns points over 120 days: 1 per
+qualified lead, 3 per conversation, 10 per deal won, divided by how many turns it already had as the focus. The leader gets
+most turns, 20% of turns (changeable) go to the least-tested entry, and with no results yet it rotates evenly. Each choice is
+stored with its reason, shown in Radar > Plan along with the full results table. Switch back to even rotation in Settings.
+
+## Target, forecast and the activity it takes (Insights)
+
+Set a monthly revenue target in Sales settings. Insights shows won this month (deals that reached a Won stage), where you
+should be today if it came in evenly, cash received, and a projection: won plus the open deals likely to land this month
+(expected to close this month, or already at proposal or negotiation), weighted by their win chance. It then works
+backwards from **your own** conversion rates (average won deal, proposal to win, conversation to proposal, contacted to
+conversation, over 180 days) to the deals, proposals, conversations and outreach needed: to close this month's gap, and
+every week to sustain the target. A rate with fewer than 5 cases is replaced by a stated assumption, marked as one.
+
+Win rate means won divided by closed, where closed is won, lost, disqualified or ghosted. The funnel is cumulative.
+Quotes show acceptance with and without a discount, by number of revisions and by size. Speed shows time to first message
+for leads that came to you or the radar found (not deals you started), with conversation rates per speed band, and your
+reply time against your standard. The Sunday Telegram review adds the month against target and the strongest findings.
+
+## Playbook
+
+- **Offers.** Your catalogue: each offer has a one-line description and optional packages (line items, scope, timeline,
+  currency). It is the single source of truth for what you sell. A quote on a deal can start from any package, best fit first.
+- **Proof.** Every delivered or paid deal gets a draft case study written from its own record; results are only taken
+  from what was said or logged, never invented. Nothing is used until you approve it. Approved proof that matches a lead
+  (shared service or industry) may be cited, once, in follow-ups, re-engages, revisits, upsells and stuck-deal nudges.
+  Never in a first message or a breakup.
+- **Objections.** Objections are picked out of every conversation. Once a day they are grouped (the same objection said
+  different ways becomes one entry), with how those deals ended. Write your best answer, or ask for one drawn from the
+  deals you won. Answers go into the context of every deal that raised it, so drafts and pre-call briefs use them.
+- **Do not contact.** Domains, emails, phones, companies or people you never want to pitch. Matching radar leads are
+  dropped before they can alert you; deals with them get no outreach moves (their messages to you are still logged).
+  Add from the Playbook, from a radar lead (Never contact) or from a deal (Do not contact).
+
+## Known contacts on the radar
+
+A radar lead that matches someone already in Sales (same email, website domain, company name, or full name) is tagged
+"You already know them", with the deal and its stage. Making it a lead adds it to that deal instead of creating a duplicate,
+unless that deal was lost (then it is a fresh attempt with the same company).
+
+## After the sale
+
+Delivered or paid deals get moves for revenue from people who already paid you: check-ins (30 and 90 days after delivery
+by default), one suggestion of an offer they have not bought (45 days, skipped if they already have another open deal), and a
+monthly retainer offer at delivery. Each happens once, only in a window around its date. Change them in Settings > After the sale.
+
+## Outreach goal
+
+Outreach is a message that opens or pushes a conversation (not your reply to someone who wrote). Today shows outreach sent
+against your daily goal, with replies waiting and outreach moves due. Stats has a Sales section with outreach per day
+against the goal, replies received and won value.
+
+## Booking link
+
+Add your Calendly or Cal.com link in Settings. Drafts offer it whenever a call is the natural next step, never in a first
+message, a breakup, a radar reply or a payment reminder.

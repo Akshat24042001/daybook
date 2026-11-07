@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { SalesOutreachCard } from "@/components/today/sales-card";
+import { outreachToday } from "@/lib/sales/activity";
 import { TodayView } from "@/components/today/today-view";
 import { SECTION_ORDER, sectionize, type SectionKey } from "@/lib/sections";
 import { voiceConfigured } from "@/lib/deepgram";
@@ -46,10 +48,11 @@ export default async function TodayPage() {
     .filter((c) => !onToday.has(c.task.id))
     .map((c) => ({ id: c.task.id, title: c.task.title, project: c.task.project_name ?? null, color: c.task.project_color ?? null, daysSince: c.daysSince, limit: c.limit, never: !c.lastDoneDay }));
   const weekStart = periodBounds("week", ctx.today).start;
-  const [weekReview, touch, unfinished] = await Promise.all([
+  const [weekReview, touch, unfinished, outreach] = await Promise.all([
     getReview("week", weekStart).catch(() => null),
     touchStates(ctx.today, ctx.tz).catch(() => []),
     unfinishedTasks(ctx.today).catch(() => []),
+    outreachToday(ctx.now).catch(() => null),
   ]);
 
   const activeTargets = [...allTargets.week, ...allTargets.month, ...allTargets.quarter, ...allTargets.year]
@@ -91,6 +94,7 @@ export default async function TodayPage() {
       later={sec.later.map((e) => ({ id: e.task_id, title: e.title, from: e.show_from ?? "" }))}
       asideTop={
         <>
+          {outreach ? <SalesOutreachCard o={outreach} /> : null}
           <SleepCard date={ctx.today} minutes={day?.sleep_minutes ?? null} quality={day?.sleep_quality ?? null} />
           <InstagramCard date={ctx.today} minutes={day?.instagram_minutes ?? null} />
           <UnfinishedCard rows={unfinished.slice(0, 4).map((t) => toUnfinishedRow(ctx.today, t))} total={unfinished.length} />

@@ -4,6 +4,8 @@ import { q } from "@/lib/db";
 import { makeCtx } from "@/lib/settings";
 import { addDays, type DateStr } from "@/lib/time";
 import type { TaskType } from "@/lib/types";
+import { salesDaily } from "@/lib/sales/activity";
+import { salesConfig } from "@/lib/sales/config";
 import { computeStats, dayTimelines, type StatsFilters } from "@/lib/services/stats";
 import { summariesInRange, toSummaryView } from "@/lib/services/diary";
 
@@ -55,6 +57,9 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
     summariesInRange(from, to).catch(() => []),
     dayTimelines(ctx, from, to),
   ]);
+  // sales activity, only once Sales has any deals
+  const hasSales = ((await q<{ n: number }>("select count(*)::int as n from sales_deals").catch(() => [{ n: 0 }]))[0]?.n ?? 0) > 0;
+  const sales = hasSales ? { days: await salesDaily(from, to, ctx.tz), goal: (await salesConfig()).targets.daily_outreach } : null;
 
   return (
     <StatsView
@@ -67,6 +72,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
       today={ctx.today}
       diary={diary.map(toSummaryView)}
       timeline={timeline}
+      sales={sales}
     />
   );
 }
