@@ -276,7 +276,10 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
           <BucketTable title="By channel" rows={mp.by_channel} />
           <BucketTable title="By time of day (your time)" rows={mp.by_time} />
           <BucketTable title="By length" rows={mp.by_length} />
-          <BucketTable title="AI drafts against your own words" rows={mp.by_draft} empty="Shows once you send from moves." />
+          <div>
+            <BucketTable title="AI drafts against your own words" rows={mp.by_draft} empty="Shows once you send from moves inside Daybook." />
+            <p className="mt-1.5 text-xs text-subtle">Messages sent with a one-tap WhatsApp or LinkedIn link are left out here: Daybook cannot see what you changed in the app.</p>
+          </div>
           <BucketTable title="By weekday" rows={mp.by_weekday} />
         </div>
         <p className="mt-3 text-xs text-subtle">Drafts now learn from this: each new draft is shown your real messages of the same kind that got replies, closest match first.</p>

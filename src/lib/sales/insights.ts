@@ -305,7 +305,8 @@ export async function forecast(now = new Date()): Promise<Forecast> {
   const closed = facts.filter((f) => closedAs(f) !== null);
   const wonFacts = closed.filter((f) => closedAs(f) === "won");
   const reachedProposalClosed = closed.filter((f) => f.level >= 5 || closedAs(f) === "won");
-  const reachedConversation = facts.filter((f) => f.level >= 3);
+  // only conversations old enough to have had a fair chance of reaching a proposal (21 days)
+  const reachedConversation = facts.filter((f) => f.level >= 3 && new Date(f.created_at).getTime() < now.getTime() - 21 * D);
   const contacted = facts.filter((f) => f.level >= 2 && new Date(f.created_at).getTime() < now.getTime() - 14 * D);
   const valued = wonFacts.filter((f) => f.value_usd !== null);
   const openValues = open.filter((r) => r.value_usd).map((r) => Number(r.value_usd));
@@ -316,7 +317,7 @@ export async function forecast(now = new Date()): Promise<Forecast> {
   const rates: Forecast["rates"] = {
     avg_deal_usd: { ...avg, value: Math.round(avg.value) },
     proposal_to_win: rate(wonFacts.length, reachedProposalClosed.length, 0.3),
-    conversation_to_proposal: rate(facts.filter((f) => f.level >= 5).length, reachedConversation.length, 0.35),
+    conversation_to_proposal: rate(reachedConversation.filter((f) => f.level >= 5).length, reachedConversation.length, 0.35),
     contacted_to_conversation: rate(contacted.filter((f) => f.level >= 3).length, contacted.length, 0.15),
     cycle_days: cycles.length >= MIN_SAMPLE ? { value: Math.round(median(cycles)!), n: cycles.length, assumed: false } : { value: 30, n: cycles.length, assumed: true },
   };

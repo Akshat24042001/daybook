@@ -220,7 +220,9 @@ inside the existing every-minute tick.
 Daybook records what every message was for and how it went, and uses that everywhere.
 
 **Which messages got a reply.** A message sent from a move remembers the move (first message, follow-up 2, re-engage...),
-the channel, and whether you sent the AI draft as is, edited it, or wrote your own. A message counts as answered when
+the channel, and whether you sent the AI draft as is, edited it, or wrote your own (compared with the AI's original
+words, kept separately from your edits). One-tap WhatsApp or LinkedIn links count as sends, but "edited" stays unknown for
+them: Daybook cannot see what you changed inside the app. A message counts as answered when
 they reply (or you speak) before your next message, within 14 days. Messages less than 3 days old with no answer are left
 out until they have had a fair chance. Several messages within 30 minutes count as one send. Insights shows reply rates by
 purpose, channel, time of day, weekday, length and draft use; a finding is only stated with at least 5 sends and a real
@@ -249,6 +251,7 @@ reply time against your standard. The Sunday Telegram review adds the month agai
 
 - **Offers.** Your catalogue: each offer has a one-line description and optional packages (line items, scope, timeline,
   currency). It is the single source of truth for what you sell. A quote on a deal can start from any package, best fit first.
+  The first visit copies your old plain list in, once; after that, deleting offers never brings the old list back.
 - **Proof.** Every delivered or paid deal gets a draft case study written from its own record; results are only taken
   from what was said or logged, never invented. Nothing is used until you approve it. Approved proof that matches a lead
   (shared service or industry) may be cited, once, in follow-ups, re-engages, revisits, upsells and stuck-deal nudges.
@@ -263,8 +266,9 @@ reply time against your standard. The Sunday Telegram review adds the month agai
 ## Known contacts on the radar
 
 A radar lead that matches someone already in Sales (same email, website domain, company name, or full name) is tagged
-"You already know them", with the deal and its stage. Making it a lead adds it to that deal instead of creating a duplicate,
-unless that deal was lost (then it is a fresh attempt with the same company).
+"You already know them", with the deal and its stage. Making it a lead adds it to that deal when the deal is still running
+(open or parked). If they are a client you already won, it starts a new deal marked as repeat business; if the deal was
+lost, it starts a fresh attempt with the same company.
 
 ## After the sale
 

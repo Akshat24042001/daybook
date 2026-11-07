@@ -42,7 +42,7 @@ export async function radarPlan(): Promise<RadarPlan> {
   const likely = (rows: Weighted[], fallback: string) => (rows[0] && rows[0].points > 0 ? rows[0].value : fallback);
   const rotation = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(now.getTime() + i * 86_400_000);
-    const sameWeek = periodKeys(d).country === periodKeys(now).country;
+    const sameWeek = periodKeys(d, settings.timezone).country === periodKeys(now, settings.timezone).country;
     const even = focusFor(cfg, d);
     return {
       date: d.toISOString().slice(0, 10), today: i === 0,

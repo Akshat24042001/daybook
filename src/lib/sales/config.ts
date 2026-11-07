@@ -177,7 +177,9 @@ export async function salesConfig(): Promise<SalesConfig> {
 }
 
 export async function updateSalesConfig(patch: Partial<SalesConfig>): Promise<SalesConfig> {
-  const current = await salesConfig();
+  // build on what is stored, not on salesConfig(): its offers come from the catalogue and must never be written back here
+  const row = await salesRow();
+  const current = merge(DEFAULT_CONFIG, row.config ?? {});
   const next = merge(current, patch);
   await q("update sales_settings set config = $1, updated_at = now() where id = 1", [JSON.stringify(next)]);
   return next;

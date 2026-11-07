@@ -165,9 +165,10 @@ export function ProofSection({ rows, waiting }: { rows: Proof[]; waiting: number
             <div className="min-w-0 flex-1">
               <p className="flex flex-wrap items-center gap-2 text-sm font-medium">{p.title}<span className={cn("rounded-md px-1.5 py-0.5 text-xs font-medium capitalize", STATUS_TONE[p.status])}>{p.status}</span></p>
               <p className="mt-0.5 text-xs text-subtle">{[p.client, p.industry, p.country, p.services.join(", ")].filter(Boolean).join(" · ") || "No details yet"}{p.deal_title ? ` · from ${p.deal_title}` : ""}</p>
-              {p.problem || p.solution || p.result ? (
-                <p className="mt-1.5 text-[13px]">{p.problem}{p.solution ? ` ${p.solution}` : ""}{p.result ? <b className="font-medium"> {p.result}</b> : <span className="text-warn"> No result recorded yet.</span>}</p>
-              ) : null}
+              <p className="mt-1.5 text-[13px]">
+                {p.problem || p.solution ? <>{p.problem}{p.solution ? ` ${p.solution}` : ""}</> : <span className="text-subtle">The problem and what you built are not filled in yet.</span>}
+                {p.result ? <b className="font-medium"> {p.result}</b> : <span className="text-warn"> No result recorded yet.</span>}
+              </p>
             </div>
             <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => setEditing(p.id)}><Pencil className="h-4 w-4" /></Button>
             <Button size="icon" variant="ghost" aria-label="Delete" disabled={busy} onClick={() => confirm(`Delete "${p.title}"?`) && start(async () => {

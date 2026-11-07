@@ -205,8 +205,9 @@ export async function runSalesTick(now: Date = new Date()): Promise<string> {
     await enqueue("radar_digest", {}, { dedupeKey: `radar_digest:${today}` });
   }
   // once a day: group new objections into the library, and draft case studies for newly paid deals
-  await enqueue("sync_objections", {}, { dedupeKey: `sync_objections:${today}` });
-  await queueProofs().catch(() => {});
+  // (a finished job releases its dedupe key, so "once a day" is checked against when it last ran)
+  if (Date.now() - (await lastDone("sync_objections")) > 20 * 3_600_000) await enqueue("sync_objections", {}, { dedupeKey: `sync_objections:${today}` });
+  if (Date.now() - (await lastDone("draft_proof")) > 20 * 3_600_000) await queueProofs().catch(() => {});
   const dow = isoDow(calendarDate(now, ctx.tz)); // 1 = Monday
   if (!quiet && dow === cfg.review_dow && local.h >= cfg.review_hour && row.last_review_on !== today) {
     await q("update sales_settings set last_review_on = $1 where id = 1", [today]);

@@ -52,8 +52,8 @@ function OfferEditor({ offer, onDone }: { offer: Partial<Offer>; onDone: () => v
               </div>
               <div className="mt-2 space-y-1.5">
                 {p.items.map((it, k) => (
-                  <div key={k} className="grid grid-cols-[1fr_60px_100px_auto] gap-1.5 sm:grid-cols-[1fr_1.2fr_60px_110px_auto]">
-                    <Input value={it.name} onChange={(e) => setItem(i, k, { name: e.target.value })} placeholder="Line item" aria-label="Item" />
+                  <div key={k} className="grid grid-cols-[64px_1fr_auto] gap-1.5 border-b border-border pb-1.5 last:border-0 sm:grid-cols-[1fr_1.2fr_60px_110px_auto] sm:border-0 sm:pb-0">
+                    <Input value={it.name} onChange={(e) => setItem(i, k, { name: e.target.value })} placeholder="Line item" aria-label="Item" className="col-span-3 sm:col-span-1" />
                     <Input value={it.description} onChange={(e) => setItem(i, k, { description: e.target.value })} placeholder="Description" aria-label="Description" className="hidden sm:block" />
                     <Input value={String(it.qty)} onChange={(e) => setItem(i, k, { qty: Number(e.target.value) || 0 })} inputMode="decimal" aria-label="Quantity" />
                     <Input value={String(it.unit_price)} onChange={(e) => setItem(i, k, { unit_price: Number(e.target.value.replace(/[^0-9.]/g, "")) || 0 })} inputMode="decimal" aria-label="Unit price" />
@@ -96,7 +96,8 @@ export function OffersSection({ offers }: { offers: Offer[] }) {
       {offers.map((o) => editing === o.id ? <OfferEditor key={o.id} offer={o} onDone={() => setEditing(null)} /> : (
         <div key={o.id} className={cn("rounded-lg border border-border bg-surface", !o.active && "opacity-60")}>
           <div className="flex items-start gap-3 px-4 py-3">
-            <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setOpen(open === o.id ? null : o.id)} aria-expanded={open === o.id}>
+            <button type="button" className={cn("min-w-0 flex-1 text-left", !o.packages.length && "cursor-default")} disabled={!o.packages.length}
+              onClick={() => setOpen(open === o.id ? null : o.id)} aria-expanded={o.packages.length ? open === o.id : undefined}>
               <p className="flex items-center gap-2 text-sm font-medium">
                 {o.name}
                 {!o.active ? <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-subtle">Paused</span> : null}
@@ -162,7 +163,7 @@ export function BlocklistSection({ rows }: { rows: BlockRow[] }) {
           {rows.map((b) => (
             <li key={b.id} className="flex items-center gap-3 px-3 py-2 text-[13px]">
               <span className="w-32 shrink-0 text-subtle">{KIND_LABEL[b.kind]}</span>
-              <span className="min-w-0 flex-1 truncate font-medium">{b.value}</span>
+              <span className="min-w-0 flex-1 truncate font-medium" title={b.raw && b.raw !== b.value ? `Matches: ${b.value}` : undefined}>{b.raw || b.value}</span>
               <span className="hidden min-w-0 flex-1 truncate text-subtle sm:block">{b.reason}</span>
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => start(async () => {
                 const r = await removeBlockAction(b.id);

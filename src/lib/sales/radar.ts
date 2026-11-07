@@ -373,9 +373,10 @@ export async function radarToDeal(id: number): Promise<number> {
   if (!it) throw new Error("radar item missing");
   if (it.deal_id) return it.deal_id;
   const f = it.fit ?? ({} as Verdict);
-  // already in your pipeline (and not a lost deal): add it to that deal instead of creating a duplicate
+  // a deal that is still running (open or parked): add the lead to it instead of creating a duplicate.
+  // A client you already won is repeat business (a new deal); a lost deal is a fresh attempt (a new deal).
   const known = (await one<{ known: Known | null }>("select known from sales_radar_items where id = $1", [id]))?.known;
-  if (known?.deal_id && known.category !== "lost" && (await one("select 1 from sales_deals where id = $1", [known.deal_id]))) {
+  if (known?.deal_id && (known.category === "open" || known.category === "parked") && (await one("select 1 from sales_deals where id = $1", [known.deal_id]))) {
     await logInteraction({
       deal_id: known.deal_id, channel: "note", direction: "internal", source: "radar",
       body: [it.title, (it.body ?? "").slice(0, 1500), it.url ?? ""].filter(Boolean).join("\n"),
@@ -393,7 +394,7 @@ export async function radarToDeal(id: number): Promise<number> {
     title: f.company ? `${f.company}: ${it.title.slice(0, 60)}` : it.title.slice(0, 90),
     company_id: companyId,
     person_id: personId,
-    source: "radar",
+    source: known?.category === "won" ? "repeat" : "radar",
     source_detail: it.url ?? undefined,
     services: f.services ?? [],
     country: f.country ?? null,

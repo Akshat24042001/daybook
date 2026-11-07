@@ -3,6 +3,8 @@
  * stable for its period and you can see why it was made. Maths in focus-calc.ts.
  */
 import { one, q } from "../db";
+import { calendarDate } from "../time";
+import { ownerTz } from "./learning";
 import { focusFor, isoWeek, type SalesConfig } from "./config";
 import { choose, sameCountry, sameIndustry, weigh, type Choice, type Stat, type Weighted } from "./focus-calc";
 
@@ -22,8 +24,10 @@ function isoYear(d: Date): number {
   t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
   return t.getUTCFullYear();
 }
-export function periodKeys(now: Date): { country: string; industry: string } {
-  return { country: `c:${isoYear(now)}-W${String(isoWeek(now)).padStart(2, "0")}`, industry: `i:${now.toISOString().slice(0, 10)}` };
+/** The week and the day by your own clock (not the server's), so the focus changes at your midnight. */
+export function periodKeys(now: Date, tz = "UTC"): { country: string; industry: string } {
+  const local = new Date(`${calendarDate(now, tz)}T12:00:00Z`);
+  return { country: `c:${isoYear(local)}-W${String(isoWeek(local)).padStart(2, "0")}`, industry: `i:${calendarDate(now, tz)}` };
 }
 
 type FreeCount = { v: string | null; n: number };
@@ -85,7 +89,7 @@ async function decide(cfg: SalesConfig, kind: "country" | "industry", period: st
 
 /** This week's country and today's industry, decided once per period. */
 export async function currentFocus(cfg: SalesConfig, now = new Date()): Promise<Focus> {
-  const keys = periodKeys(now);
+  const keys = periodKeys(now, await ownerTz());
   const [country, industry] = [await decide(cfg, "country", keys.country, now), await decide(cfg, "industry", keys.industry, now)];
   return { country: country.value, industry: industry.value, why: { country, industry } };
 }

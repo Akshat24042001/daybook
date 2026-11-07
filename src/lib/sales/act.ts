@@ -38,9 +38,10 @@ export async function completeMove(moveId: number, channel: GoChannel | "other",
         deal_id: dealId, person_id: m.person_id, channel: (channel === "call" ? "call" : channel) as Channel, direction: "out",
         body: body || null, subject: m.draft_subject, summary: `${m.title}${o.assumed ? " (sent from Daybook link)" : ""}`.slice(0, 300),
         source: o.assumed ? "tap" : "daybook", confidence: o.assumed ? "assumed" : "sure", external_id: o.externalId ?? `move:${moveId}`,
-        move_id: m.id, move_kind: moveKindTag(m), drafted: !!m.draft?.trim(),
+        // compared with the AI's own draft (your saved edits overwrite "draft", never "ai_draft")
+        move_id: m.id, move_kind: moveKindTag(m), drafted: !!(m.ai_draft ?? m.draft)?.trim(),
         // a one-tap link opens the app with the draft; we cannot see what you changed there, so "edited" stays unknown
-        edited: o.assumed ? null : m.draft?.trim() ? norm(body) !== norm(m.draft) : null,
+        edited: o.assumed ? null : (m.ai_draft ?? m.draft)?.trim() ? norm(body) !== norm((m.ai_draft ?? m.draft)!) : null,
       });
     }
     await setMoveStatus(moveId, "done");

@@ -13,7 +13,7 @@ import { one, q, UserError } from "../db";
 import { domainOf, emailDomain, normEmail, normPhone } from "./identity";
 
 export type BlockKind = "domain" | "email" | "phone" | "company" | "person";
-export interface BlockRow { id: number; kind: BlockKind; value: string; reason: string | null; created_at: string }
+export interface BlockRow { id: number; kind: BlockKind; value: string; raw?: string | null; reason: string | null; created_at: string }
 
 const LEGAL = /\b(private limited|pvt\.? ?ltd\.?|pvt|ltd\.?|limited|llc|l\.l\.c\.|inc\.?|incorporated|corp\.?|corporation|co\.|gmbh|plc|pte\.?|fzco|fz-llc|fze|llp|bv|s\.a\.|sa|ag)\b/g;
 export function normCompany(s: string | null | undefined): string | null {
@@ -46,8 +46,9 @@ export async function addBlock(kind: BlockKind, raw: string, reason?: string | n
   const value = normBlock(kind, raw);
   if (!value) throw new UserError(kind === "person" ? "Enter a full name (first and last), a single first name is too vague." : `That does not look like a valid ${kind}.`);
   const row = await one<{ id: number }>(
-    "insert into sales_blocklist (kind, value, reason) values ($1,$2,$3) on conflict (kind, value) do update set reason = coalesce(excluded.reason, sales_blocklist.reason) returning id",
-    [kind, value, reason?.trim() || null],
+    `insert into sales_blocklist (kind, value, reason, raw) values ($1,$2,$3,$4)
+     on conflict (kind, value) do update set reason = coalesce(excluded.reason, sales_blocklist.reason), raw = coalesce(sales_blocklist.raw, excluded.raw) returning id`,
+    [kind, value, reason?.trim() || null, raw.trim().slice(0, 200)],
   );
   // leads already waiting that match are dropped now, not at the next sweep
   await rescreenOpenRadar();
@@ -83,7 +84,7 @@ export function blockedBy(list: BlockRow[], h: Hint): string | null {
       : b.kind === "phone" ? phones.has(b.value)
       : b.kind === "company" ? company === b.value
       : person === b.value;
-    if (hit) return `On your do-not-contact list (${LABEL[b.kind]}: ${b.value}${b.reason ? `, ${b.reason}` : ""})`;
+    if (hit) return `On your do-not-contact list (${LABEL[b.kind]}: ${b.raw || b.value}${b.reason ? `, ${b.reason}` : ""})`;
   }
   return null;
 }

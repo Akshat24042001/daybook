@@ -5,7 +5,7 @@
  * research all read it (salesConfig().offers is built from it). Until then the plain list in Sales settings is used,
  * and opening the catalogue the first time copies that list in.
  */
-import { one, q, UserError } from "../db";
+import { one, q, tx, UserError } from "../db";
 
 export interface PackageItem { name: string; description: string; qty: number; unit_price: number }
 export interface Package {
@@ -27,12 +27,17 @@ export interface Offer {
 
 export async function listOffers(o: { activeOnly?: boolean; seedFrom?: string[] } = {}): Promise<Offer[]> {
   if (o.seedFrom?.length) {
-    const n = await one<{ n: number }>("select count(*)::int as n from sales_offers");
-    if (!n?.n) {
-      for (const [i, name] of o.seedFrom.entries()) {
-        await q("insert into sales_offers (name, sort) values ($1,$2)", [name.slice(0, 200), (i + 1) * 10]);
+    // one-time copy of the old plain list; the lock makes two page loads at once copy it only once
+    // ...and only ever once: if you later delete every offer, the catalogue stays empty
+    await tx(async (db) => {
+      await db.query("select pg_advisory_xact_lock(hashtext('sales_offers_seed'))");
+      const done = (await db.query<{ done: boolean }>("select coalesce((config->>'offers_seeded')::boolean, false) as done from sales_settings where id = 1")).rows[0]?.done;
+      const n = (await db.query<{ n: number }>("select count(*)::int as n from sales_offers")).rows[0]?.n ?? 0;
+      if (!done && !n) {
+        for (const [i, name] of o.seedFrom!.entries()) await db.query("insert into sales_offers (name, sort) values ($1,$2)", [name.slice(0, 200), (i + 1) * 10]);
       }
-    }
+      if (!done) await db.query("update sales_settings set config = coalesce(config, '{}'::jsonb) || '{\"offers_seeded\": true}'::jsonb where id = 1");
+    });
   }
   return q<Offer>(`select id, name, summary, keywords, packages, active, sort from sales_offers ${o.activeOnly ? "where active" : ""} order by sort, id`);
 }

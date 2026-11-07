@@ -614,3 +614,67 @@ describe("proof library", () => {
     expect(aiAnswer.calls.at(-1)!.user).not.toContain("PROOF YOU MAY CITE");
   });
 });
+
+describe("fixes found in the verification pass", () => {
+  it("treats a radar lead from a client you already won as repeat business (a new deal), not a note on the old one", async () => {
+    const co = await ensureCompany("Delta Ltd", { website: "delta.io" });
+    const old = await createDeal({ title: "Delta website", company_id: co });
+    await setRole(old, "paid");
+    await q(`insert into sales_radar_items (url_hash, title, status, score, fit) values ('d1','Delta needs an app now','qualified',85,'{"website":"delta.io"}')`);
+    const id = (await one<{ id: number }>("select id from sales_radar_items where url_hash = 'd1'"))!.id;
+    expect(await screenRadarItem(id)).toBe("known");
+    const fresh = await radarToDeal(id);
+    expect(fresh).not.toBe(old);
+    expect((await one<{ source: string; company_id: number }>("select source, company_id from sales_deals where id = $1", [fresh]))).toMatchObject({ source: "repeat", company_id: co });
+  });
+
+  it("changes the radar's day at your midnight, not the server's", () => {
+    // 20:00 UTC on Sunday 8 Nov is 01:30 on Monday 9 Nov in India
+    const k = periodKeys(new Date("2026-11-08T20:00:00Z"), "Asia/Kolkata");
+    expect(k).toEqual({ country: "c:2026-W46", industry: "i:2026-11-09" });
+    expect(periodKeys(new Date("2026-11-08T20:00:00Z"), "UTC")).toEqual({ country: "c:2026-W45", industry: "i:2026-11-08" });
+  });
+
+  it("copies the old offer list only once even when two page loads race", async () => {
+    await Promise.all([listOffers({ seedFrom: ["A", "B"] }), listOffers({ seedFrom: ["A", "B"] }), listOffers({ seedFrom: ["A", "B"] })]);
+    expect((await one<{ n: number }>("select count(*)::int as n from sales_offers"))!.n).toBe(2);
+  });
+});
+
+describe("edit tracking survives the screen saving your edit first", () => {
+  it("records an edited draft as edited even though the edited text was saved over the draft before sending", async () => {
+    const deal = await createDeal({ title: "Acme" });
+    const mv = (await one<{ id: number }>("insert into sales_moves (deal_id, kind, title, channel) values ($1,'first_touch','First message to Acme','whatsapp') returning id", [deal]))!.id;
+    aiAnswer.value = { subject: null, message: "Hi, saw your post about missed calls." };
+    await draftForMove(mv);
+    // what the Moves screen does when you change the text and press WhatsApp: save the edit, then log the send
+    await q("update sales_moves set draft = $2 where id = $1", [mv, "Hey, how many calls a day go unanswered?"]);
+    await completeMove(mv, "whatsapp", { text: "Hey, how many calls a day go unanswered?" });
+    expect(await one("select drafted, edited from sales_interactions where move_id = $1", [mv])).toEqual({ drafted: true, edited: true });
+
+    const mv2 = (await one<{ id: number }>("insert into sales_moves (deal_id, kind, title, channel) values ($1,'reply','Reply to Acme','whatsapp') returning id", [deal]))!.id;
+    await draftForMove(mv2);
+    await completeMove(mv2, "whatsapp", { text: "Hi, saw your post about missed calls." });
+    expect(await one("select drafted, edited from sales_interactions where move_id = $1", [mv2])).toEqual({ drafted: true, edited: false });
+  });
+});
+
+describe("saving settings never copies the offer catalogue into settings", () => {
+  it("keeps the stored offer list untouched when other settings are saved", async () => {
+    await listOffers({ seedFrom: ["Websites"] });
+    const [o] = await listOffers();
+    await saveOffer({ id: o.id, name: "Websites", summary: "Sites that convert" });
+    await updateSalesConfig({ targets: { monthly_revenue_usd: 5000, weekly_conversations: 15, daily_outreach: 5 } });
+    const stored = (await one<{ config: { offers?: string[] } }>("select config from sales_settings where id = 1"))!.config;
+    expect(stored.offers?.some((x) => x.includes("Sites that convert"))).not.toBe(true);
+    expect((await salesConfig()).offers).toEqual(["Websites: Sites that convert"]);
+  });
+});
+
+describe("the catalogue is copied from the old list only once, ever", () => {
+  it("stays empty if you delete every offer", async () => {
+    await listOffers({ seedFrom: ["A", "B"] });
+    await q("delete from sales_offers");
+    expect(await listOffers({ seedFrom: ["A", "B"] })).toEqual([]);
+  });
+});

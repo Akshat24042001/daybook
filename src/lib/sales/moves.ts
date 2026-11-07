@@ -309,6 +309,8 @@ export interface MoveRow {
   why: string | null;
   channel: string | null;
   draft: string | null;
+  /** the AI's draft as written, before any edit */
+  ai_draft?: string | null;
   draft_subject: string | null;
   due_at: string;
   score: number;
@@ -425,6 +427,7 @@ export async function draftForMove(id: number, channelOverride?: string): Promis
     toName: m.person_name,
     toCountry,
   });
-  await q("update sales_moves set draft = $2, draft_subject = $3, channel = $4 where id = $1", [id, draft.message, draft.subject, channel]);
+  // ai_draft keeps the AI's own words; draft is what you edit. "Did you change it" compares the two.
+  await q("update sales_moves set draft = $2, ai_draft = $2, draft_subject = $3, channel = $4 where id = $1", [id, draft.message, draft.subject, channel]);
   return getMove(id);
 }

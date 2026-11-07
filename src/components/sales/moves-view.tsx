@@ -33,6 +33,9 @@ const KIND: Record<string, { label: string; tone: string }> = {
   next_action: { label: "Next step", tone: "bg-p-sky text-p-sky-fg" },
   radar: { label: "New lead", tone: "bg-p-sky text-p-sky-fg" },
   custom: { label: "To do", tone: "bg-muted text-subtle" },
+  checkin: { label: "Client check-in", tone: "bg-p-mint text-p-mint-fg" },
+  upsell: { label: "More work", tone: "bg-p-mint text-p-mint-fg" },
+  retainer: { label: "Retainer", tone: "bg-p-mint text-p-mint-fg" },
 };
 
 function waUrl(phone: string | null | undefined, text: string): string {

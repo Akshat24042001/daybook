@@ -63,7 +63,7 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
             <p className="mt-1.5 rounded-md bg-p-sky px-2 py-1 text-xs text-p-sky-fg">
               You already know them ({it.known.why})
               {it.known.deal_id ? <> · <a href={`/sales/deal/${it.known.deal_id}`} className="font-medium underline">{it.known.deal_title}</a>, {it.known.stage}{it.known.lost_reason ? ` (lost: ${it.known.lost_reason})` : ""}</> : null}
-              {it.known.deal_id && it.known.category !== "lost" ? ". Making it a lead adds it to that deal." : null}
+              {it.known.deal_id && (it.known.category === "open" || it.known.category === "parked") ? ". Making it a lead adds it to that deal." : it.known.category === "won" ? ". An existing client: making it a lead starts a new deal (repeat business)." : null}
             </p>
           ) : null}
           {f.why ? <p className="mt-1 text-xs">{f.why}</p> : null}
