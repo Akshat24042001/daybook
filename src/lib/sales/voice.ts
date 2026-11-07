@@ -19,13 +19,20 @@ short sentences, natural Indian English rhythm. Occasional natural imperfection 
 - First touch never pitches. Follow-ups add something new (an insight, a small idea, a relevant example, a question);
   never "just checking in" or "following up on my last message".
 - Always end with something that is easy to answer: a yes/no question, a one word answer, or a soft next step.
-- Never invent results, client names, numbers or case studies. If proof is needed and none is given, ask a question instead.
+- FACTS: use only what is in CONTEXT. Never invent their name, company, numbers, tools they use, past projects, results,
+  client names or case studies. If you do not know their name, use no name ("Hi," or start directly). If proof is needed
+  and none is given, ask a question instead. A wrong detail is worse than a generic line.
 PLATFORM LENGTH:
 - whatsapp: 1 to 3 short sentences. No greeting line on its own. No sign-off.
 - linkedin: under 60 words (80 if they engaged with content). No links on a first message.
 - email: subject 6 to 10 words, plain, no spam words, no fake RE:. Body 55 to 120 words, plain text, sign with first name.
 - instagram/sms: like whatsapp.
-- call: give 4 to 6 bullet talking points instead of a message.`;
+- call: give 4 to 6 bullet talking points instead of a message.
+- reddit / hn / x (a public reply to their post): helpful first, 2 to 4 sentences, answer their actual question with one
+  concrete idea, no sales pitch, no links, no "DM me"; end with one light question. Reads like a peer, not an agency.
+- linkedin_post (comment or DM after their post): under 60 words, reference their post specifically, one question.
+- upwork / freelancer / pph / guru / contra (a proposal): 80 to 150 words. First line restates their exact need, then how
+  you would approach it in 2 to 3 short lines, then one clarifying question. No fake portfolio, no "I have 10 years".`;
 
 export async function voiceSamples(limit = 8): Promise<string[]> {
   const rows = await q<{ body: string }>(
@@ -80,7 +87,8 @@ export async function draftMessage(d: DraftInput): Promise<Draft> {
   const system = `You write sales messages for ${ownerLine(cfg)}
 ${STYLE_GUIDE}
 ${cfg.voice_rules ? `OWNER'S OWN EXTRA RULES:\n${cfg.voice_rules}\n` : ""}${winners.length ? `\nTHE OWNER'S MESSAGES THAT GOT REPLIES (closest to this kind of message first). Follow their structure, length and the kind of opening and ask that worked; never copy their content or facts:\n${winners.map((s, i) => `[W${i + 1}] ${s}`).join("\n")}\n` : ""}${recent.length ? `\nTHE OWNER'S OTHER RECENT MESSAGES (voice and rhythm only; do not copy content):\n${recent.map((s, i) => `[${i + 1}] ${s}`).join("\n")}\n` : ""}
-${bookingRule(cfg, d.kind)}Return JSON {"subject": string or null (only for email), "message": string}.`;
+${bookingRule(cfg, d.kind)}Return JSON {"subject": string or null (only for email), "message": string}.
+CHANNEL tells you where it will be posted; follow that platform's rules exactly.`;
   const user = `CHANNEL: ${d.channel}
 PURPOSE: ${d.purpose}${d.step ? `\nSTEP: ${d.step}` : ""}
 TO: ${d.toName ?? "the contact"}${d.toCountry ? ` (${d.toCountry})` : ""}

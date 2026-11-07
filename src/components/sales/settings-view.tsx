@@ -84,7 +84,7 @@ export function SettingsView({ d }: { d: SettingsData }) {
     toast("Saved");
     router.refresh();
   });
-  const copy = (s: string, what = "Copied") => void navigator.clipboard.writeText(s).then(() => toast(what));
+  const copy = (s: string, what = "Copied") => void navigator.clipboard.writeText(s).then(() => toast(what), () => toast("Your browser blocked copying. Select the text and copy it by hand.", "error"));
   const bookmarklet = `javascript:(()=>{const s=String(getSelection()||'').trim();const t=(s||document.body.innerText).slice(0,15000);window.open('${d.baseUrl}/sales/clip#'+encodeURIComponent(JSON.stringify({text:t,url:location.href,title:document.title})),'_blank')})()`;
   const script = d.script.replace("https://YOUR-APP.vercel.app", d.baseUrl).replace("PASTE-THE-SECRET-FROM-DAYBOOK", d.googleSecret);
 

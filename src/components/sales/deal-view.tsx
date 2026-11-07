@@ -237,7 +237,7 @@ export function DealView({ d }: { d: DealPageData }) {
                       </p>
                       <div className="mt-1.5 flex items-center gap-1">
                         <code className="truncate rounded bg-muted px-1.5 py-0.5 text-xs">{url.replace(/^https?:\/\//, "")}</code>
-                        <Button size="sm" variant="ghost" className="h-6 px-1.5" onClick={() => void navigator.clipboard.writeText(url).then(() => toast("Link copied. Send it instead of an attachment."))}>
+                        <Button size="sm" variant="ghost" className="h-6 px-1.5" onClick={() => void navigator.clipboard.writeText(url).then(() => toast("Link copied. Send it instead of an attachment."), () => toast("Your browser blocked copying. Select the text and copy it by hand.", "error"))}>
                           <Copy className="h-3 w-3" />
                         </Button>
                       </div>

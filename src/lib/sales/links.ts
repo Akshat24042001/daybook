@@ -66,8 +66,8 @@ export function channelUrl(channel: GoChannel, to: { phone?: string | null; emai
   }
 }
 
-/** A signed link that logs the move as sent on that channel, then redirects. */
-export function goLink(moveId: number, channel: GoChannel): string {
-  const v = `${moveId}.${channel}`;
-  return `${baseUrl()}/api/sales/go?m=${moveId}&c=${channel}&s=${sign(v)}`;
+/** A signed link that opens a move's destination (see reply-targets) and remembers it was opened. Never logs a send. */
+export function goLink(moveId: number, targetId: string): string {
+  const v = `${moveId}.${targetId}`;
+  return `${baseUrl()}/api/sales/go?m=${moveId}&c=${targetId}&s=${sign(v)}`;
 }

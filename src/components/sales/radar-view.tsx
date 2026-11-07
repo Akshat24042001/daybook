@@ -11,6 +11,7 @@ import { Button, Chip, Field, Input, Select, Sheet, Textarea } from "@/component
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import type { MoveRow } from "@/lib/sales/moves";
+import { platformOf } from "@/lib/sales/reply-targets";
 import { ago } from "./util";
 import { MoveCard } from "./moves-view";
 import { HuntsPanel } from "./hunts-view";
@@ -40,6 +41,7 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
   const router = useRouter();
   if (gone) return null;
   const f = it.fit ?? {};
+  const where = platformOf(it.url);
   const act = (fn: () => Promise<{ ok: boolean; error?: string }>, hide = true) => start(async () => {
     const r = await fn();
     if (!r.ok) return toast((r as { error: string }).error, "error");
@@ -66,6 +68,12 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
               {it.known.deal_id && (it.known.category === "open" || it.known.category === "parked") ? ". Making it a lead adds it to that deal." : it.known.category === "won" ? ". An existing client: making it a lead starts a new deal (repeat business)." : null}
             </p>
           ) : null}
+          {where ? (
+            <p className="mt-1 text-xs">
+              <span className="rounded-full bg-muted px-2 py-0.5 font-medium">{where.replyable ? `Reply on ${where.name}` : where.key === "email_alert" ? "From an alert email" : "Signal, nobody asked you"}</span>{" "}
+              <span className="text-subtle">{where.replyable ? "Answer them where they posted." : "Find the decision maker first, then reach out."}</span>
+            </p>
+          ) : null}
           {f.why ? <p className="mt-1 text-xs">{f.why}</p> : null}
           {f.angle ? <p className="mt-1 text-xs text-accent">💡 {f.angle}</p> : null}
           {f.money_leak ? <p className="mt-1 rounded-lg bg-p-butter px-2 py-1 text-xs text-p-butter-fg">{f.money_leak}</p> : null}
@@ -84,7 +92,7 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
           const r = await radarDraftAction(it.id);
           if (!r.ok) return toast(r.error, "error");
           setMove(r.move);
-        })}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Draft reply</Button> : null}
+        })}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} {where?.replyable ? `Draft reply for ${where.name}` : "Draft first message"}</Button> : null}
         {it.deal_id ? <Button size="sm" variant="outline" onClick={() => router.push(`/sales/deal/${it.deal_id}`)}>Open deal</Button> : (
           <Button size="sm" variant="outline" disabled={busy} onClick={() => start(async () => {
             const r = await radarToDealAction(it.id);

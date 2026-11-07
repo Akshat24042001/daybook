@@ -66,6 +66,22 @@ them alone.
 - Intermediaries: a deal can have a referrer and an intermediary (agency, broker, consultant, partner) with commission
   (percent or fixed). Turn on "follow-ups go to the intermediary" when the client only talks through them.
 
+## How replying works (every button, everywhere)
+
+- A button only appears when it can do what its label says. No LinkedIn profile saved means no "LinkedIn" button;
+  you get **Find on LinkedIn** (a real LinkedIn people search) instead.
+- Radar leads are answered where they were posted: **Reply on Reddit / Hacker News / X**, **Open the job on Upwork**,
+  **Open the LinkedIn post**. The draft is written for that platform (a helpful comment, or a proposal).
+- Signals (hiring, funding, bad reviews) have nobody to reply to yet: **Find who decides at <company>** opens a search
+  for the founder or operations head, and **Their website** opens the site.
+- **WhatsApp** opens your chat with the text typed in. **Email** opens your mail app, or **Send from Gmail** sends it for
+  real once Google is connected. **LinkedIn profile** copies the text and opens the profile (LinkedIn cannot pre-fill
+  messages: press Message and paste).
+- Opening anything never counts as sending. The card asks **Did you send it on …?** and only **Yes, sent** logs it.
+  In Telegram the same is the **✅ Sent it** button. **Done another way** closes a move without logging a message.
+- The AI's company, contact and website for a radar lead are kept only if they appear in the post itself, and drafts
+  may only use facts from the conversation or post.
+
 ## Priority
 
 Every deal has a priority from 0 to 100, recomputed every 10 minutes, with the reasons shown and a trend arrow against

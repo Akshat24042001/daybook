@@ -15,6 +15,7 @@ import { listOffers, notBought, type Offer } from "./offers";
 import { proofBlock, proofFor } from "./proofs";
 import { applyEvent } from "./stages";
 import { draftMessage } from "./voice";
+import { draftChannel, isHandle, targetInput } from "./reply-targets";
 
 export type MoveKind =
   | "reply" | "follow_up" | "breakup" | "reengage" | "commit_mine" | "commit_theirs" | "stale" | "quote_hot" | "quote_unseen"
@@ -327,18 +328,25 @@ export interface MoveRow {
   linkedin: string | null;
   instagram: string | null;
   radar_url: string | null;
+  radar_fit: { company?: string | null; contact?: string | null; website?: string | null; country?: string | null } | null;
+  radar_category: string | null;
+  deal_source_url: string | null;
+  company_website: string | null;
 }
+
+export { targetInput } from "./reply-targets";
 
 export async function listMoves(o: { horizonHours?: number; dealId?: number; limit?: number } = {}): Promise<MoveRow[]> {
   return q<MoveRow>(
     `select m.*, d.title as deal_title, p.full_name as person_name, c.name as company_name, s.name as stage_name,
-            p.id as person_id, p.phones, p.emails, p.linkedin, p.instagram, r.url as radar_url
+            p.id as person_id, p.phones, p.emails, p.linkedin, p.instagram, r.url as radar_url, r.fit as radar_fit, rs.category as radar_category, d.source_detail as deal_source_url, c.website as company_website
      from sales_moves m
      left join sales_deals d on d.id = m.deal_id
      left join sales_stages s on s.id = d.stage_id
      left join sales_people p on p.id = case when d.talk_via_intermediary and d.intermediary_id is not null then d.intermediary_id else d.person_id end
      left join sales_companies c on c.id = d.company_id
-     left join sales_radar_items r on r.id = m.radar_item_id
+     left join sales_radar_items r on r.id = coalesce(m.radar_item_id, d.radar_item_id)
+     left join sales_radar_sources rs on rs.id = r.source_id
      where m.status = 'open' and ($1::int is null or m.deal_id = $1) and m.due_at <= now() + ($2 || ' hours')::interval
      order by (m.due_at <= now()) desc, m.score desc, m.due_at
      limit $3`,
@@ -349,10 +357,11 @@ export async function listMoves(o: { horizonHours?: number; dealId?: number; lim
 export async function getMove(id: number): Promise<MoveRow | null> {
   return (await q<MoveRow>(
     `select m.*, d.title as deal_title, p.full_name as person_name, c.name as company_name, s.name as stage_name,
-            p.id as person_id, p.phones, p.emails, p.linkedin, p.instagram, r.url as radar_url
+            p.id as person_id, p.phones, p.emails, p.linkedin, p.instagram, r.url as radar_url, r.fit as radar_fit, rs.category as radar_category, d.source_detail as deal_source_url, c.website as company_website
      from sales_moves m left join sales_deals d on d.id = m.deal_id left join sales_stages s on s.id = d.stage_id
      left join sales_people p on p.id = case when d.talk_via_intermediary and d.intermediary_id is not null then d.intermediary_id else d.person_id end
-     left join sales_companies c on c.id = d.company_id left join sales_radar_items r on r.id = m.radar_item_id
+     left join sales_companies c on c.id = d.company_id left join sales_radar_items r on r.id = coalesce(m.radar_item_id, d.radar_item_id)
+     left join sales_radar_sources rs on rs.id = r.source_id
      where m.id = $1`,
     [id],
   ))[0] ?? null;
@@ -405,7 +414,8 @@ const PURPOSE: Partial<Record<MoveKind, string>> = {
 export async function draftForMove(id: number, channelOverride?: string): Promise<MoveRow | null> {
   const m = await getMove(id);
   if (!m) return null;
-  const channel = channelOverride ?? m.channel ?? (m.phones?.length ? "whatsapp" : m.emails?.length ? "email" : m.linkedin ? "linkedin" : "whatsapp");
+  // write for the place it will really be sent: their WhatsApp, their inbox, or the platform they posted on
+  const channel = channelOverride ?? draftChannel(targetInput(m, false));
   let context = "";
   let toCountry: string | null = null;
   if (m.deal_id) {
@@ -414,8 +424,9 @@ export async function draftForMove(id: number, channelOverride?: string): Promis
     if (["follow_up", "reengage", "quote_silent", "resurrect", "upsell", "stale"].includes(m.kind)) context += proofBlock(await proofFor(m.deal_id));
     toCountry = (await one<{ country: string | null }>("select country from sales_deals where id = $1", [m.deal_id]))?.country ?? null;
   } else if (m.radar_item_id) {
-    const r = await one<{ title: string; body: string | null; url: string | null; angle: string | null; fit: { country?: string } | null }>("select title, body, url, angle, fit from sales_radar_items where id = $1", [m.radar_item_id]);
-    context = `POST: ${r?.title}\n${(r?.body ?? "").slice(0, 3000)}\nURL: ${r?.url ?? ""}\nANGLE: ${r?.angle ?? ""}`;
+    const r = await one<{ title: string; body: string | null; url: string | null; angle: string | null; author: string | null; fit: { country?: string } | null }>("select title, body, url, angle, author, fit from sales_radar_items where id = $1", [m.radar_item_id]);
+    const signal = m.radar_category && ["hiring", "funding", "review", "launch"].includes(m.radar_category);
+    context = `${signal ? `SIGNAL (${m.radar_category}): nobody asked us directly. This is a first touch to the company's decision maker, whose name we do not know.\n` : `THEY POSTED THIS${r?.author ? ` (as ${r.author})` : ""}:\n`}TITLE: ${r?.title}\n${(r?.body ?? "").slice(0, 3000)}\nURL: ${r?.url ?? ""}\nANGLE IDEA: ${r?.angle ?? ""}`;
     toCountry = r?.fit?.country ?? null;
   }
   const step = m.kind === "follow_up" ? m.title.match(/Follow-up (\d+)/)?.[1] : null;
@@ -425,7 +436,8 @@ export async function draftForMove(id: number, channelOverride?: string): Promis
     step: step ? `follow-up ${step}` : m.kind,
     kind: step ? `follow_up:${step}` : m.kind,
     context,
-    toName: m.person_name,
+    // never greet someone by a username or a guessed name
+    toName: m.person_name && !isHandle(m.person_name) ? m.person_name : null,
     toCountry,
   });
   // ai_draft keeps the AI's own words; draft is what you edit. "Did you change it" compares the two.
