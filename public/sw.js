@@ -1,6 +1,8 @@
 /* Daybook service worker: makes the app installable and keeps the shell usable offline.
    Data pages are always fetched from the network (never served stale); only static assets are cached. */
-const CACHE = "daybook-static-v2"; // v2: new pastel icons; bumping drops the old cached copies
+// v3: earlier versions could store a failed response (a 404 or an error page during a deploy) and serve it forever,
+// which left pages without their stylesheet. Bumping the name deletes those stored copies on activate.
+const CACHE = "daybook-static-v3";
 const OFFLINE_URL = "/offline.html";
 
 self.addEventListener("install", (event) => {
@@ -33,8 +35,11 @@ self.addEventListener("fetch", (event) => {
         (hit) =>
           hit ||
           fetch(req).then((res) => {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy));
+            // only keep real files: never a 404, a redirect or an opaque error
+            if (res.ok && res.type === "basic") {
+              const copy = res.clone();
+              caches.open(CACHE).then((c) => c.put(req, copy));
+            }
             return res;
           }),
       ),
