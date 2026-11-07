@@ -35,6 +35,8 @@ export function PlanPanel({ plan }: { plan: RadarPlan }) {
     <div className="space-y-4">
       <div className="rounded-2xl bg-p-teal px-4 py-3 text-sm text-p-teal-fg">
         <p className="font-semibold">Right now the radar is targeting <b>{plan.now.country}</b>, in <b>{plan.now.industry}</b>.</p>
+        <p className="mt-1 text-xs"><b>Why {plan.now.country}:</b> {plan.targeting.why.country.reason}</p>
+        <p className="mt-0.5 text-xs"><b>Why {plan.now.industry}:</b> {plan.targeting.why.industry.reason}</p>
         <p className="mt-1 text-xs">
           It sweeps its feeds every {plan.rhythm.sweepEveryMin} minutes, scores every result against your offers, keeps anything from {plan.rhythm.minScore}/100 up, alerts you on Telegram from {plan.rhythm.alertScore}/100,
           and every morning at {String(plan.rhythm.digestHour).padStart(2, "0")}:00 guarantees at least {plan.rhythm.dailyMin} qualified lead{plan.rhythm.dailyMin === 1 ? "" : "s"} or tells you honestly that there were none.
@@ -49,13 +51,15 @@ export function PlanPanel({ plan }: { plan: RadarPlan }) {
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Section tone="lilac" title="Where it will look in the next 7 days" hint="Countries rotate weekly and industries daily. Change the lists in Sales > Settings, or aim a hunt at something specific.">
+        <Section tone="lilac" title="Where it will look in the next 7 days" hint={plan.targeting.mode === "adaptive"
+          ? `Adaptive: each week's country and each day's industry are chosen on the day from results, ${plan.targeting.explorePct}% of turns explore the least-tested option. Greyed entries are the likeliest pick, not yet decided.`
+          : "Even rotation: countries change weekly and industries daily, in list order. Switch to adaptive in Sales > Settings."}>
           <ul className="divide-y divide-border text-sm">
             {plan.rotation.map((r) => (
               <li key={r.date} className={cn("flex items-center gap-3 py-1.5", r.today && "font-medium")}>
                 <span className="w-24 shrink-0 text-xs text-subtle">{r.today ? "Today" : new Date(`${r.date}T12:00:00`).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}</span>
-                <span className="min-w-0 flex-1 truncate">{r.country}</span>
-                <span className="min-w-0 flex-1 truncate text-right text-subtle">{r.industry}</span>
+                <span className={cn("min-w-0 flex-1 truncate", !r.countryDecided && "italic text-subtle")} title={r.countryDecided ? undefined : "Likeliest; decided on Monday"}>{r.country}</span>
+                <span className={cn("min-w-0 flex-1 truncate text-right", r.industryDecided ? "text-subtle" : "italic text-subtle/70")} title={r.industryDecided ? undefined : "Likeliest; decided that morning"}>{r.industry}</span>
               </li>
             ))}
           </ul>
@@ -69,6 +73,30 @@ export function PlanPanel({ plan }: { plan: RadarPlan }) {
           </p>
         </Section>
       </div>
+
+      <Section tone="teal" title="What each market has brought in (120 days)" hint="Points: 1 per qualified lead, 3 per conversation, 10 per deal won. Score is points per turn as the focus, so heavily targeted markets must keep earning their place.">
+        <div className="grid gap-4 lg:grid-cols-2">
+          {([["Countries", plan.targeting.countries], ["Industries", plan.targeting.industries]] as const).map(([label, rows]) => (
+            <div key={label} className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="text-left text-xs text-subtle"><th className="py-1 font-medium">{label}</th><th className="py-1 text-right font-medium">Leads</th><th className="py-1 text-right font-medium">Talks</th><th className="py-1 text-right font-medium">Won</th><th className="py-1 text-right font-medium">Turns</th><th className="py-1 text-right font-medium">Score</th></tr></thead>
+                <tbody className="divide-y divide-border">
+                  {rows.map((w) => (
+                    <tr key={w.value} className={cn(w.value === plan.now.country || w.value === plan.now.industry ? "font-medium" : "")}>
+                      <td className="py-1 pr-2">{w.value}</td>
+                      <td className="tabular py-1 text-right">{w.qualified}</td>
+                      <td className="tabular py-1 text-right">{w.conversations}</td>
+                      <td className="tabular py-1 text-right">{w.won}</td>
+                      <td className="tabular py-1 text-right text-subtle">{w.turns}</td>
+                      <td className="tabular py-1 text-right">{w.score}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      </Section>
 
       <Section tone="peach" title="Platforms and services in use" hint="Green is working. Grey needs a key or a setting.">
         <ul className="grid gap-1.5 sm:grid-cols-2">

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { one } from "@/lib/db";
 import { voiceConfigured } from "@/lib/deepgram";
-import { focusFor, salesConfig } from "@/lib/sales/config";
+import { salesConfig } from "@/lib/sales/config";
+import { currentFocus } from "@/lib/sales/focus";
 import { googleConfigured } from "@/lib/sales/google";
 import { listMoves, refreshMoves } from "@/lib/sales/moves";
 import { CaptureBox } from "@/components/sales/capture-box";
@@ -26,7 +27,7 @@ export default async function SalesPage() {
        (select count(*)::int from sales_meetings where not cancelled and starts_at between now() and now() + interval '24 hours') as meetings,
        (select count(*)::int from sales_deals d join sales_stages s on s.id = d.stage_id where s.category = 'open') as deals`,
   );
-  const focus = focusFor(cfg, new Date());
+  const focus = await currentFocus(cfg);
   const tiles = [
     { label: "Open pipeline", value: money(k?.open_usd ?? 0), sub: `${k?.deals ?? 0} deals` },
     { label: "Weighted", value: money(k?.weighted ?? 0), sub: "by stage probability" },

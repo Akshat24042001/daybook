@@ -15,6 +15,8 @@ export interface SalesConfig {
     title: string;
     signature: string;
     timezone_note: string;
+    /** your Calendly / Cal.com link; drafts offer it whenever the next step is a call */
+    booking_url: string;
   };
   offers: string[];
   /** extra voice rules on top of the built-in style guide */
@@ -43,6 +45,22 @@ export interface SalesConfig {
     enrich_queries: number;
     /** qualified radar leads at or above this score are researched automatically (company, contacts, people); 101 turns it off */
     auto_research_score: number;
+    /** adaptive: countries and industries that bring results get more turns; rotate: the old even rotation */
+    targeting: "adaptive" | "rotate";
+    /** share of turns (percent) given to the least-tested country or industry when adaptive */
+    explore_pct: number;
+  };
+  /** what you are aiming for; 0 means not set */
+  targets: {
+    monthly_revenue_usd: number;
+    weekly_conversations: number;
+    daily_outreach: number;
+  };
+  /** after the work is delivered: client check-ins (days after delivery), an upsell nudge, and a retainer offer */
+  post_sale: {
+    checkin_days: number[];
+    upsell_after_days: number;
+    retainer: boolean;
   };
   brief_hour: number;
   review_dow: number;
@@ -71,6 +89,7 @@ export const DEFAULT_CONFIG: SalesConfig = {
     title: "CEO",
     signature: "Akshat\nAivaura | aivaura.com",
     timezone_note: "India (IST)",
+    booking_url: "",
   },
   offers: [
     "AI agents and AI automation for operations, sales and support",
@@ -95,7 +114,9 @@ export const DEFAULT_CONFIG: SalesConfig = {
   reengage_days: 7,
   reply_within_hours: 3,
   ghost_revisit_days: 60,
-  radar: { min_score: 60, daily_min: 1, digest_hour: 9, alert_score: 85, search_daily_cap: 25, enrich_queries: 5, auto_research_score: 70 },
+  radar: { min_score: 60, daily_min: 1, digest_hour: 9, alert_score: 85, search_daily_cap: 25, enrich_queries: 5, auto_research_score: 70, targeting: "adaptive", explore_pct: 20 },
+  targets: { monthly_revenue_usd: 0, weekly_conversations: 15, daily_outreach: 5 },
+  post_sale: { checkin_days: [30, 90], upsell_after_days: 45, retainer: true },
   brief_hour: 9,
   review_dow: 7,
   review_hour: 18,

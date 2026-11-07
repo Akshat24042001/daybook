@@ -25,9 +25,9 @@ export interface SettingsData {
   script: string;
 }
 
-function Card({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
+function Card({ id, title, sub, children }: { id?: string; title: string; sub?: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-border bg-surface p-4">
+    <section id={id} className="scroll-mt-24 rounded-2xl border border-border bg-surface p-4">
       <h2 className="font-display text-base">{title}</h2>
       {sub ? <p className="mb-3 text-xs text-subtle">{sub}</p> : <div className="mb-3" />}
       {children}
@@ -54,6 +54,8 @@ export function SettingsView({ d }: { d: SettingsData }) {
     ghost_revisit_days: c.ghost_revisit_days, brief_hour: c.brief_hour, review_dow: c.review_dow, review_hour: c.review_hour, unknown_email: c.unknown_email,
   });
   const [esc, setEsc] = useState(c.escalation);
+  const [targets, setTargets] = useState(c.targets);
+  const [postSale, setPostSale] = useState({ ...c.post_sale, checkin_days: c.post_sale.checkin_days.join(", ") });
   const [fx, setFx] = useState(Object.entries(c.fx).map(([k, v]) => `${k}=${v}`).join("\n"));
   const [prewrite, setPrewrite] = useState(c.autonomy.prewrite !== "suggest");
   const [scriptUrl, setScriptUrl] = useState(d.appsScriptUrl ?? "");
@@ -142,16 +144,24 @@ export function SettingsView({ d }: { d: SettingsData }) {
           <Field label="Website"><Input value={owner.website} onChange={(e) => setOwner({ ...owner, website: e.target.value })} /></Field>
           <Field label="Title"><Input value={owner.title} onChange={(e) => setOwner({ ...owner, title: e.target.value })} /></Field>
           <Field label="Email signature"><Textarea value={owner.signature} onChange={(e) => setOwner({ ...owner, signature: e.target.value })} className="min-h-[60px]" /></Field>
+          <div className="sm:col-span-2"><Field label="Your booking link" hint="Calendly, Cal.com or similar. Drafts offer it whenever the next step is a call, so nobody has to go back and forth on times."><Input value={owner.booking_url ?? ""} onChange={(e) => setOwner({ ...owner, booking_url: e.target.value.trim() })} placeholder="https://cal.com/you/30min" /></Field></div>
           <div className="sm:col-span-2"><Field label="What you sell (one per line)"><Textarea value={offers} onChange={(e) => setOffers(e.target.value)} /></Field></div>
           <div className="sm:col-span-2"><Field label="Extra voice rules" hint={'e.g. "Use Haan ji with Indian clients", "never say kindly"'}><Textarea value={voice} onChange={(e) => setVoice(e.target.value)} className="min-h-[60px]" /></Field></div>
         </div>
         <div className="mt-3 flex justify-end"><Button variant="primary" disabled={busy} onClick={() => save({ owner: { ...owner, aliases: csv(owner.aliases), emails: csv(owner.emails), phones: csv(owner.phones) }, offers: lines(offers), voice_rules: voice })}>Save</Button></div>
       </Card>
 
-      <Card title="Radar targeting" sub="One country per week, one industry per day. The digest always brings at least the daily minimum, and hunts until it does.">
+      <Card id="targeting" title="Radar targeting" sub="One country per week, one industry per day. Adaptive gives more turns to the ones that bring results (see Radar > Plan for why); the digest always brings at least the daily minimum, and hunts until it does.">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Countries (weekly rotation, in order)"><Textarea value={countries} onChange={(e) => setCountries(e.target.value)} className="min-h-[140px]" /></Field>
-          <Field label="Industries (daily rotation)"><Textarea value={industries} onChange={(e) => setIndustries(e.target.value)} className="min-h-[140px]" /></Field>
+          <Field label="How to choose">
+            <Select value={radar.targeting} onChange={(e) => setRadar({ ...radar, targeting: e.target.value as SalesConfig["radar"]["targeting"] })}>
+              <option value="adaptive">Adaptive: more turns for what brings results</option>
+              <option value="rotate">Even rotation, in list order</option>
+            </Select>
+          </Field>
+          <Field label="Exploring share (%)" hint="Turns kept for the least-tested country or industry, so nothing is written off too early. 20 is a good default."><Input value={String(radar.explore_pct)} onChange={(e) => setRadar({ ...radar, explore_pct: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })} inputMode="numeric" /></Field>
+          <Field label="Countries (one a week)"><Textarea value={countries} onChange={(e) => setCountries(e.target.value)} className="min-h-[140px]" /></Field>
+          <Field label="Industries (one a day)"><Textarea value={industries} onChange={(e) => setIndustries(e.target.value)} className="min-h-[140px]" /></Field>
           <Field label="Qualified at score"><Input value={String(radar.min_score)} onChange={(e) => setRadar({ ...radar, min_score: Number(e.target.value) || 0 })} inputMode="numeric" /></Field>
           <Field label="At least this many a day"><Input value={String(radar.daily_min)} onChange={(e) => setRadar({ ...radar, daily_min: Math.max(1, Number(e.target.value) || 1) })} inputMode="numeric" /></Field>
           <Field label="Instant alert at score"><Input value={String(radar.alert_score)} onChange={(e) => setRadar({ ...radar, alert_score: Number(e.target.value) || 0 })} inputMode="numeric" /></Field>
@@ -161,6 +171,24 @@ export function SettingsView({ d }: { d: SettingsData }) {
           <Field label="Searches per company research"><Input value={String(radar.enrich_queries)} onChange={(e) => setRadar({ ...radar, enrich_queries: Number(e.target.value) || 0 })} inputMode="numeric" /></Field>
         </div>
         <div className="mt-3 flex justify-end"><Button variant="primary" disabled={busy} onClick={() => save({ countries: lines(countries), industries: lines(industries), radar })}>Save</Button></div>
+      </Card>
+
+      <Card id="targets" title="Targets" sub="What you are aiming for. Insights works out your pace, the forecast and the outreach it takes from your own conversion rates.">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Monthly revenue target (USD)" hint="Won deal value per month. 0 turns the target off."><Input value={String(targets.monthly_revenue_usd)} onChange={(e) => setTargets({ ...targets, monthly_revenue_usd: Math.max(0, Number(e.target.value.replace(/[^0-9.]/g, "")) || 0) })} inputMode="numeric" /></Field>
+          <Field label="New conversations a week" hint="Used by the weekly review."><Input value={String(targets.weekly_conversations)} onChange={(e) => setTargets({ ...targets, weekly_conversations: Math.max(0, Number(e.target.value) || 0) })} inputMode="numeric" /></Field>
+          <Field label="Outreach messages a day" hint="Shown on Today: first messages and follow-ups you send."><Input value={String(targets.daily_outreach)} onChange={(e) => setTargets({ ...targets, daily_outreach: Math.max(0, Number(e.target.value) || 0) })} inputMode="numeric" /></Field>
+        </div>
+        <div className="mt-3 flex justify-end"><Button variant="primary" disabled={busy} onClick={() => save({ targets })}>Save</Button></div>
+      </Card>
+
+      <Card id="after-sale" title="After the sale" sub="Revenue from people who already paid you is the cheapest you will ever earn. These become moves once the work is delivered.">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Check in after delivery (days)" hint="Comma separated, e.g. 30, 90"><Input value={postSale.checkin_days} onChange={(e) => setPostSale({ ...postSale, checkin_days: e.target.value })} /></Field>
+          <Field label="Suggest more work after (days)" hint="An offer they have not bought yet, from your catalogue. 0 turns it off."><Input value={String(postSale.upsell_after_days)} onChange={(e) => setPostSale({ ...postSale, upsell_after_days: Math.max(0, Number(e.target.value) || 0) })} inputMode="numeric" /></Field>
+          <label className="flex items-center gap-2 self-end pb-2 text-sm"><input type="checkbox" checked={postSale.retainer} onChange={(e) => setPostSale({ ...postSale, retainer: e.target.checked })} /> Offer a monthly retainer at delivery</label>
+        </div>
+        <div className="mt-3 flex justify-end"><Button variant="primary" disabled={busy} onClick={() => save({ post_sale: { ...postSale, checkin_days: csv(postSale.checkin_days).map(Number).filter((n) => n > 0) } })}>Save</Button></div>
       </Card>
 
       <Card title="Rhythm" sub="When things become moves, and when Daybook pings you.">

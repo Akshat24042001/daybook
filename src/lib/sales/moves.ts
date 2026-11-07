@@ -355,6 +355,7 @@ export async function draftForMove(id: number, channelOverride?: string): Promis
     channel,
     purpose: `${PURPOSE[m.kind] ?? "Move the deal forward."}\nMOVE: ${m.title}\nWHY: ${m.why ?? ""}`,
     step: step ? `follow-up ${step}` : m.kind,
+    kind: step ? `follow_up:${step}` : m.kind,
     context,
     toName: m.person_name,
     toCountry,

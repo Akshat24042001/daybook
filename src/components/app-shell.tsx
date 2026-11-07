@@ -3,7 +3,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   BarChart3, BookMarked, BookOpen, Bot, Briefcase, CalendarCheck, ClipboardList, FolderOpen, HeartPulse, KanbanSquare, LayoutGrid, Monitor, Moon, PenLine, Radar, Settings, Sun, Target,
-  History, Search, Users, X, Building2, ListChecks, Undo2, CalendarDays, LogOut,
+  History, Search, Users, X, Building2, ListChecks, Undo2, CalendarDays, LogOut, LineChart, Library,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -71,6 +71,8 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/sales/pipeline", label: "Pipeline", Icon: KanbanSquare },
       { href: "/sales/radar", label: "Radar", Icon: Radar },
       { href: "/sales/accounts", label: "Accounts", Icon: Building2 },
+      { href: "/sales/insights", label: "Insights", Icon: LineChart },
+      { href: "/sales/playbook", label: "Playbook", Icon: Library },
     ],
   },
   {
@@ -104,6 +106,8 @@ const MOBILE_MORE: NavItem[] = [
   { href: "/calendar", label: "Calendar", Icon: CalendarDays },
   { href: "/sales/pipeline", label: "Pipeline", Icon: KanbanSquare },
   { href: "/sales/radar", label: "Radar", Icon: Radar },
+  { href: "/sales/insights", label: "Insights", Icon: LineChart },
+  { href: "/sales/playbook", label: "Playbook", Icon: Library },
   { href: "/diary", label: "Diary", Icon: BookOpen },
   { href: "/tasks", label: "All tasks", Icon: ListChecks },
   { href: "/history", label: "History", Icon: Undo2 },

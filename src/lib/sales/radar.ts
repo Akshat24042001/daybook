@@ -7,7 +7,8 @@
 import { createHash } from "node:crypto";
 import { one, q } from "../db";
 import { esc } from "../telegram/api";
-import { focusFor, salesConfig, type SalesConfig } from "./config";
+import { salesConfig, type SalesConfig } from "./config";
+import { currentFocus } from "./focus";
 import { createDeal } from "./deals";
 import { ensureCompany, upsertPerson } from "./identity";
 import { enqueue } from "./jobs";
@@ -237,7 +238,7 @@ export async function storeItems(sourceId: number | null, items: RawItem[], o: {
 /** Runs the sources that are due, within a time budget. */
 export async function runRadar(budgetMs = 40_000, opts: { force?: boolean; categories?: string[] } = {}): Promise<{ ran: number; added: number }> {
   const cfg = await salesConfig();
-  const focus = focusFor(cfg, new Date());
+  const focus = await currentFocus(cfg);
   const due = await q<SourceRow>(
     `select * from sales_radar_sources where enabled and kind <> 'email'
        and ($1 or last_run_at is null or last_run_at < now() - (interval_hours || ' hours')::interval)
@@ -303,7 +304,7 @@ Be strict and honest. Never inflate a score to fill a quota.`;
 /** Scores unscored items in batches. */
 export async function qualifyPending(budgetMs = 45_000): Promise<number> {
   const cfg = await salesConfig();
-  const focus = focusFor(cfg, new Date());
+  const focus = await currentFocus(cfg);
   const deadline = Date.now() + budgetMs;
   let done = 0;
   while (Date.now() < deadline - 15_000) {
@@ -408,7 +409,7 @@ export async function setRadarStatus(id: number, status: "skipped" | "rejected" 
 /** Intent-signal hunt for this week's country and today's industry, used when the feeds are dry. */
 export async function hunt(budgetMs = 45_000): Promise<number> {
   const cfg = await salesConfig();
-  const focus = focusFor(cfg, new Date());
+  const focus = await currentFocus(cfg);
   const year = new Date().getUTCFullYear();
   const queries = [
     `"looking for" (developer OR agency OR "automation expert") ${focus.industry} ${focus.country}`,
@@ -454,7 +455,7 @@ export async function dailyDigest(budgetMs = 50_000): Promise<string> {
     await push("🎯 <b>Radar</b>: nothing worth your time in the last 24 hours, even after hunting. I'll keep searching today and ping you the moment something real shows up.");
     return "none";
   }
-  const focus = focusFor(cfg, new Date());
+  const focus = await currentFocus(cfg);
   const lines = list.map((t, i) => `${i + 1}. <b>${t.score}</b> ${esc(t.title.slice(0, 120))}${t.fit?.angle ? `\n   💡 ${esc(t.fit.angle.slice(0, 160))}` : ""}${t.status !== "qualified" ? " <i>(below your bar)</i>" : ""}`);
   const kb = list.slice(0, 6).map((t, i) => [
     { text: `${i + 1}. ✍️ Draft`, callback_data: `zs:rd:${t.id}` },

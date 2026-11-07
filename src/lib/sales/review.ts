@@ -125,3 +125,21 @@ Radar: ${r.radar.found} found, ${r.radar.qualified} qualified, ${r.radar.convert
 <b>Straight talk</b>
 ${verdicts(r).map((v) => `• ${esc(v)}`).join("\n")}`;
 }
+
+/**
+ * The second half of the Sunday message: the month against target, and the strongest findings from Insights
+ * (only ones backed by enough data).
+ */
+export async function reviewInsights(): Promise<string> {
+  const { forecast, speed, winLoss } = await import("./insights");
+  const { messagePerformance } = await import("./learning");
+  const [f, wl, mp, sp] = await Promise.all([forecast(), winLoss(180), messagePerformance(90), speed(90)]);
+  const lines: string[] = [];
+  if (f.target_usd) {
+    lines.push(`\n<b>This month</b>: ${usd(f.won_usd)} won of ${usd(f.target_usd)} (projected ${usd(f.projected_usd)}).`);
+    if (f.need_per_week) lines.push(`Steady rhythm for the target: ${f.need_per_week.outreach} people contacted, ${f.need_per_week.conversations} conversations, ${f.need_per_week.proposals} proposals a week.`);
+  }
+  const found = [...mp.findings, ...wl.findings, ...sp.findings].slice(0, 3);
+  if (found.length) lines.push(`\n<b>What the data says</b>\n${found.map((x) => `• ${esc(x)}`).join("\n")}`);
+  return lines.join("\n");
+}

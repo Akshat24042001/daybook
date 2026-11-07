@@ -11,7 +11,8 @@
 import { one, q, UserError } from "../db";
 import { getSettings } from "../settings";
 import { esc } from "../telegram/api";
-import { focusFor, salesConfig } from "./config";
+import { salesConfig } from "./config";
+import { currentFocus } from "./focus";
 import { nextRunAfter, searchesPerDay, type Schedule } from "./hunt-schedule";
 import { enqueue } from "./jobs";
 import { baseUrl } from "./links";
@@ -237,7 +238,7 @@ async function learnedExamples(huntId: number): Promise<{ good: string[]; bad: s
 /** Asks the AI for this run's queries. Falls back to templates. Exported for tests. */
 export async function planQueries(h: HuntRow, budgetMs: number): Promise<{ queries: string[]; by: "ai" | "template" }> {
   const cfg = await salesConfig();
-  const focus = focusFor(cfg, new Date());
+  const focus = await currentFocus(cfg);
   const past = (await q<{ queries: string[] }>("select queries from sales_hunt_runs where hunt_id = $1 order by started_at desc limit 8", [h.id])).flatMap((r) => r.queries);
   const salt = (await one<{ n: number }>("select count(*)::int as n from sales_hunt_runs where hunt_id = $1", [h.id]))?.n ?? 0;
   const keywordQueries = h.keywords.slice(0, 5);

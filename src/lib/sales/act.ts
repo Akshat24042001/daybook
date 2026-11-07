@@ -6,6 +6,15 @@ import { channelUrl, type GoChannel } from "./links";
 import { getMove, setMoveStatus, type MoveRow } from "./moves";
 import { radarToDeal } from "./radar";
 
+/** "follow_up:2" for the second follow-up, else the move kind: what the message was for. */
+export function moveKindTag(m: Pick<MoveRow, "kind" | "title">): string {
+  const step = m.kind === "follow_up" ? m.title.match(/Follow-up (\d+)/)?.[1] : null;
+  return step ? `follow_up:${step}` : m.kind;
+}
+
+/** Whitespace and case do not count as an edit. */
+const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+
 export function contactFor(m: MoveRow): { phone: string | null; email: string | null; linkedin: string | null; instagram: string | null } {
   return { phone: m.phones?.[0] ?? null, email: m.emails?.[0] ?? null, linkedin: m.linkedin, instagram: m.instagram };
 }
@@ -29,6 +38,9 @@ export async function completeMove(moveId: number, channel: GoChannel | "other",
         deal_id: dealId, person_id: m.person_id, channel: (channel === "call" ? "call" : channel) as Channel, direction: "out",
         body: body || null, subject: m.draft_subject, summary: `${m.title}${o.assumed ? " (sent from Daybook link)" : ""}`.slice(0, 300),
         source: o.assumed ? "tap" : "daybook", confidence: o.assumed ? "assumed" : "sure", external_id: o.externalId ?? `move:${moveId}`,
+        move_id: m.id, move_kind: moveKindTag(m), drafted: !!m.draft?.trim(),
+        // a one-tap link opens the app with the draft; we cannot see what you changed there, so "edited" stays unknown
+        edited: o.assumed ? null : m.draft?.trim() ? norm(body) !== norm(m.draft) : null,
       });
     }
     await setMoveStatus(moveId, "done");

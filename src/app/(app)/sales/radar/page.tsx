@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { q } from "@/lib/db";
-import { focusFor, salesConfig } from "@/lib/sales/config";
+import { salesConfig } from "@/lib/sales/config";
+import { currentFocus } from "@/lib/sales/focus";
 import { googleConfigured } from "@/lib/sales/google";
 import { getSettings } from "@/lib/settings";
 import { radarPlan } from "@/lib/sales/radar-plan";
@@ -26,5 +27,5 @@ export default async function RadarPage() {
     listHunts(),
     radarPlan(),
   ]);
-  return <RadarView items={items} sources={sources} googleReady={google} focus={focusFor(cfg, new Date())} searchProviders={searchConfigured()} hunts={hunts} plan={plan} searchCap={cfg.radar.search_daily_cap} tz={(await getSettings()).timezone} />;
+  return <RadarView items={items} sources={sources} googleReady={google} focus={await currentFocus(cfg)} searchProviders={searchConfigured()} hunts={hunts} plan={plan} searchCap={cfg.radar.search_daily_cap} tz={(await getSettings()).timezone} />;
 }

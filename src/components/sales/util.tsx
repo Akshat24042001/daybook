@@ -29,6 +29,8 @@ const TABS = [
   { href: "/sales/pipeline", label: "Pipeline", inSidebar: true },
   { href: "/sales/radar", label: "Radar", inSidebar: true },
   { href: "/sales/accounts", label: "Accounts", inSidebar: true },
+  { href: "/sales/insights", label: "Insights", inSidebar: true },
+  { href: "/sales/playbook", label: "Playbook", inSidebar: true },
   { href: "/sales/docs", label: "Documents", inSidebar: false },
   { href: "/sales/review", label: "Review", inSidebar: false },
   { href: "/sales/settings", label: "Settings", inSidebar: false },

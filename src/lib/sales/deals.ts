@@ -195,6 +195,11 @@ export interface NewInteraction {
   external_id?: string | null;
   capture_id?: number | null;
   extracted?: unknown;
+  /** sent from a move: which one, what kind ("follow_up:2"), whether an AI draft existed and whether you changed it */
+  move_id?: number | null;
+  move_kind?: string | null;
+  drafted?: boolean | null;
+  edited?: boolean | null;
 }
 
 /** Logs one touch, keeps the deal's last-touch clocks right, and moves the deal along the state machine. */
@@ -202,11 +207,13 @@ export async function logInteraction(i: NewInteraction): Promise<{ id: number; m
   let companyId = i.company_id ?? null;
   if (!companyId && i.deal_id) companyId = (await one<{ company_id: number | null }>("select company_id from sales_deals where id = $1", [i.deal_id]))?.company_id ?? null;
   const row = await one<{ id: number }>(
-    `insert into sales_interactions (deal_id, person_id, company_id, channel, direction, occurred_at, subject, body, summary, source, confidence, external_id, capture_id, extracted)
-     values ($1,$2,$3,$4,$5,coalesce($6::timestamptz, now()),$7,$8,$9,$10,$11,$12,$13,$14)
+    `insert into sales_interactions (deal_id, person_id, company_id, channel, direction, occurred_at, subject, body, summary, source, confidence, external_id, capture_id, extracted,
+                                     move_id, move_kind, drafted, edited)
+     values ($1,$2,$3,$4,$5,coalesce($6::timestamptz, now()),$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      on conflict (external_id) do nothing returning id`,
     [i.deal_id ?? null, i.person_id ?? null, companyId, i.channel, i.direction, i.occurred_at ?? null, i.subject ?? null, i.body ?? null,
-      i.summary ?? null, i.source, i.confidence ?? "sure", i.external_id ?? null, i.capture_id ?? null, i.extracted ? JSON.stringify(i.extracted) : null],
+      i.summary ?? null, i.source, i.confidence ?? "sure", i.external_id ?? null, i.capture_id ?? null, i.extracted ? JSON.stringify(i.extracted) : null,
+      i.move_id ?? null, i.move_kind ?? null, i.drafted ?? null, i.edited ?? null],
   );
   if (!row) return null; // already logged (same external id)
   let moved: Stage | null = null;

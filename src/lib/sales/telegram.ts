@@ -10,7 +10,8 @@ import { one, q, UserError } from "../db";
 import type { Ctx } from "../settings";
 import { downloadFile, editMessage, esc, sendMessage, type Button, type InlineMarkup } from "../telegram/api";
 import { completeMove, openUrlFor, sendMoveEmail } from "./act";
-import { focusFor, salesConfig } from "./config";
+import { salesConfig } from "./config";
+import { currentFocus } from "./focus";
 import { iso } from "./context";
 import { deleteDeal } from "./deals";
 import { googleConfigured } from "./google";
@@ -236,7 +237,7 @@ export async function salesMenu(ctx: Ctx, chat: number): Promise<void> {
   const cfg = await salesConfig();
   const moves = await listMoves({ horizonHours: 0, limit: 500 });
   const radar = await one<{ n: number }>("select count(*)::int as n from sales_radar_items where status = 'qualified' and deal_id is null and found_at > now() - interval '3 days'");
-  const focus = focusFor(cfg, ctx.now);
+  const focus = await currentFocus(cfg, ctx.now);
   await sendMessage(chat, `💼 <b>Sales</b>\n${moves.length} moves due now · ${radar?.n ?? 0} fresh radar leads\nThis week: ${esc(focus.country)} · today: ${esc(focus.industry)}\n\nSend me anything: a forwarded chat, a screenshot, a WhatsApp export, or a voice note after a meeting.`, {
     inline_keyboard: [
       [{ text: "⚡ Moves", callback_data: "zs:m" }, { text: "🎯 Radar", callback_data: "zs:rr" }],

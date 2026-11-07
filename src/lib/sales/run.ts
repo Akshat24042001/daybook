@@ -7,7 +7,8 @@ import { buildCtx, getSettings } from "../settings";
 import { calendarDate, isoDow, zonedParts } from "../time";
 import { esc, sendMessage } from "../telegram/api";
 import { inQuietHours } from "../telegram/notify";
-import { focusFor, salesConfig, salesRow } from "./config";
+import { salesConfig, salesRow } from "./config";
+import { currentFocus } from "./focus";
 import { dealContext } from "./context";
 import { auditCompany } from "./enrich";
 import { processCapture } from "./ingest";
@@ -19,7 +20,7 @@ import { ownerChat, push } from "./notify";
 import { reportHunt, runHunt, scheduleHunts } from "./hunts";
 import { personStage, researchRadarItem, searchStage, siteStage, startResearch, synthStage } from "./research";
 import { dailyDigest, hunt, qualifyPending, runRadar } from "./radar";
-import { weeklyReview, reviewMessage } from "./review";
+import { weeklyReview, reviewMessage, reviewInsights } from "./review";
 import { movesMessage, processAndReport, report } from "./telegram";
 
 export const HANDLERS: Record<string, Handler> = {
@@ -146,7 +147,7 @@ async function morningBrief(): Promise<void> {
     const top = await q<{ id: number }>("select id from sales_moves where status = 'open' and draft is null and due_at <= now() + interval '12 hours' order by score desc limit 5");
     for (const m of top) await enqueue("draft_move", { id: m.id }, { dedupeKey: `draft_move:${m.id}` });
   }
-  const focus = focusFor(cfg, new Date());
+  const focus = await currentFocus(cfg);
   const stats = await one<{ replies: number; due: number; meetings: number; cash: number | null; hot: number }>(
     `select (select count(*)::int from sales_moves where status = 'open' and kind = 'reply') as replies,
             (select count(*)::int from sales_moves where status = 'open' and due_at <= now() + interval '12 hours') as due,
@@ -199,7 +200,8 @@ export async function runSalesTick(now: Date = new Date()): Promise<string> {
   if (!quiet && dow === cfg.review_dow && local.h >= cfg.review_hour && row.last_review_on !== today) {
     await q("update sales_settings set last_review_on = $1 where id = 1", [today]);
     const r = await weeklyReview();
-    await push(reviewMessage(r), { inline_keyboard: [[{ text: "Open review", url: `${baseUrl()}/sales/review` }]] });
+    const extra = await reviewInsights().catch(() => "");
+    await push(reviewMessage(r) + extra, { inline_keyboard: [[{ text: "Open review", url: `${baseUrl()}/sales/review` }, { text: "Insights", url: `${baseUrl()}/sales/insights` }]] });
   }
 
   const left = 52_000 - (Date.now() - started);

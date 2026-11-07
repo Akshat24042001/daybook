@@ -6,6 +6,8 @@
 import { q } from "../db";
 import { getSettings } from "../settings";
 import { focusFor, salesConfig } from "./config";
+import { currentFocus, focusOutlook, periodKeys, type FocusPick } from "./focus";
+import type { Weighted } from "./focus-calc";
 import { googleConfigured } from "./google";
 import { listHunts, type HuntView } from "./hunts";
 import { describeSource, type SourceRow } from "./radar";
@@ -18,7 +20,9 @@ export interface PlanSource {
 export interface Platform { name: string; role: string; on: boolean; hint?: string }
 export interface RadarPlan {
   now: { country: string; industry: string };
-  rotation: { date: string; country: string; industry: string; today: boolean }[];
+  /** a value that is not decided yet is the likeliest one, marked so the screen can say "decided on the day" */
+  rotation: { date: string; country: string; industry: string; today: boolean; countryDecided: boolean; industryDecided: boolean }[];
+  targeting: { mode: "adaptive" | "rotate"; explorePct: number; why: { country: FocusPick; industry: FocusPick }; countries: Weighted[]; industries: Weighted[] };
   platforms: Platform[];
   searches: { used24h: number; paid24h: number; cap: number; byProvider: { provider: string; n: number }[]; month: number };
   rhythm: { sweepEveryMin: number; digestHour: number; dailyMin: number; alertScore: number; minScore: number; countries: string[]; industries: string[] };
@@ -31,9 +35,22 @@ export interface RadarPlan {
 export async function radarPlan(): Promise<RadarPlan> {
   const [cfg, settings] = await Promise.all([salesConfig(), getSettings()]);
   const now = new Date();
+  const focusNow = await currentFocus(cfg, now);
+  const adaptive = cfg.radar.targeting !== "rotate";
+  const outlook = await focusOutlook(cfg);
+  // what an undecided period will most likely get: the leader by results, else the even rotation
+  const likely = (rows: Weighted[], fallback: string) => (rows[0] && rows[0].points > 0 ? rows[0].value : fallback);
   const rotation = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(now.getTime() + i * 86_400_000);
-    return { date: d.toISOString().slice(0, 10), ...focusFor(cfg, d), today: i === 0 };
+    const sameWeek = periodKeys(d).country === periodKeys(now).country;
+    const even = focusFor(cfg, d);
+    return {
+      date: d.toISOString().slice(0, 10), today: i === 0,
+      country: sameWeek ? focusNow.country : adaptive ? likely(outlook.countries, even.country) : even.country,
+      industry: i === 0 ? focusNow.industry : adaptive ? likely(outlook.industries, even.industry) : even.industry,
+      countryDecided: sameWeek || !adaptive,
+      industryDecided: i === 0 || !adaptive,
+    };
   });
   const has = (k: string) => !!process.env[k]?.trim();
   const providers = searchConfigured();
@@ -61,13 +78,13 @@ export async function radarPlan(): Promise<RadarPlan> {
     ),
     q<RadarPlan["recent"][number]>("select at, provider, query, hits, label, error from sales_search_log order by id desc limit 60"),
   ]);
-  const focus = focusFor(cfg, now);
   const gm = platforms.find((p) => p.name === "Gmail alerts");
   if (gm) gm.on = gmail;
   const interval = (s: SourceRow) => s.interval_hours * 3_600_000;
   return {
-    now: focus,
+    now: { country: focusNow.country, industry: focusNow.industry },
     rotation,
+    targeting: { mode: adaptive ? "adaptive" : "rotate", explorePct: cfg.radar.explore_pct, why: focusNow.why, countries: outlook.countries, industries: outlook.industries },
     platforms,
     searches: {
       used24h: usage.reduce((a, u) => a + u.n, 0),
@@ -81,7 +98,7 @@ export async function radarPlan(): Promise<RadarPlan> {
       countries: cfg.countries, industries: cfg.industries,
     },
     sources: sources.map((s) => ({
-      id: s.id, name: s.name, kind: s.kind, category: s.category, enabled: s.enabled, interval_hours: s.interval_hours, target: describeSource(s, focus),
+      id: s.id, name: s.name, kind: s.kind, category: s.category, enabled: s.enabled, interval_hours: s.interval_hours, target: describeSource(s, { country: focusNow.country, industry: focusNow.industry }),
       last_run_at: s.last_run_at, last_error: s.last_error, items_found: s.items_found, items_qualified: s.items_qualified,
       next_run_at: s.enabled && s.kind !== "email" ? new Date(s.last_run_at ? new Date(s.last_run_at).getTime() + interval(s) : Date.now()).toISOString() : null,
     })),
