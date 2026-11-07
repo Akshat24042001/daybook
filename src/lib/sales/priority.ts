@@ -10,6 +10,7 @@
  *   comeback   +15    they (or their company) came back after 60+ days of silence: back to the top
  * Parked and lost deals stay low unless the person or company shows signs of life again.
  */
+import { money } from "@/components/sales/format";
 import { q } from "../db";
 
 export interface PriorityRow {
@@ -18,6 +19,9 @@ export interface PriorityRow {
   role: string | null;
   probability: number;
   value_usd: number | null;
+  /** the deal value in its own currency, for the reason text */
+  value_amount?: number | null;
+  currency?: string | null;
   company: string | null;
   last_in: string | null;
   company_last_in: string | null;
@@ -66,7 +70,7 @@ export function scoreDeal(r: PriorityRow, now = Date.now()): { score: number; wh
     parts.push({ pts, why: `Meeting ${new Date(r.meeting_soon).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}` });
   }
   const v = r.value_usd ? Math.min(15, Math.log10(Number(r.value_usd) + 1) * 3.4) : 4;
-  parts.push({ pts: v, why: r.value_usd ? `$${Math.round(Number(r.value_usd)).toLocaleString("en-US")} deal` : "Value unknown" });
+  parts.push({ pts: v, why: r.value_usd ? `${r.value_amount ? money(Number(r.value_amount), r.currency ?? "INR") : money(Number(r.value_usd), "USD")} deal` : "Value unknown" });
   if (r.category === "open" || r.role === "won") parts.push({ pts: Math.min(15, r.probability * 0.17), why: "" });
   const urgent = Math.min(10, r.overdue_moves * 3 + r.promises_due * 4);
   if (urgent) parts.push({ pts: urgent, why: [r.overdue_moves ? `${r.overdue_moves} overdue move${r.overdue_moves > 1 ? "s" : ""}` : "", r.promises_due ? "Your promise is due" : ""].filter(Boolean).join(", ") });
@@ -93,7 +97,7 @@ const ROWS_SQL = `
   with inbound as (
     select i.deal_id, i.company_id, i.occurred_at from sales_interactions i where i.direction in ('in','both')
   )
-  select d.id, s.category, s.role, s.probability, d.value_usd, c.name as company, d.priority, d.priority_on,
+  select d.id, s.category, s.role, s.probability, d.value_usd, d.value_amount, d.currency, c.name as company, d.priority, d.priority_on,
     (select max(occurred_at) from inbound x where x.deal_id = d.id) as last_in,
     (select max(occurred_at) from inbound x where d.company_id is not null and x.company_id = d.company_id) as company_last_in,
     (select max(occurred_at) from inbound x where d.company_id is not null and x.company_id = d.company_id and x.deal_id is distinct from d.id) as company_other_in,

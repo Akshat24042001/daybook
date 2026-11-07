@@ -1,5 +1,5 @@
 /** Sales settings: one row, a JSON config merged over these defaults so new options appear without a migration. */
-import { one, q } from "../db";
+import { one, q, UserError } from "../db";
 import { offerLines } from "./offers";
 
 export type Autonomy = "suggest" | "draft" | "auto";
@@ -53,7 +53,10 @@ export interface SalesConfig {
   };
   /** what you are aiming for; 0 means not set */
   targets: {
-    monthly_revenue_usd: number;
+    /** won deal value per month, in your report currency; 0 means not set */
+    monthly_revenue: number;
+    /** @deprecated the old USD target; read once and converted into monthly_revenue */
+    monthly_revenue_usd?: number;
     weekly_conversations: number;
     daily_outreach: number;
   };
@@ -74,7 +77,10 @@ export interface SalesConfig {
   };
   /** value of 1 unit in USD */
   fx: Record<string, number>;
+  /** the currency new deals, quotes and packages start in */
   default_currency: string;
+  /** the currency targets, Insights, Stats, the review and Telegram summaries are shown in */
+  report_currency: string;
   /** what to do with email threads from unknown senders: ask in the digest, create a lead, or ignore */
   unknown_email: "ask" | "auto" | "off";
 }
@@ -116,7 +122,7 @@ export const DEFAULT_CONFIG: SalesConfig = {
   reply_within_hours: 3,
   ghost_revisit_days: 60,
   radar: { min_score: 60, daily_min: 1, digest_hour: 9, alert_score: 85, search_daily_cap: 25, enrich_queries: 5, auto_research_score: 70, targeting: "adaptive", explore_pct: 20 },
-  targets: { monthly_revenue_usd: 0, weekly_conversations: 15, daily_outreach: 5 },
+  targets: { monthly_revenue: 0, weekly_conversations: 15, daily_outreach: 5 },
   post_sale: { checkin_days: [30, 90], upsell_after_days: 45, retainer: true },
   brief_hour: 9,
   review_dow: 7,
@@ -133,7 +139,8 @@ export const DEFAULT_CONFIG: SalesConfig = {
   },
   escalation: { enabled: true, max_per_day: 2, on: ["quote_accepted", "hot_inbound", "proposal_hot"] },
   fx: { USD: 1, INR: 0.012, AED: 0.2723, GBP: 1.27, EUR: 1.08, CAD: 0.73, AUD: 0.66, SGD: 0.74, SAR: 0.2666, CNY: 0.14 },
-  default_currency: "USD",
+  default_currency: "INR",
+  report_currency: "INR",
   unknown_email: "ask",
 };
 
@@ -173,6 +180,11 @@ export async function salesConfig(): Promise<SalesConfig> {
   // the offer catalogue (Sales > Playbook) is the source of truth once it has anything in it
   const lines = await offerLines();
   if (lines.length) cfg.offers = lines;
+  // an old USD target becomes a target in your report currency
+  if (!cfg.targets.monthly_revenue && cfg.targets.monthly_revenue_usd) {
+    const rate = cfg.fx[cfg.report_currency] ?? 1;
+    cfg.targets.monthly_revenue = Math.round(cfg.targets.monthly_revenue_usd / rate);
+  }
   return cfg;
 }
 
@@ -181,6 +193,11 @@ export async function updateSalesConfig(patch: Partial<SalesConfig>): Promise<Sa
   const row = await salesRow();
   const current = merge(DEFAULT_CONFIG, row.config ?? {});
   const next = merge(current, patch);
+  for (const k of ["default_currency", "report_currency"] as const) {
+    const v = String(next[k] ?? "").trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(v)) throw new UserError("A currency is a three-letter code, like INR or USD.");
+    next[k] = v;
+  }
   await q("update sales_settings set config = $1, updated_at = now() where id = 1", [JSON.stringify(next)]);
   return next;
 }
@@ -205,4 +222,11 @@ export function focusFor(cfg: SalesConfig, now: Date): { country: string; indust
   const industries = cfg.industries.length ? cfg.industries : DEFAULT_CONFIG.industries;
   const dayOfYear = Math.floor((now.getTime() - Date.UTC(now.getUTCFullYear(), 0, 1)) / 86_400_000);
   return { country: countries[isoWeek(now) % countries.length], industry: industries[dayOfYear % industries.length] };
+}
+
+/** The report currency and the conversion from the internal USD unit, for screens and messages. */
+export function reportMoney(cfg: SalesConfig): { cur: string; fromUsd: (usd: number) => number; toUsd: (amount: number) => number } {
+  const cur = (cfg.report_currency || "INR").toUpperCase();
+  const rate = cfg.fx[cur] && cfg.fx[cur] > 0 ? cfg.fx[cur] : 1;
+  return { cur, fromUsd: (usd) => usd / rate, toUsd: (amount) => amount * rate };
 }

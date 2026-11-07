@@ -9,7 +9,23 @@ export function ago(d: string | Date | null | undefined): string {
   return txt === "now" ? "now" : future ? `in ${txt}` : `${txt} ago`;
 }
 
-export function money(n: number | null | undefined, cur = "USD"): string {
+/** The currencies you can pick for a deal, a quote, a package or your reports. INR first: it is the default. */
+export const CURRENCIES = ["INR", "USD", "AED", "GBP", "EUR", "CAD", "AUD", "SGD", "SAR", "CNY"];
+
+/**
+ * Amounts are added up in USD internally (each deal keeps its own currency; value_usd is the common unit), and shown in
+ * your report currency. fx is "1 unit of currency = x USD" (Sales settings > Currency rates).
+ */
+export function fromUsd(usd: number, cur: string, fx: Record<string, number>): number {
+  const rate = fx[(cur || "USD").toUpperCase()];
+  return rate && rate > 0 ? usd / rate : usd;
+}
+export function toUsd(amount: number, cur: string, fx: Record<string, number>): number {
+  const rate = fx[(cur || "USD").toUpperCase()];
+  return rate && rate > 0 ? amount * rate : amount;
+}
+
+export function money(n: number | null | undefined, cur = "INR"): string {
   if (n === null || n === undefined || !Number.isFinite(Number(n))) return "";
   const v = Number(n);
   const sym: Record<string, string> = { USD: "$", INR: "₹", GBP: "£", EUR: "€", AED: "AED ", CAD: "CA$", AUD: "A$", SGD: "S$", SAR: "SAR " };

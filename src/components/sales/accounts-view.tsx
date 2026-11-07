@@ -74,7 +74,7 @@ export function AccountsView({ companies, people, companyFields, personFields, c
                   <td className="p-2 text-xs">{c.industry}</td>
                   <td className="p-2 text-xs">{c.country}</td>
                   <td className="p-2 text-right text-xs tabular">{c.employees ?? ""}</td>
-                  <td className="p-2 text-right text-xs tabular">{c.revenue_usd ? `${money(c.revenue_usd)}${c.revenue_is_estimate ? " est." : ""}` : ""}</td>
+                  <td className="p-2 text-right text-xs tabular">{c.revenue_usd ? `${money(c.revenue_usd, "USD")}${c.revenue_is_estimate ? " est." : ""}` : ""}</td>
                   <td className="p-2 text-xs">{c.deals.map((d) => d.stage).join(", ")}</td>
                 </tr>
               ))}

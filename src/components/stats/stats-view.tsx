@@ -12,6 +12,7 @@ import { HUE, type Hue } from "@/lib/hue";
 import { cn } from "@/lib/cn";
 import type { DiarySummaryView } from "@/lib/services/diary";
 import type { SalesDay } from "@/lib/sales/activity";
+import { money } from "@/components/sales/format";
 import type { Stats, TimelineDay } from "@/lib/services/stats";
 import { fmtDay, fmtDuration, fmtRange, type DateStr } from "@/lib/time";
 import { ratingTone } from "@/lib/rating-tone";
@@ -276,8 +277,9 @@ type Panel =
   | "completion" | "mustdo" | "logged" | "planstreak" | "mustdostreak"
   | "rotting" | "estimates" | "cadence" | "progress" | "attention" | "insights" | "timeline";
 
-function SalesTiles({ sales }: { sales: { days: SalesDay[]; goal: number } }) {
-  const sum = (k: "outreach" | "replies" | "won_usd") => sales.days.reduce((a, x) => a + x[k], 0);
+function SalesTiles({ sales }: { sales: { days: SalesDay[]; goal: number; currency: string } }) {
+  const cash = (v: number) => money(Math.round(v), sales.currency);
+  const sum = (k: "outreach" | "replies" | "won") => sales.days.reduce((a, x) => a + x[k], 0);
   const n = Math.max(1, sales.days.length);
   const hitDays = sales.goal > 0 ? sales.days.filter((x) => x.outreach >= sales.goal).length : 0;
   const goInsights = () => window.location.assign("/sales/insights");
@@ -292,8 +294,8 @@ function SalesTiles({ sales }: { sales: { days: SalesDay[]; goal: number } }) {
         <Tile title="Replies received" value={String(sum("replies"))} sub="messages from leads and clients" onOpen={goInsights}>
           <TrendChart data={sales.days} y="replies" kind="bar" name="Replies" height={TILE_H} />
         </Tile>
-        <Tile title="Won" value={`$${Math.round(sum("won_usd")).toLocaleString("en-US")}`} sub="deal value that reached Won" onOpen={goInsights}>
-          <TrendChart data={sales.days} y="won_usd" kind="bar" name="Won" height={TILE_H} fmt={(v) => `$${Math.round(v).toLocaleString("en-US")}`} />
+        <Tile title="Won" value={cash(sum("won"))} sub="deal value that reached Won" onOpen={goInsights}>
+          <TrendChart data={sales.days} y="won" kind="bar" name="Won" height={TILE_H} fmt={cash} />
         </Tile>
       </div>
     </>
@@ -305,7 +307,7 @@ export function StatsView({
 }: {
   stats: Stats;
   /** daily sales activity and the outreach goal; null when Sales is not in use */
-  sales?: { days: SalesDay[]; goal: number } | null;
+  sales?: { days: SalesDay[]; goal: number; currency: string } | null;
   timeline: TimelineDay[];
   range: "7" | "30" | "90" | "custom";
   projects: { id: number; name: string }[];

@@ -7,11 +7,13 @@
  *   on-hold are still alive and left out of win rates.
  * - Win rate = won / closed. A rate on fewer than 5 closed deals is shown but marked thin, and never used as a fact.
  * - Funnel steps are cumulative: a deal that reached Proposal also counts as contacted, in conversation and met.
- * - Money is in USD at your Sales settings exchange rates.
+ * - Money is added up in USD (each deal's value_usd) and shown in your report currency (Sales settings), converted at
+ *   your Sales settings exchange rates.
  */
 import { one, q } from "../db";
 import { calendarDate, daysInMonth, parseDateStr, toDateStr } from "../time";
-import { salesConfig, type SalesConfig } from "./config";
+import { money } from "@/components/sales/format";
+import { reportMoney, salesConfig, type SalesConfig } from "./config";
 import { median, MIN_SAMPLE } from "./learning-calc";
 import { MESSAGE_CHANNELS, ownerTz } from "./learning";
 
@@ -24,7 +26,8 @@ interface DealFacts {
   appeared_at: string;
   closed_at: string | null;
   won_at: string | null;
-  value_usd: number | null;
+  /** in the report currency */
+  value: number | null;
   source: string;
   services: string[];
   country: string | null;
@@ -41,7 +44,8 @@ interface DealFacts {
  * Every deal with what it reached. level: 1 created, 2 contacted, 3 conversation, 4 meeting, 5 proposal, 6 won.
  */
 async function dealFacts(days: number): Promise<DealFacts[]> {
-  return q<DealFacts>(
+  const R = reportMoney(await salesConfig());
+  const rows = await q<Omit<DealFacts, "value"> & { value_usd: number | null }>(
     `with st as (select id, sort, category, role from sales_stages),
      sorts as (select
         (select sort from st where role = 'contacted') as contacted, (select sort from st where role = 'engaged') as engaged,
@@ -67,6 +71,7 @@ async function dealFacts(days: number): Promise<DealFacts[]> {
      where d.created_at > now() - ($1 || ' days')::interval`,
     [String(days)],
   );
+  return rows.map(({ value_usd, ...f }) => ({ ...f, value: value_usd === null ? null : R.fromUsd(Number(value_usd)) }));
 }
 
 const closedAs = (d: DealFacts): "won" | "lost" | null =>
@@ -92,15 +97,27 @@ export interface SegmentRow {
   closed: number;
   won: number;
   win_rate: number | null;
-  won_usd: number;
-  avg_won_usd: number | null;
+  won_value: number;
+  avg_won_value: number | null;
   median_days_to_close: number | null;
   thin: boolean;
 }
 
-export function sizeBand(v: number | null): string {
+/** Deal size bands in the report currency: lakhs for INR, thousands otherwise. */
+export function sizeBands(cur = "INR"): { label: string; max: number }[] {
+  const steps = cur.toUpperCase() === "INR" ? [100_000, 500_000, 2_000_000] : [1000, 5000, 20000];
+  const lbl = (n: number) => (cur.toUpperCase() === "INR" ? `${money(n / 100_000, "INR")}L` : `${money(n / 1000, cur.toUpperCase())}k`);
+  return [
+    { label: `Under ${lbl(steps[0])}`, max: steps[0] },
+    { label: `${lbl(steps[0])} to ${lbl(steps[1])}`, max: steps[1] },
+    { label: `${lbl(steps[1])} to ${lbl(steps[2])}`, max: steps[2] },
+    { label: `${lbl(steps[2])} and up`, max: Infinity },
+  ];
+}
+
+export function sizeBand(v: number | null, cur = "INR"): string {
   if (v === null || v === undefined) return "Value not set";
-  return v < 1000 ? "Under $1k" : v < 5000 ? "$1k to $5k" : v < 20000 ? "$5k to $20k" : "$20k and up";
+  return sizeBands(cur).find((b) => v < b.max)!.label;
 }
 
 export function segment(deals: DealFacts[], keysOf: (d: DealFacts) => string[]): SegmentRow[] {
@@ -109,17 +126,17 @@ export function segment(deals: DealFacts[], keysOf: (d: DealFacts) => string[]):
   return [...groups.entries()].map(([key, g]) => {
     const won = g.filter((d) => closedAs(d) === "won");
     const closed = g.filter((d) => closedAs(d) !== null);
-    const wonUsd = won.reduce((a, d) => a + Number(d.value_usd ?? 0), 0);
-    const valued = won.filter((d) => d.value_usd !== null);
+    const wonValue = won.reduce((a, d) => a + Number(d.value ?? 0), 0);
+    const valued = won.filter((d) => d.value !== null);
     const cycle = median(won.map((d) => (new Date(d.won_at ?? d.closed_at ?? d.created_at).getTime() - new Date(d.created_at).getTime()) / D));
     return {
       key, deals: g.length, closed: closed.length, won: won.length,
       win_rate: closed.length ? Math.round((won.length / closed.length) * 100) : null,
-      won_usd: Math.round(wonUsd), avg_won_usd: valued.length ? Math.round(valued.reduce((a, d) => a + Number(d.value_usd), 0) / valued.length) : null,
+      won_value: Math.round(wonValue), avg_won_value: valued.length ? Math.round(valued.reduce((a, d) => a + Number(d.value), 0) / valued.length) : null,
       median_days_to_close: cycle === null ? null : Math.round(cycle),
       thin: closed.length < MIN_SAMPLE,
     };
-  }).sort((a, b) => b.won_usd - a.won_usd || b.deals - a.deals);
+  }).sort((a, b) => b.won_value - a.won_value || b.deals - a.deals);
 }
 
 export interface QuoteStats {
@@ -156,8 +173,9 @@ export async function quoteStats(days: number): Promise<QuoteStats> {
   };
   const disc = rows.filter((r) => r.discount > 0);
   const nodisc = rows.filter((r) => !(r.discount > 0));
-  const usd = (r: (typeof rows)[number]) => (cfg.fx[(r.currency ?? "USD").toUpperCase()] ?? 1) * r.total;
-  const bands = ["Under $1k", "$1k to $5k", "$5k to $20k", "$20k and up"];
+  const R = reportMoney(cfg);
+  const inReport = (r: (typeof rows)[number]) => R.fromUsd((cfg.fx[(r.currency ?? "USD").toUpperCase()] ?? 1) * r.total);
+  const bands = sizeBands(R.cur).map((b) => b.label);
   const revBands: [string, (n: number) => boolean][] = [["First version", (n) => n <= 1], ["Revised once", (n) => n === 2], ["Revised 2+ times", (n) => n >= 3]];
   const acc = rows.filter((r) => r.accepted_at);
   const m = median(acc.map((r) => (new Date(r.accepted_at!).getTime() - new Date(r.sent_at).getTime()) / D));
@@ -178,7 +196,7 @@ export async function quoteStats(days: number): Promise<QuoteStats> {
     }).filter((b) => b.sent > 0),
     median_days_to_accept: m === null ? null : Math.round(m * 10) / 10,
     by_size: bands.map((label) => {
-      const g = rows.filter((r) => sizeBand(usd(r)) === label);
+      const g = rows.filter((r) => sizeBand(inReport(r), R.cur) === label);
       return { label, sent: g.length, accepted: g.filter((r) => outcome(r) === "accepted").length, rate: rate(g) };
     }).filter((b) => b.sent > 0),
   };
@@ -186,6 +204,8 @@ export async function quoteStats(days: number): Promise<QuoteStats> {
 
 export interface WinLoss {
   days: number;
+  /** the report currency every amount here is in */
+  currency: string;
   funnel: FunnelStep[];
   by_service: SegmentRow[];
   by_country: SegmentRow[];
@@ -207,13 +227,14 @@ function segmentFindings(name: string, rows: SegmentRow[], overall: number | nul
 }
 
 export async function winLoss(days = 180): Promise<WinLoss> {
+  const cur = reportMoney(await salesConfig()).cur;
   const deals = await dealFacts(days);
   const closed = deals.filter((d) => closedAs(d) !== null);
   const overall = closed.length >= MIN_SAMPLE ? Math.round((closed.filter((d) => closedAs(d) === "won").length / closed.length) * 100) : null;
   const by_service = segment(deals, (d) => (d.services?.length ? d.services : ["Service not set"]));
   const by_country = segment(deals, (d) => [d.country ?? "Country not set"]);
   const by_source = segment(deals, (d) => [d.source]);
-  const by_size = segment(deals, (d) => [sizeBand(d.value_usd === null ? null : Number(d.value_usd))]);
+  const by_size = segment(deals, (d) => [sizeBand(d.value, cur)]);
   const quotes = await quoteStats(days);
   const findings = [
     ...segmentFindings("Service", by_service, overall), ...segmentFindings("Country", by_country, overall),
@@ -225,7 +246,7 @@ export async function winLoss(days = 180): Promise<WinLoss> {
     if (wd.rate <= nd.rate) findings.push(`Discounts are not buying wins: quotes with a discount were accepted ${wd.rate}% of the time, without one ${nd.rate}%. Hold your price.`);
     else if (wd.rate - nd.rate >= 15) findings.push(`Discounted quotes close more (${wd.rate}% against ${nd.rate}%), at an average ${wd.avg_pct ?? 0}% off. Check that the extra wins pay for the margin.`);
   }
-  return { days, funnel: funnelOf(deals), by_service, by_country, by_source, by_size, quotes, findings };
+  return { days, currency: cur, funnel: funnelOf(deals), by_service, by_country, by_source, by_size, quotes, findings };
 }
 
 // ---------- 4. target, forecast and the activity it takes ----------
@@ -235,17 +256,19 @@ export interface Forecast {
   month: string;
   day: number;
   days_in_month: number;
-  target_usd: number;
-  won_usd: number;
+  /** the report currency every amount here is in */
+  currency: string;
+  target: number;
+  won: number;
   won_deals: number;
-  cash_usd: number;
-  expected_by_today_usd: number;
-  weighted_pipeline_usd: number;
-  likely_this_month_usd: number;
-  likely_deals: { id: number; title: string; stage: string; value_usd: number; probability: number }[];
-  projected_usd: number;
-  gap_usd: number;
-  rates: { avg_deal_usd: Rate; proposal_to_win: Rate; conversation_to_proposal: Rate; contacted_to_conversation: Rate; cycle_days: Rate };
+  cash: number;
+  expected_by_today: number;
+  weighted_pipeline: number;
+  likely_this_month: number;
+  likely_deals: { id: number; title: string; stage: string; value: number; probability: number }[];
+  projected: number;
+  gap: number;
+  rates: { avg_deal: Rate; proposal_to_win: Rate; conversation_to_proposal: Rate; contacted_to_conversation: Rate; cycle_days: Rate };
   need_this_month: { deals: number; proposals: number; conversations: number; outreach: number } | null;
   need_per_week: { deals: number; proposals: number; conversations: number; outreach: number } | null;
   verdict: string;
@@ -264,20 +287,22 @@ export function plan(target: number, gap: number, r: Forecast["rates"]): Pick<Fo
     const outreach = conversations / Math.max(0.01, r.contacted_to_conversation.value);
     return { deals: Math.ceil(deals), proposals: Math.ceil(proposals), conversations: Math.ceil(conversations), outreach: Math.ceil(outreach) };
   };
-  const monthDeals = gap > 0 ? gap / Math.max(1, r.avg_deal_usd.value) : 0;
+  const monthDeals = gap > 0 ? gap / Math.max(1, r.avg_deal.value) : 0;
   // the steady rhythm: a month's target in deals, spread over 4.33 weeks
-  return { need_this_month: chain(monthDeals), need_per_week: chain(target / Math.max(1, r.avg_deal_usd.value) / 4.33) };
+  return { need_this_month: chain(monthDeals), need_per_week: chain(target / Math.max(1, r.avg_deal.value) / 4.33) };
 }
 
 export async function forecast(now = new Date()): Promise<Forecast> {
   const cfg = await salesConfig();
+  const R = reportMoney(cfg);
+  const fmt = (n: number) => money(Math.round(n), R.cur);
   const tz = await ownerTz();
   const today = calendarDate(now, tz);
   const { y, m, d } = parseDateStr(today);
   const monthStart = toDateStr(y, m, 1);
   const dim = daysInMonth(y, m);
   const monthEnd = toDateStr(y, m, dim);
-  const target = Math.max(0, Number(cfg.targets.monthly_revenue_usd) || 0);
+  const target = Math.max(0, Math.round(Number(cfg.targets.monthly_revenue) || 0));
 
   const won = await q<{ id: number; value_usd: number | null }>(
     `select d.id, d.value_usd from sales_deals d join sales_stages s on s.id = d.stage_id
@@ -285,7 +310,7 @@ export async function forecast(now = new Date()): Promise<Forecast> {
        and (coalesce((select min(e.created_at) from sales_deal_events e join sales_stages st on st.id = e.to_stage where e.deal_id = d.id and st.category = 'won'), d.closed_at, d.updated_at) at time zone $3)::date between $1::date and $2::date`,
     [monthStart, monthEnd, tz],
   );
-  const wonUsd = won.reduce((a, r) => a + Number(r.value_usd ?? 0), 0);
+  const wonAmt = R.fromUsd(won.reduce((a, r) => a + Number(r.value_usd ?? 0), 0));
   const cash = await one<{ n: number }>(
     `select coalesce(sum(p.amount * coalesce((select (config->'fx'->>p.currency)::numeric from sales_settings), 1)), 0)::float as n
      from sales_payments p where p.status = 'paid' and p.paid_on between $1::date and $2::date`,
@@ -295,10 +320,10 @@ export async function forecast(now = new Date()): Promise<Forecast> {
     `select d.id, d.title, s.name as stage, s.role, d.value_usd, coalesce(d.probability, s.probability) as probability, d.expected_close
      from sales_deals d join sales_stages s on s.id = d.stage_id where s.category = 'open'`,
   );
-  const weighted = open.reduce((a, r) => a + Number(r.value_usd ?? 0) * (Number(r.probability ?? 0) / 100), 0);
+  const weighted = R.fromUsd(open.reduce((a, r) => a + Number(r.value_usd ?? 0) * (Number(r.probability ?? 0) / 100), 0));
   // likely to land this month: expected to close by month end, or already at proposal or negotiation
   const likely = open.filter((r) => r.value_usd && ((r.expected_close && String(r.expected_close).slice(0, 10) <= monthEnd) || r.role === "proposal" || r.role === "negotiation"));
-  const likelyUsd = likely.reduce((a, r) => a + Number(r.value_usd) * (Number(r.probability ?? 0) / 100), 0);
+  const likelyAmt = R.fromUsd(likely.reduce((a, r) => a + Number(r.value_usd) * (Number(r.probability ?? 0) / 100), 0));
 
   // conversion rates from the last 180 days
   const facts = await dealFacts(180);
@@ -308,35 +333,35 @@ export async function forecast(now = new Date()): Promise<Forecast> {
   // only conversations old enough to have had a fair chance of reaching a proposal (21 days)
   const reachedConversation = facts.filter((f) => f.level >= 3 && new Date(f.created_at).getTime() < now.getTime() - 21 * D);
   const contacted = facts.filter((f) => f.level >= 2 && new Date(f.created_at).getTime() < now.getTime() - 14 * D);
-  const valued = wonFacts.filter((f) => f.value_usd !== null);
-  const openValues = open.filter((r) => r.value_usd).map((r) => Number(r.value_usd));
+  const valued = wonFacts.filter((f) => f.value !== null);
+  const openValues = open.filter((r) => r.value_usd).map((r) => R.fromUsd(Number(r.value_usd)));
   const cycles = wonFacts.map((f) => (new Date(f.won_at ?? f.closed_at ?? f.created_at).getTime() - new Date(f.created_at).getTime()) / D);
   const avg = valued.length >= MIN_SAMPLE
-    ? { value: valued.reduce((a, f) => a + Number(f.value_usd), 0) / valued.length, n: valued.length, assumed: false }
-    : { value: median(openValues) ?? 2000, n: valued.length, assumed: true };
+    ? { value: valued.reduce((a, f) => a + Number(f.value), 0) / valued.length, n: valued.length, assumed: false }
+    : { value: median(openValues) ?? R.fromUsd(2000), n: valued.length, assumed: true };
   const rates: Forecast["rates"] = {
-    avg_deal_usd: { ...avg, value: Math.round(avg.value) },
+    avg_deal: { ...avg, value: Math.round(avg.value) },
     proposal_to_win: rate(wonFacts.length, reachedProposalClosed.length, 0.3),
     conversation_to_proposal: rate(reachedConversation.filter((f) => f.level >= 5).length, reachedConversation.length, 0.35),
     contacted_to_conversation: rate(contacted.filter((f) => f.level >= 3).length, contacted.length, 0.15),
     cycle_days: cycles.length >= MIN_SAMPLE ? { value: Math.round(median(cycles)!), n: cycles.length, assumed: false } : { value: 30, n: cycles.length, assumed: true },
   };
-  const projected = wonUsd + likelyUsd;
-  const gap = Math.max(0, target - wonUsd);
+  const projected = wonAmt + likelyAmt;
+  const gap = Math.max(0, target - wonAmt);
   const expectedByToday = target * (d / dim);
   const p = plan(target, gap, rates);
   let verdict: string;
   if (!target) verdict = "Set a monthly revenue target in Sales settings to see your pace and the activity it takes.";
-  else if (wonUsd >= target) verdict = `Target hit: $${Math.round(wonUsd).toLocaleString("en-US")} won against $${target.toLocaleString("en-US")}.`;
-  else if (projected >= target) verdict = `On track if the likely deals close: $${Math.round(projected).toLocaleString("en-US")} projected. Push the ${likely.length} likely deal${likely.length === 1 ? "" : "s"} over the line.`;
-  else verdict = `Behind: $${Math.round(wonUsd).toLocaleString("en-US")} won, $${Math.round(expectedByToday).toLocaleString("en-US")} expected by today, $${Math.round(projected).toLocaleString("en-US")} projected. A deal started now takes about ${rates.cycle_days.value} days to close, so the weekly rhythm below is what fixes next month.`;
+  else if (wonAmt >= target) verdict = `Target hit: ${fmt(wonAmt)} won against ${fmt(target)}.`;
+  else if (projected >= target) verdict = `On track if the likely deals close: ${fmt(projected)} projected. Push the ${likely.length} likely deal${likely.length === 1 ? "" : "s"} over the line.`;
+  else verdict = `Behind: ${fmt(wonAmt)} won, ${fmt(expectedByToday)} expected by today, ${fmt(projected)} projected. A deal started now takes about ${rates.cycle_days.value} days to close, so the weekly rhythm below is what fixes next month.`;
 
   return {
-    month: monthStart.slice(0, 7), day: d, days_in_month: dim, target_usd: target,
-    won_usd: Math.round(wonUsd), won_deals: won.length, cash_usd: Math.round(cash?.n ?? 0),
-    expected_by_today_usd: Math.round(expectedByToday), weighted_pipeline_usd: Math.round(weighted), likely_this_month_usd: Math.round(likelyUsd),
-    likely_deals: likely.map((r) => ({ id: r.id, title: r.title, stage: r.stage, value_usd: Math.round(Number(r.value_usd)), probability: Number(r.probability ?? 0) })).sort((a, b) => b.value_usd * b.probability - a.value_usd * a.probability),
-    projected_usd: Math.round(projected), gap_usd: Math.round(gap), rates, ...p, verdict,
+    month: monthStart.slice(0, 7), day: d, days_in_month: dim, currency: R.cur, target,
+    won: Math.round(wonAmt), won_deals: won.length, cash: Math.round(R.fromUsd(cash?.n ?? 0)),
+    expected_by_today: Math.round(expectedByToday), weighted_pipeline: Math.round(weighted), likely_this_month: Math.round(likelyAmt),
+    likely_deals: likely.map((r) => ({ id: r.id, title: r.title, stage: r.stage, value: Math.round(R.fromUsd(Number(r.value_usd))), probability: Number(r.probability ?? 0) })).sort((a, b) => b.value * b.probability - a.value * a.probability),
+    projected: Math.round(projected), gap: Math.round(gap), rates, ...p, verdict,
   };
 }
 

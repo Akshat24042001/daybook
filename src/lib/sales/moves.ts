@@ -5,6 +5,7 @@
  * moves whose reason went away (they replied, the quote was accepted, the promise was kept). Score ranks the list:
  * kind urgency + deal size + how overdue + how hot.
  */
+import { money } from "@/components/sales/format";
 import { one, q } from "../db";
 import { salesConfig, type SalesConfig } from "./config";
 import { dealContext } from "./context";
@@ -226,7 +227,7 @@ async function desiredGlobal(cfg: SalesConfig, now: number): Promise<Desired[]> 
   );
   for (const p of pays) {
     const due = t(`${String(p.due_on).slice(0, 10)}T04:30:00Z`);
-    out.push({ deal_id: p.deal_id, kind: "payment_due", title: `Collect ${p.currency} ${Number(p.amount).toLocaleString("en-IN")} from ${p.title} (${p.label})`, why: due < now - D ? `Overdue since ${String(p.due_on).slice(0, 10)}. Cash is not won until it is paid.` : "Due now.", channel: null, due_at: new Date(due), key: `pay:${p.id}`, value_usd: null, heat: p.heat });
+    out.push({ deal_id: p.deal_id, kind: "payment_due", title: `Collect ${money(Number(p.amount), p.currency)} from ${p.title} (${p.label})`, why: due < now - D ? `Overdue since ${String(p.due_on).slice(0, 10)}. Cash is not won until it is paid.` : "Due now.", channel: null, due_at: new Date(due), key: `pay:${p.id}`, value_usd: null, heat: p.heat });
   }
   // debrief: a meeting ended and nothing was captured after it
   const meets = await q<{ id: number; deal_id: number | null; title: string; ends_at: string }>(

@@ -42,7 +42,7 @@ export default async function PlaybookPage() {
         {[["offers", "Offers"], ["proof", "Proof"], ["objections", "Objections"], ["dnc", "Do not contact"]].map(([id, l]) => <a key={id} href={`#${id}`} className="hover:text-fg">{l}</a>)}
       </nav>
       <Section id="offers" title="Offers" hint="Your catalogue. Each offer can have packages with prices, so a quote starts in one tap from the deal page. Paused offers are never pitched.">
-        <OffersSection offers={offers} />
+        <OffersSection offers={offers} defaultCurrency={String(row.config?.default_currency ?? DEFAULT_CONFIG.default_currency)} />
       </Section>
       <Section id="proof" title="Proof" hint="Case studies from delivered work. A draft is written for every delivered or paid deal from its own record; nothing is used until you approve it. Approved proof that fits a lead can be cited in follow-ups, re-engages and upsells.">
         <ProofSection rows={proofs} waiting={waiting} />

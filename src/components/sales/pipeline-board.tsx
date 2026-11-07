@@ -130,7 +130,7 @@ function DraggableCard({ d, s, onMove, targets }: { d: DealCard; s: Stage | unde
   );
 }
 
-function Column({ s, count, total, state, children }: { s: Stage; count: number; total: number; state: "idle" | "allowed" | "blocked" | "home"; children: React.ReactNode }) {
+function Column({ s, count, total, cur, state, children }: { s: Stage; count: number; total: number; cur: string; state: "idle" | "allowed" | "blocked" | "home"; children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id: `stage-${s.id}`, disabled: state === "blocked" });
   return (
     <section
@@ -148,7 +148,7 @@ function Column({ s, count, total, state, children }: { s: Stage; count: number;
           {s.name}
           <span className="font-normal text-subtle">{count}</span>
         </h2>
-        <span className="text-xs tabular text-subtle">{total ? money(total) : ""}</span>
+        <span className="text-xs tabular text-subtle">{total ? money(Math.round(total), cur) : ""}</span>
       </header>
       {children}
     </section>
@@ -183,7 +183,8 @@ function RankedList({ deals, stages }: { deals: DealCard[]; stages: Stage[] }) {
   );
 }
 
-export function PipelineBoard({ stages, deals, transitions }: { stages: Stage[]; deals: DealCard[]; transitions: Transition[] }) {
+/** report: column totals are added up in USD and shown in your report currency (rate = 1 unit in USD). */
+export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR", rate: 0.012 } }: { stages: Stage[]; deals: DealCard[]; transitions: Transition[]; report?: { cur: string; rate: number } }) {
   const [items, setItems] = useState(deals);
   const [query, setQuery] = useState("");
   const [show, setShow] = useState<"open" | "won" | "parked" | "lost" | "all">("open");
@@ -288,10 +289,10 @@ export function PipelineBoard({ stages, deals, transitions }: { stages: Stage[];
             <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-4 md:mx-0 md:px-0">
               {cols.map((s) => {
                 const list = filtered.filter((d) => d.stage_id === s.id);
-                const total = list.reduce((sum, d) => sum + Number(d.value_usd ?? 0), 0);
+                const total = list.reduce((sum, d) => sum + Number(d.value_usd ?? 0), 0) / (report.rate > 0 ? report.rate : 1);
                 const state = !dragging ? "idle" : dragging.stage_id === s.id ? "home" : allowed?.has(s.id) ? "allowed" : "blocked";
                 return (
-                  <Column key={s.id} s={s} count={list.length} total={total} state={state}>
+                  <Column key={s.id} s={s} count={list.length} total={total} cur={report.cur} state={state}>
                     <ul className="min-h-16 space-y-2">
                       {list.map((d) => (
                         <DraggableCard

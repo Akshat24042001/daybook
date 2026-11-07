@@ -7,7 +7,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 
-export { ago, fmtDate, money } from "./format";
+export { ago, CURRENCIES, fmtDate, money } from "./format";
 
 const ICONS: Record<string, typeof Mail> = {
   whatsapp: MessageCircle, email: Mail, linkedin: Linkedin, call: Phone, meeting: CalendarDays, in_person: Handshake,

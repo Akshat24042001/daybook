@@ -19,7 +19,7 @@ import { CaptureBox } from "./capture-box";
 import { EnrichmentPanel } from "./enrichment-panel";
 import { MoveCard } from "./moves-view";
 import { StageMoveSheet, type PendingMove } from "./pipeline-board";
-import { ago, ChannelIcon, CHANNEL_LABEL, fmtDate, Label, money, Priority } from "./util";
+import { ago, ChannelIcon, CHANNEL_LABEL, CURRENCIES, fmtDate, Label, money, Priority } from "./util";
 
 export interface QuotePackage { offerId: number; index: number; offer: string; name: string; currency: string; total: number; items: number; timeline: string; fits: boolean }
 
@@ -233,7 +233,7 @@ export function DealView({ d }: { d: DealPageData }) {
                         <Chip className={cn(x.status === "accepted" && "bg-p-mint text-p-mint-fg", x.status === "viewed" && "bg-p-sky text-p-sky-fg", x.status === "changes" && "bg-p-butter text-p-butter-fg")}>{x.status}</Chip>
                       </div>
                       <p className="mt-0.5 text-xs text-subtle">
-                        {x.total ? `${money(x.total, x.currency ?? "USD")} · ` : ""}{x.view_count ? `opened ${x.view_count}x, last ${ago(x.last_viewed_at)}` : x.sent_at ? "not opened yet" : "draft"}
+                        {x.total ? `${money(x.total, x.currency ?? deal.currency)} · ` : ""}{x.view_count ? `opened ${x.view_count}x, last ${ago(x.last_viewed_at)}` : x.sent_at ? "not opened yet" : "draft"}
                       </p>
                       <div className="mt-1.5 flex items-center gap-1">
                         <code className="truncate rounded bg-muted px-1.5 py-0.5 text-xs">{url.replace(/^https?:\/\//, "")}</code>
@@ -307,7 +307,7 @@ export function DealView({ d }: { d: DealPageData }) {
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2"><Field label="Title"><Input value={f.title} onChange={set("title")} /></Field></div>
           <Field label="Value"><Input value={String(f.value_amount)} onChange={set("value_amount")} inputMode="decimal" /></Field>
-          <Field label="Currency"><Select value={f.currency} onChange={set("currency")}>{["USD", "INR", "AED", "GBP", "EUR", "CAD", "AUD", "SGD", "SAR", "CNY"].map((c) => <option key={c}>{c}</option>)}</Select></Field>
+          <Field label="Currency"><Select value={f.currency} onChange={set("currency")}>{[...new Set([...CURRENCIES, f.currency])].map((c) => <option key={c}>{c}</option>)}</Select></Field>
           <Field label="Win probability % (blank = stage default)"><Input value={String(f.probability)} onChange={set("probability")} inputMode="numeric" /></Field>
           <Field label="Expected close"><Input type="date" value={f.expected_close} onChange={set("expected_close")} /></Field>
           <Field label="Source">
@@ -552,7 +552,7 @@ function DocButtons({ dealId, companyId, packages }: { dealId: number; companyId
                   <span className="block truncate font-medium">{p.offer} · {p.name}</span>
                   <span className="block text-xs text-subtle">{p.items} line item{p.items === 1 ? "" : "s"}{p.timeline ? ` · ${p.timeline}` : ""}{p.fits ? " · matches this deal" : ""}</span>
                 </span>
-                <span className="shrink-0 tabular text-sm">{p.currency} {Math.round(p.total).toLocaleString("en-US")}</span>
+                <span className="shrink-0 tabular text-sm">{money(p.total, p.currency)}</span>
               </button>
             </li>
           ))}

@@ -16,6 +16,9 @@ const { setup, check } = require("./lib.cjs");
   await page.waitForTimeout(2000);
   const rows = await all("select o.label, count(*)::int as n from sales_objections o join sales_deal_objections x on x.objection_id = o.id group by o.label order by o.label");
   check("without AI, same wording groups together, nothing lost", JSON.stringify(rows) === JSON.stringify([{ label: "Need to check with my partner", n: 1 }, { label: "Too expensive", n: 2 }]), rows);
+  // the list refreshes after the server action: wait for it rather than a fixed delay
+  await ob.locator("li", { hasText: "Too expensive" }).getByText(/1 won · 1 lost · 0 open · 50% won/).waitFor({ timeout: 8000 }).catch(() => {});
+  await ob.getByText(/new objections? from your conversations/).waitFor({ state: "detached", timeout: 8000 }).catch(() => {});
   check("outcomes shown: 2 deals, 1 won, 1 lost, 50% won", (await ob.locator("li", { hasText: "Too expensive" }).getByText(/1 won · 1 lost · 0 open · 50% won/).count()) === 1);
   check("banner gone after grouping", (await ob.getByText(/new objections? from your conversations/).count()) === 0);
 
@@ -25,6 +28,7 @@ const { setup, check } = require("./lib.cjs");
   await page.waitForTimeout(1500);
   const a = await one("select answer, answer_source from sales_objections where label = 'Too expensive'");
   check("answer saved as yours", a.answer.startsWith("Fair.") && a.answer_source === "me", a);
+  await item.getByText("Your answer").waitFor({ timeout: 8000 }).catch(() => {});
   check("'Your answer' shown", (await item.getByText("Your answer").count()) === 1);
 
   await item.getByRole("button", { name: "Suggest" }).click();
@@ -51,7 +55,8 @@ const { setup, check } = require("./lib.cjs");
   await page.waitForTimeout(2500);
   const drafts = await all("select title, status, problem, solution, result, client from sales_proofs");
   check("drafts written from the deals' own fields, no invented result", drafts.length === Math.min(5, waiting) && drafts.every((d) => d.status === "draft" && d.result === null), drafts);
-  check("drafts show 'No result recorded yet'", (await pr.getByText("No result recorded yet.").count()) === drafts.length);
+  if (drafts.length) await pr.getByText("No result recorded yet.").nth(drafts.length - 1).waitFor({ timeout: 10000 }).catch(() => {});
+  check("drafts show 'No result recorded yet'", (await pr.getByText("No result recorded yet.").count()) === drafts.length, { shown: await pr.getByText("No result recorded yet.").count(), drafts: drafts.length });
 
   // approving without the problem and the solution is refused
   const firstCard = pr.locator("div.rounded-lg", { hasText: drafts[0].title }).first();

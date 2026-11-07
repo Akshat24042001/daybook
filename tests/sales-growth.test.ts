@@ -256,12 +256,12 @@ describe("funnel and win or loss by segment", () => {
   it("works out win rate, value and cycle per segment, and marks thin ones", () => {
     const base = { created_at: "2026-10-01T00:00:00Z", appeared_at: "2026-10-01T00:00:00Z", source: "radar", country: null, role: null, probability: null, expected_close: null, first_out: null, last_inbound_at: null };
     const deals = [
-      ...Array.from({ length: 4 }, (_, i) => ({ ...base, id: i, cat: "won", level: 6, services: ["AI agents"], value_usd: 1000 * (i + 1), won_at: "2026-10-11T00:00:00Z", closed_at: null })),
-      { ...base, id: 9, cat: "lost", level: 5, services: ["AI agents"], value_usd: null, won_at: null, closed_at: "2026-10-05T00:00:00Z" },
-      { ...base, id: 10, cat: "open", level: 3, services: [], value_usd: null, won_at: null, closed_at: null },
+      ...Array.from({ length: 4 }, (_, i) => ({ ...base, id: i, cat: "won", level: 6, services: ["AI agents"], value: 1000 * (i + 1), won_at: "2026-10-11T00:00:00Z", closed_at: null })),
+      { ...base, id: 9, cat: "lost", level: 5, services: ["AI agents"], value: null, won_at: null, closed_at: "2026-10-05T00:00:00Z" },
+      { ...base, id: 10, cat: "open", level: 3, services: [], value: null, won_at: null, closed_at: null },
     ];
     const rows = segment(deals as never, (d) => ((d as { services: string[] }).services.length ? (d as { services: string[] }).services : ["Service not set"]));
-    expect(rows[0]).toMatchObject({ key: "AI agents", deals: 5, closed: 5, won: 4, win_rate: 80, won_usd: 10000, avg_won_usd: 2500, median_days_to_close: 10, thin: false });
+    expect(rows[0]).toMatchObject({ key: "AI agents", deals: 5, closed: 5, won: 4, win_rate: 80, won_value: 10000, avg_won_value: 2500, median_days_to_close: 10, thin: false });
     expect(rows[1]).toMatchObject({ key: "Service not set", closed: 0, win_rate: null, thin: true });
   });
 
@@ -281,15 +281,15 @@ describe("funnel and win or loss by segment", () => {
 
 describe("target, forecast and the activity it takes", () => {
   it("says what is won, what is likely, the gap, and the work needed, marking assumed rates", async () => {
-    await updateSalesConfig({ targets: { monthly_revenue_usd: 10000, weekly_conversations: 15, daily_outreach: 5 } });
+    await updateSalesConfig({ report_currency: "USD", targets: { monthly_revenue: 10000, weekly_conversations: 15, daily_outreach: 5 } });
     const won = await createDeal({ title: "Won this month", value_amount: 4000, currency: "USD" });
     await setRole(won, "won");
     const prop = await createDeal({ title: "In proposal", value_amount: 5000, currency: "USD" });
     await setRole(prop, "proposal");
     const f = await forecast();
-    expect(f).toMatchObject({ target_usd: 10000, won_usd: 4000, won_deals: 1, likely_this_month_usd: 2500, projected_usd: 6500, gap_usd: 6000 });
+    expect(f).toMatchObject({ currency: "USD", target: 10000, won: 4000, won_deals: 1, likely_this_month: 2500, projected: 6500, gap: 6000 });
     expect(f.likely_deals.map((d) => d.title)).toEqual(["In proposal"]);
-    expect(f.rates.avg_deal_usd).toMatchObject({ value: 5000, assumed: true });
+    expect(f.rates.avg_deal).toMatchObject({ value: 5000, assumed: true });
     expect(f.rates.proposal_to_win.assumed).toBe(true);
     expect(f.need_this_month).toEqual({ deals: 2, proposals: 4, conversations: 12, outreach: 77 });
     expect(f.verdict).toMatch(/^Behind/);
@@ -664,7 +664,7 @@ describe("saving settings never copies the offer catalogue into settings", () =>
     await listOffers({ seedFrom: ["Websites"] });
     const [o] = await listOffers();
     await saveOffer({ id: o.id, name: "Websites", summary: "Sites that convert" });
-    await updateSalesConfig({ targets: { monthly_revenue_usd: 5000, weekly_conversations: 15, daily_outreach: 5 } });
+    await updateSalesConfig({ targets: { monthly_revenue: 5000, weekly_conversations: 15, daily_outreach: 5 } });
     const stored = (await one<{ config: { offers?: string[] } }>("select config from sales_settings where id = 1"))!.config;
     expect(stored.offers?.some((x) => x.includes("Sites that convert"))).not.toBe(true);
     expect((await salesConfig()).offers).toEqual(["Websites: Sites that convert"]);

@@ -155,7 +155,7 @@ Read the input (a chat, transcript, screenshot, email, note or web page) and ret
  "stage_detail": one line (reason if lost, why not now),
  "revisit_on": YYYY-MM-DD when they said to come back later, else null,
  "meeting_at": ISO start time of a meeting agreed in the future, else null,
- "value": {"amount": number, "currency": "USD|INR|AED|GBP|EUR|CAD|AUD|SGD"} if a price or budget number is stated, else null,
+ "value": {"amount": number, "currency": "INR|USD|AED|GBP|EUR|CAD|AUD|SGD"} if a price or budget number is stated, else null (amount as a plain number: 2 lakh is 200000; leave currency out unless it is named or shown, e.g. ₹, Rs, $, and ${cfg.default_currency} is assumed),
  "next_step": the single best next action for the owner, imperative, under 15 words,
  "referrer": {"name"} if someone referred this lead, else null,
  "intermediary": {"name","type":"agency|broker|consultant|partner"} if the deal runs through a middle person, else null
@@ -432,7 +432,7 @@ export async function applyExtraction(cap: CaptureRow, ext: Extraction, a: Apply
       if (ext.services?.length && !d.services?.length) patch.services = ext.services.slice(0, 6);
       if (ext.value?.amount && !d.value_amount) {
         patch.value_amount = ext.value.amount;
-        patch.currency = (ext.value.currency ?? d.currency ?? "USD").toUpperCase();
+        patch.currency = (ext.value.currency ?? cfg.default_currency).toUpperCase();
       }
       if (ext.next_step) {
         patch.next_action = ext.next_step;
@@ -467,7 +467,7 @@ export async function applyExtraction(cap: CaptureRow, ext: Extraction, a: Apply
         );
       }
       if (ext.value?.amount && !d.value_usd) {
-        await q("update sales_deals set value_usd = $2 where id = $1 and value_usd is null", [dealId, toUsd(cfg, ext.value.amount, ext.value.currency ?? "USD")]);
+        await q("update sales_deals set value_usd = $2 where id = $1 and value_usd is null", [dealId, toUsd(cfg, ext.value.amount, ext.value.currency ?? cfg.default_currency)]);
       }
     }
     await enqueue("refresh_moves", { deal_id: dealId }, { dedupeKey: `refresh_moves:${dealId}` });

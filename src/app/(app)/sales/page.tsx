@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { one } from "@/lib/db";
 import { voiceConfigured } from "@/lib/deepgram";
-import { salesConfig } from "@/lib/sales/config";
+import { reportMoney, salesConfig } from "@/lib/sales/config";
 import { currentFocus } from "@/lib/sales/focus";
 import { googleConfigured } from "@/lib/sales/google";
 import { listMoves, refreshMoves } from "@/lib/sales/moves";
@@ -28,10 +28,12 @@ export default async function SalesPage() {
        (select count(*)::int from sales_deals d join sales_stages s on s.id = d.stage_id where s.category = 'open') as deals`,
   );
   const focus = await currentFocus(cfg);
+  const R = reportMoney(cfg);
+  const cash = (usd: number | null | undefined) => money(Math.round(R.fromUsd(Number(usd ?? 0))), R.cur);
   const tiles = [
-    { label: "Open pipeline", value: money(k?.open_usd ?? 0), sub: `${k?.deals ?? 0} deals` },
-    { label: "Weighted", value: money(k?.weighted ?? 0), sub: "by stage probability" },
-    { label: "Won, not paid", value: money(k?.won_unpaid ?? 0), sub: "cash to collect" },
+    { label: "Open pipeline", value: cash(k?.open_usd), sub: `${k?.deals ?? 0} deals` },
+    { label: "Weighted", value: cash(k?.weighted), sub: "by stage probability" },
+    { label: "Won, not paid", value: cash(k?.won_unpaid), sub: "cash to collect" },
     { label: "Replies waiting", value: String(k?.replies ?? 0), sub: `${k?.meetings ?? 0} meetings in 24h` },
     { label: "Fresh radar leads", value: String(k?.radar ?? 0), sub: `${focus.country} · ${focus.industry}` },
   ];
@@ -42,7 +44,7 @@ export default async function SalesPage() {
           <h1 className="font-display text-2xl sm:text-3xl leading-tight">Moves</h1>
           <p className="text-sm text-subtle">Everything that needs you, ranked. Draft in your voice, send in one tap, it logs itself.</p>
         </div>
-        <NewDealButton />
+        <NewDealButton defaultCurrency={cfg.default_currency} />
       </div>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
         {tiles.map((t) => (

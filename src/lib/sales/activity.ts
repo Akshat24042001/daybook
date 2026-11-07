@@ -8,7 +8,7 @@
  */
 import { one, q } from "../db";
 import { addDays, calendarDate, type DateStr } from "../time";
-import { salesConfig } from "./config";
+import { reportMoney, salesConfig } from "./config";
 import { MESSAGE_CHANNELS, ownerTz } from "./learning";
 
 const OUTREACH_SQL = `
@@ -19,11 +19,13 @@ const OUTREACH_SQL = `
       and not exists (select 1 from sales_interactions k where k.deal_id = i.deal_id and k.direction = 'out' and k.occurred_at > j.occurred_at and k.occurred_at < i.occurred_at)
   )`;
 
-export type SalesDay = { date: DateStr; outreach: number; replies: number; won_usd: number };
+/** won: deal value that reached Won that day, in the report currency */
+export type SalesDay = { date: DateStr; outreach: number; replies: number; won: number };
 
 export async function salesDaily(from: DateStr, to: DateStr, tz?: string): Promise<SalesDay[]> {
   tz = tz ?? (await ownerTz());
   const params = [from, to, MESSAGE_CHANNELS, tz];
+  const R = reportMoney(await salesConfig());
   const [out, rep, won] = await Promise.all([
     q<{ d: string; n: number }>(
       `select to_char((i.occurred_at at time zone $4)::date, 'YYYY-MM-DD') as d, count(*)::int as n from sales_interactions i
@@ -45,7 +47,7 @@ export async function salesDaily(from: DateStr, to: DateStr, tz?: string): Promi
   ]);
   const days: SalesDay[] = [];
   for (let d = from; d <= to; d = addDays(d, 1)) {
-    days.push({ date: d, outreach: out.find((r) => r.d === d)?.n ?? 0, replies: rep.find((r) => r.d === d)?.n ?? 0, won_usd: Math.round(won.find((r) => r.d === d)?.n ?? 0) });
+    days.push({ date: d, outreach: out.find((r) => r.d === d)?.n ?? 0, replies: rep.find((r) => r.d === d)?.n ?? 0, won: R.fromUsd(won.find((r) => r.d === d)?.n ?? 0) });
   }
   return days;
 }

@@ -1,4 +1,4 @@
-const { setup, check } = require("./lib.cjs");
+const { setup, check, choose } = require("./lib.cjs");
 (async () => {
   const t = await setup();
   const { page, one, all, go } = t;
@@ -18,7 +18,8 @@ const { setup, check } = require("./lib.cjs");
   await offers.getByLabel(/One line on what it does/).fill("Answers every call, books appointments, 24/7");
   await offers.getByRole("button", { name: "Package", exact: true }).click();
   await offers.getByLabel("Package name", { exact: true }).fill("Starter");
-  await offers.getByLabel("Currency", { exact: true }).fill("aed");
+  check("a new package starts in INR", (await offers.getByLabel("Currency", { exact: true }).innerText()).includes("INR"));
+  await choose(page, offers.getByLabel("Currency", { exact: true }), /^AED$/);
   await offers.getByLabel("Timeline", { exact: true }).fill("2 weeks");
   await offers.getByLabel("Item", { exact: true }).first().fill("Setup");
   await offers.getByLabel("Quantity", { exact: true }).first().fill("1");
@@ -34,7 +35,7 @@ const { setup, check } = require("./lib.cjs");
   const o = await one("select * from sales_offers where name = 'Voice receptionist'");
   check("offer saved", !!o && o.summary === "Answers every call, books appointments, 24/7" && o.keywords.join("|") === "voice agents|call answering", o);
   const p = o?.packages?.[0];
-  check("package saved with items, currency upper-cased", p && p.currency === "AED" && p.items.length === 2 && p.items[0].unit_price === 3500 && p.items[1].qty === 3 && p.timeline === "2 weeks", p);
+  check("package saved with items, in the picked currency", p && p.currency === "AED" && p.items.length === 2 && p.items[0].unit_price === 3500 && p.items[1].qty === 3 && p.timeline === "2 weeks", p);
   await page.waitForTimeout(800);
   const rowText = await offers.locator("div.rounded-lg", { hasText: "Voice receptionist" }).first().innerText().catch(() => "");
   check("offer row shows its package and total", /Starter AED 5,000/.test(rowText), rowText);

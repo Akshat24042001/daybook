@@ -3,6 +3,7 @@
  * any URL (Loom, Drive, a case study). No password for the client; the link is unguessable. Every open is recorded
  * (when, where, which device, how long, which revision) and pushed to Telegram.
  */
+import { money } from "@/components/sales/format";
 import { one, q, UserError } from "../db";
 import { salesConfig } from "./config";
 import type { Package } from "./offers";
@@ -283,7 +284,7 @@ export async function acceptQuote(slug: string, name: string, seenRev?: number |
   const claimed = await one<{ id: number }>("update sales_docs set accepted_at = now(), accepted_by = $2, status = 'accepted' where id = $1 and accepted_at is null returning id", [doc.id, name.slice(0, 120)]);
   if (!claimed) return;
   if (!doc.deal_id || !rev) return;
-  await logInteraction({ deal_id: doc.deal_id, channel: "document", direction: "in", summary: `${name} accepted "${doc.title}" v${rev.rev} (${rev.currency} ${rev.total})`, source: "docs", external_id: `accept:${doc.id}` });
+  await logInteraction({ deal_id: doc.deal_id, channel: "document", direction: "in", summary: `${name} accepted "${doc.title}" v${rev.rev} (${money(Number(rev.total), rev.currency)})`, source: "docs", external_id: `accept:${doc.id}` });
   await q("update sales_deals set value_amount = $2, currency = $3 where id = $1", [doc.deal_id, rev.total, rev.currency]);
   const cfg = await salesConfig();
   await q("update sales_deals set value_usd = $2 where id = $1", [doc.deal_id, Math.round(rev.total * (cfg.fx[rev.currency] ?? 1))]);
@@ -299,10 +300,10 @@ export async function acceptQuote(slug: string, name: string, seenRev?: number |
     }
   }
   const deal = await getDeal(doc.deal_id);
-  await push(`🎉 <b>${esc(name)}</b> accepted <b>${esc(doc.title)}</b> v${rev.rev}: ${rev.currency} ${rev.total.toLocaleString("en-IN")}\nDeal is now ${esc(deal?.stage_name ?? "Won")}. Next: collect the advance.`, {
+  await push(`🎉 <b>${esc(name)}</b> accepted <b>${esc(doc.title)}</b> v${rev.rev}: ${money(Number(rev.total), rev.currency)}\nDeal is now ${esc(deal?.stage_name ?? "Won")}. Next: collect the advance.`, {
     inline_keyboard: [[{ text: "Open deal", url: `${baseUrl()}/sales/deal/${doc.deal_id}` }]],
   });
-  await escalate("quote_accepted", `accept:${doc.id}`, `${name} just accepted your proposal ${doc.title} for ${rev.currency} ${rev.total}.`);
+  await escalate("quote_accepted", `accept:${doc.id}`, `${name} just accepted your proposal ${doc.title} for ${money(Number(rev.total), rev.currency)}.`);
 }
 
 export async function requestChanges(slug: string, name: string, note: string): Promise<void> {

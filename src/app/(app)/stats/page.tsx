@@ -5,7 +5,7 @@ import { makeCtx } from "@/lib/settings";
 import { addDays, type DateStr } from "@/lib/time";
 import type { TaskType } from "@/lib/types";
 import { salesDaily } from "@/lib/sales/activity";
-import { salesConfig } from "@/lib/sales/config";
+import { reportMoney, salesConfig } from "@/lib/sales/config";
 import { computeStats, dayTimelines, type StatsFilters } from "@/lib/services/stats";
 import { summariesInRange, toSummaryView } from "@/lib/services/diary";
 
@@ -59,7 +59,8 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
   ]);
   // sales activity, only once Sales has any deals
   const hasSales = ((await q<{ n: number }>("select count(*)::int as n from sales_deals").catch(() => [{ n: 0 }]))[0]?.n ?? 0) > 0;
-  const sales = hasSales ? { days: await salesDaily(from, to, ctx.tz), goal: (await salesConfig()).targets.daily_outreach } : null;
+  const salesCfg = hasSales ? await salesConfig() : null;
+  const sales = salesCfg ? { days: await salesDaily(from, to, ctx.tz), goal: salesCfg.targets.daily_outreach, currency: reportMoney(salesCfg).cur } : null;
 
   return (
     <StatsView

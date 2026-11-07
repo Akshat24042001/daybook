@@ -9,12 +9,12 @@ import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import type { BlockKind, BlockRow } from "@/lib/sales/blocklist";
 import type { Offer, Package } from "@/lib/sales/offers";
+import { CURRENCIES, money } from "./format";
 
-const money = (n: number, c: string) => `${c} ${Math.round(n).toLocaleString("en-US")}`;
 const total = (p: Package) => p.items.reduce((a, i) => a + (Number(i.qty) || 0) * (Number(i.unit_price) || 0), 0);
-const emptyPkg = (currency = "USD"): Package => ({ name: "Standard", currency, items: [{ name: "", description: "", qty: 1, unit_price: 0 }], scope: "", timeline: "" });
+const emptyPkg = (currency = "INR"): Package => ({ name: "Standard", currency, items: [{ name: "", description: "", qty: 1, unit_price: 0 }], scope: "", timeline: "" });
 
-function OfferEditor({ offer, onDone }: { offer: Partial<Offer>; onDone: () => void }) {
+function OfferEditor({ offer, onDone, defaultCurrency }: { offer: Partial<Offer>; onDone: () => void; defaultCurrency: string }) {
   const [busy, start] = useTransition();
   const { toast } = useToast();
   const router = useRouter();
@@ -38,7 +38,7 @@ function OfferEditor({ offer, onDone }: { offer: Partial<Offer>; onDone: () => v
       <div>
         <div className="mb-2 flex items-center justify-between">
           <p className="text-[13px] font-medium">Packages <span className="font-normal text-subtle">· a quote can start from any of these</span></p>
-          <Button size="sm" variant="outline" onClick={() => setPkgs((a) => [...a, emptyPkg(a[0]?.currency)])}><Plus className="h-3.5 w-3.5" /> Package</Button>
+          <Button size="sm" variant="outline" onClick={() => setPkgs((a) => [...a, emptyPkg(a[0]?.currency ?? defaultCurrency)])}><Plus className="h-3.5 w-3.5" /> Package</Button>
         </div>
         {!pkgs.length ? <p className="text-[13px] text-subtle">No packages yet. Add one to quote this offer in one tap.</p> : null}
         <div className="space-y-3">
@@ -46,7 +46,7 @@ function OfferEditor({ offer, onDone }: { offer: Partial<Offer>; onDone: () => v
             <div key={i} className="rounded-lg border border-border p-3">
               <div className="grid gap-2 sm:grid-cols-[1fr_90px_1fr_auto]">
                 <Input value={p.name} onChange={(e) => setPkg(i, { name: e.target.value })} placeholder="Package name" aria-label="Package name" />
-                <Input value={p.currency} onChange={(e) => setPkg(i, { currency: e.target.value.toUpperCase().slice(0, 3) })} aria-label="Currency" />
+                <Select value={p.currency} onChange={(e) => setPkg(i, { currency: e.target.value })} aria-label="Currency">{[...new Set([...CURRENCIES, p.currency])].map((c) => <option key={c}>{c}</option>)}</Select>
                 <Input value={p.timeline} onChange={(e) => setPkg(i, { timeline: e.target.value })} placeholder="Timeline, e.g. 3 weeks" aria-label="Timeline" />
                 <Button size="icon" variant="ghost" aria-label="Remove package" onClick={() => setPkgs((a) => a.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
               </div>
@@ -85,7 +85,7 @@ function OfferEditor({ offer, onDone }: { offer: Partial<Offer>; onDone: () => v
   );
 }
 
-export function OffersSection({ offers }: { offers: Offer[] }) {
+export function OffersSection({ offers, defaultCurrency = "INR" }: { offers: Offer[]; defaultCurrency?: string }) {
   const [editing, setEditing] = useState<number | "new" | null>(null);
   const [open, setOpen] = useState<number | null>(null);
   const [busy, start] = useTransition();
@@ -93,7 +93,7 @@ export function OffersSection({ offers }: { offers: Offer[] }) {
   const router = useRouter();
   return (
     <div className="space-y-2">
-      {offers.map((o) => editing === o.id ? <OfferEditor key={o.id} offer={o} onDone={() => setEditing(null)} /> : (
+      {offers.map((o) => editing === o.id ? <OfferEditor key={o.id} offer={o} defaultCurrency={defaultCurrency} onDone={() => setEditing(null)} /> : (
         <div key={o.id} className={cn("rounded-lg border border-border bg-surface", !o.active && "opacity-60")}>
           <div className="flex items-start gap-3 px-4 py-3">
             <button type="button" className={cn("min-w-0 flex-1 text-left", !o.packages.length && "cursor-default")} disabled={!o.packages.length}
@@ -125,7 +125,7 @@ export function OffersSection({ offers }: { offers: Offer[] }) {
           ) : null}
         </div>
       ))}
-      {editing === "new" ? <OfferEditor offer={{}} onDone={() => setEditing(null)} /> : (
+      {editing === "new" ? <OfferEditor offer={{}} defaultCurrency={defaultCurrency} onDone={() => setEditing(null)} /> : (
         <Button variant="outline" onClick={() => setEditing("new")}><Plus className="h-4 w-4" /> Add an offer</Button>
       )}
     </div>

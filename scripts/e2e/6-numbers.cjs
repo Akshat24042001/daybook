@@ -1,12 +1,16 @@
 const { setup, check } = require("./lib.cjs");
-const usd = (n) => `$${Math.round(n).toLocaleString("en-US")}`;
+// amounts are summed in USD (value_usd) and shown in the report currency (INR by default)
+let rate = 0.012;
+const usd = (n) => `₹${Math.round(n / rate).toLocaleString("en-IN")}`;
+const inr = (n) => `₹${Math.round(n).toLocaleString("en-IN")}`;
 (async () => {
   const t = await setup();
   const { page, one, all, go } = t;
   console.log("Insights, Stats and Radar Plan numbers against independent SQL");
   const tz = "Asia/Kolkata";
   const cfg = (await one("select config from sales_settings")).config;
-  const target = cfg.targets?.monthly_revenue_usd ?? 0;
+  rate = cfg.fx?.[cfg.report_currency ?? "INR"] ?? 0.012;
+  const target = cfg.targets?.monthly_revenue ?? 0;
 
   // ---- target card
   const won = await one(`
@@ -23,7 +27,7 @@ const usd = (n) => `$${Math.round(n).toLocaleString("en-US")}`;
   await go("/sales/insights?days=90");
   const tc = await page.locator("section#target").innerText();
   check("target card: won this month matches SQL", tc.includes(usd(won.v)), { want: usd(won.v) });
-  check("target card: target shown", tc.includes(`target ${usd(target)}`), target);
+  check("target card: target shown", tc.includes(`target ${inr(target)}`), target);
   check("target card: projected = won + likely (weighted)", tc.includes(usd(won.v + likely.v)), { want: usd(won.v + likely.v) });
   check("target card: 'What it takes' table present", /Close the gap this month[\s\S]*Every week, steady/.test(tc));
   const bad = await page.locator("body").innerText();

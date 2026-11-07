@@ -43,7 +43,7 @@ describe("a brand-new account (no data at all)", () => {
   it("Insights, the forecast and speed give clean empty answers, never NaN", async () => {
     const [f, w, m, s] = await Promise.all([forecast(), winLoss(90), messagePerformance(90), speed(90)]);
     expect(clean(f) && clean(w) && clean(m) && clean(s)).toBe(true);
-    expect(f).toMatchObject({ won_usd: 0, projected_usd: 0, need_per_week: null });
+    expect(f).toMatchObject({ currency: "INR", won: 0, projected: 0, need_per_week: null });
     expect(w.funnel.every((x) => x.n === 0)).toBe(true);
     expect(m).toMatchObject({ sent: 0, rate: null, findings: [] });
     expect(s.first_touch).toMatchObject({ leads: 0, median_h: null });
@@ -55,8 +55,18 @@ describe("a brand-new account (no data at all)", () => {
 });
 
 describe("the Sunday summary with a target", () => {
-  it("states the month against target and the weekly rhythm", async () => {
-    await updateSalesConfig({ targets: { monthly_revenue_usd: 12000, weekly_conversations: 15, daily_outreach: 5 } });
+  it("states the month against target in rupees by default, with Indian digit grouping", async () => {
+    await updateSalesConfig({ targets: { monthly_revenue: 1_000_000, weekly_conversations: 15, daily_outreach: 5 } });
+    const d = await createDeal({ title: "Won", value_amount: 300_000 });
+    expect((await one<{ currency: string }>("select currency from sales_deals where id = $1", [d]))!.currency).toBe("INR");
+    const st = (await one<{ id: number }>("select id from sales_stages where role = 'won'"))!.id;
+    await q("update sales_deals set stage_id = $2 where id = $1", [d, st]);
+    await q("insert into sales_deal_events (deal_id, kind, to_stage) values ($1,'stage',$2)", [d, st]);
+    expect(await reviewInsights()).toContain("<b>This month</b>: ₹3,00,000 won of ₹10,00,000");
+  });
+
+  it("states the month against target and the weekly rhythm in another report currency", async () => {
+    await updateSalesConfig({ report_currency: "USD", targets: { monthly_revenue: 12000, weekly_conversations: 15, daily_outreach: 5 } });
     const d = await createDeal({ title: "Won", value_amount: 3000, currency: "USD" });
     const st = (await one<{ id: number }>("select id from sales_stages where role = 'won'"))!.id;
     await q("update sales_deals set stage_id = $2 where id = $1", [d, st]);

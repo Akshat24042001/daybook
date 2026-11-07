@@ -8,7 +8,7 @@ import { deleteDocAction, markDocSentAction, newRevisionAction, saveBriefAction,
 import { Button, Chip, Field, Input, Select, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import type { DocRow, PaymentStep, QuoteItem, RevisionRow } from "@/lib/sales/docs";
-import { ago, fmtDate, money } from "./util";
+import { ago, CURRENCIES, fmtDate, money } from "./util";
 
 export interface ViewRow { id: number; rev: number | null; viewed_at: string; country: string | null; city: string | null; device: string | null; seconds: number; visitor: string | null }
 
@@ -95,11 +95,11 @@ export function DocEditor({ doc, revs, views, url, dealTitle }: { doc: DocRow; r
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <Field label="Currency"><Select value={r.currency ?? "USD"} onChange={(e) => setR({ ...r, currency: e.target.value })}>{["USD", "INR", "AED", "GBP", "EUR", "CAD", "AUD", "SGD", "SAR"].map((c) => <option key={c}>{c}</option>)}</Select></Field>
+                <Field label="Currency"><Select value={r.currency ?? "INR"} onChange={(e) => setR({ ...r, currency: e.target.value })}>{[...new Set([...CURRENCIES, r.currency ?? "INR"])].map((c) => <option key={c}>{c}</option>)}</Select></Field>
                 <Field label="Discount"><Input value={String(r.discount ?? 0)} onChange={(e) => setR({ ...r, discount: Number(e.target.value) || 0 })} inputMode="decimal" /></Field>
                 <Field label="Tax %"><Input value={String(r.tax_pct ?? 0)} onChange={(e) => setR({ ...r, tax_pct: Number(e.target.value) || 0 })} inputMode="decimal" /></Field>
               </div>
-              <p className="text-right font-display text-xl tabular">Total {money(total, r.currency ?? "USD")}</p>
+              <p className="text-right font-display text-xl tabular">Total {money(total, r.currency ?? "INR")}</p>
               <Field label="Timeline"><Textarea value={r.timeline ?? ""} onChange={(e) => setR({ ...r, timeline: e.target.value })} className="min-h-[60px]" /></Field>
               <div>
                 <p className="mb-1 text-xs font-medium uppercase tracking-wide text-subtle">Payment plan (must add to 100%)</p>

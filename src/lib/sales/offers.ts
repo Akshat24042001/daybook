@@ -55,7 +55,7 @@ function cleanPackages(p: unknown): Package[] {
     const items = Array.isArray(k.items) ? k.items : [];
     return {
       name: String(k.name ?? "").trim().slice(0, 120) || "Package",
-      currency: String(k.currency ?? "USD").toUpperCase().slice(0, 3),
+      currency: String(k.currency || "INR").toUpperCase().slice(0, 3),
       items: items.slice(0, 30).map((it) => ({
         name: String(it?.name ?? "").trim().slice(0, 200), description: String(it?.description ?? "").slice(0, 1000),
         qty: Math.max(0, Number(it?.qty) || 1), unit_price: Math.max(0, Number(it?.unit_price) || 0),

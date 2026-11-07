@@ -247,6 +247,23 @@ Quotes show acceptance with and without a discount, by number of revisions and b
 for leads that came to you or the radar found (not deals you started), with conversation rates per speed band, and your
 reply time against your standard. The Sunday Telegram review adds the month against target and the strongest findings.
 
+## Currency
+
+INR is the default. Sales settings > Currency has two choices and the rates:
+
+- **Default currency** (INR): what a new deal, quote, offer package and payment starts in. Every one of them has its own
+  currency picker, so a USD or AED client is entered in USD or AED. An amount the AI picks out of a conversation without a
+  currency named (no $, ₹, Rs) is taken to be in the default currency.
+- **Report currency** (INR): what every total is shown in: the revenue target, Insights, Stats, pipeline column totals,
+  the Moves tiles, the weekly review and the Telegram summaries. Rupees use Indian grouping (₹12,50,000), and deal size
+  bands are in lakhs (under ₹1L, ₹1L to ₹5L, ₹5L to ₹20L, ₹20L and up).
+- **Rates**: the value of 1 unit in USD (INR=0.012). Each deal keeps the amount and currency it was agreed in; totals mix
+  currencies by converting through these rates, so update them when they drift.
+
+The revenue target is stored in the report currency. Switching the report currency converts the target at the rates
+(₹20,00,000 becomes $24,000 at 0.012). Migration 037 moved saved settings to INR and turned an old USD target into rupees.
+Deals and payments already recorded keep the currency they were entered in. A company's revenue from research stays in USD.
+
 ## Playbook
 
 - **Offers.** Your catalogue: each offer has a one-line description and optional packages (line items, scope, timeline,

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { money } from "@/components/sales/format";
 import { cn } from "@/lib/cn";
 import { forecast, speed, winLoss, type Forecast, type SegmentRow } from "@/lib/sales/insights";
 import { messagePerformance } from "@/lib/sales/learning";
@@ -8,7 +9,7 @@ import type { Bucket } from "@/lib/sales/learning-calc";
 export const metadata: Metadata = { title: "Sales insights" };
 export const dynamic = "force-dynamic";
 
-const usd = (n: number | null | undefined) => (n === null || n === undefined ? "–" : `$${Math.round(n).toLocaleString("en-US")}`);
+const amt = (n: number | null | undefined, cur: string) => (n === null || n === undefined ? "–" : money(Math.round(n), cur));
 const pct = (n: number | null | undefined) => (n === null || n === undefined ? "–" : `${n}%`);
 const hrs = (h: number | null | undefined) => (h === null || h === undefined ? "–" : h < 1 ? `${Math.round(h * 60)} min` : h < 48 ? `${h} h` : `${Math.round(h / 24)} days`);
 
@@ -64,7 +65,7 @@ function BucketTable({ title, rows, empty = "Nothing sent yet." }: { title: stri
   );
 }
 
-function SegmentTable({ title, rows }: { title: string; rows: SegmentRow[] }) {
+function SegmentTable({ title, rows, cur }: { title: string; rows: SegmentRow[]; cur: string }) {
   return (
     <div className="overflow-x-auto">
       <p className="mb-1.5 text-[13px] font-medium">{title}</p>
@@ -87,7 +88,7 @@ function SegmentTable({ title, rows }: { title: string; rows: SegmentRow[] }) {
                 <td className="tabular py-1.5 text-right">{r.deals}</td>
                 <td className="tabular py-1.5 text-right">{r.won}/{r.closed}</td>
                 <td className="py-1.5 pl-3"><RateBar value={r.win_rate} thin={r.thin} /></td>
-                <td className="tabular py-1.5 text-right">{usd(r.won_usd)}</td>
+                <td className="tabular py-1.5 text-right">{amt(r.won_value, cur)}</td>
                 <td className="tabular py-1.5 text-right">{r.median_days_to_close ?? "–"}</td>
               </tr>
             ))}
@@ -98,8 +99,8 @@ function SegmentTable({ title, rows }: { title: string; rows: SegmentRow[] }) {
   );
 }
 
-function rateNote(r: { value: number; n: number; assumed: boolean }, kind: "pct" | "usd" | "days") {
-  const v = kind === "pct" ? `${Math.round(r.value * 100)}%` : kind === "usd" ? usd(r.value) : `${r.value} days`;
+function rateNote(r: { value: number; n: number; assumed: boolean }, kind: "pct" | "money" | "days", cur = "INR") {
+  const v = kind === "pct" ? `${Math.round(r.value * 100)}%` : kind === "money" ? amt(r.value, cur) : `${r.value} days`;
   return (
     <span>
       <b className="font-semibold">{v}</b>{" "}
@@ -109,19 +110,19 @@ function rateNote(r: { value: number; n: number; assumed: boolean }, kind: "pct"
 }
 
 function TargetCard({ f }: { f: Forecast }) {
-  const pctWon = f.target_usd ? Math.min(100, (f.won_usd / f.target_usd) * 100) : 0;
-  const pctProj = f.target_usd ? Math.min(100, (f.projected_usd / f.target_usd) * 100) : 0;
-  const pace = f.target_usd ? Math.min(100, (f.day / f.days_in_month) * 100) : 0;
+  const pctWon = f.target ? Math.min(100, (f.won / f.target) * 100) : 0;
+  const pctProj = f.target ? Math.min(100, (f.projected / f.target) * 100) : 0;
+  const pace = f.target ? Math.min(100, (f.day / f.days_in_month) * 100) : 0;
   const monthName = new Date(`${f.month}-15T12:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric" });
   return (
     <Section id="target" title={`Target · ${monthName}`} hint={`Day ${f.day} of ${f.days_in_month}. Won means the deal reached a Won stage this month; cash is what was paid.`}>
-      {f.target_usd ? (
+      {f.target ? (
         <>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <Stat label="Won" value={usd(f.won_usd)} sub={`${f.won_deals} deal${f.won_deals === 1 ? "" : "s"} · target ${usd(f.target_usd)}`} />
-            <Stat label="Expected by today" value={usd(f.expected_by_today_usd)} sub="if it came in evenly" />
-            <Stat label="Projected" value={usd(f.projected_usd)} sub="won plus likely deals, weighted" />
-            <Stat label="Cash in" value={usd(f.cash_usd)} sub="payments received" />
+            <Stat label="Won" value={amt(f.won, f.currency)} sub={`${f.won_deals} deal${f.won_deals === 1 ? "" : "s"} · target ${amt(f.target, f.currency)}`} />
+            <Stat label="Expected by today" value={amt(f.expected_by_today, f.currency)} sub="if it came in evenly" />
+            <Stat label="Projected" value={amt(f.projected, f.currency)} sub="won plus likely deals, weighted" />
+            <Stat label="Cash in" value={amt(f.cash, f.currency)} sub="payments received" />
           </div>
           <div className="relative mt-4 h-2.5 overflow-hidden rounded-full bg-muted" aria-label={`Won ${Math.round(pctWon)}% of target`}>
             <div className="absolute inset-y-0 left-0 rounded-full bg-accent/25" style={{ width: `${pctProj}%` }} />
@@ -152,7 +153,7 @@ function TargetCard({ f }: { f: Forecast }) {
         <div>
           <p className="mb-1.5 text-[13px] font-medium">Rates behind it</p>
           <ul className="space-y-1.5 text-[13px]">
-            <li className="flex justify-between gap-3"><span className="text-subtle">Average won deal</span>{rateNote(f.rates.avg_deal_usd, "usd")}</li>
+            <li className="flex justify-between gap-3"><span className="text-subtle">Average won deal</span>{rateNote(f.rates.avg_deal, "money", f.currency)}</li>
             <li className="flex justify-between gap-3"><span className="text-subtle">Proposal to win</span>{rateNote(f.rates.proposal_to_win, "pct")}</li>
             <li className="flex justify-between gap-3"><span className="text-subtle">Conversation to proposal</span>{rateNote(f.rates.conversation_to_proposal, "pct")}</li>
             <li className="flex justify-between gap-3"><span className="text-subtle">Contacted to conversation</span>{rateNote(f.rates.contacted_to_conversation, "pct")}</li>
@@ -165,7 +166,7 @@ function TargetCard({ f }: { f: Forecast }) {
                 {f.likely_deals.slice(0, 6).map((d) => (
                   <li key={d.id} className="flex items-center justify-between gap-3 py-1.5">
                     <Link href={`/sales/deal/${d.id}`} className="min-w-0 truncate hover:underline">{d.title}</Link>
-                    <span className="shrink-0 text-subtle">{d.stage} · {usd(d.value_usd)} × {d.probability}%</span>
+                    <span className="shrink-0 text-subtle">{d.stage} · {amt(d.value, f.currency)} × {d.probability}%</span>
                   </li>
                 ))}
               </ul>
@@ -235,10 +236,10 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
 
       <Section id="segments" title="Win rate by segment" hint="Closed means won, lost, disqualified or ghosted. Grey rows have fewer than 5 closed deals: too few to judge.">
         <div className="grid gap-6 xl:grid-cols-2">
-          <SegmentTable title="By service" rows={wl.by_service} />
-          <SegmentTable title="By country" rows={wl.by_country} />
-          <SegmentTable title="By source" rows={wl.by_source} />
-          <SegmentTable title="By deal size" rows={wl.by_size} />
+          <SegmentTable title="By service" rows={wl.by_service} cur={wl.currency} />
+          <SegmentTable title="By country" rows={wl.by_country} cur={wl.currency} />
+          <SegmentTable title="By source" rows={wl.by_source} cur={wl.currency} />
+          <SegmentTable title="By deal size" rows={wl.by_size} cur={wl.currency} />
         </div>
       </Section>
 

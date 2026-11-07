@@ -10,6 +10,7 @@ import { Button, Field, Input, Select, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import type { SalesConfig } from "@/lib/sales/config";
+import { CURRENCIES, money } from "./format";
 import type { Stage, Transition } from "@/lib/sales/stages";
 
 export interface SettingsData {
@@ -56,6 +57,25 @@ export function SettingsView({ d }: { d: SettingsData }) {
   const [targets, setTargets] = useState(c.targets);
   const [postSale, setPostSale] = useState({ ...c.post_sale, checkin_days: c.post_sale.checkin_days.join(", ") });
   const [fx, setFx] = useState(Object.entries(c.fx).map(([k, v]) => `${k}=${v}`).join("\n"));
+  const [defCur, setDefCur] = useState((c.default_currency || "INR").toUpperCase());
+  const [repCur, setRepCur] = useState((c.report_currency || "INR").toUpperCase());
+  const savedRep = (c.report_currency || "INR").toUpperCase();
+  const curOptions = (v: string) => [...new Set([...CURRENCIES, v])].map((x) => <option key={x} value={x}>{x}</option>);
+  const saveCurrency = () => {
+    const rates: Record<string, number> = Object.fromEntries(lines(fx).map((l) => l.split("=")).filter((p) => p.length === 2 && Number(p[1]) > 0).map(([k, v]) => [k.trim().toUpperCase(), Number(v)]));
+    const patch: Partial<SalesConfig> = { fx: rates, default_currency: defCur, report_currency: repCur };
+    // the revenue target is in the report currency: switching currency converts it, so ₹8,00,000 does not become $8,00,000
+    if (repCur !== savedRep && targets.monthly_revenue > 0) {
+      const from = rates[savedRep] ?? c.fx[savedRep];
+      const to = rates[repCur] ?? c.fx[repCur];
+      if (from > 0 && to > 0) {
+        const next = { ...targets, monthly_revenue: Math.round((targets.monthly_revenue * from) / to), monthly_revenue_usd: 0 };
+        patch.targets = next;
+        setTargets(next);
+      }
+    }
+    save(patch);
+  };
   const [prewrite, setPrewrite] = useState(c.autonomy.prewrite !== "suggest");
   const [scriptUrl, setScriptUrl] = useState(d.appsScriptUrl ?? "");
   const save = (patch: Partial<SalesConfig>) => start(async () => {
@@ -179,11 +199,11 @@ export function SettingsView({ d }: { d: SettingsData }) {
 
       <Card id="targets" title="Targets" sub="What you are aiming for. Insights works out your pace, the forecast and the outreach it takes from your own conversion rates.">
         <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="Monthly revenue target (USD)" hint="Won deal value per month. 0 turns the target off."><Input value={String(targets.monthly_revenue_usd)} onChange={(e) => setTargets({ ...targets, monthly_revenue_usd: Math.max(0, Number(e.target.value.replace(/[^0-9.]/g, "")) || 0) })} inputMode="numeric" /></Field>
+          <Field label={`Monthly revenue target (${savedRep})`} hint={`Won deal value per month, in your report currency. 0 turns the target off.${targets.monthly_revenue > 0 ? ` Now ${money(targets.monthly_revenue, savedRep)}.` : ""}`}><Input value={String(targets.monthly_revenue)} onChange={(e) => setTargets({ ...targets, monthly_revenue: Math.max(0, Math.round(Number(e.target.value.replace(/[^0-9.]/g, "")) || 0)) })} inputMode="numeric" /></Field>
           <Field label="New conversations a week" hint="Used by the weekly review."><Input value={String(targets.weekly_conversations)} onChange={(e) => setTargets({ ...targets, weekly_conversations: Math.max(0, Number(e.target.value) || 0) })} inputMode="numeric" /></Field>
           <Field label="Outreach messages a day" hint="Shown on Today: first messages and follow-ups you send."><Input value={String(targets.daily_outreach)} onChange={(e) => setTargets({ ...targets, daily_outreach: Math.max(0, Number(e.target.value) || 0) })} inputMode="numeric" /></Field>
         </div>
-        <div className="mt-3 flex justify-end"><Button variant="primary" disabled={busy} onClick={() => save({ targets })}>Save</Button></div>
+        <div className="mt-3 flex justify-end"><Button variant="primary" disabled={busy} onClick={() => save({ targets: { ...targets, monthly_revenue_usd: 0 } })}>Save</Button></div>
       </Card>
 
       <Card id="after-sale" title="After the sale" sub="Revenue from people who already paid you is the cheapest you will ever earn. These become moves once the work is delivered.">
@@ -231,9 +251,17 @@ export function SettingsView({ d }: { d: SettingsData }) {
         <div className="mt-3 flex justify-end"><Button variant="primary" disabled={busy} onClick={() => save({ escalation: esc })}>Save</Button></div>
       </Card>
 
-      <Card title="Currency rates" sub="Value of 1 unit in USD, used for pipeline totals. Update when they drift.">
-        <Textarea value={fx} onChange={(e) => setFx(e.target.value)} className="min-h-[140px] font-mono text-xs" />
-        <div className="mt-3 flex justify-end"><Button variant="primary" disabled={busy} onClick={() => save({ fx: Object.fromEntries(lines(fx).map((l) => l.split("=")).filter((p) => p.length === 2 && Number(p[1]) > 0).map(([k, v]) => [k.trim().toUpperCase(), Number(v)])) })}>Save</Button></div>
+      <Card id="currency" title="Currency" sub="Every deal, quote and payment keeps the currency it was agreed in. Totals are converted at the rates below.">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Default currency" hint="New deals, quotes and packages start in this. You can pick another on each one."><Select value={defCur} onChange={(e) => setDefCur(e.target.value)}>{curOptions(defCur)}</Select></Field>
+          <Field label="Report currency" hint="Targets, Insights, Stats, pipeline totals, the review and Telegram summaries are shown in this."><Select value={repCur} onChange={(e) => setRepCur(e.target.value)}>{curOptions(repCur)}</Select></Field>
+        </div>
+        <p className="mb-1.5 mt-4 text-[13px] font-medium">Rates <span className="font-normal text-subtle">· value of 1 unit in USD, e.g. INR=0.012. Update when they drift.</span></p>
+        <Textarea value={fx} onChange={(e) => setFx(e.target.value)} className="min-h-[140px] font-mono text-xs" aria-label="Currency rates" />
+        {[defCur, repCur].filter((x) => !lines(fx).some((l) => l.split("=")[0]?.trim().toUpperCase() === x && Number(l.split("=")[1]) > 0)).map((x) => (
+          <p key={x} className="mt-1.5 text-xs text-warn">No rate for {x} yet: add a line like {x}=0.01 or its amounts cannot be added up.</p>
+        ))}
+        <div className="mt-3 flex justify-end"><Button variant="primary" disabled={busy} onClick={saveCurrency}>Save</Button></div>
       </Card>
     </div>
   );

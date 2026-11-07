@@ -10,7 +10,8 @@ import { one, q, UserError } from "../db";
 import type { Ctx } from "../settings";
 import { downloadFile, editMessage, esc, sendMessage, type Button, type InlineMarkup } from "../telegram/api";
 import { completeMove, openUrlFor, sendMoveEmail } from "./act";
-import { salesConfig } from "./config";
+import { money } from "@/components/sales/format";
+import { reportMoney, salesConfig } from "./config";
 import { currentFocus } from "./focus";
 import { iso } from "./context";
 import { deleteDeal } from "./deals";
@@ -293,11 +294,13 @@ async function pipelineMessage(): Promise<string> {
      from sales_stages s left join sales_deals d on d.stage_id = s.id where s.active group by s.id order by s.sort`,
   );
   const open = rows.filter((r) => r.category === "open");
-  const fmt = (n: number | null) => (n ? `$${Math.round(n).toLocaleString("en-US")}` : "");
+  const R = reportMoney(await salesConfig());
+  const fmt = (usd: number | null) => (usd ? money(Math.round(R.fromUsd(usd)), R.cur) : "");
+  const zero = money(0, R.cur);
   const unpaid = await one<{ usd: number | null }>(
     `select sum(p.amount * coalesce((select (config->'fx'->>p.currency)::numeric from sales_settings), 1)) as usd from sales_payments p where p.status = 'due'`,
   );
-  return `📊 <b>Pipeline</b>\n${open.map((r) => `${esc(r.name)}: <b>${r.n}</b> ${fmt(r.usd)}`).join("\n")}\n\nWeighted: <b>${fmt(open.reduce((s, r) => s + Number(r.weighted ?? 0), 0)) || "$0"}</b>\nWon, not yet paid: <b>${fmt(Number(unpaid?.usd ?? 0)) || "$0"}</b>`;
+  return `📊 <b>Pipeline</b>\n${open.map((r) => `${esc(r.name)}: <b>${r.n}</b> ${fmt(r.usd)}`).join("\n")}\n\nWeighted: <b>${fmt(open.reduce((s, r) => s + Number(r.weighted ?? 0), 0)) || zero}</b>\nWon, not yet paid: <b>${fmt(Number(unpaid?.usd ?? 0)) || zero}</b>`;
 }
 
 async function radarMessage(): Promise<{ text: string; markup: InlineMarkup }> {

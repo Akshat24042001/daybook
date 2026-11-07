@@ -24,6 +24,7 @@ const { setup, check } = require("./lib.cjs");
   await page.waitForTimeout(1500);
   const b = await all("select kind, value, reason from sales_blocklist");
   check("domain stored in canonical form", b.length === 1 && b[0].kind === "domain" && b[0].value === "foxtrot.dev" && b[0].reason === "asked us to stop", b);
+  await dnc.getByText("https://www.foxtrot.dev/about", { exact: true }).waitFor({ timeout: 8000 }).catch(() => {});
   check("list shows the entry as typed", (await dnc.getByText("https://www.foxtrot.dev/about", { exact: true }).count()) === 1);
   const r2 = await one("select status, blocked from sales_radar_items where url_hash = 'e2e-2'");
   check("matching radar lead dropped with the reason", r2.status === "rejected" && /do-not-contact.*foxtrot\.dev.*asked us to stop/.test(r2.blocked), r2);

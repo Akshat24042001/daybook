@@ -3,6 +3,7 @@
  * entries plus what your repeating rules will put there), and the events that matter (meetings, payments due, sales
  * moves, deal revisit dates, targets ending, repeating tasks coming due). Looking at a calendar never changes anything.
  */
+import { money } from "@/components/sales/format";
 import { q } from "../db";
 import { rruleMatches } from "../recurrence";
 import { dueFor } from "../sections";
@@ -179,7 +180,7 @@ async function addEvents(ctx: Ctx, from: DateStr, to: DateStr, byDay: Map<DateSt
   ]);
   const local = (d: Date) => logicalDate(d, ctx.tz, ctx.boundaryMin);
   for (const m of meetings) push(local(m.starts_at), { key: `m${m.id}`, kind: "meeting", title: m.title, time: fmtHM(m.starts_at, ctx.tz), href: m.deal_id ? `/sales/deal/${m.deal_id}` : "/sales" });
-  for (const p of payments) push(p.due_on, { key: `pay${p.id}`, kind: "payment", title: `${p.currency} ${Number(p.amount).toLocaleString("en-IN")} due: ${p.label}`, time: null, href: `/sales/deal/${p.deal_id}`, note: p.deal ?? undefined });
+  for (const p of payments) push(p.due_on, { key: `pay${p.id}`, kind: "payment", title: `${money(Number(p.amount), p.currency)} due: ${p.label}`, time: null, href: `/sales/deal/${p.deal_id}`, note: p.deal ?? undefined });
   for (const mv of moves) push(local(mv.due_at), { key: `mv${mv.id}`, kind: "move", title: mv.title, time: null, href: mv.deal_id ? `/sales/deal/${mv.deal_id}` : "/sales" });
   for (const r of revisits) push(r.revisit_on, { key: `rv${r.id}`, kind: "revisit", title: `Revisit ${r.title}`, time: null, href: `/sales/deal/${r.id}` });
   for (const w of waiting) push(w.waiting_until, { key: `w${w.id}`, kind: "waiting", title: `${w.title}: back on your list`, time: null, href: `/task/${w.id}`, note: w.waiting_on ? `waiting on ${w.waiting_on}` : undefined });

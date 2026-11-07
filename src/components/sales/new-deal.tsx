@@ -6,10 +6,12 @@ import { useState, useTransition } from "react";
 import { createDealAction } from "@/app/sales-actions";
 import { Button, Field, Input, Select, Sheet, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
+import { CURRENCIES } from "./format";
 
-export function NewDealButton() {
+/** defaultCurrency: Sales settings > Default currency (INR unless you changed it). */
+export function NewDealButton({ defaultCurrency = "INR" }: { defaultCurrency?: string }) {
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ person_name: "", company_name: "", email: "", phone: "", linkedin: "", source: "outbound", referrer_name: "", value_amount: "", currency: "USD", notes: "", stage_role: "new" });
+  const [f, setF] = useState({ person_name: "", company_name: "", email: "", phone: "", linkedin: "", source: "outbound", referrer_name: "", value_amount: "", currency: defaultCurrency, notes: "", stage_role: "new" });
   const [pending, start] = useTransition();
   const { toast } = useToast();
   const router = useRouter();
@@ -59,7 +61,7 @@ export function NewDealButton() {
           <Field label="Value"><Input value={f.value_amount} onChange={set("value_amount")} inputMode="decimal" placeholder="Optional" /></Field>
           <Field label="Currency">
             <Select value={f.currency} onChange={set("currency")}>
-              {["USD", "INR", "AED", "GBP", "EUR", "CAD", "AUD", "SGD", "SAR"].map((c) => <option key={c} value={c}>{c}</option>)}
+              {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </Select>
           </Field>
         </div>

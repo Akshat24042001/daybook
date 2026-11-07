@@ -11,8 +11,8 @@ They change data in that database (offers, blocklist, test deals): never point t
 
 | File | What it proves |
 |---|---|
-| 1-settings | Targets, booking link, targeting mode, after-sale timing save and reload correctly |
-| 2-offers | Offer catalogue with packages; a quote starts from a package with its items, scope and currency |
+| 1-settings | Targets (in INR), currency choices (switching report currency converts the target), booking link, targeting mode, after-sale timing save and reload correctly |
+| 2-offers | Offer catalogue with packages (INR by default, other currencies selectable); a quote starts from a package with its items, scope and currency |
 | 3-dnc | Do-not-contact drops leads and stops outreach; known contacts are tagged and attached to their deal |
 | 4-library | Objections group and keep your answer; case studies draft, refuse approval when empty, approve and delete |
 | 5-send | Sending from a move records purpose and edits; Today's outreach card counts it |

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
+import { money } from "@/components/sales/format";
 import { verdicts, weeklyReview } from "@/lib/sales/review";
 
 export const metadata: Metadata = { title: "Sales review" };
 export const dynamic = "force-dynamic";
 
-const usd = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 
 function Box({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -23,10 +23,10 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
     ["Replies", `${r.replies}${r.reply_rate !== null ? ` · ${r.reply_rate}%` : ""}`],
     ["Meetings", String(r.meetings)],
     ["Proposals sent", String(r.proposals)],
-    ["Won", `${r.won} · ${usd(r.won_usd)}`],
+    ["Won", `${r.won} · ${money(r.won_value, r.currency)}`],
     ["Lost", String(r.lost)],
-    ["Cash in", usd(r.cash_in_usd)],
-    ["Overdue cash", usd(r.cash_overdue_usd)],
+    ["Cash in", money(r.cash_in, r.currency)],
+    ["Overdue cash", money(r.cash_overdue, r.currency)],
   ];
   return (
     <div className="space-y-4">
@@ -68,7 +68,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
           {r.by_source.length ? (
             <ul className="space-y-1 text-sm">
               {r.by_source.map((s) => (
-                <li key={s.source} className="flex justify-between"><span>{s.source}</span><span className="tabular">{s.deals} deals · {s.won} won · {usd(s.won_usd)}</span></li>
+                <li key={s.source} className="flex justify-between"><span>{s.source}</span><span className="tabular">{s.deals} deals · {s.won} won · {money(s.won_value, r.currency)}</span></li>
               ))}
             </ul>
           ) : <p className="text-sm text-subtle">No deals yet.</p>}
