@@ -137,23 +137,19 @@ export function EntryRow({
     >
       {/* swipe hints */}
       <div className="absolute inset-0 flex items-center justify-between px-4 text-xs font-medium text-on-fill" aria-hidden>
-        <span className={cn("rounded-full bg-good px-2 py-1", dx > 8 ? "opacity-100" : "opacity-0")}>
+        <span className={cn("rounded-md bg-good px-2 py-1", dx > 8 ? "opacity-100" : "opacity-0")}>
           {row.type === "ongoing" ? "Progressed" : "Done"}
         </span>
-        <span className={cn("rounded-full bg-accent px-2 py-1", dx < -8 ? "opacity-100" : "opacity-0")}>Options</span>
+        <span className={cn("rounded-md bg-accent px-2 py-1", dx < -8 ? "opacity-100" : "opacity-0")}>Options</span>
       </div>
       <div
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
-        // the left edge carries the project's colour, so a glance down the list shows which project each task belongs to
-        style={{ transform: `translateX(${dx}px)`, transition: dx === 0 ? "transform 160ms ease-out" : "none", borderLeftColor: row.projectColor ?? undefined,
-          // the whole row takes a wash of its project's colour
-          ...(row.projectColor && !(row.mustDo && !closed) ? { background: `color-mix(in srgb, ${row.projectColor} 13%, hsl(var(--surface)))` } : null) }}
+        // the project shows as a coloured dot in its chip; rows themselves stay neutral so the list reads calmly
+        style={{ transform: `translateX(${dx}px)`, transition: dx === 0 ? "transform 160ms ease-out" : "none" }}
         className={cn(
-          "flex items-center gap-3 border border-border border-l-[5px] px-3 py-2.5",
-          row.mustDo && !closed ? "highlighter border-y-transparent border-r-transparent" : "bg-surface",
-          "rounded-2xl",
+          "flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 shadow-[var(--shadow-sm)] transition-colors hover:border-subtle/30",
           (closed || parked) && "opacity-70",
         )}
       >
@@ -180,12 +176,12 @@ export function EntryRow({
                 </span>
               ))}
               {row.minutes ? (
-                <span className="tabular rounded-full bg-accent/15 px-1.5 py-0.5 font-medium text-accent">{fmtDuration(row.minutes)} today</span>
+                <span className="tabular rounded-md bg-accent/15 px-1.5 py-0.5 font-medium text-accent">{fmtDuration(row.minutes)} today</span>
               ) : null}
               {row.carry >= 2 ? (
                 <span
                   className={cn(
-                    "rounded-full px-1.5 py-0.5 font-medium",
+                    "rounded-md px-1.5 py-0.5 font-medium",
                     row.carry >= 3 ? "bg-bad/15 text-bad" : "bg-warn/15 text-warn",
                   )}
                   title="Times this task has been carried over"

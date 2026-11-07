@@ -59,13 +59,13 @@ export function SummaryCard({ s, footer }: { s: DiarySummaryView; footer?: React
           <p className="font-display text-lg leading-snug">{s.headline}</p>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             {s.mood ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-accent-muted px-2 py-0.5 text-xs font-medium text-accent">
+              <span className="inline-flex items-center gap-1 rounded-md bg-accent-muted px-2 py-0.5 text-xs font-medium text-accent">
                 <Smile className="h-3 w-3" />
                 {s.mood}
               </span>
             ) : null}
             {s.tags.map((t) => (
-              <span key={t} className="rounded-full bg-muted px-2 py-0.5 text-xs text-subtle">#{t}</span>
+              <span key={t} className="rounded-md bg-muted px-2 py-0.5 text-xs text-subtle">#{t}</span>
             ))}
           </div>
         </div>
@@ -254,7 +254,7 @@ export function DiaryPanel({
               onStateChange={setRecState}
               onText={(t) => void save(t, "voice")}
               className={cn(
-                "h-14 rounded-full px-7 text-base font-semibold",
+                "h-14 rounded-md px-7 text-base font-semibold",
                 !recording && !transcribing && "border-transparent bg-accent text-accent-fg shadow-[0_2px_10px_hsl(var(--accent)/0.35)] hover:bg-accent hover:text-accent-fg hover:opacity-90",
                 recording && "animate-pulse",
               )}

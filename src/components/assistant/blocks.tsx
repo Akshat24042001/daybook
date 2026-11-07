@@ -219,7 +219,7 @@ export function Blocks({ blocks, onAsk, onChanged }: { blocks: Block[]; onAsk?: 
               <button
                 key={f}
                 onClick={() => onAsk(f)}
-                className="rounded-full border border-border bg-surface px-3 py-1 text-left text-xs text-subtle transition-colors hover:border-accent/40 hover:text-fg"
+                className="rounded-md border border-border bg-surface px-3 py-1 text-left text-xs text-subtle transition-colors hover:border-accent/40 hover:text-fg"
               >
                 {f}
               </button>

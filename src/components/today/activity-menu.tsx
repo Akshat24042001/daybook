@@ -76,7 +76,7 @@ export function ActivityMenu({
               >
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: a.color }} aria-hidden />
                 <span className="flex-1">{a.emoji} {a.label}</span>
-                {a.work ? <span className="rounded-full bg-good-muted px-1.5 py-0.5 text-[10px] font-semibold text-good">work</span> : null}
+                {a.work ? <span className="rounded-md bg-good-muted px-1.5 py-0.5 text-[10px] font-semibold text-good">work</span> : null}
               </button>
             );
           })}

@@ -54,7 +54,7 @@ export function TimeGoalsCard({ report, title = "Time goals", emptyHint = true }
                   <span className="tabular shrink-0 text-xs text-subtle">
                     <strong className="text-fg">{fmtDuration(g.actualMin)}</strong> / {fmtDuration(g.targetMin)}
                   </span>
-                  <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold", s.tone)}>{s.label}</span>
+                  <span className={cn("shrink-0 rounded-md px-2 py-0.5 text-[10px] font-semibold", s.tone)}>{s.label}</span>
                 </div>
                 <div
                   className="relative h-2 overflow-hidden rounded-full bg-muted"

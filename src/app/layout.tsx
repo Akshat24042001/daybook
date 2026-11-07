@@ -1,11 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Fredoka, Nunito } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/sw-register";
 
-// Rounded, friendly type to match the pastel look: Nunito for reading, Fredoka for headings and numbers
-const sans = Nunito({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
-const display = Fredoka({ subsets: ["latin"], variable: "--font-display", weight: ["500", "600", "700"], display: "swap" });
+// One typeface for everything: Inter, a neutral, highly legible UI face. Headings are Inter semibold, tightly tracked.
+const sans = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 
 // Applies the saved theme before first paint so dark mode never flashes light.
 // (data-theme is always "light" or "dark": "follow my device" is resolved here and kept up to date)
@@ -32,14 +31,14 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F1EAFD" },
-    { media: "(prefers-color-scheme: dark)", color: "#16121F" },
+    { media: "(prefers-color-scheme: light)", color: "#F6F7F9" },
+    { media: "(prefers-color-scheme: dark)", color: "#101114" },
   ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${sans.variable} ${display.variable}`} suppressHydrationWarning>
+    <html lang="en" className={sans.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: HEAL_SCRIPT }} />

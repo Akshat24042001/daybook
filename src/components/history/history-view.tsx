@@ -51,7 +51,7 @@ function Row({ a }: { a: ActionItem }) {
           <p className={cn("text-[15px] font-medium leading-snug", undone && "line-through")}>{a.label}</p>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-subtle">
             <span className="tabular">{when(a.created_at)}</span>
-            <span className="rounded-full bg-muted px-1.5 py-0.5">{SOURCE[a.source] ?? a.source}</span>
+            <span className="rounded-md bg-muted px-1.5 py-0.5">{SOURCE[a.source] ?? a.source}</span>
             <span>{a.changes} {a.changes === 1 ? "change" : "changes"}</span>
             {undone ? <span className="font-medium text-p-lilac-fg">undone</span> : null}
             <ChevronDown className={cn("ml-auto h-3.5 w-3.5 transition-transform", open && "rotate-180")} aria-hidden />

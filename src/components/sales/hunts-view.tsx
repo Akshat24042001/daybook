@@ -76,7 +76,7 @@ function HuntForm({ draft, setDraft, cap, providers }: { draft: Draft; setDraft:
         <p className="text-sm font-semibold">When it runs</p>
         <div className="flex flex-wrap gap-1.5">
           {PRESETS.map((p) => (
-            <button key={p.label} type="button" onClick={() => setDraft({ ...draft, ...p.s } as Draft)} className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-muted">{p.label}</button>
+            <button key={p.label} type="button" onClick={() => setDraft({ ...draft, ...p.s } as Draft)} className="rounded-md border border-border bg-surface px-2.5 py-1 text-xs hover:bg-muted">{p.label}</button>
           ))}
         </div>
         <div className="grid gap-3 sm:grid-cols-2">

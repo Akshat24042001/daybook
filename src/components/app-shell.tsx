@@ -10,7 +10,7 @@ import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { cn } from "@/lib/cn";
 import { HUE, hueForPath, type Hue } from "@/lib/hue";
-import { PALETTES, applyTheme, getPalette, getThemePref, setPalette, setThemePref, type PaletteId, type ThemePref } from "@/lib/theme";
+import { getThemePref, setThemePref, type ThemePref } from "@/lib/theme";
 import { CommandPalette } from "./command-palette";
 import { NavProgress } from "./nav-progress";
 import { QuickAdd } from "./quick-add";
@@ -31,48 +31,18 @@ function useTheme() {
   return { theme, cycle };
 }
 
-/** The chosen pastel palette ("candy" = each page in its own pastel). */
-function usePalette() {
-  const [palette, setPaletteState] = useState<PaletteId>("candy");
-  useEffect(() => {
-    setPaletteState(getPalette());
-    const on = (e: Event) => setPaletteState((e as CustomEvent<PaletteId>).detail);
-    window.addEventListener("daybook:palette-change", on);
-    return () => window.removeEventListener("daybook:palette-change", on);
-  }, []);
-  const next = () => setPalette(PALETTES[(PALETTES.findIndex((p) => p.id === palette) + 1) % PALETTES.length].id);
-  return { palette, next };
-}
-
 function ThemeToggle() {
   const { theme, cycle } = useTheme();
-  const label = theme === "light" ? "Light" : theme === "dark" ? "Dusk" : "Auto";
+  const label = theme === "light" ? "Light" : theme === "dark" ? "Dark" : "Auto";
   const Icon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
   return (
     <button
       onClick={cycle}
       title={`Theme: ${label}. Click to cycle.`}
-      className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium text-subtle transition-colors hover:bg-muted hover:text-fg"
+      className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-subtle transition-colors hover:bg-muted hover:text-fg"
     >
       <Icon className="h-4 w-4" />
       <span>{label}</span>
-    </button>
-  );
-}
-
-function PaletteToggle() {
-  const { palette, next } = usePalette();
-  const cur = PALETTES.find((p) => p.id === palette) ?? PALETTES[0];
-  return (
-    <button
-      onClick={next}
-      title={`Palette: ${cur.label}. Click for the next one (or choose in Settings).`}
-      aria-label={`Palette ${cur.label}. Change palette`}
-      className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium text-subtle transition-colors hover:bg-muted hover:text-fg"
-    >
-      <span className="flex -space-x-1">
-        {cur.swatch.slice(0, 3).map((c) => <span key={c} className="h-3.5 w-3.5 rounded-full ring-2 ring-surface" style={{ background: c }} />)}
-      </span>
     </button>
   );
 }
@@ -162,21 +132,16 @@ function SignOut({ className, children }: { className?: string; children?: React
 
 function SideLink({ item, active }: { item: NavItem; active: boolean }) {
   const { href, label, Icon } = item;
-  const hue = HUE[hueForPath(href)];
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex items-center gap-2.5 rounded-full px-2 py-1.5 text-sm font-medium transition-colors",
-        active ? cn(hue.pill, hue.ink, "font-semibold shadow-[var(--shadow-sm)]") : "text-subtle hover:bg-muted hover:text-fg",
+        "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13.5px] font-medium transition-colors",
+        active ? "bg-muted text-fg" : "text-subtle hover:bg-muted/70 hover:text-fg",
       )}
     >
-      {active ? <span className={cn("absolute -left-3 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full", hue.fill)} aria-hidden /> : null}
-      {/* every page keeps its own colour, lit or not, so the sidebar doubles as a legend */}
-      <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full", hue.tint, hue.ink, active && "bg-surface/70")}>
-        <Icon className={cn("h-[17px] w-[17px]", active && "stroke-[2.3]")} />
-      </span>
+      <Icon className={cn("h-4 w-4 shrink-0", active ? "text-accent" : "text-subtle/80")} strokeWidth={active ? 2.2 : 1.9} />
       {label}
     </Link>
   );
@@ -205,9 +170,7 @@ export function AppShell({
   const [moreOpen, setMoreOpen] = useState(false);
   const moreActive = MOBILE_MORE.some((i) => active(i.href));
   useEffect(() => setMoreOpen(false), [pathname]);
-  const { palette } = usePalette();
-  // "candy" paints each page in its own pastel; any other palette paints every page the same
-  const hue: Hue = palette === "candy" ? hueForPath(pathname) : palette;
+  const hue: Hue = hueForPath(pathname);
 
   return (
     <ToastProvider>
@@ -217,26 +180,26 @@ export function AppShell({
       <StaleBanner />
       <div className="flex min-h-dvh w-full">
         {/* desktop sidebar */}
-        <aside className="sticky top-3 m-3 hidden h-[calc(100dvh-1.5rem)] w-56 shrink-0 flex-col rounded-[1.75rem] border border-border bg-surface/75 px-3 py-5 shadow-[var(--shadow-md)] backdrop-blur-xl md:flex">
-          <Link href="/today" className="flex items-center gap-2.5 px-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,hsl(var(--lilac-fill)),hsl(var(--sky-fill)))] text-p-lilac-fg shadow-[var(--shadow-sm)]">
-              <BookOpen className="h-[18px] w-[18px]" />
+        <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-surface px-3 py-4 md:flex">
+          <Link href="/today" className="flex items-center gap-2.5 px-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-fg text-surface">
+              <BookOpen className="h-4 w-4" />
             </span>
-            <span className="font-display text-xl">Daybook</span>
+            <span className="font-display text-[15px]">Daybook</span>
           </Link>
           <button
             type="button"
             onClick={() => window.dispatchEvent(new CustomEvent("daybook:palette"))}
-            className="mt-5 flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-sm text-subtle transition-colors hover:text-fg"
+            className="mt-4 flex h-8 items-center gap-2 rounded-md border border-border bg-bg px-2.5 text-[13px] text-subtle transition-colors hover:text-fg"
           >
             <Search className="h-4 w-4" />
             <span className="flex-1 text-left">Search</span>
             <kbd className="rounded border border-border px-1.5 text-[10px] font-medium">Ctrl K</kbd>
           </button>
-          <nav className="mt-5 flex flex-1 flex-col gap-5 overflow-y-auto" aria-label="Main">
+          <nav className="mt-4 flex flex-1 flex-col gap-4 overflow-y-auto" aria-label="Main">
             {NAV_GROUPS.map((g) => (
               <div key={g.label}>
-                <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-subtle/70">{g.label}</p>
+                <p className="mb-1 px-2.5 text-xs font-medium text-subtle/80">{g.label}</p>
                 <div className="flex flex-col gap-0.5">
                   {g.items.map((item) => <SideLink key={item.href} item={item} active={active(item.href)} />)}
                 </div>
@@ -245,21 +208,21 @@ export function AppShell({
           </nav>
           <div className="border-t border-border pt-3">
             <SideLink item={{ href: "/settings", label: "Settings", Icon: Settings }} active={active("/settings")} />
-            <div className="mt-1 flex items-center justify-between px-1"><PaletteToggle /><ThemeToggle /></div>
-            <SignOut className="mt-1 flex w-full items-center gap-2.5 rounded-full px-3 py-1.5 text-sm font-medium text-subtle transition-colors hover:bg-muted hover:text-fg">
+            <div className="mt-1 flex items-center justify-between px-1"><ThemeToggle /></div>
+            <SignOut className="mt-0.5 flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-[13.5px] font-medium text-subtle transition-colors hover:bg-muted/70 hover:text-fg">
               Sign out
             </SignOut>
           </div>
         </aside>
 
         <div className="relative flex min-w-0 flex-1 flex-col">
-          <header className="pt-safe sticky top-0 z-30 border-b border-border bg-surface/70 backdrop-blur-xl md:border-0 md:bg-transparent md:backdrop-blur-0">
+          <header className="pt-safe sticky top-0 z-30 border-b border-border bg-surface/90 backdrop-blur md:bg-bg/85">
             <div className="flex items-center justify-between px-4 py-2 md:hidden">
               <Link href="/today" className="flex items-center gap-2">
-                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[linear-gradient(135deg,hsl(var(--lilac-fill)),hsl(var(--sky-fill)))] text-p-lilac-fg">
+                <span className="flex h-7 w-7 items-center justify-center rounded-md bg-fg text-surface">
                   <BookOpen className="h-4 w-4" />
                 </span>
-                <span className="font-display text-lg">Daybook</span>
+                <span className="font-display text-base">Daybook</span>
               </Link>
               <div className="flex items-center gap-1">
                 <button
@@ -270,36 +233,33 @@ export function AppShell({
                 >
                   <Search className="h-4 w-4" />
                 </button>
-                <PaletteToggle />
                 <ThemeToggle />
               </div>
             </div>
-            <div className="px-4 pb-3 pt-1 md:px-6 md:pt-5 xl:px-8">
-              <Suspense fallback={<div className="h-[52px] rounded-full border border-border bg-surface" />}>
+            <div className="px-4 pb-3 pt-1 md:px-8 md:py-3">
+              <Suspense fallback={<div className="h-11 rounded-lg border border-border bg-surface" />}>
                 <QuickAdd tz={tz} boundaryMin={boundaryMin} voiceEnabled={voiceEnabled} aiEnabled={aiEnabled} />
               </Suspense>
             </div>
           </header>
 
-          <main className="w-full flex-1 px-4 pb-28 pt-2 md:px-6 md:pb-12 xl:px-8">{children}</main>
+          <main className="w-full flex-1 px-4 pb-24 pt-4 md:px-8 md:pb-12 md:pt-6">{children}</main>
         </div>
       </div>
 
       {/* mobile bottom navigation */}
       <nav
         aria-label="Main"
-        className="fixed inset-x-3 bottom-[calc(0.6rem+env(safe-area-inset-bottom))] z-30 grid grid-cols-5 rounded-[1.75rem] border border-border bg-surface/90 px-1 shadow-[var(--shadow-lg)] backdrop-blur-xl md:hidden"
+        className="pb-safe fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-surface/95 backdrop-blur md:hidden"
       >
         {MOBILE_MAIN.map(({ href, label, Icon }) => (
           <Link
             key={href}
             href={href}
             aria-current={active(href) ? "page" : undefined}
-            className={cn("flex flex-col items-center gap-0.5 py-2 text-xs font-medium", active(href) ? HUE[hueForPath(href)].ink : "text-subtle")}
+            className={cn("flex flex-col items-center gap-1 pb-1.5 pt-2 text-[11px] font-medium", active(href) ? "text-accent" : "text-subtle")}
           >
-            <span className={cn("flex h-7 w-12 items-center justify-center rounded-full transition-colors", active(href) && HUE[hueForPath(href)].tint)}>
-              <Icon className={cn("h-5 w-5", active(href) && "stroke-[2.4]")} />
-            </span>
+            <Icon className="h-5 w-5" strokeWidth={active(href) ? 2.2 : 1.8} />
             {label}
           </Link>
         ))}
@@ -307,11 +267,9 @@ export function AppShell({
           type="button"
           onClick={() => setMoreOpen(true)}
           aria-haspopup="dialog"
-          className={cn("flex flex-col items-center gap-0.5 py-2 text-xs font-medium", moreActive ? "text-accent" : "text-subtle")}
+          className={cn("flex flex-col items-center gap-1 pb-1.5 pt-2 text-[11px] font-medium", moreActive ? "text-accent" : "text-subtle")}
         >
-          <span className={cn("flex h-7 w-12 items-center justify-center rounded-full", moreActive && "bg-accent-muted")}>
-            <LayoutGrid className="h-5 w-5" />
-          </span>
+          <LayoutGrid className="h-5 w-5" strokeWidth={moreActive ? 2.2 : 1.8} />
           More
         </button>
       </nav>
@@ -337,18 +295,16 @@ export function AppShell({
                   key={href}
                   href={href}
                   className={cn(
-                    "flex flex-col items-center gap-1.5 rounded-2xl border px-2 py-4 text-xs font-medium transition-colors",
-                    active(href) ? cn("border-transparent", HUE[hueForPath(href)].tint, HUE[hueForPath(href)].ink) : "border-border bg-bg text-fg hover:bg-muted",
+                    "flex flex-col items-center gap-2 rounded-lg border px-2 py-3.5 text-xs font-medium transition-colors",
+                    active(href) ? "border-accent/40 bg-accent-muted text-accent" : "border-border bg-surface text-fg hover:bg-muted",
                   )}
                 >
-                  <span className={cn("flex h-9 w-9 items-center justify-center rounded-xl", HUE[hueForPath(href)].tint, HUE[hueForPath(href)].ink)}>
-                    <Icon className="h-5 w-5" />
-                  </span>
+                  <Icon className={cn("h-5 w-5", active(href) ? "text-accent" : "text-subtle")} strokeWidth={1.9} />
                   {label}
                 </Link>
               ))}
             </div>
-            <SignOut className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl border border-border py-3 text-sm font-medium text-subtle hover:bg-muted hover:text-fg">
+            <SignOut className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg border border-border py-3 text-sm font-medium text-subtle hover:bg-muted hover:text-fg">
               Sign out
             </SignOut>
           </Dialog.Content>

@@ -17,32 +17,32 @@ export interface Palette {
   heat: string[];
 }
 
-// Mirrors the pastel tokens in globals.css: periwinkle for data, mint / butter / rose only for good / watch / bad.
+// Mirrors the tokens in globals.css: one blue for data; green / amber / red only for good / watch / bad.
 const LIGHT: Palette = {
-  accent: "#7C98F0",
-  accentSoft: "#C9D6FF",
-  ink: "#241F3A",
-  subtle: "#5E5A78",
-  grid: "#D9D0F0",
-  amber: "#EBB93A",
-  red: "#EE7F9A",
-  blue: "#7C98F0",
-  good: "#4FC08F",
+  accent: "#2563EB",
+  accentSoft: "#BFD3FB",
+  ink: "#111827",
+  subtle: "#5F6673",
+  grid: "#E4E7EC",
+  amber: "#E89B0C",
+  red: "#DC3B3B",
+  blue: "#2563EB",
+  good: "#16A06A",
   surface: "#ffffff",
-  heat: ["#EDE6FA", "#DDD0F8", "#C9B5F4", "#B398EE", "#9C7BE6", "#865FDB", "#6F45C9"],
+  heat: ["#EEF1F5", "#DBE6FD", "#BCD0FB", "#93B3F7", "#6492F1", "#3B73E8", "#1D57D1"],
 };
 const DARK: Palette = {
-  accent: "#A9BCFF",
-  accentSoft: "#33385E",
-  ink: "#EDE9FA",
-  subtle: "#A9A3C4",
-  grid: "#352F4F",
-  amber: "#F2D57E",
-  red: "#F2A0B3",
-  blue: "#A9BCFF",
-  good: "#8DDBB8",
-  surface: "#241F36",
-  heat: ["#2A2440", "#33385E", "#434A7E", "#5C66A6", "#7C88CC", "#9DAAEE", "#BFC9FF"],
+  accent: "#6EA2FF",
+  accentSoft: "#1E2B47",
+  ink: "#E8EAEE",
+  subtle: "#9AA0AB",
+  grid: "#272A31",
+  amber: "#F0B44C",
+  red: "#F07575",
+  blue: "#6EA2FF",
+  good: "#4CC38A",
+  surface: "#16181D",
+  heat: ["#1B1E24", "#1C2A47", "#21396A", "#28508F", "#3369B8", "#4A86DF", "#77A6FF"],
 };
 
 function isDark() {

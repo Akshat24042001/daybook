@@ -137,7 +137,7 @@ export function ReachOut({ due, limit = 5, title = "Reach out", compact = false 
       <div className="mb-3 flex items-center gap-2">
         <HeartHandshake className="h-4 w-4 text-warn" />
         <h2 className="text-sm font-semibold">{title}</h2>
-        <span className="tabular rounded-full bg-warn-muted px-2 py-0.5 text-xs font-semibold text-warn">{due.length}</span>
+        <span className="tabular rounded-md bg-warn-muted px-2 py-0.5 text-xs font-semibold text-warn">{due.length}</span>
         <span className="ml-auto hidden text-xs text-subtle sm:inline">People you haven&apos;t been in touch with for a while</span>
       </div>
       <ul className="divide-y divide-border/60">

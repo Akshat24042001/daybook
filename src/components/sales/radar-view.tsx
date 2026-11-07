@@ -131,14 +131,14 @@ export function RadarView({ items, sources, googleReady, focus, searchProviders,
       </div>
       <div className="flex flex-wrap gap-1.5">
         {([["qualified", `Qualified · ${counts.qualified}`], ["new", `Scoring · ${counts.new}`], ["rejected", `Below the bar · ${counts.rejected}`], ["hunts", `Hunts · ${hunts.filter((h) => h.enabled).length} on`], ["plan", "Plan & platforms"], ["sources", `Sources${broken ? ` · ${broken} failing` : ""}`]] as const).map(([k, l]) => (
-          <button key={k} type="button" onClick={() => setTab(k)} className={cn("rounded-full border px-3 py-1 text-xs", tab === k ? "border-accent bg-accent-muted text-accent" : "border-border text-subtle")}>{l}</button>
+          <button key={k} type="button" onClick={() => setTab(k)} className={cn("rounded-md border px-3 py-1 text-xs", tab === k ? "border-accent bg-accent-muted text-accent" : "border-border text-subtle")}>{l}</button>
         ))}
       </div>
       {["qualified", "new", "rejected"].includes(tab) ? (
         <div className="flex flex-wrap items-center gap-3 text-xs text-subtle">
           <label className="flex items-center gap-1.5"><input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> Show hidden leads ({hiddenCount})</label>
           {list.some((i) => !i.hidden) ? (
-            <button type="button" className="rounded-full border border-border px-2.5 py-1 hover:bg-muted" disabled={busy} onClick={() => start(async () => {
+            <button type="button" className="rounded-md border border-border px-2.5 py-1 hover:bg-muted" disabled={busy} onClick={() => start(async () => {
               const ids = list.filter((i) => !i.hidden).map((i) => i.id);
               if (ids.length > 3 && !confirm(`Hide all ${ids.length} leads in this list? You can bring them back with “Show hidden leads”.`)) return;
               const r = await radarHideAction(ids, true);
@@ -147,7 +147,7 @@ export function RadarView({ items, sources, googleReady, focus, searchProviders,
             })}>Hide all in this list</button>
           ) : null}
           {showHidden && list.some((i) => i.hidden) ? (
-            <button type="button" className="rounded-full border border-border px-2.5 py-1 hover:bg-muted" disabled={busy} onClick={() => start(async () => {
+            <button type="button" className="rounded-md border border-border px-2.5 py-1 hover:bg-muted" disabled={busy} onClick={() => start(async () => {
               const r = await radarHideAction(list.filter((i) => i.hidden).map((i) => i.id), false);
               toast(r.ok ? `Unhid ${r.changed}` : r.error, r.ok ? "ok" : "error");
               router.refresh();

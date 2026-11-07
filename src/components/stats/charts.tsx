@@ -111,10 +111,11 @@ export function TrendChart({
               labelFormatter={(l) => fmtDateShort(String(l))}
               formatter={(v, n) => [v === null || v === undefined ? "no data" : format(Number(v)), n]}
             />
-            {target ? (
+            {/* with no data recharts has no y scale and draws reference lines at NaN */}
+            {target && hasData && Number.isFinite(target.value) ? (
               <ReferenceLine y={target.value} stroke={p.subtle} strokeDasharray="4 4" ifOverflow="extendDomain" />
             ) : null}
-            {avgLine ? (
+            {avgLine && hasData && Number.isFinite(avgLine.value) ? (
               <ReferenceLine y={avgLine.value} stroke={p.amber} strokeWidth={1.75} strokeDasharray="6 3" ifOverflow="extendDomain" />
             ) : null}
             {kind === "bar" ? (

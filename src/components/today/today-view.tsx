@@ -191,7 +191,7 @@ export function TodayView(props: {
         {planned.length > 0 ? (
           <div className="mt-3 flex items-center gap-3" aria-label={`${finished} of ${planned.length} done`}>
             <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-              <div className="h-full rounded-full bg-[linear-gradient(90deg,hsl(var(--sky-fill)),hsl(var(--mint-fill)))] transition-[width] duration-500" style={{ width: `${pct}%` }} />
+              <div className="h-full rounded-full bg-accent transition-[width] duration-500" style={{ width: `${pct}%` }} />
             </div>
             <span className="tabular shrink-0 text-xs font-semibold text-subtle">{finished} of {planned.length} done</span>
           </div>
@@ -268,10 +268,8 @@ export function TodayView(props: {
         const isCollapsed = collapsible && collapsed[key];
         return (
           <section key={key} aria-label={SECTION_LABEL[key]}>
-            <h2 className={cn("mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider", HUE[SECTION_HUE[key]].ink)}>
-              <span className={cn("flex h-6 w-6 items-center justify-center rounded-full text-fg/80", HUE[SECTION_HUE[key]].fill)} aria-hidden>
-                {(() => { const I = SECTION_ICON[key]; return <I className="h-3.5 w-3.5" />; })()}
-              </span>
+            <h2 className="mb-2 flex items-center gap-2 text-[13px] font-semibold text-fg">
+              {(() => { const I = SECTION_ICON[key]; return <I className="h-4 w-4 text-subtle" aria-hidden />; })()}
               {collapsible ? (
                 <button
                   type="button"
@@ -285,7 +283,7 @@ export function TodayView(props: {
               ) : (
                 SECTION_LABEL[key]
               )}
-              <span className={cn("rounded-full px-1.5 py-0.5 text-xs font-medium normal-case tracking-normal", HUE[SECTION_HUE[key]].tint, HUE[SECTION_HUE[key]].ink)}>{rows.length}</span>
+              <span className="tabular rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-subtle">{rows.length}</span>
             </h2>
             {!isCollapsed ? (
               <SortableEntries
@@ -322,7 +320,7 @@ export function TodayView(props: {
 
       {props.nudges.length > 0 ? (
         <section aria-label="Due for a nudge" className="rounded-3xl bg-p-peach p-3 text-p-peach-fg">
-          <h2 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
+          <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
             <Bell className="h-3.5 w-3.5" /> Due for a nudge
             <span className="font-medium normal-case tracking-normal opacity-80">repeating tasks that have gone quiet</span>
           </h2>
@@ -349,7 +347,7 @@ export function TodayView(props: {
               <ChevronDown className={cn("h-4 w-4 transition-transform", !laterOpen && "-rotate-90")} />
               Later today
             </button>
-            <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium normal-case tracking-normal text-fg">{props.later.length}</span>
+            <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium normal-case tracking-normal text-fg">{props.later.length}</span>
             <span className="font-normal normal-case tracking-normal">appear on the list at their time</span>
           </h2>
           {laterOpen ? (
@@ -382,7 +380,7 @@ export function TodayView(props: {
                 key={t.id}
                 href={`/task/${t.id}`}
                 className={cn(
-                  "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
                   t.met
                     ? "bg-good/15 text-good"
                     : t.behind

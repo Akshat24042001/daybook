@@ -121,10 +121,10 @@ export function EntrySheet({
       <div className="space-y-4">
         {/* what kind of task this is, in one line */}
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className={cn("rounded-full px-2.5 py-1 font-semibold", hue.tint, hue.ink)} title={`${info.shows} ${info.missed}`}>{info.label}</span>
-          {row.timeLabel ? <span className="tabular rounded-full bg-muted px-2.5 py-1 font-medium">{row.timeLabel}</span> : null}
-          {row.estimateMin ? <span className="tabular rounded-full bg-muted px-2.5 py-1">est {fmtDuration(row.estimateMin)}</span> : null}
-          {row.carry >= 1 ? <span className={cn("rounded-full px-2.5 py-1 font-medium", row.carry >= 3 ? "bg-p-rose text-p-rose-fg" : "bg-p-butter text-p-butter-fg")}>carried {row.carry}×</span> : null}
+          <span className={cn("rounded-md px-2.5 py-1 font-semibold", hue.tint, hue.ink)} title={`${info.shows} ${info.missed}`}>{info.label}</span>
+          {row.timeLabel ? <span className="tabular rounded-md bg-muted px-2.5 py-1 font-medium">{row.timeLabel}</span> : null}
+          {row.estimateMin ? <span className="tabular rounded-md bg-muted px-2.5 py-1">est {fmtDuration(row.estimateMin)}</span> : null}
+          {row.carry >= 1 ? <span className={cn("rounded-md px-2.5 py-1 font-medium", row.carry >= 3 ? "bg-p-rose text-p-rose-fg" : "bg-p-butter text-p-butter-fg")}>carried {row.carry}×</span> : null}
           <button type="button" className="ml-auto inline-flex items-center gap-1 text-subtle hover:text-fg" onClick={() => toast(`${info.shows} ${info.missed}`)} aria-label="What does this type of task do?">
             <CircleHelp className="h-3.5 w-3.5" /> How it works
           </button>
@@ -146,7 +146,7 @@ export function EntrySheet({
 
         {/* the one question: how did it go? */}
         <div>
-          <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-subtle">How did it go?</p>
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-subtle">How did it go?</p>
           <div className="grid grid-cols-3 gap-2">
             {PRIMARY.map(({ status, label, hint, tone }) => (
               <button
@@ -176,7 +176,7 @@ export function EntrySheet({
                 disabled={pending}
                 onClick={() => setOutcome(status)}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                  "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
                   displayStatus === status || (status === "waiting" && waitOpen) ? "border-transparent bg-accent text-accent-fg" : "border-border bg-surface hover:bg-muted",
                 )}
               >
@@ -187,7 +187,7 @@ export function EntrySheet({
             {displayStatus !== "open" ? (
               <button
                 type="button"
-                className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs text-subtle hover:bg-muted hover:text-fg"
+                className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs text-subtle hover:bg-muted hover:text-fg"
                 onClick={() => start(async () => {
                   setOptimisticStatus("open");
                   const r = await setStatusAction(row.id, "open");
@@ -242,7 +242,7 @@ export function EntrySheet({
                 const on = row.reason === reason;
                 return (
                   <button key={reason} type="button" aria-pressed={on} disabled={pending} onClick={() => act(() => setSkipReasonAction(row.id, on ? null : reason))}
-                    className={cn("rounded-full border px-3 py-1 text-xs font-medium transition-colors", on ? "border-transparent bg-p-butter text-p-butter-fg" : "border-border hover:bg-muted")}>
+                    className={cn("rounded-md border px-3 py-1 text-xs font-medium transition-colors", on ? "border-transparent bg-p-butter text-p-butter-fg" : "border-border hover:bg-muted")}>
                     {label}
                   </button>
                 );
@@ -269,7 +269,7 @@ export function EntrySheet({
         {/* time: three taps cover almost everything */}
         <div>
           <div className="mb-1.5 flex items-center justify-between">
-            <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-subtle"><Timer className="h-3.5 w-3.5" /> Time {isToday ? "today" : "that day"}</p>
+            <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-subtle"><Timer className="h-3.5 w-3.5" /> Time {isToday ? "today" : "that day"}</p>
             {row.minutes ? (
               <span className="tabular flex items-center gap-2 text-sm font-semibold">
                 {fmtDuration(row.minutes)}
@@ -293,7 +293,7 @@ export function EntrySheet({
 
         {/* moving it */}
         <div>
-          <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-subtle"><CalendarDays className="h-3.5 w-3.5" /> Move it</p>
+          <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-subtle"><CalendarDays className="h-3.5 w-3.5" /> Move it</p>
           <div className="flex flex-wrap gap-1.5">
             {!isToday ? <Button variant="outline" size="sm" disabled={pending} onClick={() => act(() => moveEntryAction(row.id, today), onClose)}><ArrowRight className="h-3.5 w-3.5" /> Today</Button> : null}
             <Button variant="outline" size="sm" disabled={pending} onClick={() => act(() => moveEntryAction(row.id, tomorrow), onClose)}><ArrowRight className="h-3.5 w-3.5" /> Tomorrow</Button>
@@ -339,7 +339,7 @@ export function EntrySheet({
 
         <ErrorNote message={error} />
 
-        <Link href={`/task/${row.taskId}`} className="flex items-center justify-between gap-3 rounded-2xl bg-[linear-gradient(135deg,hsl(var(--accent-fill)),hsl(var(--lilac-fill)))] px-4 py-3 text-sm font-semibold text-accent-fg shadow-[var(--shadow-sm)] transition-transform hover:-translate-y-0.5">
+        <Link href={`/task/${row.taskId}`} className="flex items-center justify-between gap-3 rounded-2xl bg-accent px-4 py-3 text-sm font-semibold text-accent-fg shadow-[var(--shadow-sm)] transition-transform hover:-translate-y-0.5">
           <span className="flex items-center gap-2"><Check className="h-4 w-4" /> Open the full task: schedule, history, notes</span>
           <ExternalLink className="h-4 w-4 shrink-0" />
         </Link>

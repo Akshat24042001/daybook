@@ -19,7 +19,7 @@ export function PageHeader({
   return (
     <header className={cn("mb-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3", className)}>
       <div className="flex min-w-0 items-center gap-3">
-        <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl shadow-[var(--shadow-sm)]", h.fill, "text-fg/80")} aria-hidden>
+        <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-subtle shadow-[var(--shadow-sm)]")} aria-hidden>
           <Icon className="h-5 w-5" />
         </span>
         <div className="min-w-0">

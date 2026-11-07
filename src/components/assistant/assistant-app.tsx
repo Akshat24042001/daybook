@@ -147,7 +147,7 @@ function ModelSheet({
         <button className={row(value === null)} onClick={() => { onPick(null); onClose(); }}>
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold">Auto</span>
-            <span className="rounded-full bg-good-muted px-1.5 py-0.5 text-[10px] font-semibold text-good">Recommended</span>
+            <span className="rounded-md bg-good-muted px-1.5 py-0.5 text-[10px] font-semibold text-good">Recommended</span>
             {value === null ? <Check className="ml-auto h-4 w-4 text-accent" /> : null}
           </div>
           <p className="mt-0.5 text-xs text-subtle">Tries the app&apos;s tested free models in order and uses the first that answers.</p>
@@ -161,7 +161,7 @@ function ModelSheet({
               <button className={row(value === m.id)} onClick={() => { onPick(m.id); onClose(); }} title={m.description}>
                 <div className="flex items-center gap-2">
                   <span className="min-w-0 truncate text-sm font-semibold">{m.name}</span>
-                  {m.recommended ? <span className="shrink-0 rounded-full bg-good-muted px-1.5 py-0.5 text-[10px] font-semibold text-good">in Auto</span> : null}
+                  {m.recommended ? <span className="shrink-0 rounded-md bg-good-muted px-1.5 py-0.5 text-[10px] font-semibold text-good">in Auto</span> : null}
                   {value === m.id ? <Check className="ml-auto h-4 w-4 shrink-0 text-accent" /> : null}
                 </div>
                 <p className="truncate font-mono text-xs text-subtle">{m.id}</p>

@@ -258,9 +258,9 @@ export function PipelineBoard({ stages, deals, transitions }: { stages: Stage[];
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex rounded-full border border-border p-0.5 text-xs">
+        <div className="flex rounded-lg border border-border bg-muted p-0.5 text-xs">
           {(["board", "ranked"] as const).map((v) => (
-            <button key={v} type="button" onClick={() => { setView(v); remember("sales-pipeline-view", v); }} className={cn("rounded-full px-3 py-1", view === v ? "bg-accent text-accent-fg" : "text-subtle")}>
+            <button key={v} type="button" onClick={() => { setView(v); remember("sales-pipeline-view", v); }} className={cn("rounded-md px-3 py-1", view === v ? "bg-surface text-fg shadow-[var(--shadow-sm)]" : "text-subtle hover:text-fg")}>
               {v === "board" ? "Board" : "Ranked by priority"}
             </button>
           ))}
@@ -272,7 +272,7 @@ export function PipelineBoard({ stages, deals, transitions }: { stages: Stage[];
           </Select>
         ) : null}
         {(["open", "won", "parked", "lost", "all"] as const).map((k) => (
-          <button key={k} type="button" onClick={() => setShow(k)} className={cn("rounded-full border px-3 py-1 text-xs capitalize", show === k ? "border-accent bg-accent-muted text-accent" : "border-border text-subtle")}>
+          <button key={k} type="button" onClick={() => setShow(k)} className={cn("rounded-md border px-3 py-1 text-xs capitalize", show === k ? "border-accent bg-accent-muted text-accent" : "border-border text-subtle")}>
             {k}
           </button>
         ))}

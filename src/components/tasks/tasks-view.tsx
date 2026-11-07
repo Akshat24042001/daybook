@@ -42,13 +42,13 @@ function TaskRowItem({ t }: { t: TaskListRow }) {
   const st = stateOf(t);
   const closed = st.key === "done" || st.key === "dropped";
   return (
-    <li className="flex items-center gap-3 rounded-xl border border-l-[5px] border-border bg-surface px-3 py-2.5" style={{ borderLeftColor: t.color ?? undefined }}>
+    <li className="flex items-center gap-3 rounded-xl border border-border shadow-[var(--shadow-sm)] bg-surface px-3 py-2.5" >
       <Link href={`/task/${t.id}`} className="group min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[15px] font-medium leading-snug group-hover:underline">
           <span className={cn(st.key === "dropped" && "text-subtle line-through decoration-1")}>{t.title}</span>
           {t.project ? <Chip color={t.color}>{t.project}</Chip> : null}
           {/* "Active" is the default and would sit on every row; only the other states earn a badge */}
-          {st.key !== "active" ? <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", HUE[st.hue].tint, HUE[st.hue].ink)}>{st.label}</span> : null}
+          {st.key !== "active" ? <span className={cn("rounded-md px-2 py-0.5 text-xs font-medium", HUE[st.hue].tint, HUE[st.hue].ink)}>{st.label}</span> : null}
         </p>
         <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-subtle">
           <span>{TYPE_WORDS[t.type] ?? t.type.replace(/_/g, " ")}</span>
@@ -105,7 +105,7 @@ export function TasksView({ tasks, log }: { tasks: TaskListRow[]; log: TaskLogRo
       <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0" role="tablist">
         {TABS.map(([k, l, Icon]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
-            className={cn("flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium", tab === k ? "border-transparent bg-accent text-accent-fg" : "border-border text-subtle hover:bg-muted")}>
+            className={cn("flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-xs font-medium", tab === k ? "border-transparent bg-accent text-accent-fg" : "border-border text-subtle hover:bg-muted")}>
             <Icon className="h-3.5 w-3.5" /> {l}
           </button>
         ))}
@@ -132,8 +132,8 @@ export function TasksView({ tasks, log }: { tasks: TaskListRow[]; log: TaskLogRo
                 const [word, hue] = LOG_WORD[l.status] ?? [l.status, "sky" as Hue];
                 return (
                   <li key={l.entry_id}>
-                    <Link href={`/task/${l.task_id}`} className="flex items-center gap-3 rounded-xl border border-l-[5px] border-border bg-surface px-3 py-2 hover:bg-muted" style={{ borderLeftColor: l.color ?? undefined }}>
-                      <span className={cn("w-24 shrink-0 rounded-full px-2 py-0.5 text-center text-xs font-medium", HUE[hue].tint, HUE[hue].ink)}>{word}</span>
+                    <Link href={`/task/${l.task_id}`} className="flex items-center gap-3 rounded-xl border border-border shadow-[var(--shadow-sm)] bg-surface px-3 py-2 hover:bg-muted" >
+                      <span className={cn("w-24 shrink-0 rounded-md px-2 py-0.5 text-center text-xs font-medium", HUE[hue].tint, HUE[hue].ink)}>{word}</span>
                       <span className="min-w-0 flex-1 truncate text-sm">{l.title}</span>
                       {l.project ? <span className="hidden text-xs text-subtle sm:inline">{l.project}</span> : null}
                     </Link>

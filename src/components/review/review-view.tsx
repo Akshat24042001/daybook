@@ -303,7 +303,7 @@ function IntentionsCard({
           <p className="text-sm font-semibold">{title}</p>
           <p className="text-xs text-subtle">{subtitle}</p>
         </div>
-        {markable && items.length ? <span className="tabular rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-subtle">{done}/{items.length} done</span> : null}
+        {markable && items.length ? <span className="tabular rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-subtle">{done}/{items.length} done</span> : null}
         {!editing && items.length ? (
           <button type="button" onClick={() => setEditing(true)} aria-label="Edit intentions" className="rounded-md p-1 text-subtle hover:bg-muted hover:text-fg">
             <Pencil className="h-3.5 w-3.5" />

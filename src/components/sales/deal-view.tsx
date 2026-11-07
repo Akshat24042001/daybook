@@ -100,7 +100,7 @@ export function DealView({ d }: { d: DealPageData }) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold" style={{ background: `${deal.stage_color}26`, borderColor: `${deal.stage_color}80` }}>
+              <span className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-xs font-semibold" style={{ background: `${deal.stage_color}26`, borderColor: `${deal.stage_color}80` }}>
                 <span className="h-2 w-2 rounded-full" style={{ background: deal.stage_color }} />{deal.stage_name}
               </span>
               <Priority value={deal.priority} prev={deal.priority_prev} why={deal.priority_why} />
@@ -128,7 +128,7 @@ export function DealView({ d }: { d: DealPageData }) {
               type="button"
               disabled={busy}
               onClick={() => (t.requires !== "none" || t.category === "lost" || t.category === "parked" ? setPendingMove({ deal, to: t, requires: t.requires }) : act(async () => (await import("@/app/sales-actions")).moveStageAction(deal.id, t.id), `Moved to ${t.name}`))}
-              className="rounded-full border border-border px-2.5 py-1 text-xs hover:border-accent hover:text-accent"
+              className="rounded-md border border-border px-2.5 py-1 text-xs hover:border-accent hover:text-accent"
             >
               {t.name}{t.requires !== "none" ? " *" : ""}
             </button>
@@ -142,7 +142,7 @@ export function DealView({ d }: { d: DealPageData }) {
           <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border pt-3">
             <span className="text-xs text-subtle">Last touch:</span>
             {d.touches.map((t) => (
-              <span key={t.channel} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs" title={`${t.count} touches${t.last_in ? `, they last wrote ${ago(t.last_in)}` : ""}`}>
+              <span key={t.channel} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs" title={`${t.count} touches${t.last_in ? `, they last wrote ${ago(t.last_in)}` : ""}`}>
                 <ChannelIcon channel={t.channel} className="h-3 w-3" /> {CHANNEL_LABEL[t.channel] ?? t.channel} {ago(t.last_at)}
               </span>
             ))}
@@ -419,7 +419,7 @@ function Payments({ dealId, currency, payments, onChange }: { dealId: number; cu
               <span className="flex-1">{p.label} <span className="text-xs text-subtle">{p.due_on ? `due ${String(p.due_on).slice(0, 10)}` : ""}</span></span>
               <span className={cn("tabular", late && "font-semibold text-bad")}>{money(p.amount, p.currency)}</span>
               {p.status === "paid" ? (
-                <button type="button" onClick={() => start(async () => { await markPaidAction(p.id, new Date().toISOString().slice(0, 10), "due"); onChange(); })} className="rounded-full bg-good-muted px-2 text-xs text-good">paid</button>
+                <button type="button" onClick={() => start(async () => { await markPaidAction(p.id, new Date().toISOString().slice(0, 10), "due"); onChange(); })} className="rounded-md bg-good-muted px-2 text-xs text-good">paid</button>
               ) : (
                 <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => start(async () => {
                   const r = await markPaidAction(p.id, new Date().toISOString().slice(0, 10));

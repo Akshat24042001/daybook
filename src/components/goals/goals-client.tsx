@@ -60,7 +60,7 @@ function TargetCard({
         </div>
         <span
           className={cn(
-            "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
+            "shrink-0 rounded-md px-2 py-0.5 text-xs font-medium",
             t.met ? "bg-good/15 text-good" : closedEarly || t.behind ? "bg-warn/15 text-warn" : "bg-accent/15 text-accent",
           )}
           title={closedEarly ? "Closed before the goal was reached" : undefined}
@@ -183,7 +183,7 @@ export function GoalsClient(props: {
             <div className="flex items-center gap-2.5">
               <span className={cn("h-2 w-2 shrink-0 rounded-full", PERIOD_DOT[p])} aria-hidden />
               <h3 className="text-sm font-semibold text-fg">{PERIOD_LABEL[p]}</h3>
-              <span className="tabular rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-subtle">{props.targets[p].length}</span>
+              <span className="tabular rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-subtle">{props.targets[p].length}</span>
               <span className="h-px flex-1 bg-border" aria-hidden />
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

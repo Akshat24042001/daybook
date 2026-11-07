@@ -125,7 +125,7 @@ export function HealthClient(props: {
           <h1 className="font-display text-2xl sm:text-3xl leading-tight">Health</h1>
           <p className="mt-1 text-sm text-subtle">{props.dateLabel}</p>
         </div>
-        {props.paused ? <span className="rounded-full bg-warn-muted px-2.5 py-1 text-xs font-medium text-warn">Pings paused</span> : null}
+        {props.paused ? <span className="rounded-md bg-warn-muted px-2.5 py-1 text-xs font-medium text-warn">Pings paused</span> : null}
       </header>
 
       {/* hero: today at a glance */}
@@ -152,7 +152,7 @@ export function HealthClient(props: {
               </p>
             ) : null}
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-              <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold", props.streak > 0 ? "bg-warn-muted text-warn" : "bg-muted text-subtle")}>
+              <span className={cn("inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-semibold", props.streak > 0 ? "bg-warn-muted text-warn" : "bg-muted text-subtle")}>
                 <Flame className="h-3.5 w-3.5" /> {props.streak} day streak
               </span>
               {next ? <span className="text-subtle">Next ping at {next.label}</span> : null}
@@ -336,7 +336,7 @@ export function HealthClient(props: {
           {selectedInfo ? (
             <button type="button" onClick={() => setHowTo(true)} className="group relative block w-full rounded-2xl bg-muted/50 p-2" aria-label={`How to do ${selected?.name}`}>
               <ExerciseFigure rig={selectedInfo.rig} className="mx-auto h-40 w-full max-w-xs" label={`${selectedInfo.name} demonstration`} />
-              <span className="absolute bottom-2 right-2 rounded-full bg-surface px-2 py-0.5 text-[10px] font-semibold text-accent shadow-sm">How to do it</span>
+              <span className="absolute bottom-2 right-2 rounded-md bg-surface px-2 py-0.5 text-[10px] font-semibold text-accent shadow-sm">How to do it</span>
             </button>
           ) : null}
           <Field label="Exercise">

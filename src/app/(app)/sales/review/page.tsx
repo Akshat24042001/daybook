@@ -37,7 +37,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
         </div>
         <div className="flex gap-1.5 text-xs">
           {[7, 30, 90].map((d) => (
-            <a key={d} href={`?days=${d}`} className={`rounded-full border px-3 py-1 ${d === days ? "border-accent bg-accent-muted text-accent" : "border-border text-subtle"}`}>
+            <a key={d} href={`?days=${d}`} className={`rounded-md border px-3 py-1 ${d === days ? "border-accent bg-accent-muted text-accent" : "border-border text-subtle"}`}>
               {d} days
             </a>
           ))}

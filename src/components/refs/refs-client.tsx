@@ -35,7 +35,7 @@ function TagPill({ tag, active, onClick }: { tag: string; active: boolean; onCli
       type="button"
       onClick={onClick}
       className={cn(
-        "flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors",
+        "flex items-center gap-1 rounded-md px-2.5 py-0.5 text-xs font-medium transition-colors",
         active
           ? "bg-accent text-accent-fg"
           : "border border-border text-subtle hover:bg-muted hover:text-fg",
@@ -191,7 +191,7 @@ function RefForm({
                 type="button"
                 onClick={() => toggleSuggestedTag(t)}
                 className={cn(
-                  "rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
+                  "rounded-md px-2 py-0.5 text-xs font-medium transition-colors",
                   f.tags.includes(t)
                     ? "bg-accent text-accent-fg"
                     : "bg-muted text-subtle hover:text-fg",
@@ -291,7 +291,7 @@ function RefCard({
                 {r.tags.map((t) => (
                   <span
                     key={t}
-                    className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-subtle"
+                    className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-medium text-subtle"
                   >
                     {t}
                   </span>
@@ -458,7 +458,7 @@ export function RefsClient({ refs, allTags, voiceEnabled }: { refs: Ref[]; allTa
                   type="button"
                   onClick={() => setKindFilter(kindFilter === k ? null : k)}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                    "flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors",
                     kindFilter === k
                       ? "bg-accent text-accent-fg"
                       : "border border-border text-subtle hover:bg-muted hover:text-fg",

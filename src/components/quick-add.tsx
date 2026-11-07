@@ -154,7 +154,7 @@ export function QuickAdd({ tz, boundaryMin, voiceEnabled, aiEnabled }: { tz: str
   const dayWord = defaultDate ? "this day" : "today";
 
   return (
-    <div className="rounded-2xl border border-border bg-surface p-2 shadow-sm">
+    <div className="rounded-xl border border-border bg-surface p-1.5 shadow-[var(--shadow-sm)] transition-shadow focus-within:border-accent/50 focus-within:shadow-[0_0_0_3px_hsl(var(--accent-fill)/0.12)]">
       <form
         className="flex items-center gap-2"
         onSubmit={(e) => {
@@ -206,7 +206,7 @@ export function QuickAdd({ tz, boundaryMin, voiceEnabled, aiEnabled }: { tz: str
             enterKeyHint="done"
             autoComplete="off"
             autoCapitalize="sentences"
-            className="h-11 w-full rounded-xl bg-muted px-3 pr-10 text-[15px] outline-none placeholder:text-subtle/70 focus:ring-2 focus:ring-accent/50"
+            className="h-10 w-full rounded-lg bg-transparent px-2.5 pr-10 text-[15px] outline-none placeholder:text-subtle/70"
           />
           {text ? (
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-subtle">
@@ -241,7 +241,7 @@ export function QuickAdd({ tz, boundaryMin, voiceEnabled, aiEnabled }: { tz: str
         </div>
         <VoiceButton
           enabled={voiceEnabled}
-          className="h-11"
+          className="h-10"
           onText={(t) => {
             const next = looksLikeTimeLog(t) ? t : voiceToQuickAdd(t, names?.projects ?? []);
             setText(next);
@@ -251,8 +251,8 @@ export function QuickAdd({ tz, boundaryMin, voiceEnabled, aiEnabled }: { tz: str
         {aiEnabled ? (
           <Button
             type="button"
-            variant="outline"
-            className="h-11 w-11 px-0"
+            variant="ghost"
+            className="h-10 w-10 px-0"
             disabled={aiPending || !text.trim()}
             aria-label="Interpret with AI"
             title="Let AI understand what you typed"
@@ -265,14 +265,14 @@ export function QuickAdd({ tz, boundaryMin, voiceEnabled, aiEnabled }: { tz: str
             )}
           </Button>
         ) : null}
-        <Button type="submit" variant="primary" className="h-11 w-11 px-0" disabled={pending || blocked || showDup} aria-label="Add">
+        <Button type="submit" variant="primary" className="h-10 w-10 px-0" disabled={pending || blocked || showDup} aria-label="Add">
           <Plus className="h-5 w-5" />
         </Button>
       </form>
 
       {(focused || text.trim()) && names?.projects.length && !looksLikeTimeLog(text.trim()) ? (
         <div className="mt-2 flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]" role="group" aria-label="Project">
-          <span className="shrink-0 text-xs font-semibold uppercase tracking-wider text-subtle">Project</span>
+          <span className="shrink-0 text-xs font-medium text-subtle">Project</span>
           {[null, ...names.projects].map((name) => {
             const on = (currentProject(text) ?? null)?.toLowerCase() === (name ?? null)?.toLowerCase();
             return (
@@ -292,7 +292,7 @@ export function QuickAdd({ tz, boundaryMin, voiceEnabled, aiEnabled }: { tz: str
                   });
                 }}
                 className={cn(
-                  "shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                  "shrink-0 whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
                   on ? "border-transparent bg-accent text-accent-fg" : "border-border bg-surface text-subtle hover:bg-muted hover:text-fg",
                 )}
               >

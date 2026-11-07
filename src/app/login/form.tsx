@@ -35,9 +35,9 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={submit} className="mt-6 space-y-3">
+    <form onSubmit={submit} className="space-y-4">
       <label className="block">
-        <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-subtle">Password</span>
+        <span className="mb-1.5 block text-[13px] font-medium">Password</span>
         <span className="relative block">
           <Input
             type={show ? "text" : "password"}

@@ -39,7 +39,7 @@ export function IntentionsMini({ weekStart, items }: { weekStart: DateStr; items
       <div className="mb-2.5 flex items-center gap-2">
         <Compass className="h-4 w-4 text-accent" />
         <Link href="/review" className="text-sm font-semibold hover:underline">This week</Link>
-        <span className="tabular ml-auto rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-subtle">{done}/{opt.length}</span>
+        <span className="tabular ml-auto rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-subtle">{done}/{opt.length}</span>
       </div>
       <ul className="space-y-2">
         {opt.map((it, i) => (

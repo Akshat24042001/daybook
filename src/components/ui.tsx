@@ -8,25 +8,25 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-1.5 rounded-full text-sm font-semibold transition-all duration-150 disabled:opacity-40 disabled:pointer-events-none select-none",
+  "inline-flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:opacity-40 disabled:pointer-events-none select-none",
   {
     variants: {
       variant: {
         primary:
-          "bg-[linear-gradient(135deg,hsl(var(--accent-fill)),hsl(var(--lilac-fill)))] text-accent-fg shadow-[var(--shadow-sm)] hover:brightness-[1.04] hover:shadow-[var(--shadow-md)] active:scale-[0.97]",
+          "bg-accent text-accent-fg shadow-[var(--shadow-sm)] hover:bg-accent/90",
         soft:
-          "bg-muted text-fg hover:brightness-[0.96] active:scale-[0.97]",
+          "bg-muted text-fg hover:bg-border/70",
         outline:
-          "border border-border bg-surface text-fg hover:bg-muted active:scale-[0.97]",
+          "border border-border bg-surface text-fg shadow-[var(--shadow-sm)] hover:bg-muted",
         ghost:
-          "text-subtle hover:bg-muted hover:text-fg active:scale-[0.97]",
+          "text-subtle hover:bg-muted hover:text-fg",
         danger:
-          "bg-[linear-gradient(135deg,hsl(var(--bad-fill)),hsl(var(--peach-fill)))] text-bad-on shadow-[var(--shadow-sm)] hover:brightness-[1.03] active:scale-[0.97]",
+          "bg-bad text-bad-on shadow-[var(--shadow-sm)] hover:bg-bad/90",
       },
       size: {
-        sm:   "h-8 px-3 text-xs",
-        md:   "h-10 px-4",
-        lg:   "h-11 px-5 text-base",
+        sm:   "h-8 px-3 text-[13px]",
+        md:   "h-9 px-3.5",
+        lg:   "h-10 px-4",
         icon: "h-9 w-9",
       },
     },
@@ -56,7 +56,7 @@ export function Chip({
 }) {
   return (
     <span
-      className={cn("inline-flex max-w-full items-center gap-1 truncate rounded-full bg-muted px-2 py-0.5 text-xs text-subtle", className)}
+      className={cn("inline-flex max-w-full items-center gap-1 truncate rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-subtle", className)}
     >
       {color ? <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} aria-hidden /> : null}
       <span className="truncate">{children}</span>
@@ -115,7 +115,7 @@ export function Sheet({
       <Dialog.Portal>
         <Dialog.Overlay className="sheet-overlay fixed inset-0 z-40 bg-black/40" />
         <Dialog.Content
-          className={cn("sheet-content fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[90vh] w-full overflow-y-auto rounded-t-[1.75rem] border border-border bg-surface bg-[linear-gradient(160deg,hsl(var(--muted)/0.8),transparent_55%)] p-4 pb-safe shadow-[var(--shadow-lg)] sm:bottom-auto sm:top-[8vh] sm:rounded-[1.75rem]", wide ? "max-w-3xl" : "max-w-lg")}
+          className={cn("sheet-content fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[90vh] w-full overflow-y-auto rounded-t-2xl border border-border bg-surface p-5 pb-safe shadow-[var(--shadow-lg)] sm:bottom-auto sm:top-[8vh] sm:rounded-xl", wide ? "max-w-3xl" : "max-w-lg")}
           aria-describedby={description ? undefined : undefined}
         >
           <div className="mb-3 flex items-start justify-between gap-3">
@@ -147,7 +147,7 @@ export function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-subtle">{label}</span>
+      <span className="mb-1.5 block text-[13px] font-medium text-fg">{label}</span>
       {children}
       {hint ? <span className="mt-1 block text-xs text-subtle">{hint}</span> : null}
     </label>
@@ -155,7 +155,7 @@ export function Field({
 }
 
 export const inputClass =
-  "h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none transition-colors placeholder:text-subtle/60 focus:border-accent/60 focus:ring-2 focus:ring-accent/20";
+  "h-9 w-full rounded-lg border border-border bg-surface px-3 text-sm shadow-[var(--shadow-sm)] outline-none transition-colors placeholder:text-subtle/70 focus:border-accent focus:ring-[3px] focus:ring-accent/15";
 
 export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(function Input(
   { className, ...props },
@@ -262,7 +262,7 @@ function useFloatingDismiss(
 }
 
 const panelClass =
-  "dropdown-in z-[60] flex flex-col overflow-hidden rounded-2xl border border-border/80 bg-surface/95 text-sm shadow-[var(--shadow-lg)] ring-1 ring-black/5 backdrop-blur-xl";
+  "dropdown-in z-[60] flex flex-col overflow-hidden rounded-lg border border-border bg-surface text-sm shadow-[var(--shadow-lg)]";
 
 function optionClass(activeRow: boolean, selectedRow: boolean, disabledRow: boolean) {
   return cn(
@@ -656,7 +656,7 @@ export function ComboInput({
 }
 
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("rounded-3xl border border-border bg-surface bg-[linear-gradient(155deg,hsl(var(--muted)/0.75),transparent_65%)] shadow-[var(--shadow-sm)]", className)} {...props} />;
+  return <div className={cn("rounded-xl border border-border bg-surface shadow-[var(--shadow-sm)]", className)} {...props} />;
 }
 
 /** A shimmering placeholder block for loading states. */
@@ -684,9 +684,9 @@ export function EmptyState({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col items-center rounded-3xl border-2 border-dashed border-border bg-surface/60 px-6 py-8 text-center", className)}>
+    <div className={cn("flex flex-col items-center rounded-xl border border-dashed border-border bg-surface px-6 py-10 text-center", className)}>
       {Icon ? (
-        <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-3xl bg-[linear-gradient(135deg,hsl(var(--p-lilac)),hsl(var(--p-sky)))] text-p-lilac-fg shadow-[var(--shadow-sm)]">
+        <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-muted text-subtle">
           <Icon className="h-6 w-6" />
         </span>
       ) : null}

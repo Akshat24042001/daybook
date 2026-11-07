@@ -41,7 +41,7 @@ export function AccountsView({ companies, people, companyFields, personFields, c
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {(["people", "companies"] as const).map((k) => (
-          <button key={k} type="button" onClick={() => setTab(k)} className={cn("rounded-full border px-3 py-1 text-xs capitalize", tab === k ? "border-accent bg-accent-muted text-accent" : "border-border text-subtle")}>
+          <button key={k} type="button" onClick={() => setTab(k)} className={cn("rounded-md border px-3 py-1 text-xs capitalize", tab === k ? "border-accent bg-accent-muted text-accent" : "border-border text-subtle")}>
             {k} · {k === "people" ? people.length : companies.length}
           </button>
         ))}

@@ -155,7 +155,7 @@ export function TaskForm({
           <ArrowLeft className="h-4 w-4" /> Back
         </Link>
         <div className="mt-3 flex items-start gap-3">
-          <span className={cn("mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl", hue.fill, "text-fg/80 shadow-[var(--shadow-sm)]")}><TypeIcon className="h-5 w-5" /></span>
+          <span className={cn("mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg", hue.tint, hue.ink)}><TypeIcon className="h-5 w-5" /></span>
           <div className="min-w-0 flex-1">
             <input
               value={f.title}
@@ -166,10 +166,10 @@ export function TaskForm({
             />
             {mode === "edit" ? (
               <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-subtle">
-                <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", hue.tint, hue.ink)}>{TASK_TYPE_LABEL[f.type]}</span>
+                <span className={cn("rounded-md px-2.5 py-0.5 text-xs font-semibold", hue.tint, hue.ink)}>{TASK_TYPE_LABEL[f.type]}</span>
                 {f.project ? <Chip>{f.project}</Chip> : null}
-                {task.state !== "active" ? <span className="rounded-full bg-p-rose px-2.5 py-0.5 text-xs font-semibold text-p-rose-fg">{task.state}</span> : null}
-                {task.carry > 0 ? <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", task.carry >= 3 ? "bg-p-rose text-p-rose-fg" : "bg-p-butter text-p-butter-fg")}>carried {task.carry}×</span> : null}
+                {task.state !== "active" ? <span className="rounded-md bg-p-rose px-2.5 py-0.5 text-xs font-semibold text-p-rose-fg">{task.state}</span> : null}
+                {task.carry > 0 ? <span className={cn("rounded-md px-2.5 py-0.5 text-xs font-medium", task.carry >= 3 ? "bg-p-rose text-p-rose-fg" : "bg-p-butter text-p-butter-fg")}>carried {task.carry}×</span> : null}
                 <span>Added {fmtDay(task.createdDay)}</span>
                 {totals.minutes ? <span className="tabular">{fmtDuration(totals.minutes)} logged over {totals.days} {totals.days === 1 ? "day" : "days"}</span> : null}
               </p>
@@ -181,7 +181,7 @@ export function TaskForm({
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
         <div className="space-y-5">
           <Card className="space-y-4 p-4">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-subtle">What</h2>
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-subtle">What</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Kind of task">
                 <Select value={f.type} onChange={(e) => set("type", e.target.value as TaskType)}>
@@ -210,7 +210,7 @@ export function TaskForm({
 
           {(dateField || info.fields.time || info.fields.repeat !== "none") ? (
             <Card className="space-y-4 p-4">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-subtle">When</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-subtle">When</h2>
               {dateField || info.fields.time ? (
                 <div className="grid gap-4 sm:grid-cols-2">
                   {dateField}
@@ -265,7 +265,7 @@ export function TaskForm({
 
           {showPeople ? (
             <Card className="space-y-4 p-4">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-subtle">Who</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-subtle">Who</h2>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Person">
                   <ComboInput value={f.person} onChange={(v) => set("person", v)} suggestions={people} placeholder="None" aria-label="Person" newHint="new person" />
@@ -321,20 +321,20 @@ export function TaskForm({
             <Button variant="primary" onClick={save} disabled={pending || !f.title.trim()}>
               <Save className="h-4 w-4" /> {mode === "new" ? "Create task" : "Save changes"}
             </Button>
-            <Link href="/today" className="inline-flex h-10 items-center rounded-full px-4 text-sm font-medium text-subtle hover:bg-muted hover:text-fg">Cancel</Link>
+            <Link href="/today" className="inline-flex h-10 items-center rounded-md px-4 text-sm font-medium text-subtle hover:bg-muted hover:text-fg">Cancel</Link>
           </div>
         </div>
 
         <aside className="space-y-5">
           <section className={cn("rounded-3xl border border-border p-4", hue.soft)} aria-label="How this kind of task works">
-            <h2 className={cn("mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider", hue.ink)}><TypeIcon className="h-4 w-4" /> {info.label}: how it works</h2>
+            <h2 className={cn("mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide", hue.ink)}><TypeIcon className="h-4 w-4" /> {info.label}: how it works</h2>
             <p className="text-sm"><b>When it shows up.</b> {info.shows}</p>
             <p className="mt-2 text-sm"><b>If you miss it.</b> {info.missed}</p>
           </section>
 
           {mode === "edit" ? (
             <Card className="space-y-3 p-4">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-subtle">This task</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-subtle">This task</h2>
               <dl className="grid grid-cols-2 gap-2 text-center">
                 <div className="rounded-2xl bg-muted px-2 py-2"><dt className="text-xs text-subtle">Days worked</dt><dd className="font-display text-xl tabular">{totals.days}</dd></div>
                 <div className="rounded-2xl bg-muted px-2 py-2"><dt className="text-xs text-subtle">Time logged</dt><dd className="font-display text-xl tabular">{totals.minutes ? fmtDuration(totals.minutes) : "0m"}</dd></div>
@@ -378,7 +378,7 @@ export function TaskForm({
 
           {mode === "edit" && history.length > 0 ? (
             <Card className="p-4" aria-label="History">
-              <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-subtle">History</h2>
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-subtle">History</h2>
               <ol className="space-y-2">
                 {history.map((h) => (
                   <li key={h.date + h.status} className="flex items-center gap-3 text-sm">
@@ -393,7 +393,7 @@ export function TaskForm({
 
           {mode === "edit" ? (
             <Card className="space-y-3 p-4">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-subtle">Notes</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-subtle">Notes</h2>
               {remarkList.length === 0 ? <p className="text-sm text-subtle">No notes yet.</p> : (
                 <ul className="space-y-2">
                   {remarkList.map((r) => {

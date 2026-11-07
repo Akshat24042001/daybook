@@ -139,10 +139,10 @@ export function PlanClient(props: {
                       <li
                         key={r.id}
                         ref={slot.setNodeRef}
-                        style={{ ...slot.style, borderLeftColor: r.projectColor ?? undefined }}
+                        style={slot.style}
                         className={cn(
-                          "flex items-center gap-2 rounded-xl border border-l-[5px] border-border px-2 py-2.5",
-                          r.mustDo ? "highlighter border-y-transparent border-r-transparent" : "bg-surface",
+                          "flex items-center gap-2 rounded-xl border border-border shadow-[var(--shadow-sm)] px-2 py-2.5",
+                          "bg-surface",
                           slot.dragging && "shadow-[var(--shadow-lg)] ring-2 ring-accent/40",
                         )}
                       >

@@ -133,7 +133,7 @@ export function RepeatEditor({
               ["My working days", working],
               ["Not Sunday", WEEKDAYS.filter((w) => w !== "SU")],
             ].map(([name, days]) => (
-              <button key={name as string} type="button" onClick={() => preset(days as Weekday[])} className="rounded-full border border-border bg-surface px-2.5 py-1 text-subtle hover:text-fg">
+              <button key={name as string} type="button" onClick={() => preset(days as Weekday[])} className="rounded-md border border-border bg-surface px-2.5 py-1 text-subtle hover:text-fg">
                 {name as string}
               </button>
             ))}
@@ -289,7 +289,7 @@ export function RepeatEditor({
           {r.except.length ? (
             <div className="mt-2 flex flex-wrap gap-1">
               {r.except.map((d) => (
-                <span key={d} className="inline-flex items-center gap-1 rounded-full bg-surface px-2 py-0.5 text-xs text-subtle">
+                <span key={d} className="inline-flex items-center gap-1 rounded-md bg-surface px-2 py-0.5 text-xs text-subtle">
                   {fmtDay(d, today)}
                   <button type="button" onClick={() => update({ except: r.except.filter((x) => x !== d) })} aria-label={`Stop skipping ${d}`}>
                     <X className="h-3 w-3" />

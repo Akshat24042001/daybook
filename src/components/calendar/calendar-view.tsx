@@ -70,8 +70,7 @@ function TaskRow({ t }: { t: CalTask }) {
     <li>
       <Link
         href={`/task/${t.taskId}`}
-        className="flex items-center gap-3 rounded-2xl border border-l-[5px] border-border bg-surface px-3 py-2 hover:bg-muted"
-        style={{ borderLeftColor: t.color ?? undefined }}
+        className="flex items-center gap-3 rounded-2xl border border-border shadow-[var(--shadow-sm)] bg-surface px-3 py-2 hover:bg-muted" 
       >
         {t.projected ? <span className="h-6 w-6 shrink-0 rounded-full border-2 border-dashed border-subtle/60" aria-hidden /> : <StatusGlyph status={t.status as never} className="h-6 w-6 shrink-0" />}
         <span className="min-w-0 flex-1">
@@ -110,22 +109,22 @@ function DayAgenda({ day, today }: { day: CalDay; today: DateStr }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
-        {day.score !== null ? <span className={cn("rounded-full px-2.5 py-1 font-semibold", tone.bg, tone.ink)}>Scored {day.score}/10</span> : !isFuture ? <span className="rounded-full bg-muted px-2.5 py-1 text-subtle">Not scored</span> : null}
-        {day.workedMin > 0 ? <span className="tabular rounded-full bg-p-teal px-2.5 py-1 font-medium text-p-teal-fg">{fmtDuration(day.workedMin)} worked</span> : null}
-        {day.steps ? <span className="tabular rounded-full bg-p-mint px-2.5 py-1 text-p-mint-fg">{day.steps.toLocaleString("en-US")} steps</span> : null}
-        {day.sleepMin ? <span className="tabular rounded-full bg-p-lilac px-2.5 py-1 text-p-lilac-fg">{fmtDuration(day.sleepMin)} sleep</span> : null}
-        {!isFuture && day.counts.total > 0 ? <span className="tabular rounded-full bg-muted px-2.5 py-1">{day.counts.done} of {day.counts.total} done</span> : null}
+        {day.score !== null ? <span className={cn("rounded-md px-2.5 py-1 font-semibold", tone.bg, tone.ink)}>Scored {day.score}/10</span> : !isFuture ? <span className="rounded-md bg-muted px-2.5 py-1 text-subtle">Not scored</span> : null}
+        {day.workedMin > 0 ? <span className="tabular rounded-md bg-p-teal px-2.5 py-1 font-medium text-p-teal-fg">{fmtDuration(day.workedMin)} worked</span> : null}
+        {day.steps ? <span className="tabular rounded-md bg-p-mint px-2.5 py-1 text-p-mint-fg">{day.steps.toLocaleString("en-US")} steps</span> : null}
+        {day.sleepMin ? <span className="tabular rounded-md bg-p-lilac px-2.5 py-1 text-p-lilac-fg">{fmtDuration(day.sleepMin)} sleep</span> : null}
+        {!isFuture && day.counts.total > 0 ? <span className="tabular rounded-md bg-muted px-2.5 py-1">{day.counts.done} of {day.counts.total} done</span> : null}
       </div>
 
       {day.eventList.length ? (
         <section aria-label="Events">
-          <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-subtle">Events</h3>
+          <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-subtle">Events</h3>
           <ul className="space-y-1.5">{day.eventList.map((e) => <EventRow key={e.key} e={e} />)}</ul>
         </section>
       ) : null}
 
       <section aria-label="Tasks">
-        <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-subtle">{isFuture ? "Planned" : "Tasks"} · {tasks.length}</h3>
+        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-subtle">{isFuture ? "Planned" : "Tasks"} · {tasks.length}</h3>
         {tasks.length ? <ul className="space-y-1.5">{tasks.map((t) => <TaskRow key={t.key} t={t} />)}</ul> : <p className="rounded-2xl border border-dashed border-border px-3 py-4 text-center text-sm text-subtle">{isFuture ? "Nothing planned for this day yet." : "No tasks were on this day."}</p>}
       </section>
 
@@ -137,8 +136,8 @@ function DayAgenda({ day, today }: { day: CalDay; today: DateStr }) {
 
       <div className="flex flex-wrap gap-2 border-t border-border pt-3">
         <Button size="sm" variant="primary" onClick={() => prefillQuickAdd(quickAddFor(day.date))}><CalendarPlus className="h-4 w-4" /> Add a task to this day</Button>
-        <Link href={`/plan?date=${day.date}`} className="inline-flex h-8 items-center gap-1 rounded-full border border-border bg-surface px-3 text-xs font-semibold hover:bg-muted">Plan this day</Link>
-        {day.date === today ? <Link href="/today" className="inline-flex h-8 items-center gap-1 rounded-full border border-border bg-surface px-3 text-xs font-semibold hover:bg-muted">Open Today</Link> : null}
+        <Link href={`/plan?date=${day.date}`} className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-surface px-3 text-xs font-semibold hover:bg-muted">Plan this day</Link>
+        {day.date === today ? <Link href="/today" className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-surface px-3 text-xs font-semibold hover:bg-muted">Open Today</Link> : null}
       </div>
     </div>
   );
@@ -150,7 +149,7 @@ function MonthGrid({ data, onPick }: { data: CalendarData; onPick: (d: DateStr) 
   const month = parseDateStr(data.date).m;
   return (
     <Card className="overflow-hidden p-2 sm:p-3">
-      <div className="grid grid-cols-7 gap-1 pb-1 text-center text-xs font-bold uppercase tracking-wider text-subtle sm:gap-1.5">
+      <div className="grid grid-cols-7 gap-1 pb-1 text-center text-xs font-semibold uppercase tracking-wide text-subtle sm:gap-1.5">
         {WEEKDAYS.map((w) => <div key={w} className="py-1">{w}</div>)}
       </div>
       <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
@@ -172,8 +171,8 @@ function MonthGrid({ data, onPick }: { data: CalendarData; onPick: (d: DateStr) 
               )}
             >
               <span className="flex items-start justify-between">
-                <span className={cn("tabular flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-bold", isToday ? "bg-accent text-accent-fg" : "")}>{dayNum(d.date)}</span>
-                {past && d.score !== null ? <span className={cn("tabular hidden rounded-full bg-surface/70 px-1.5 text-[10px] font-bold sm:inline", tone.ink)}>{d.score}</span> : null}
+                <span className={cn("tabular flex h-6 min-w-6 items-center justify-center rounded-md px-1 text-xs font-bold", isToday ? "bg-accent text-accent-fg" : "")}>{dayNum(d.date)}</span>
+                {past && d.score !== null ? <span className={cn("tabular hidden rounded-md bg-surface/70 px-1.5 text-[10px] font-bold sm:inline", tone.ink)}>{d.score}</span> : null}
               </span>
               {/* phone: dots. desktop: the first few tasks */}
               <span className="mt-auto flex flex-wrap gap-0.5 sm:hidden">
@@ -214,8 +213,8 @@ function WeekGrid({ data, onPick }: { data: CalendarData; onPick: (d: DateStr) =
         return (
           <section key={d.date} className={cn("min-w-0 rounded-3xl border p-2.5", tone.bg || "bg-surface", isToday ? "border-2 border-[hsl(var(--accent-fill))] ring-2 ring-[hsl(var(--lilac-fill))]" : "border-border")}>
             <button type="button" onClick={() => onPick(d.date)} className="mb-2 flex w-full items-center justify-between text-left">
-              <span><span className="block text-xs font-bold uppercase tracking-wider text-subtle">{WEEKDAYS[(utc(d.date).getUTCDay() + 6) % 7]}</span><span className={cn("font-display text-xl", isToday && "text-accent")}>{dayNum(d.date)}</span></span>
-              {past && d.score !== null ? <span className={cn("tabular rounded-full bg-surface/80 px-2 py-0.5 text-xs font-bold", tone.ink)}>{d.score}/10</span> : null}
+              <span><span className="block text-xs font-semibold uppercase tracking-wide text-subtle">{WEEKDAYS[(utc(d.date).getUTCDay() + 6) % 7]}</span><span className={cn("font-display text-xl", isToday && "text-accent")}>{dayNum(d.date)}</span></span>
+              {past && d.score !== null ? <span className={cn("tabular rounded-md bg-surface/80 px-2 py-0.5 text-xs font-bold", tone.ink)}>{d.score}/10</span> : null}
             </button>
             <ul className="space-y-1">
               {d.eventList.map((e) => {
@@ -346,7 +345,7 @@ export function CalendarView({ data }: { data: CalendarData }) {
           <Button variant="outline" size="sm" onClick={() => go(data.view, data.today)}>Today</Button>
         </div>
         <h2 className="font-display min-w-0 flex-1 truncate text-xl sm:text-2xl">{rangeLabel(data.view, data.date, data.from, data.to)}</h2>
-        <div role="tablist" aria-label="View" className="flex overflow-x-auto rounded-full border border-border bg-surface p-1">
+        <div role="tablist" aria-label="View" className="flex overflow-x-auto rounded-lg border border-border bg-muted p-0.5">
           {CAL_VIEWS.map((v) => (
             <button
               key={v}
@@ -354,7 +353,7 @@ export function CalendarView({ data }: { data: CalendarData }) {
               role="tab"
               aria-selected={data.view === v}
               onClick={() => go(v, data.view === "agenda" || v === "agenda" ? data.today : data.date)}
-              className={cn("shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors", data.view === v ? "bg-[linear-gradient(135deg,hsl(var(--accent-fill)),hsl(var(--lilac-fill)))] text-accent-fg" : "text-subtle hover:text-fg")}
+              className={cn("shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors", data.view === v ? "bg-surface text-fg shadow-[var(--shadow-sm)]" : "text-subtle hover:text-fg")}
             >
               {VIEW_LABEL[v]}
             </button>
@@ -364,25 +363,25 @@ export function CalendarView({ data }: { data: CalendarData }) {
 
       {data.view !== "agenda" && pastRange && s.days > 0 ? (
         <section aria-label="Performance" className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <div className={cn("rounded-3xl border border-border p-3", scoreBand.bg || "bg-surface")}>
-            <p className="text-xs font-bold uppercase tracking-wider text-subtle">Average score</p>
-            <p className={cn("font-display text-2xl tabular", scoreBand.ink)}>{s.avgScore ?? "–"}<span className="text-sm font-normal text-subtle">{s.avgScore !== null ? " / 10" : ""}</span></p>
+          <div className="rounded-xl border border-border bg-surface p-4 shadow-[var(--shadow-sm)]">
+            <p className="text-[13px] font-medium text-subtle">Average score</p>
+            <p className="mt-1 font-display text-2xl tabular">{s.avgScore ?? "–"}<span className="text-sm font-normal text-subtle">{s.avgScore !== null ? " / 10" : ""}</span></p>
             <p className="text-xs text-subtle">{s.scoredDays} of {s.days} days scored</p>
           </div>
-          <div className="rounded-3xl border border-border bg-p-mint p-3 text-p-mint-fg">
-            <p className="text-xs font-bold uppercase tracking-wider">Tasks done</p>
-            <p className="font-display text-2xl tabular">{s.done}<span className="text-sm font-normal opacity-80"> of {s.planned}</span></p>
-            <p className="text-xs opacity-80">{donePct !== null ? `${donePct}% of what you planned` : "nothing planned"}</p>
+          <div className="rounded-xl border border-border bg-surface p-4 shadow-[var(--shadow-sm)]">
+            <p className="text-[13px] font-medium text-subtle">Tasks done</p>
+            <p className="mt-1 font-display text-2xl tabular">{s.done}<span className="text-sm font-normal text-subtle"> of {s.planned}</span></p>
+            <p className="text-xs text-subtle">{donePct !== null ? `${donePct}% of what you planned` : "nothing planned"}</p>
           </div>
-          <div className="rounded-3xl border border-border bg-p-teal p-3 text-p-teal-fg">
-            <p className="text-xs font-bold uppercase tracking-wider">Time worked</p>
-            <p className="font-display text-2xl tabular">{fmtDuration(s.workedMin)}</p>
-            <p className="text-xs opacity-80">{s.days > 0 ? `${fmtDuration(Math.round(s.workedMin / s.days))} a day` : ""}</p>
+          <div className="rounded-xl border border-border bg-surface p-4 shadow-[var(--shadow-sm)]">
+            <p className="text-[13px] font-medium text-subtle">Time worked</p>
+            <p className="mt-1 font-display text-2xl tabular">{fmtDuration(s.workedMin)}</p>
+            <p className="text-xs text-subtle">{s.days > 0 ? `${fmtDuration(Math.round(s.workedMin / s.days))} a day` : ""}</p>
           </div>
-          <div className="rounded-3xl border border-border bg-p-butter p-3 text-p-butter-fg">
-            <p className="text-xs font-bold uppercase tracking-wider">Best day</p>
-            <p className="font-display text-2xl tabular">{s.best ? `${s.best.score}/10` : "–"}</p>
-            <p className="text-xs opacity-80">{s.best ? shortDay(s.best.date) : "score a day to see it"}</p>
+          <div className="rounded-xl border border-border bg-surface p-4 shadow-[var(--shadow-sm)]">
+            <p className="text-[13px] font-medium text-subtle">Best day</p>
+            <p className="mt-1 font-display text-2xl tabular">{s.best ? `${s.best.score}/10` : "–"}</p>
+            <p className="text-xs text-subtle">{s.best ? shortDay(s.best.date) : "score a day to see it"}</p>
           </div>
         </section>
       ) : null}

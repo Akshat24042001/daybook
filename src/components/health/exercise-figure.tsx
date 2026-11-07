@@ -41,8 +41,10 @@ function project([X, Y0, Z]: P3, v: View): Proj {
   const y1 = Y * cp - d0 * sp;
   const d = d0 * cp + Y * sp;
   const s = FOCAL / (FOCAL - d);
-  return { x: x1 * s, y: -y1 * s, d, s };
+  // rounded: server and browser trig can differ in the last digit, which breaks hydration
+  return { x: r3(x1 * s), y: r3(-y1 * s), d: r3(d), s: r3(s) };
 }
+const r3 = (n: number) => Math.round(n * 1000) / 1000;
 
 type Item =
   | { k: "seg"; a: Proj; b: Proj; w: number; d: number }
@@ -119,7 +121,7 @@ export function ExerciseFigure({
   items.sort((a, b) => a.d - b.d);
   const ds = items.map((i) => i.d);
   const dMin = Math.min(...ds), dMax = Math.max(...ds);
-  const shade = (d: number) => 0.42 + 0.58 * (dMax - dMin < 0.5 ? 1 : (d - dMin) / (dMax - dMin));
+  const shade = (d: number) => r3(0.42 + 0.58 * (dMax - dMin < 0.5 ? 1 : (d - dMin) / (dMax - dMin)));
 
   // floor grid and shadow
   const grid: [Proj, Proj][] = [];

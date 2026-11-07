@@ -70,7 +70,7 @@ function TagChipInput({
         {tags.map((t) => (
           <span
             key={t}
-            className="flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent"
+            className="flex items-center gap-1 rounded-md bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent"
           >
             {t}
             <button
@@ -298,7 +298,7 @@ function ContactCard({
             {contact.tags.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
                 {contact.tags.map((t) => (
-                  <span key={t} className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
+                  <span key={t} className="rounded-md bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
                     {t}
                   </span>
                 ))}
@@ -366,7 +366,7 @@ function FilterPill({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors",
+        "flex items-center gap-1 rounded-md px-3 py-1 text-xs font-medium transition-colors",
         active
           ? "bg-accent text-accent-fg"
           : "border border-border text-subtle hover:bg-muted hover:text-fg",

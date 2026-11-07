@@ -28,27 +28,27 @@ export default async function SalesPage() {
   );
   const focus = focusFor(cfg, new Date());
   const tiles = [
-    { label: "Open pipeline", value: money(k?.open_usd ?? 0), sub: `${k?.deals ?? 0} deals`, tone: "bg-p-sky text-p-sky-fg" },
-    { label: "Weighted", value: money(k?.weighted ?? 0), sub: "by stage probability", tone: "border border-border bg-surface text-fg" },
-    { label: "Won, not paid", value: money(k?.won_unpaid ?? 0), sub: "cash to collect", tone: "bg-p-mint text-p-mint-fg" },
-    { label: "Replies waiting", value: String(k?.replies ?? 0), sub: `${k?.meetings ?? 0} meetings in 24h`, tone: "bg-p-rose text-p-rose-fg" },
-    { label: "Fresh radar leads", value: String(k?.radar ?? 0), sub: `${focus.country} · ${focus.industry}`, tone: "bg-p-butter text-p-butter-fg" },
+    { label: "Open pipeline", value: money(k?.open_usd ?? 0), sub: `${k?.deals ?? 0} deals` },
+    { label: "Weighted", value: money(k?.weighted ?? 0), sub: "by stage probability" },
+    { label: "Won, not paid", value: money(k?.won_unpaid ?? 0), sub: "cash to collect" },
+    { label: "Replies waiting", value: String(k?.replies ?? 0), sub: `${k?.meetings ?? 0} meetings in 24h` },
+    { label: "Fresh radar leads", value: String(k?.radar ?? 0), sub: `${focus.country} · ${focus.industry}` },
   ];
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl">Moves</h1>
+          <h1 className="font-display text-2xl sm:text-3xl leading-tight">Moves</h1>
           <p className="text-sm text-subtle">Everything that needs you, ranked. Draft in your voice, send in one tap, it logs itself.</p>
         </div>
         <NewDealButton />
       </div>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
         {tiles.map((t) => (
-          <div key={t.label} className={`rounded-2xl px-3 py-2.5 ${t.tone}`}>
-            <p className="text-xs font-semibold uppercase tracking-wide opacity-80">{t.label}</p>
-            <p className="font-display text-xl tabular text-current">{t.value || "0"}</p>
-            <p className="truncate text-xs opacity-80">{t.sub}</p>
+          <div key={t.label} className="rounded-xl border border-border bg-surface px-4 py-3 shadow-[var(--shadow-sm)]">
+            <p className="text-[13px] font-medium text-subtle">{t.label}</p>
+            <p className="mt-1 font-display text-xl tabular">{t.value || "0"}</p>
+            <p className="truncate text-xs text-subtle">{t.sub}</p>
           </div>
         ))}
       </div>

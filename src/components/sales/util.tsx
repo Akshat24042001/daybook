@@ -37,7 +37,7 @@ const TABS = [
 export function SalesTabs() {
   const path = usePathname();
   return (
-    <nav className="-mx-4 mb-4 flex gap-1 overflow-x-auto px-4 pb-1 md:mx-0 md:px-0" aria-label="Sales">
+    <nav className="-mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-border px-4 md:mx-0 md:justify-end md:border-0 md:px-0" aria-label="Sales">
       {TABS.map((t) => {
         const active = t.href === "/sales" ? path === "/sales" : path.startsWith(t.href);
         return (
@@ -47,8 +47,8 @@ export function SalesTabs() {
             className={cn(
               // the desktop sidebar already lists the first four; the rest stay here
               t.inSidebar && "md:hidden",
-              "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-              active ? "border-accent bg-accent-muted text-accent" : "border-border text-subtle hover:border-accent/40 hover:text-fg",
+              "-mb-px shrink-0 border-b-2 px-3 py-2 text-[13px] font-medium transition-colors md:mb-0 md:rounded-md md:border-0 md:py-1.5",
+              active ? "border-accent text-fg md:bg-muted" : "border-transparent text-subtle hover:text-fg md:hover:bg-muted",
             )}
           >
             {t.label}
@@ -66,7 +66,7 @@ export function Priority({ value, prev, why, compact }: { value: number; prev?: 
   const arrow = delta >= 5 ? "↑" : delta <= -5 ? "↓" : "";
   return (
     <span
-      className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold tabular", t[1])}
+      className={cn("inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold tabular", t[1])}
       title={`Priority ${value}/100${delta ? ` (${delta > 0 ? "+" : ""}${delta} since yesterday)` : ""}${why?.length ? `\n${why.join("\n")}` : ""}`}
     >
       {compact ? null : t[0]} {value}

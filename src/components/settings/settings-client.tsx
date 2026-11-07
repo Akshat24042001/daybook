@@ -10,7 +10,7 @@ import {
 } from "@/app/actions";
 import type { SettingsPatch } from "@/lib/settings";
 import { cn } from "@/lib/cn";
-import { PALETTES, getPalette, getThemePref, setPalette, setThemePref, type PaletteId, type ThemePref } from "@/lib/theme";
+import { getThemePref, setThemePref, type ThemePref } from "@/lib/theme";
 import { useToast } from "../toast";
 import { Button, Card, ErrorNote, Field, Input, Select } from "../ui";
 
@@ -42,49 +42,23 @@ function Status({ ok, label, detail }: { ok: boolean; label: string; detail: str
   );
 }
 
-/** Look and feel: nine pastel palettes (Candy gives every page its own) and light, Dusk or follow-my-device. */
+/** Look and feel: light, dark or follow-my-device. */
 function Appearance() {
-  const [palette, setP] = useState<PaletteId>("candy");
   const [theme, setT] = useState<ThemePref>("system");
-  useEffect(() => {
-    setP(getPalette());
-    setT(getThemePref());
-  }, []);
-  const modes: [ThemePref, string, typeof Sun][] = [["system", "Auto", Monitor], ["light", "Light", Sun], ["dark", "Dusk", Moon]];
+  useEffect(() => setT(getThemePref()), []);
+  const modes: [ThemePref, string, typeof Sun][] = [["system", "Auto", Monitor], ["light", "Light", Sun], ["dark", "Dark", Moon]];
   return (
-    <Card className="space-y-4 p-4">
-      <div>
-        <p className="mb-2 text-sm font-semibold">Palette</p>
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-          {PALETTES.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              aria-pressed={palette === p.id}
-              onClick={() => { setPalette(p.id); setP(p.id); }}
-              title={p.hint}
-              className={cn("rounded-2xl border-2 p-2 text-left transition-all hover:-translate-y-0.5", palette === p.id ? "border-[hsl(var(--lilac-fill))] bg-muted shadow-[var(--shadow-sm)]" : "border-border bg-surface")}
-            >
-              <span className="flex overflow-hidden rounded-xl">
-                {p.swatch.map((c) => <span key={c} className="h-9 flex-1" style={{ background: c }} />)}
-              </span>
-              <span className="mt-1.5 block text-xs font-semibold">{p.label}</span>
-            </button>
-          ))}
-        </div>
-        <p className="mt-2 text-xs text-subtle">{PALETTES.find((p) => p.id === palette)?.hint}. Saved on this device.</p>
+    <Card className="p-4">
+      <p className="mb-2 text-sm font-medium">Theme</p>
+      <div className="inline-flex rounded-lg border border-border bg-muted p-0.5">
+        {modes.map(([id, label, Icon]) => (
+          <button key={id} type="button" aria-pressed={theme === id} onClick={() => { setThemePref(id); setT(id); }}
+            className={cn("flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors", theme === id ? "bg-surface text-fg shadow-[var(--shadow-sm)]" : "text-subtle hover:text-fg")}>
+            <Icon className="h-4 w-4" /> {label}
+          </button>
+        ))}
       </div>
-      <div>
-        <p className="mb-2 text-sm font-semibold">Light or dark</p>
-        <div className="flex flex-wrap gap-2">
-          {modes.map(([id, label, Icon]) => (
-            <button key={id} type="button" aria-pressed={theme === id} onClick={() => { setThemePref(id); setT(id); }}
-              className={cn("flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium", theme === id ? "border-transparent bg-[linear-gradient(135deg,hsl(var(--accent-fill)),hsl(var(--lilac-fill)))] text-accent-fg" : "border-border bg-surface")}>
-              <Icon className="h-4 w-4" /> {label === "Dusk" ? "Dusk (dark)" : label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <p className="mt-2 text-xs text-subtle">Saved on this device.</p>
     </Card>
   );
 }

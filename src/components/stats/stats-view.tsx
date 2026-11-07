@@ -42,7 +42,7 @@ function Delta({ cur, prev, unit = "", digits = 1, lowerIsBetter = false, neutra
   if (cur === null || prev === null) return null;
   const d = cur - prev;
   if (Math.abs(d) < Math.pow(10, -digits) / 2) {
-    return <span className="inline-flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-subtle"><Minus className="h-2.5 w-2.5" />same</span>;
+    return <span className="inline-flex items-center gap-0.5 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-subtle"><Minus className="h-2.5 w-2.5" />same</span>;
   }
   const good = neutral ? null : lowerIsBetter ? d < 0 : d > 0;
   const Icon = d > 0 ? ArrowUpRight : ArrowDownRight;
@@ -50,7 +50,7 @@ function Delta({ cur, prev, unit = "", digits = 1, lowerIsBetter = false, neutra
     <span
       title="Change against the previous period of the same length"
       className={cn(
-        "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+        "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
         good === null ? "bg-muted text-subtle" : good ? "bg-good-muted text-good" : "bg-bad-muted text-bad",
       )}
     >
@@ -88,17 +88,15 @@ function Tile({
     <Card
       onClick={onOpen}
       className={cn(
-        "group flex cursor-pointer flex-col p-4 transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]",
-        HUE[warn ? "butter" : hue].soft, HUE[warn ? "butter" : hue].edge,
+        "group flex cursor-pointer flex-col p-4 transition-shadow hover:shadow-[var(--shadow-md)]",
+        warn && "border-warn/40",
         className,
       )}
     >
       <div className="mb-2 flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <p className={cn("flex items-center gap-2 text-xs font-bold uppercase tracking-wider", HUE[warn ? "butter" : hue].ink)}>
-            <span className={cn("flex h-7 w-7 items-center justify-center rounded-full", HUE[warn ? "butter" : hue].fill, "text-fg/80")} aria-hidden>
-              {(() => { const I = TILE_ICON[title] ?? BarChart3; return <I className="h-3.5 w-3.5" />; })()}
-            </span>
+          <p className="flex items-center gap-2 text-[13px] font-medium text-subtle">
+            {(() => { const I = TILE_ICON[title] ?? BarChart3; return <I className={cn("h-4 w-4", warn ? "text-warn" : "text-subtle")} aria-hidden />; })()}
             {title}
           </p>
           {value !== undefined ? (
@@ -192,7 +190,7 @@ function TaskHealth({ stats, onOpen }: { stats: Stats; onOpen: (p: ListKey) => v
         {tab === "rotting" && stats.rotting.slice(0, 5).map((r) => (
           <div key={r.id} className="flex items-center gap-2">
             <span className="min-w-0 flex-1 truncate text-sm">{r.title}</span>
-            <span className={cn("tabular shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold", r.carry >= 3 ? "bg-bad-muted text-bad" : "bg-warn-muted text-warn")}>{r.carry}×</span>
+            <span className={cn("tabular shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold", r.carry >= 3 ? "bg-bad-muted text-bad" : "bg-warn-muted text-warn")}>{r.carry}×</span>
           </div>
         ))}
         {tab === "estimates" && stats.estimateVsActual.slice(0, 5).map((e) => {
@@ -419,7 +417,7 @@ export function StatsView({
           )}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
-          {activeFilters.length ? <span className="tabular rounded-full bg-accent px-1.5 text-[10px] text-accent-fg">{activeFilters.length}</span> : null}
+          {activeFilters.length ? <span className="tabular rounded-md bg-accent px-1.5 text-[10px] text-accent-fg">{activeFilters.length}</span> : null}
         </button>
       </div>
 
@@ -468,7 +466,7 @@ export function StatsView({
               key={a.k}
               type="button"
               onClick={() => setParam({ [a.k]: null })}
-              className="inline-flex items-center gap-1 rounded-full bg-accent-muted px-2.5 py-1 text-xs font-medium text-accent hover:bg-accent/20"
+              className="inline-flex items-center gap-1 rounded-md bg-accent-muted px-2.5 py-1 text-xs font-medium text-accent hover:bg-accent/20"
             >
               {a.label} <X className="h-3 w-3" />
             </button>
@@ -938,7 +936,7 @@ export function StatsView({
               <li key={r.id} className="flex items-center gap-3 py-2">
                 <Link href={`/task/${r.id}`} className="min-w-0 flex-1 truncate text-sm hover:underline">{r.title}</Link>
                 {r.project ? <span className="hidden shrink-0 text-xs text-subtle sm:inline">{r.project}</span> : null}
-                <span className={cn("tabular shrink-0 rounded-full px-2 py-0.5 text-xs font-bold", r.carry >= 3 ? "bg-bad-muted text-bad" : "bg-warn-muted text-warn")}>carried {r.carry}×</span>
+                <span className={cn("tabular shrink-0 rounded-md px-2 py-0.5 text-xs font-bold", r.carry >= 3 ? "bg-bad-muted text-bad" : "bg-warn-muted text-warn")}>carried {r.carry}×</span>
               </li>
             ))}
           </ul>

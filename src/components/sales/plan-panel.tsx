@@ -102,7 +102,7 @@ export function PlanPanel({ plan }: { plan: RadarPlan }) {
       <Section tone="teal" title="Every source, and what it looks at today" hint="These sweep automatically on their own schedule, with this week's country and today's industry filled in.">
         <div className="mb-3 flex flex-wrap items-center gap-1.5">
           {["all", ...cats].map((c) => (
-            <button key={c} type="button" onClick={() => setCat(c)} className={cn("rounded-full border px-2.5 py-1 text-xs", cat === c ? "border-transparent bg-p-teal text-p-teal-fg" : "border-border text-subtle")}>{c}</button>
+            <button key={c} type="button" onClick={() => setCat(c)} className={cn("rounded-md border px-2.5 py-1 text-xs", cat === c ? "border-transparent bg-p-teal text-p-teal-fg" : "border-border text-subtle")}>{c}</button>
           ))}
           <label className="ml-auto flex items-center gap-1.5 text-xs text-subtle"><input type="checkbox" checked={onlyOn} onChange={(e) => setOnlyOn(e.target.checked)} /> Only sources that are on</label>
         </div>
@@ -110,7 +110,7 @@ export function PlanPanel({ plan }: { plan: RadarPlan }) {
         <ul className="divide-y divide-border">
           {sources.map((x) => (
             <li key={x.id} className="py-2 text-xs">
-              <p className="flex flex-wrap items-baseline gap-x-2"><b className={cn("text-sm", !x.enabled && "text-subtle")}>{x.name}</b><span className="rounded-full bg-muted px-1.5 py-0.5 text-subtle">{x.category}</span>{!x.enabled ? <span className="text-subtle">off</span> : null}</p>
+              <p className="flex flex-wrap items-baseline gap-x-2"><b className={cn("text-sm", !x.enabled && "text-subtle")}>{x.name}</b><span className="rounded-md bg-muted px-1.5 py-0.5 text-subtle">{x.category}</span>{!x.enabled ? <span className="text-subtle">off</span> : null}</p>
               <p className="break-words text-subtle">{x.target}</p>
               <p className="text-subtle">
                 {x.kind === "email" ? "Runs when an email arrives" : `Every ${x.interval_hours}h · last ${x.last_run_at ? ago(x.last_run_at) : "never"}${x.next_run_at ? ` · next ${when(x.next_run_at, plan.timezone)}` : ""}`}

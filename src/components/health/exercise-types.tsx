@@ -64,8 +64,8 @@ export function HowToDialog({ info, name, amount, unit, open, onClose }: {
                   <p className="mt-1 text-center text-xs text-subtle">Drag to turn it around · double-click to reset</p>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-semibold">
-                  <span className={cn("rounded-full px-2 py-0.5 capitalize", LEVEL_TONE[info.level])}>{info.level}</span>
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-subtle">{info.needs ?? "No equipment"}</span>
+                  <span className={cn("rounded-md px-2 py-0.5 capitalize", LEVEL_TONE[info.level])}>{info.level}</span>
+                  <span className="rounded-md bg-muted px-2 py-0.5 text-subtle">{info.needs ?? "No equipment"}</span>
                 </div>
                 <p className="mt-3 rounded-xl bg-accent-muted px-3 py-2 text-xs text-fg">
                   <strong className="font-semibold">What the number means. </strong>{amountMeaning(unit, amount, info)}
@@ -152,7 +152,7 @@ function Card({ t, onHowTo }: { t: ExerciseTypeData; onHowTo: () => void }) {
         ) : (
           <div className="flex h-24 items-center justify-center text-subtle"><Dumbbell className="h-8 w-8 opacity-40" /></div>
         )}
-        <span className="pointer-events-none absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-surface/90 px-2 py-0.5 text-[10px] font-semibold text-accent shadow-sm">
+        <span className="pointer-events-none absolute right-2 top-2 inline-flex items-center gap-1 rounded-md bg-surface/90 px-2 py-0.5 text-[10px] font-semibold text-accent shadow-sm">
           <Play className="h-3 w-3" /> How to
         </span>
       </button>
@@ -176,7 +176,7 @@ function Card({ t, onHowTo }: { t: ExerciseTypeData; onHowTo: () => void }) {
           <>
             <div className="flex items-start justify-between gap-2">
               <p className="min-w-0 text-sm font-semibold leading-tight">{t.name}</p>
-              {info ? <span className={cn("shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold capitalize", LEVEL_TONE[info.level])}>{info.level}</span> : null}
+              {info ? <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold capitalize", LEVEL_TONE[info.level])}>{info.level}</span> : null}
             </div>
             <p className="text-xs">
               <span className="tabular font-semibold">{t.defaultAmount}</span>{" "}

@@ -10,7 +10,7 @@ import { useToast } from "../toast";
 
 type Panel = "state" | "tasks" | "steps" | "score" | "sleep" | "exercise" | "task" | "diary" | "insta" | null;
 
-const chip = "flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface px-3 text-xs font-medium text-subtle transition-colors hover:border-accent/40 hover:text-fg disabled:opacity-50";
+const chip = "flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-subtle transition-colors hover:border-accent/40 hover:text-fg disabled:opacity-50";
 
 const STATUS_BTNS: { status: string; label: string; tone: string }[] = [
   { status: "done", label: "Done", tone: "bg-good text-good-on" },

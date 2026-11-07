@@ -22,7 +22,7 @@ const money = (n: number | null) => (n ? `$${n >= 1e6 ? `${(n / 1e6).toFixed(1)}
 function Box({ title, icon: Icon, tone, children }: { title: string; icon: React.ComponentType<{ className?: string }>; tone: string; children: React.ReactNode }) {
   return (
     <section className={cn("rounded-2xl border border-border p-3", tone)}>
-      <h4 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider"><Icon className="h-4 w-4" /> {title}</h4>
+      <h4 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide"><Icon className="h-4 w-4" /> {title}</h4>
       {children}
     </section>
   );
@@ -93,7 +93,7 @@ export function ResearchSheet({ open, onOpenChange, radarItemId, companyId, titl
             <div className="flex items-center gap-2 text-sm font-semibold"><Loader2 className="h-4 w-4 animate-spin" /> Researching… {STEPS[stepIdx]?.[1]}</div>
             <ol className="mt-2 flex gap-1.5">
               {STEPS.slice(0, 3).map(([k, l], i) => (
-                <li key={k} className={cn("flex-1 rounded-full px-2 py-1 text-center text-xs font-medium", i < stepIdx ? "bg-good text-good-on" : i === stepIdx ? "bg-surface/80 shadow-[var(--shadow-sm)]" : "bg-surface/40 opacity-70")}>{l}</li>
+                <li key={k} className={cn("flex-1 rounded-md px-2 py-1 text-center text-xs font-medium", i < stepIdx ? "bg-good text-good-on" : i === stepIdx ? "bg-surface/80 shadow-[var(--shadow-sm)]" : "bg-surface/40 opacity-70")}>{l}</li>
               ))}
             </ol>
             <ul className="mt-2 space-y-0.5 text-xs">{active.log.slice(-5).map((l, i) => <li key={i}>· {l}</li>)}</ul>
@@ -116,12 +116,12 @@ export function ResearchSheet({ open, onOpenChange, radarItemId, companyId, titl
           <>
             <Box title="The company" icon={Building2} tone="bg-p-sky text-p-sky-fg">
               <div className="flex flex-wrap gap-1.5 text-xs">
-                {co.website ? <a href={co.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full bg-surface/70 px-2.5 py-1 font-medium"><Globe className="h-3 w-3" /> {co.domain ?? co.website} <ExternalLink className="h-3 w-3" /></a> : null}
-                {co.employees ? <span className="rounded-full bg-surface/70 px-2.5 py-1">{co.employees.toLocaleString()} people</span> : null}
-                {money(co.revenue_usd) ? <span className="rounded-full bg-surface/70 px-2.5 py-1">≈{money(co.revenue_usd)} a year{e?.revenue_usd?.est !== false ? " (estimate)" : ""}</span> : null}
-                {val(e, "founded_year") ? <span className="rounded-full bg-surface/70 px-2.5 py-1">since {val(e, "founded_year")}</span> : null}
-                {val(e, "domain_age_years") ? <span className="rounded-full bg-surface/70 px-2.5 py-1">domain {val(e, "domain_age_years")} yrs old</span> : null}
-                {val(e, "email_provider") ? <span className="rounded-full bg-surface/70 px-2.5 py-1">email on {val(e, "email_provider")}</span> : null}
+                {co.website ? <a href={co.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md bg-surface/70 px-2.5 py-1 font-medium"><Globe className="h-3 w-3" /> {co.domain ?? co.website} <ExternalLink className="h-3 w-3" /></a> : null}
+                {co.employees ? <span className="rounded-md bg-surface/70 px-2.5 py-1">{co.employees.toLocaleString()} people</span> : null}
+                {money(co.revenue_usd) ? <span className="rounded-md bg-surface/70 px-2.5 py-1">≈{money(co.revenue_usd)} a year{e?.revenue_usd?.est !== false ? " (estimate)" : ""}</span> : null}
+                {val(e, "founded_year") ? <span className="rounded-md bg-surface/70 px-2.5 py-1">since {val(e, "founded_year")}</span> : null}
+                {val(e, "domain_age_years") ? <span className="rounded-md bg-surface/70 px-2.5 py-1">domain {val(e, "domain_age_years")} yrs old</span> : null}
+                {val(e, "email_provider") ? <span className="rounded-md bg-surface/70 px-2.5 py-1">email on {val(e, "email_provider")}</span> : null}
               </div>
               {val(e, "summary") ? <p className="mt-2 text-sm text-fg">{val(e, "summary")}</p> : <p className="mt-2 text-sm">{active ? "The profile is being written…" : "Not researched yet."}</p>}
               {val(e, "best_entry_offer") ? <p className="mt-2 rounded-xl bg-surface/70 px-3 py-2 text-xs text-fg"><b>Best first offer:</b> {val(e, "best_entry_offer")}</p> : null}
@@ -136,7 +136,7 @@ export function ResearchSheet({ open, onOpenChange, radarItemId, companyId, titl
                   {phones.map((p) => <li key={p} className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 shrink-0" /><a className="hover:underline" href={`tel:${p.replace(/[^\d+]/g, "")}`}>{p}</a></li>)}
                   {val(e, "address") ? <li className="flex items-start gap-2"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />{val(e, "address")}</li> : null}
                 </ul>
-                {socials.length ? <div className="mt-2 flex flex-wrap gap-1.5">{socials.map(([k, u]) => <a key={k} href={u} target="_blank" rel="noreferrer" className="rounded-full bg-surface/70 px-2.5 py-1 text-xs font-medium capitalize">{k} ↗</a>)}</div> : null}
+                {socials.length ? <div className="mt-2 flex flex-wrap gap-1.5">{socials.map(([k, u]) => <a key={k} href={u} target="_blank" rel="noreferrer" className="rounded-md bg-surface/70 px-2.5 py-1 text-xs font-medium capitalize">{k} ↗</a>)}</div> : null}
                 <p className="mt-2 text-xs">Taken from their own website. Nothing here is guessed.</p>
               </Box>
             ) : null}
@@ -150,7 +150,7 @@ export function ResearchSheet({ open, onOpenChange, radarItemId, companyId, titl
                     const guess = val(pe, "email_guess");
                     return (
                       <li key={p.id} className="rounded-xl bg-surface/80 p-3 text-fg">
-                        <p className="flex flex-wrap items-center gap-x-2 text-sm font-semibold"><UserRound className="h-4 w-4" /> {p.full_name}{p.is_decision_maker ? <span className="rounded-full bg-good px-2 py-0.5 text-[10px] font-semibold text-good-on">decision maker</span> : null}</p>
+                        <p className="flex flex-wrap items-center gap-x-2 text-sm font-semibold"><UserRound className="h-4 w-4" /> {p.full_name}{p.is_decision_maker ? <span className="rounded-md bg-good px-2 py-0.5 text-[10px] font-semibold text-good-on">decision maker</span> : null}</p>
                         <p className="text-xs text-subtle">{p.title ?? val(pe, "current_title") ?? "Role unknown"}{p.enriched_at ? ` · researched ${ago(p.enriched_at)}` : " · not researched yet"}</p>
                         <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs">
                           {found ? <a href={`mailto:${found}`} className="inline-flex items-center gap-1 hover:underline"><Mail className="h-3 w-3" /> {found}</a> : guess ? <span className="inline-flex items-center gap-1" title={val(pe, "email_pattern_basis")}><Mail className="h-3 w-3" /> {guess} <span className="rounded bg-warn-muted px-1 text-[10px] text-warn">guess, unverified</span></span> : null}

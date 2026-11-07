@@ -86,3 +86,11 @@ bubbles on every tile and section. Task rows take a wash of their project's colo
 **Research.** Deep lead research runs as a chain of jobs (site, search, synth, person) with a log and a source list per run, so
 each step fits a serverless time slot and progress is visible. Anything verifiable (emails, phones, socials, domain age,
 email provider) is extracted by code and overrides the AI's version. The old `enrich_company` and `enrich_person` jobs now start this pipeline.
+
+**Professional look (Nov 2026).** The pastel "candy" system read as a toy, so the look moved to a calm product style and
+replaces the colour notes above: Inter for all type (headings semibold, tightly tracked), neutral off-white canvas and
+white cards with hairline borders and soft shadows, one blue for actions, and green / amber / red only where they carry
+meaning. Pages are no longer tinted by hue and the palette picker is gone; the eight hues in `lib/hue.ts` remain as quiet
+status tints for badges, bars and dots. Corners are tighter (6 to 14px), buttons and tags are rectangular, the sidebar is
+a fixed flat column and the phone nav a standard bottom bar. Task rows are neutral (the project shows as a dot in its
+chip). Dark mode is a neutral graphite.

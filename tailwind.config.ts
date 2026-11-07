@@ -47,9 +47,10 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
-        display: ["var(--font-display)", "var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
       },
-      borderRadius: { xl: "0.9rem" },
+      // tight, consistent corners: 6 / 8 / 10 / 12 / 14px
+      borderRadius: { md: "0.375rem", lg: "0.5rem", xl: "0.625rem", "2xl": "0.75rem", "3xl": "0.875rem" },
     },
   },
   plugins: [],
