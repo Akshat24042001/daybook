@@ -22,7 +22,10 @@ export const metadata: Metadata = {
   description: "Personal work OS: plan tomorrow, run today, see where the time went.",
   applicationName: "Daybook",
   appleWebApp: { capable: true, title: "Daybook", statusBarStyle: "default" },
-  icons: { icon: "/icon-192.png", apple: "/apple-touch-icon.png" },
+  icons: {
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }, { url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: "/apple-touch-icon.png",
+  },
   robots: { index: false, follow: false },
 };
 

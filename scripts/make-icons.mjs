@@ -1,112 +1,44 @@
-// Generates the PWA icons (a notebook page on soft charcoal, with a pastel butter highlighter line) with no image dependencies.
+// Generates the PWA and touch icons from the Daybook mark (same geometry as public/logo.svg and
+// src/components/logo.tsx). Renders with Playwright's Chromium, which is not a project dependency:
+//   node scripts/make-icons.mjs        (needs `playwright` resolvable, e.g. installed globally)
 import fs from "node:fs";
 import path from "node:path";
-import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-
-function crc32(buf) {
-  let c;
-  const table = [];
-  for (let n = 0; n < 256; n++) {
-    c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    table[n] = c >>> 0;
-  }
-  let crc = 0xffffffff;
-  for (const b of buf) crc = table[(crc ^ b) & 0xff] ^ (crc >>> 8);
-  return (crc ^ 0xffffffff) >>> 0;
-}
-function chunk(type, data) {
-  const len = Buffer.alloc(4);
-  len.writeUInt32BE(data.length);
-  const td = Buffer.concat([Buffer.from(type), data]);
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(td));
-  return Buffer.concat([len, td, crc]);
-}
-function png(size, pixel) {
-  const raw = Buffer.alloc((size * 4 + 1) * size);
-  for (let y = 0; y < size; y++) {
-    raw[y * (size * 4 + 1)] = 0;
-    for (let x = 0; x < size; x++) {
-      const [r, g, b, a] = pixel(x, y);
-      const o = y * (size * 4 + 1) + 1 + x * 4;
-      raw[o] = r;
-      raw[o + 1] = g;
-      raw[o + 2] = b;
-      raw[o + 3] = a;
-    }
-  }
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0);
-  ihdr.writeUInt32BE(size, 4);
-  ihdr[8] = 8;
-  ihdr[9] = 6;
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    chunk("IHDR", ihdr),
-    chunk("IDAT", zlib.deflateSync(raw, { level: 9 })),
-    chunk("IEND", Buffer.alloc(0)),
-  ]);
+const require = createRequire(import.meta.url);
+let chromium;
+try {
+  ({ chromium } = require("playwright"));
+} catch {
+  console.error("Playwright is needed to render the icons (npm i -g playwright).");
+  process.exit(1);
 }
 
-// signed distance to a rounded rectangle centred at (cx, cy)
-const rrect = (px, py, cx, cy, hw, hh, r) => {
-  const dx = Math.abs(px - cx) - (hw - r);
-  const dy = Math.abs(py - cy) - (hh - r);
-  return Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) + Math.min(Math.max(dx, dy), 0) - r;
-};
+const GRAD = '<linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3B82F6"/><stop offset="1" stop-color="#1D4ED8"/></linearGradient>';
+const GLYPH = '<path d="M18 13h13.5a19 19 0 0 1 0 38H18z" fill="#fff"/><path d="M25 39.6a7.2 7.2 0 0 1 14.4 0z" fill="#000"/><rect x="22" y="41.2" width="20.5" height="2.6" rx="1.3" fill="#000"/><path d="M32.2 26.2v2.6M24.4 29.6l1.8 1.8M40 29.6l-1.8 1.8" stroke="#000" stroke-width="2.4" stroke-linecap="round"/>';
 
-function render(size, { maskable }) {
-  const S = 3; // supersampling
-  const bg = [46, 52, 64];
-  const page = [246, 247, 249];
-  const ink = [46, 52, 64];
-  const hl = [241, 215, 142];
-  const u = size / 100;
-  return png(size, (x, y) => {
-    let acc = [0, 0, 0, 0];
-    for (let sy = 0; sy < S; sy++) {
-      for (let sx = 0; sx < S; sx++) {
-        const px = (x + (sx + 0.5) / S) / u;
-        const py = (y + (sy + 0.5) / S) / u;
-        let col = null;
-        // background (full bleed when maskable, rounded tile otherwise)
-        if (maskable || rrect(px, py, 50, 50, 50, 50, 22) < 0) col = bg;
-        if (col) {
-          const pageScale = maskable ? 0.78 : 1;
-          const cx = 50, cy = 50;
-          const t = (v, c) => c + (v - c) / pageScale;
-          const qx = t(px, cx), qy = t(py, cy);
-          if (rrect(qx, qy, 50, 50, 29, 35, 6) < 0) {
-            col = page;
-            // highlighter under the first line
-            if (Math.abs(qy - 38) < 4.6 && qx > 30 && qx < 70) col = hl;
-            // ink lines
-            for (const ly of [38, 52, 66]) {
-              if (Math.abs(qy - ly) < 1.3 && qx > 32 && qx < (ly === 66 ? 56 : 68)) col = ink;
-            }
-          }
-        }
-        if (col) {
-          acc[0] += col[0]; acc[1] += col[1]; acc[2] += col[2]; acc[3] += 255;
-        }
-      }
-    }
-    const n = S * S;
-    const a = acc[3] / n;
-    if (a === 0) return [0, 0, 0, 0];
-    const cnt = acc[3] / 255;
-    return [Math.round(acc[0] / cnt), Math.round(acc[1] / cnt), Math.round(acc[2] / cnt), Math.round(a)];
-  });
+/** rounded: a tile with transparent corners. full-bleed: the platform rounds or masks it; `scale` keeps the glyph in the safe zone. */
+function svg({ rounded, scale = 1 }) {
+  const t = `translate(32 32) scale(${scale}) translate(-32 -32)`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs>${GRAD}<mask id="m"><g transform="${t}">${GLYPH}</g></mask></defs>`
+    + `<rect width="64" height="64" ${rounded ? 'rx="14"' : ""} fill="url(#g)"/><rect width="64" height="64" fill="#fff" mask="url(#m)"/></svg>`;
 }
 
-const out = path.join(root, "public");
-fs.mkdirSync(out, { recursive: true });
-fs.writeFileSync(path.join(out, "icon-192.png"), render(192, { maskable: false }));
-fs.writeFileSync(path.join(out, "icon-512.png"), render(512, { maskable: false }));
-fs.writeFileSync(path.join(out, "icon-maskable-512.png"), render(512, { maskable: true }));
-fs.writeFileSync(path.join(out, "apple-touch-icon.png"), render(180, { maskable: true }));
-console.log("icons written to public/");
+const ICONS = [
+  ["icon-192.png", 192, { rounded: true }],
+  ["icon-512.png", 512, { rounded: true }],
+  ["icon-maskable-512.png", 512, { rounded: false, scale: 0.78 }], // Android crops to a circle: keep the D inside the 80% safe zone
+  ["apple-touch-icon.png", 180, { rounded: false, scale: 0.9 }], // iOS rounds the corners itself
+];
+
+const browser = await chromium.launch();
+const page = await browser.newPage();
+for (const [name, size, opts] of ICONS) {
+  await page.setViewportSize({ width: size, height: size });
+  await page.setContent(`<html><body style="margin:0;background:transparent">${svg(opts).replace("<svg ", `<svg width="${size}" height="${size}" `)}</body></html>`);
+  fs.writeFileSync(path.join(root, "public", name), await page.screenshot({ omitBackground: true, clip: { x: 0, y: 0, width: size, height: size } }));
+  console.log("wrote", name);
+}
+await browser.close();

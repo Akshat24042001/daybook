@@ -12,6 +12,7 @@ import { cn } from "@/lib/cn";
 import { HUE, hueForPath, type Hue } from "@/lib/hue";
 import { getThemePref, setThemePref, type ThemePref } from "@/lib/theme";
 import { CommandPalette } from "./command-palette";
+import { Logo } from "./logo";
 import { NavProgress } from "./nav-progress";
 import { QuickAdd } from "./quick-add";
 import { StaleBanner } from "./stale-banner";
@@ -181,11 +182,8 @@ export function AppShell({
       <div className="flex min-h-dvh w-full">
         {/* desktop sidebar */}
         <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-surface px-3 py-4 md:flex">
-          <Link href="/today" className="flex items-center gap-2.5 px-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-fg text-surface">
-              <BookOpen className="h-4 w-4" />
-            </span>
-            <span className="font-display text-[15px]">Daybook</span>
+          <Link href="/today" className="flex items-center px-2" aria-label="Daybook, go to Today">
+            <Logo size={28} />
           </Link>
           <button
             type="button"
@@ -218,11 +216,8 @@ export function AppShell({
         <div className="relative flex min-w-0 flex-1 flex-col">
           <header className="pt-safe sticky top-0 z-30 border-b border-border bg-surface/90 backdrop-blur md:bg-bg/85">
             <div className="flex items-center justify-between px-4 py-2 md:hidden">
-              <Link href="/today" className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-md bg-fg text-surface">
-                  <BookOpen className="h-4 w-4" />
-                </span>
-                <span className="font-display text-base">Daybook</span>
+              <Link href="/today" className="flex items-center" aria-label="Daybook, go to Today">
+                <Logo size={28} textClassName="text-base" />
               </Link>
               <div className="flex items-center gap-1">
                 <button

@@ -1,4 +1,4 @@
-import { BookOpen } from "lucide-react";
+import { LogoMark } from "@/components/logo";
 import { LoginForm } from "./form";
 
 export const dynamic = "force-dynamic";
@@ -8,9 +8,7 @@ export default function LoginPage() {
     <div className="flex min-h-dvh w-full items-center justify-center bg-bg px-4 py-10 text-fg">
       <main className="w-full max-w-[360px]">
         <div className="flex flex-col items-center text-center">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-fg text-surface">
-            <BookOpen className="h-5 w-5" />
-          </span>
+          <LogoMark size={48} title="Daybook" />
           <h1 className="mt-5 font-display text-2xl">Sign in to Daybook</h1>
           <p className="mt-1.5 text-sm text-subtle">Plan the day, run it, and see where the time went.</p>
         </div>

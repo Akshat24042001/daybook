@@ -23,6 +23,9 @@ function isPublicPath(pathname: string): boolean {
     pathname === "/manifest.webmanifest" ||
     pathname === "/sw.js" ||
     pathname === "/offline.html" ||
+    pathname === "/logo.svg" ||
+    pathname === "/favicon.svg" ||
+    pathname === "/apple-touch-icon.png" ||
     /^\/icon-\d+\.png$/.test(pathname) ||
     pathname === "/favicon.ico"
   );
