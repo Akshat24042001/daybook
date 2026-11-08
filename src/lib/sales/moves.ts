@@ -240,7 +240,7 @@ async function desiredGlobal(cfg: SalesConfig, now: number): Promise<Desired[]> 
   // radar
   const radar = await q<{ id: number; title: string; score: number; found_at: string; source: string | null; known: { deal_title: string | null; stage: string | null; category: string | null; why: string } | null }>(
     `select r.id, r.title, r.score, r.found_at, s.name as source, r.known from sales_radar_items r left join sales_radar_sources s on s.id = r.source_id
-     where r.status = 'qualified' and not r.hidden and r.deal_id is null and r.blocked is null and r.found_at > now() - interval '5 days'`,
+     where r.status = 'qualified' and not r.hidden and r.deal_id is null and r.blocked is null and (r.found_at > now() - interval '5 days' or r.sent_back_at > now() - interval '5 days')`,
   );
   for (const r of radar) {
     const k = r.known;

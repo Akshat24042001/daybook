@@ -2,7 +2,7 @@
 
 import type { LinkGroup } from "@/lib/sales/quick-links-types";
 import { QuickLinks } from "./quick-links";
-import { ArrowDownLeft, ArrowUpRight, Check, Copy, ExternalLink, FileText, Link2, Loader2, Plus, Sparkles, Trash2, Upload, Users, X } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Check, Copy, ExternalLink, FileText, Link2, Loader2, Plus, Radar, Sparkles, Trash2, Upload, Users, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
@@ -129,6 +129,7 @@ export function DealView({ d }: { d: DealPageData }) {
             <p className="text-xs text-subtle">{Math.floor((Date.now() - new Date(deal.stage_changed_at).getTime()) / 86_400_000)}d in stage{deal.stage_sla ? ` (limit ${deal.stage_sla})` : ""}</p>
           </div>
         </div>
+        {deal.radar_item_id ? <SendBackToRadar dealId={deal.id} /> : null}
         {d.blocked ? <p className="mt-3 rounded-md bg-p-rose px-3 py-2 text-xs text-p-rose-fg">On your do-not-contact list: no outreach moves are made for this deal. Their messages to you are still logged. Manage the list in <a href="/sales/playbook#dnc" className="font-medium underline">Playbook</a>.</p> : null}
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-subtle">Move to:</span>
@@ -421,6 +422,32 @@ function Promises({ dealId, mine, theirs, onChange }: { dealId: number; mine: Co
           onChange();
         })}><Plus className="h-3.5 w-3.5" /></Button>
       </div>
+    </div>
+  );
+}
+
+/** For a radar lead turned into a deal by mistake: puts it back on the radar, as if it had never been touched. */
+function SendBackToRadar({ dealId }: { dealId: number }) {
+  const [busy, start] = useTransition();
+  const { toast } = useToast();
+  const router = useRouter();
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-bg px-3 py-2 text-xs text-subtle">
+      <span>Came from the radar. Made into a deal by mistake, with no real conversation yet?</span>
+      <Button size="sm" variant="outline" disabled={busy} onClick={() => start(async () => {
+        const { sendBackToRadarAction } = await import("@/app/sales-actions");
+        const check = await sendBackToRadarAction(dealId, true);
+        if (!check.ok) return toast(check.error, "error");
+        if (!check.result.ok) return toast(check.result.reason ?? "This deal cannot go back to the radar.", "error");
+        const n = check.result.messages;
+        const ok = confirm(`Send this lead back to the radar?\n\nThe deal is removed${n ? `, with the ${n} message${n === 1 ? "" : "s"} logged on it` : ""}, and the lead shows on Radar again as a new lead you have not contacted.`);
+        if (!ok) return;
+        const r = await sendBackToRadarAction(dealId);
+        if (!r.ok) return toast(r.error, "error");
+        if (!r.result.ok) return toast(r.result.reason ?? "This deal cannot go back to the radar.", "error");
+        toast("Back on the radar as a new lead");
+        router.push("/sales/radar");
+      })}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />} Send back to Radar</Button>
     </div>
   );
 }

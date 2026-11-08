@@ -16,7 +16,7 @@ import { capture, processCapture, undoCapture, type CaptureResult } from "@/lib/
 import { enqueue } from "@/lib/sales/jobs";
 import { addCustomMove, draftForMove, getMove, refreshMoves, setMoveStatus, snoozeMove, type MoveRow } from "@/lib/sales/moves";
 import { deleteHunt, recentRuns, runHuntNow, saveHunt, setHuntEnabled, type HuntInput, type HuntRun } from "@/lib/sales/hunts";
-import { radarToDeal, runRadar, qualifyPending, setRadarHidden, setRadarStatus, dailyDigest } from "@/lib/sales/radar";
+import { radarToDeal, runRadar, qualifyPending, sendBackToRadar, setRadarHidden, setRadarStatus, dailyDigest, type SendBack } from "@/lib/sales/radar";
 import { deleteStage, moveDeal, saveStage, setTransition, type Category, type Requirement } from "@/lib/sales/stages";
 import { fileStore, newPath } from "@/lib/storage";
 import { addBlock, removeBlock, type BlockKind } from "@/lib/sales/blocklist";
@@ -292,6 +292,14 @@ export async function researchViewAction(a: { radarItemId?: number; companyId?: 
 // ------------------------------------------------------------------ radar
 export async function radarToDealAction(id: number) {
   return run<{ id: number }>(async () => ({ id: await radarToDeal(id) }), ["/sales/radar", "/sales", "/sales/pipeline"]);
+}
+/** A radar lead made into a deal by mistake goes back to the radar. dryRun only says what it would remove. */
+export async function sendBackToRadarAction(dealId: number, dryRun = false) {
+  return run<{ result: SendBack }>(async () => {
+    const result = await sendBackToRadar(dealId, { dryRun });
+    if (!dryRun && result.ok) await refreshMoves();
+    return { result };
+  }, dryRun ? [] : ["/sales/radar", "/sales", "/sales/pipeline", "/sales/insights"]);
 }
 export async function radarStatusAction(id: number, status: "skipped" | "rejected" | "new") {
   return run(() => setRadarStatus(id, status), ["/sales/radar", "/sales"]);

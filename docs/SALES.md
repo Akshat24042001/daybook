@@ -136,6 +136,12 @@ the call log.
   keeps hunting through the day. It never inflates a score to fill the quota.
 - One country per week and one industry per day, chosen adaptively from results (see below); the lists are editable.
 - Replying to a radar lead from Daybook turns it into a tracked deal automatically.
+- **Send back to Radar** (on the deal page of any deal made from a radar lead) undoes that when it was a mistake: a stray
+  tap, a message logged that you never sent. The deal goes, with the messages and moves logged on it; people and
+  companies created for it go too unless something else uses them (anything that existed before, such as a researched
+  company, is kept). The lead returns to Radar as a fresh qualified lead, with its "answer this" move, and shows for 10
+  days from that moment even if it was found earlier. It asks first and says how many logged messages go. It refuses once
+  there is a real conversation (anything they sent you, a meeting, a sent quote, a payment): then mark it Lost or Delete it.
 
 ## Hunts: scheduled AI lead hunting
 

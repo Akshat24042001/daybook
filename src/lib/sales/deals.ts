@@ -11,6 +11,8 @@ export type Direction = "in" | "out" | "both" | "internal";
 export interface DealRow {
   id: number;
   title: string;
+  /** the radar lead this deal was made from, if any */
+  radar_item_id?: number | null;
   company_id: number | null;
   person_id: number | null;
   stage_id: number;

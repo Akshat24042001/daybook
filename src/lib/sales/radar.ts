@@ -6,7 +6,7 @@
  */
 import { authorProfile, textContacts } from "./quick-links";
 import { createHash } from "node:crypto";
-import { one, q } from "../db";
+import { one, q, tx, UserError } from "../db";
 import { esc } from "../telegram/api";
 import { salesConfig, type SalesConfig } from "./config";
 import { currentFocus } from "./focus";
@@ -452,6 +452,92 @@ export async function setRadarHidden(ids: number[], hidden: boolean): Promise<nu
   if (!ids.length) return 0;
   const rows = await q<{ id: number }>("update sales_radar_items set hidden = $2 where id = any($1::int[]) and hidden <> $2 returning id", [ids.slice(0, 500), hidden]);
   return rows.length;
+}
+
+export interface SendBack {
+  /** false when the deal cannot go back: the reason says why, in plain words */
+  ok: boolean;
+  reason: string | null;
+  radar_item_id: number | null;
+  /** what sending it back removes */
+  messages: number;
+  moves: number;
+}
+
+/**
+ * Undoes "this radar lead became a deal": for a lead turned into a deal by mistake (a stray tap, a message logged that
+ * was never sent). The deal and everything logged on it go; the lead is back on the radar as a fresh qualified lead,
+ * with its move to answer it. People and companies made for that deal go too, unless something else uses them.
+ *
+ * Refused once there is a real conversation (anything they sent you, a meeting, a sent quote, a payment): then it is a
+ * real deal, and Lost or Delete are the honest choices. Pass dryRun to see what would happen without changing anything.
+ */
+export async function sendBackToRadar(dealId: number, o: { dryRun?: boolean } = {}): Promise<SendBack> {
+  const deal = await one<{ id: number; radar_item_id: number | null; company_id: number | null; person_id: number | null; created_at: string }>(
+    "select id, radar_item_id, company_id, person_id, created_at from sales_deals where id = $1",
+    [dealId],
+  );
+  if (!deal) throw new UserError("That deal no longer exists.");
+  const item = deal.radar_item_id
+    ? await one<{ id: number; deal_id: number | null; source_id: number | null }>("select id, deal_id, source_id from sales_radar_items where id = $1", [deal.radar_item_id])
+    : null;
+  const no = (reason: string): SendBack => ({ ok: false, reason, radar_item_id: item?.id ?? null, messages: 0, moves: 0 });
+  if (!item) return no("This deal was not made from a radar lead, so there is nothing to send back. Use Delete if it should go.");
+  const real = await one<{ inbound: number; meetings: number; quotes: number; payments: number }>(
+    `select (select count(*)::int from sales_interactions where deal_id = $1 and direction in ('in','both')) as inbound,
+            (select count(*)::int from sales_meetings where deal_id = $1 and not cancelled) as meetings,
+            (select count(*)::int from sales_docs where deal_id = $1 and sent_at is not null) as quotes,
+            (select count(*)::int from sales_payments where deal_id = $1) as payments`,
+    [dealId],
+  );
+  const what = [
+    real?.inbound ? `${real.inbound} message${real.inbound === 1 ? "" : "s"} from them` : "",
+    real?.meetings ? `${real.meetings} meeting${real.meetings === 1 ? "" : "s"}` : "",
+    real?.quotes ? "a sent quote" : "",
+    real?.payments ? "payments" : "",
+  ].filter(Boolean);
+  if (what.length) return no(`This lead has a real conversation (${what.join(", ")}), so it stays a deal. Mark it Lost, or Delete it if it was a mistake.`);
+  const counts = (await one<{ messages: number; moves: number }>(
+    `select (select count(*)::int from sales_interactions where deal_id = $1 and direction in ('out','internal') and channel <> 'note') as messages,
+            (select count(*)::int from sales_moves where deal_id = $1 and status in ('open','snoozed')) as moves`,
+    [dealId],
+  ))!;
+  const res: SendBack = { ok: true, reason: null, radar_item_id: item.id, ...counts };
+  if (o.dryRun) return res;
+
+  await tx(async (db) => {
+    await db.query("delete from sales_jobs where status = 'queued' and (payload->>'deal_id')::text = $1::text", [dealId]);
+    await db.query("delete from sales_deals where id = $1", [dealId]);
+    // people and companies made for this deal (not before it) and used by nothing else
+    if (deal.person_id) {
+      await db.query(
+        `delete from sales_people p where p.id = $1 and p.created_at >= $2::timestamptz - interval '2 minutes'
+           and not exists (select 1 from sales_deals d where d.person_id = p.id or d.referrer_id = p.id or d.intermediary_id = p.id)
+           and not exists (select 1 from sales_deal_people x where x.person_id = p.id)
+           and not exists (select 1 from sales_interactions i where i.person_id = p.id)
+           and not exists (select 1 from sales_radar_items r where r.person_id = p.id)`,
+        [deal.person_id, deal.created_at],
+      );
+      await db.query("delete from sales_jobs where status = 'queued' and kind = 'enrich_person' and payload->>'id' = ($1::int)::text and not exists (select 1 from sales_people where id = $1::int)", [deal.person_id]);
+    }
+    if (deal.company_id) {
+      await db.query(
+        `delete from sales_companies c where c.id = $1 and c.created_at >= $2::timestamptz - interval '2 minutes'
+           and not exists (select 1 from sales_deals d where d.company_id = c.id)
+           and not exists (select 1 from sales_people p where p.company_id = c.id)
+           and not exists (select 1 from sales_interactions i where i.company_id = c.id)
+           and not exists (select 1 from sales_radar_items r where r.company_id = c.id)`,
+        [deal.company_id, deal.created_at],
+      );
+      await db.query("delete from sales_jobs where status = 'queued' and kind in ('enrich_company','audit_website') and payload->>'id' = ($1::int)::text and not exists (select 1 from sales_companies where id = $1::int)", [deal.company_id]);
+    }
+    // the lead is a fresh qualified lead again; its old "answer this" move is cleared so a new one is made
+    await db.query("update sales_radar_items set deal_id = null, status = 'qualified', hidden = false, sent_back_at = now() where id = $1", [item.id]);
+    await db.query("delete from sales_moves where dedupe_key = $1", [`radar:${item.id}`]);
+    if (item.source_id) await db.query("update sales_radar_sources set deals_created = greatest(0, deals_created - 1) where id = $1", [item.source_id]);
+  });
+  await enqueue("refresh_moves", {}, { dedupeKey: "refresh_moves:all" });
+  return res;
 }
 
 export async function setRadarStatus(id: number, status: "skipped" | "rejected" | "new"): Promise<void> {

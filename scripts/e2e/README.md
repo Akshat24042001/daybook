@@ -5,7 +5,7 @@ They are not part of `npm test` (they need a running app and Playwright's Chromi
 
 1. Start the local database (`npm run db:start`) and migrate a database for the app, e.g. `daybook_ui`.
 2. Build and start the app on port 3100 with `ADMIN_PASSWORD=pw`, `CRON_SECRET=testcron` and that database.
-3. Run each file with Node: `node scripts/e2e/1-settings.cjs` ... `node scripts/e2e/7-tick.cjs`.
+3. Run each file with Node: `node scripts/e2e/1-settings.cjs` ... `node scripts/e2e/9-send-back.cjs`.
 
 They change data in that database (offers, blocklist, test deals): never point them at production.
 
@@ -18,3 +18,4 @@ They change data in that database (offers, blocklist, test deals): never point t
 | 5-send | Sending from a move records purpose and edits; Today's outreach card counts it |
 | 6-numbers | Insights, Stats and Radar Plan figures match independent SQL |
 | 7-tick | The background tick groups objections once a day, drafts case studies, picks the focus, makes after-sale moves |
+| 9-send-back | A radar lead made into a deal by mistake goes back to Radar; a deal they replied on is refused and kept |
