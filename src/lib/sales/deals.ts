@@ -414,13 +414,19 @@ export interface InteractionRow {
   outcome?: string | null;
   duration_min?: number | null;
   edited_at?: string | null;
+  /** the capture it came from, and how many screenshots that capture kept */
+  capture_id?: number | null;
+  shots?: number;
 }
 
 export async function timeline(dealId: number, limit = 200): Promise<InteractionRow[]> {
   return q<InteractionRow>(
     `select i.id, i.deal_id, i.person_id, p.full_name as person_name, i.channel, i.direction, i.occurred_at, i.subject, i.body, i.summary, i.source, i.confidence,
-            i.outcome, i.duration_min, i.edited_at
-     from sales_interactions i left join sales_people p on p.id = i.person_id
+            i.outcome, i.duration_min, i.edited_at, i.capture_id,
+            -- a capture that made two entries (their messages and yours) shows its screenshots once, on the first
+            case when c.id is null or i.id <> (select min(x.id) from sales_interactions x where x.capture_id = c.id) then 0
+                 else greatest(jsonb_array_length(coalesce(c.images, '[]'::jsonb)), cardinality(c.image_paths)) end::int as shots
+     from sales_interactions i left join sales_people p on p.id = i.person_id left join sales_captures c on c.id = i.capture_id
      where i.deal_id = $1 order by i.occurred_at desc limit $2`,
     [dealId, limit],
   );

@@ -547,6 +547,16 @@ export function TimelineItem({ i, onDelete }: { i: InteractionRow; onDelete: () 
             <button type="button" className="block text-xs text-accent" onClick={() => setOpen((o) => !o)}>{open ? "Hide" : "Show full text"}</button>
           ) : null}
           {open ? <pre className="mt-1 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-2 font-sans text-xs">{i.body}</pre> : null}
+          {i.capture_id && i.shots ? (
+            <div className="mt-1.5 flex flex-wrap gap-1.5" aria-label="Screenshots">
+              {Array.from({ length: i.shots }, (_, k) => (
+                <a key={k} href={`/api/sales/shot/${i.capture_id}/${k}`} target="_blank" rel="noreferrer" title="Open the screenshot">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`/api/sales/shot/${i.capture_id}/${k}`} alt={`Screenshot ${k + 1}`} loading="lazy" className="h-14 w-14 rounded-md border border-border object-cover hover:border-accent" />
+                </a>
+              ))}
+            </div>
+          ) : null}
         </div>
         <button type="button" aria-label="Edit entry" onClick={() => setEdit(true)} className="text-subtle/60 hover:text-accent"><Pencil className="h-3.5 w-3.5" /></button>
         <button type="button" aria-label="Delete entry" onClick={() => confirm("Delete this entry?") && onDelete()} className="text-subtle/50 hover:text-bad"><Trash2 className="h-3.5 w-3.5" /></button>

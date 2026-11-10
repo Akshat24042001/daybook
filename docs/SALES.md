@@ -455,3 +455,9 @@ or send them to the Telegram bot. The AI reads them and files everything where i
 It only fills what is empty, so it never overwrites what you wrote. Send the same screenshot twice, or one that overlaps
 an earlier one, and the messages already on the deal are skipped. Afterwards the box shows what it filed and where,
 with Undo. When it cannot tell who it is about, it asks: pick the person or type a new name.
+
+The screenshots themselves are kept on the deal: a Screenshots section on the deal page (newest first, click to open
+full size) and a thumbnail on the timeline entry each one made. They move to your Supabase file storage when
+SUPABASE_SERVICE_ROLE_KEY is set (private bucket, opened through short-lived links), otherwise they stay in the
+database. Only you can open them. Undo takes them off the deal. Screenshots shared before this change are linked to
+their deals too.

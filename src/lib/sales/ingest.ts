@@ -15,6 +15,7 @@ import {
 import { addIdentities, domainOf, ensureCompany, resolvePerson, upsertPerson, type PersonRow } from "./identity";
 import { enqueue } from "./jobs";
 import { llmJson, type Part } from "./llm";
+import { keepShots, shotDataUrls } from "./shots";
 import { applyEvent, moveDeal, stageByRole } from "./stages";
 
 export interface CaptureInput {
@@ -215,6 +216,8 @@ export interface CaptureResult {
   seen?: string[];
   /** fields this capture filled in (deal, person, company), by their labels */
   filled?: string[];
+  /** screenshots kept on the deal */
+  shots?: number;
   /** messages in it that were already on the deal (sent before), not logged again */
   already?: number;
   deal_title?: string | null;
@@ -228,6 +231,7 @@ interface CaptureRow {
   channel: string | null;
   text: string | null;
   images: string[];
+  image_paths?: string[];
   hints: CaptureInput["hints"] & Record<string, unknown>;
   status: string;
   result: CaptureResult | null;
@@ -290,7 +294,7 @@ export async function processCapture(id: number, force: { person_id?: number; de
     hints.direction ? `DIRECTION HINT: ${hints.direction}` : "",
   ].filter(Boolean).join("\n");
 
-  const ext = await extract(cfg, tz, text || "(see image)", cap.images ?? [], prev, hintLine);
+  const ext = await extract(cfg, tz, text || "(see image)", await shotDataUrls(cap), prev, hintLine);
   const result = await applyExtraction(cap, ext, { cfg, dealId, personId, chat, chatName, newPersonName: force.newPersonName });
   if (chat && result.deal_id) result.seen = (chat as (ChatLine & { h?: string })[]).map((l) => l.h).filter((x): x is string => !!x);
   await q("update sales_captures set status = $2, result = $3, processed_at = now(), error = null where id = $1", [
@@ -298,6 +302,12 @@ export async function processCapture(id: number, force: { person_id?: number; de
   ]);
   if (chat && result.deal_id) {
     for (const l of chat as (ChatLine & { h?: string })[]) if (l.h) await q("insert into sales_seen (hash) values ($1) on conflict do nothing", [l.h]);
+  }
+  // the screenshots stay with the deal they were filed to
+  const shots = (cap.images?.length ?? 0) || (cap.image_paths?.length ?? 0);
+  if (result.deal_id && shots) {
+    await keepShots(id, result.deal_id);
+    result.shots = shots;
   }
   return result;
 }
@@ -635,7 +645,7 @@ export async function undoCapture(id: number): Promise<void> {
   await q("delete from sales_meetings where external_id = $1", [`cap:${id}`]);
   if (r.created_deal) await q("delete from sales_deals where id = $1", [r.created_deal]);
   if (r.created_person) await q("delete from sales_people where id = $1 and not exists (select 1 from sales_deals where person_id = $1)", [r.created_person]);
-  await q("update sales_captures set status = 'ignored' where id = $1", [id]);
+  await q("update sales_captures set status = 'ignored', deal_id = null where id = $1", [id]);
 }
 
 export function lastSeenText(at: unknown): string {

@@ -35,6 +35,7 @@ function Filed({ r, onUndo }: { r: CaptureResult; onUndo?: () => void }) {
   for (const c of r.commitment_texts ?? []) lines.push(`Promise: ${c}`);
   if (r.meeting_at) lines.push(`Meeting: ${when(r.meeting_at)}`);
   if (r.moved) lines.push(`Moved to ${r.moved}`);
+  if (r.shots) lines.push(`${r.shots} screenshot${r.shots > 1 ? "s" : ""} saved on the deal`);
   if (r.filled?.length) lines.push(`Filled in: ${[...new Set(r.filled)].join(", ")}`);
   return (
     <div className="mt-3 rounded-xl border border-good/30 bg-good-muted/40 p-3 text-sm" aria-label="What was filed">

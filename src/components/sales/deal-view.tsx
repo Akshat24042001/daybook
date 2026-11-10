@@ -33,6 +33,8 @@ export interface QuotePackage { offerId: number; index: number; offer: string; n
 
 export interface DealPageData {
   deal: DealCard;
+  /** the screenshots you shared that were filed to this deal */
+  shots?: { capture_id: number; index: number; at: string; summary: string | null; source: string }[];
   targets: (Stage & { requires: string })[];
   timeline: InteractionRow[];
   touches: { channel: string; last_at: string; last_in: string | null; count: number }[];
@@ -264,6 +266,22 @@ export function DealView({ d }: { d: DealPageData }) {
                   <li key={m.id} className="flex items-center justify-between gap-2">
                     <span>{m.title} <span className="text-xs text-subtle">{fmtDate(m.starts_at)}</span></span>
                     {m.link?.startsWith("https://") ? <a href={m.link} target="_blank" rel="noreferrer" className="text-xs text-accent">Join</a> : null}
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          ) : null}
+
+          {d.shots?.length ? (
+            <Section title={`Screenshots · ${d.shots.length}`}>
+              <ul className="grid grid-cols-3 gap-2" aria-label="Screenshots you shared">
+                {d.shots.map((x) => (
+                  <li key={`${x.capture_id}-${x.index}`}>
+                    <a href={`/api/sales/shot/${x.capture_id}/${x.index}`} target="_blank" rel="noreferrer" title={`${fmtDate(x.at)}${x.summary ? `: ${x.summary}` : ""}`} className="block">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={`/api/sales/shot/${x.capture_id}/${x.index}`} alt={x.summary ?? "Screenshot"} loading="lazy" className="aspect-square w-full rounded-lg border border-border object-cover hover:border-accent" />
+                      <span className="mt-0.5 block truncate text-[11px] text-subtle">{fmtDate(x.at)}{x.source === "telegram" ? " · Telegram" : ""}</span>
+                    </a>
                   </li>
                 ))}
               </ul>

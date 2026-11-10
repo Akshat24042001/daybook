@@ -20,6 +20,8 @@ export interface FileStore {
   copy(from: string, to: string): Promise<void>;
   remove(paths: string[]): Promise<void>;
   download(path: string): Promise<{ data: ArrayBuffer; mime: string }>;
+  /** server-side upload (small files only, such as screenshots) */
+  upload(path: string, data: Uint8Array, mime: string): Promise<void>;
 }
 
 export class StorageNotConfigured extends Error {}
@@ -110,6 +112,11 @@ function supabaseStore(): FileStore {
       fail("download", error);
       return { data: await data!.arrayBuffer(), mime: data!.type || "application/octet-stream" };
     },
+    async upload(path, data, mime) {
+      await ensureBucket();
+      const { error } = await files().upload(path, data, { contentType: mime, upsert: true });
+      fail("upload", error);
+    },
   };
 }
 
@@ -137,6 +144,7 @@ export function useMemoryStore(): Map<string, { data: Uint8Array; mime: string }
     async copy(from, to) { const f = mem.get(from); if (!f) throw new Error("not found"); mem.set(to, f); },
     async remove(paths) { for (const p of paths) mem.delete(p); },
     async download(path) { const f = mem.get(path); if (!f) throw new Error("not found"); return { data: f.data.slice().buffer, mime: f.mime }; },
+    async upload(path, data, mime) { mem.set(path, { data, mime }); },
   };
   return mem;
 }

@@ -11,6 +11,11 @@ import { one, q } from "@/lib/db";
 import { createDeal, updateDeal } from "@/lib/sales/deals";
 import { capture, processCapture, undoCapture, type Extraction } from "@/lib/sales/ingest";
 import { upsertPerson } from "@/lib/sales/identity";
+import { dealShots, shotDataUrls, shotFile } from "@/lib/sales/shots";
+import { resetStore, useMemoryStore } from "@/lib/storage";
+import { afterEach } from "vitest";
+
+afterEach(() => resetStore());
 
 beforeEach(async () => {
   await q(`truncate sales_companies, sales_people, sales_identities, sales_deals, sales_deal_people, sales_deal_events, sales_captures,
@@ -116,5 +121,52 @@ describe("a screenshot of a mail or chat is filed everywhere it belongs", () => 
     const r2 = await processCapture(id, { newPersonName: "Neha Kapoor" });
     expect(r2.deal_id).toBeTruthy();
     expect((await one<{ full_name: string }>("select full_name from sales_people where id = $1", [r2.person_id]))!.full_name).toBe("Neha Kapoor");
+  });
+});
+
+describe("the screenshots you share are kept on the deal", () => {
+  const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+  it("moves them to file storage, shows them on the deal and the timeline, and the AI can still read them", async () => {
+    const mem = useMemoryStore();
+    aiAnswer.value = email;
+    const id = await capture({ source: "web", text: "", images: [png, png] }, { now: true });
+    const r = await processCapture(id);
+    expect(r.shots).toBe(2);
+    const cap = (await one<{ images: string[]; image_paths: string[]; deal_id: number }>("select images, image_paths, deal_id from sales_captures where id = $1", [id]))!;
+    expect(cap.deal_id).toBe(r.deal_id);
+    expect(cap.images).toEqual([]);
+    expect(cap.image_paths).toHaveLength(2);
+    expect(mem.size).toBe(2);
+    const shots = await dealShots(r.deal_id!);
+    expect(shots.map((x) => x.index)).toEqual([0, 1]);
+    expect(await shotFile(id, 1)).toEqual({ redirect: expect.stringContaining("memory://get/") });
+    // read back for the AI (filing it again, say after you pick the person)
+    const back = await shotDataUrls(cap);
+    expect(back[0]).toMatch(/^data:image\/png;base64,iVBOR/);
+    const tl = await q<{ shots: number }>(
+      `select coalesce(greatest(jsonb_array_length(coalesce(c.images, '[]'::jsonb)), cardinality(c.image_paths)), 0)::int as shots
+       from sales_interactions i join sales_captures c on c.id = i.capture_id where i.deal_id = $1`, [r.deal_id]);
+    expect(tl[0].shots).toBe(2);
+  });
+
+  it("without file storage they stay in the database and are served from there", async () => {
+    aiAnswer.value = email;
+    const id = await capture({ source: "web", text: "", images: [png] }, { now: true });
+    const r = await processCapture(id);
+    const f = await shotFile(id, 0);
+    expect(f && "mime" in f ? f.mime : null).toBe("image/png");
+    expect((await dealShots(r.deal_id!)).length).toBe(1);
+  });
+
+  it("undo takes them off the deal", async () => {
+    aiAnswer.value = { ...email, messages: [{ from: "them", text: "hello there" }] };
+    const pid = await upsertPerson({ name: "Neha Kapoor", email: "neha@brightsmile.in" });
+    const dealId = await createDeal({ person_id: pid, title: "Kept" });
+    const id = await capture({ source: "web", text: "", images: [png], hints: { deal_id: dealId } }, { now: true });
+    await processCapture(id);
+    expect((await dealShots(dealId)).length).toBe(1);
+    await undoCapture(id);
+    expect((await dealShots(dealId)).length).toBe(0);
   });
 });

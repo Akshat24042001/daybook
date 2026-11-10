@@ -20,6 +20,7 @@ import { fitForDeals } from "@/lib/sales/fit";
 import { listItems } from "@/lib/sales/items";
 import { listPipelines, listTeam } from "@/lib/sales/org";
 import { playFor } from "@/lib/sales/playbook-stages";
+import { dealShots } from "@/lib/sales/shots";
 
 export const metadata: Metadata = { title: "Deal" };
 export const dynamic = "force-dynamic";
@@ -38,7 +39,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
     });
   const [
     targets, tl, touches, commits, pays, docs, moves, google, people, company, person, events,
-    cfg, customDefs, gaps, companyDefs, personDefs, blockedIds, offers, links, pipelines, team, stageRow, objections, meetings, fits, items,
+    cfg, customDefs, gaps, companyDefs, personDefs, blockedIds, offers, links, pipelines, team, stageRow, objections, meetings, fits, items, shots,
   ] = await Promise.all([
     allowedTargets(deal.stage_id), timeline(id), lastTouchByChannel(id), commitments(id), payments(id), listDocs(id),
     soft(listMoves({ dealId: id, horizonHours: 24 * 30 }), [], "moves"), soft(googleConfigured(), false, "google"),
@@ -76,6 +77,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
     soft(q<DealPageData["meetings"][number]>("select id, title, starts_at, link from sales_meetings where deal_id = $1 and not cancelled order by starts_at desc limit 10", [id]), [], "meetings"),
     soft(fitForDeals([id]), new Map() as Awaited<ReturnType<typeof fitForDeals>>, "fit"),
     soft(listItems(id), [] as Awaited<ReturnType<typeof listItems>>, "items"),
+    soft(dealShots(id), [] as Awaited<ReturnType<typeof dealShots>>, "screenshots"),
   ]);
   const blocked = blockedIds.has(id);
   const packages = packagesFor(offers, deal.services ?? []).map((p) => ({
@@ -91,7 +93,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         fit: fits.get(id) ?? null, items, defaultTax: cfg.default_tax_pct,
         itemPackages: packages.map((p) => ({ offerId: p.offerId, index: p.index, label: `${p.offer} · ${p.name}` })),
         stageKey, play: playFor({ role: deal.stage_role, key: stageRow?.key }, cfg.playbook), ticked: (deal.checklist ?? {})[stageKey] ?? [],
-        objections, owner: { name: cfg.owner.name, company: cfg.owner.company },
+        objections, shots, owner: { name: cfg.owner.name, company: cfg.owner.company },
         choices: {
           pipeline_id: pipelines.map((p) => [String(p.id), p.name] as [string, string]),
           owner_id: team.map((t) => [String(t.id), t.name] as [string, string]),
