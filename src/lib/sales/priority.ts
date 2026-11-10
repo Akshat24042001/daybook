@@ -87,9 +87,9 @@ export function scoreDeal(r: PriorityRow, now = Date.now()): { score: number; wh
 }
 
 export function tier(score: number): { label: "Hot" | "Warm" | "Steady" | "Cold"; tone: string } {
-  if (score >= 70) return { label: "Hot", tone: "bg-p-rose text-p-rose-fg" };
-  if (score >= 45) return { label: "Warm", tone: "bg-p-butter text-p-butter-fg" };
-  if (score >= 20) return { label: "Steady", tone: "bg-p-sky text-p-sky-fg" };
+  if (score >= 70) return { label: "Hot", tone: "bg-good text-good-on" };
+  if (score >= 45) return { label: "Warm", tone: "bg-p-mint text-p-mint-fg" };
+  if (score >= 20) return { label: "Steady", tone: "bg-p-butter text-p-butter-fg" };
   return { label: "Cold", tone: "bg-muted text-subtle" };
 }
 
@@ -97,7 +97,7 @@ const ROWS_SQL = `
   with inbound as (
     select i.deal_id, i.company_id, i.occurred_at from sales_interactions i where i.direction in ('in','both')
   )
-  select d.id, s.category, s.role, s.probability, d.value_usd, d.value_amount, d.currency, c.name as company, d.priority, d.priority_on,
+  select d.id, s.category, s.role, s.probability, d.value_usd, d.value_amount, d.currency, c.name as company, d.priority, d.priority_on, d.priority_why,
     (select max(occurred_at) from inbound x where x.deal_id = d.id) as last_in,
     (select max(occurred_at) from inbound x where d.company_id is not null and x.company_id = d.company_id) as company_last_in,
     (select max(occurred_at) from inbound x where d.company_id is not null and x.company_id = d.company_id and x.deal_id is distinct from d.id) as company_other_in,
@@ -114,17 +114,30 @@ const ROWS_SQL = `
 
 /** Recomputes priority (and keeps heat equal to it) for all deals, or one deal and its company's other deals. */
 export async function refreshPriorities(dealId?: number): Promise<void> {
-  const rows = await q<PriorityRow>(ROWS_SQL, [dealId ?? null]);
+  const rows = await q<PriorityRow & { priority_why?: string[] | null }>(ROWS_SQL, [dealId ?? null]);
   const now = Date.now();
   const today = new Date().toISOString().slice(0, 10);
-  for (const r of rows) {
+  // one statement for every deal whose priority, reasons or day changed (not one per deal)
+  const changed = rows.flatMap((r) => {
     const { score, why } = scoreDeal(r, now);
     const newDay = !r.priority_on || String(r.priority_on).slice(0, 10) !== today;
-    await q(
-      `update sales_deals set priority = $2, heat = $2, priority_why = $3,
-         priority_prev = case when $4 then priority else priority_prev end, priority_on = $5
-       where id = $1`,
-      [r.id, score, why, newDay, today],
-    );
-  }
+    const same = !newDay && r.priority === score && JSON.stringify(r.priority_why ?? []) === JSON.stringify(why);
+    return same ? [] : [{ id: r.id, score, why, newday: newDay }];
+  });
+  if (!dealId) lastFull = Date.now();
+  if (!changed.length) return;
+  await q(
+    `update sales_deals d set priority = v.score, heat = v.score, priority_why = v.why,
+       priority_prev = case when v.newday then d.priority else d.priority_prev end, priority_on = $2::date
+     from jsonb_to_recordset($1::jsonb) as v(id int, score int, why text[], newday boolean)
+     where d.id = v.id`,
+    [JSON.stringify(changed), today],
+  );
+}
+
+let lastFull = 0;
+/** For a page load: recomputes every deal's priority unless that happened in the last minute. Never throws. */
+export async function refreshPrioritiesIfStale(): Promise<void> {
+  if (Date.now() - lastFull < 60_000) return;
+  await refreshPriorities().catch((e) => console.warn("[sales] priority refresh failed:", (e as Error).message));
 }

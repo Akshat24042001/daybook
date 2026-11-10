@@ -173,7 +173,21 @@ them alone.
 ## Priority
 
 Every deal has a priority from 0 to 100, recomputed every 10 minutes, with the reasons shown and a trend arrow against
-yesterday. Hot is 70+, Warm 45+, Steady 20+, Cold below.
+yesterday. The chip reads like "Cold 7 ↑": the band, the score, and the arrow when it moved 5 or more points since
+yesterday (green up, red down). Bands get greener as priority rises:
+
+| Band | Score | Colour | Meaning |
+|---|---|---|---|
+| Hot | 70 to 100 | solid green | act today |
+| Warm | 45 to 69 | light green | this week |
+| Steady | 20 to 44 | yellow | keep warm |
+| Cold | 0 to 19 | grey | quiet for now |
+
+**Your own order.** On the Pipeline board (Sort: Priority + your order), drag a card by its handle onto another card in
+the same column: dragging up puts it above that card, dragging down puts it below. The cards from the top of the column
+down to where you dropped are pinned in that order (a small pin icon); everything below keeps following the automatic
+priority. "Reset order" on the column header goes back to automatic. A deal that moves to another stage starts that
+column unpinned. Dropping on a card in a different column moves the deal to that stage, as before.
 
 | Part | Points | What drives it |
 |---|---|---|
@@ -413,3 +427,13 @@ against the goal, replies received and won value.
 
 Add your Calendly or Cal.com link in Settings. Drafts offer it whenever a call is the natural next step, never in a first
 message, a breakup, a radar reply or a payment reminder.
+
+## Speed and errors
+
+- Pages load their data in parallel, and the background refreshes (moves, priorities) run on a page load only when
+  something changed since the last run or a minute has passed. The 10-minute job and every change you make refresh
+  straight away, so nothing goes stale.
+- The refreshes write in one statement for all deals and skip rows that did not change.
+- If a page fails (usually a slow database moment), it shows "This page hit a snag" with Try again, inside the normal
+  app, instead of a blank "Application error". After a deploy, a tab still running the old version reloads itself once.
+- `SQL_TRACE=1` logs every query with its time, for finding slow pages locally.

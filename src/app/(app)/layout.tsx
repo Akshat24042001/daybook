@@ -5,6 +5,8 @@ import { makeCtx } from "@/lib/settings";
 import { recentAction } from "@/lib/undo";
 
 export const dynamic = "force-dynamic";
+// pages and the server actions they call (AI drafts, enrichment, radar) get a minute, not the 10-second default
+export const maxDuration = 60;
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await makeCtx();

@@ -6,6 +6,7 @@
  * and opening the catalogue the first time copies that list in.
  */
 import { one, q, tx, UserError } from "../db";
+import { forgetSalesConfig } from "./config";
 
 export interface PackageItem { name: string; description: string; qty: number; unit_price: number }
 export interface Package {
@@ -70,7 +71,15 @@ export function packageTotal(p: Package): number {
   return p.items.reduce((a, i) => a + i.qty * i.unit_price, 0);
 }
 
-export async function saveOffer(o: { id?: number; name: string; summary?: string | null; keywords?: string[]; packages?: unknown; active?: boolean; sort?: number }): Promise<number> {
+export async function saveOffer(o: Parameters<typeof saveOfferRow>[0]): Promise<number> {
+  try {
+    return await saveOfferRow(o);
+  } finally {
+    forgetSalesConfig();
+  }
+}
+
+async function saveOfferRow(o: { id?: number; name: string; summary?: string | null; keywords?: string[]; packages?: unknown; active?: boolean; sort?: number }): Promise<number> {
   const name = o.name?.trim();
   if (!name) throw new UserError("Give the offer a name.");
   const keywords = [...new Set((o.keywords ?? []).map((k) => k.trim()).filter(Boolean))].slice(0, 20);
@@ -91,6 +100,7 @@ export async function saveOffer(o: { id?: number; name: string; summary?: string
 
 export async function deleteOffer(id: number): Promise<void> {
   await q("delete from sales_offers where id = $1", [id]);
+  forgetSalesConfig();
 }
 
 const words = (s: string) => new Set(s.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 4));

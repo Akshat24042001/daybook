@@ -21,7 +21,7 @@ import { researchRadarItem, researchView, startResearch, type ResearchView } fro
 import { ensureCompany, mergePeople, upsertPerson } from "@/lib/sales/identity";
 import { capture, processCapture, undoCapture, type CaptureResult } from "@/lib/sales/ingest";
 import { enqueue } from "@/lib/sales/jobs";
-import { addCustomMove, draftForMove, getMove, refreshMoves, setMoveStatus, snoozeMove, type MoveRow } from "@/lib/sales/moves";
+import { addCustomMove, draftForMove, getMove, markMovesStale, refreshMoves, setMoveStatus, snoozeMove, type MoveRow } from "@/lib/sales/moves";
 import { deleteHunt, recentRuns, runHuntNow, saveHunt, setHuntEnabled, type HuntInput, type HuntRun } from "@/lib/sales/hunts";
 import { radarToDeal, runRadar, qualifyPending, sendBackToRadar, setRadarHidden, setRadarStatus, dailyDigest, type SendBack } from "@/lib/sales/radar";
 import { deleteStage, moveDeal, saveStage, setTransition, type Category, type Requirement } from "@/lib/sales/stages";
@@ -30,12 +30,14 @@ import { addBlock, removeBlock, type BlockKind } from "@/lib/sales/blocklist";
 import { deleteOffer, saveOffer } from "@/lib/sales/offers";
 import { renameObjection, saveAnswer, suggestAnswer, syncObjections } from "@/lib/sales/objections";
 import { deleteProof, draftProof, saveProof } from "@/lib/sales/proofs";
+import { resetManualOrder, setManualOrder } from "@/lib/sales/order";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
 async function run<T extends object = object>(fn: () => Promise<T | void>, paths: string[] = ["/sales"]): Promise<Result<T>> {
   try {
     const out = (await journaled("web", async () => (await fn()) ?? ({} as T))).value;
+    markMovesStale();
     for (const p of paths) revalidatePath(p, p.includes("[") ? "page" : undefined);
     return { ok: true, ...(out as T) };
   } catch (e) {
@@ -211,7 +213,8 @@ export async function saveMemberAction(m: { id?: number; name: string; email?: s
 export async function bulkDealsAction(ids: number[], op: BulkOp) {
   return run<{ result: Awaited<ReturnType<typeof bulkDeals>> }>(async () => {
     const result = await bulkDeals(ids, op);
-    if (!op.delete) for (const id of ids.slice(0, 200)) await refreshMoves(id).catch(() => {});
+    // one refresh for all of them, not one per deal
+    if (!op.delete) await refreshMoves().catch(() => {});
     return { result };
   }, ["/sales", "/sales/pipeline", "/sales/insights"]);
 }
@@ -560,4 +563,16 @@ export async function draftProofsAction() {
     for (const r of ids) await draftProof(r.id);
     return { n: ids.length };
   }, ["/sales/playbook"]);
+}
+
+// ------------------------------------------------------------------ your own order on the board
+/** Saves the top of a stage column in the order you dragged it. */
+export async function orderDealsAction(stageId: number, ids: number[]) {
+  return run(async () => {
+    await setManualOrder(stageId, ids);
+  }, ["/sales/pipeline"]);
+}
+/** One column (or all of them) back to automatic priority order. */
+export async function resetOrderAction(stageId: number | null) {
+  return run<{ reset: number }>(async () => ({ reset: await resetManualOrder(stageId) }), ["/sales/pipeline"]);
 }

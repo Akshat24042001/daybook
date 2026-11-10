@@ -184,7 +184,27 @@ export async function salesRow(): Promise<SalesSettingsRow> {
   return row;
 }
 
+// one page asks for the config several times; it is read once and kept for a few seconds (cleared on every save)
+// (kept on globalThis: Next.js loads this module separately for pages and for server actions, and a save in one must
+// clear the copy the other reads)
+const store = globalThis as unknown as { __salesConfigCache?: { at: number; p: Promise<SalesConfig> } | null };
+const CONFIG_TTL = process.env.NODE_ENV === "test" ? 0 : 3_000;
+export function forgetSalesConfig(): void {
+  store.__salesConfigCache = null;
+}
+
 export async function salesConfig(): Promise<SalesConfig> {
+  const hit = store.__salesConfigCache;
+  if (hit && Date.now() - hit.at < CONFIG_TTL) return hit.p;
+  const p = loadSalesConfig();
+  store.__salesConfigCache = { at: Date.now(), p };
+  p.catch(() => {
+    if (store.__salesConfigCache?.p === p) store.__salesConfigCache = null;
+  });
+  return p;
+}
+
+async function loadSalesConfig(): Promise<SalesConfig> {
   const row = await salesRow();
   const cfg = merge(DEFAULT_CONFIG, row.config ?? {});
   // the offer catalogue (Sales > Playbook) is the source of truth once it has anything in it
@@ -211,7 +231,10 @@ export async function updateSalesConfig(patch: Partial<SalesConfig>): Promise<Sa
     if (!/^[A-Z]{3}$/.test(v)) throw new UserError("A currency is a three-letter code, like INR or USD.");
     next[k] = v;
   }
+  forgetSalesConfig();
   await q("update sales_settings set config = $1, updated_at = now() where id = 1", [JSON.stringify(next)]);
+  // cleared before and after: a read that started during the write must not be kept
+  forgetSalesConfig();
   return next;
 }
 

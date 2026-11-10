@@ -62,18 +62,46 @@ export function SalesTabs() {
 }
 
 /** Priority 0-100 with its tier, the trend since yesterday, and the reasons on hover. */
+/**
+ * Priority bands, greener as it rises: what to work on first. The number is 0 to 100 (see lib/sales/priority.ts);
+ * the arrow is the change since yesterday (5 points or more).
+ */
+export const PRIORITY_BANDS = [
+  { min: 70, label: "Hot", range: "70-100", tone: "bg-good text-good-on", meaning: "act today" },
+  { min: 45, label: "Warm", range: "45-69", tone: "bg-p-mint text-p-mint-fg", meaning: "this week" },
+  { min: 20, label: "Steady", range: "20-44", tone: "bg-p-butter text-p-butter-fg", meaning: "keep warm" },
+  { min: 0, label: "Cold", range: "0-19", tone: "bg-muted text-subtle", meaning: "quiet for now" },
+] as const;
+export const priorityBand = (v: number) => PRIORITY_BANDS.find((b) => v >= b.min) ?? PRIORITY_BANDS[3];
+
 export function Priority({ value, prev, why, compact }: { value: number; prev?: number | null; why?: string[] | null; compact?: boolean }) {
-  const t = value >= 70 ? ["Hot", "bg-p-rose text-p-rose-fg"] : value >= 45 ? ["Warm", "bg-p-butter text-p-butter-fg"] : value >= 20 ? ["Steady", "bg-p-sky text-p-sky-fg"] : ["Cold", "bg-muted text-subtle"];
+  const b = priorityBand(value);
   const delta = prev === null || prev === undefined ? 0 : value - prev;
   const arrow = delta >= 5 ? "↑" : delta <= -5 ? "↓" : "";
   return (
     <span
-      className={cn("inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold tabular", t[1])}
-      title={`Priority ${value}/100${delta ? ` (${delta > 0 ? "+" : ""}${delta} since yesterday)` : ""}${why?.length ? `\n${why.join("\n")}` : ""}`}
+      className={cn("inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold tabular", b.tone)}
+      title={`Priority ${value}/100: ${b.label} (${b.meaning})${delta ? `. ${delta > 0 ? "Up" : "Down"} ${Math.abs(delta)} since yesterday` : ""}${why?.length ? `\n${why.join("\n")}` : ""}`}
     >
-      {compact ? null : t[0]} {value}
-      {arrow ? <span className={delta > 0 ? "text-good" : "text-bad"}>{arrow}</span> : null}
+      {compact ? null : b.label} {value}
+      {arrow ? <span className={b.min === 70 ? undefined : delta > 0 ? "text-good" : "text-bad"} aria-label={delta > 0 ? "rising" : "falling"}>{arrow}</span> : null}
     </span>
+  );
+}
+
+/** One line that explains the colours and the arrow. */
+export function PriorityLegend() {
+  return (
+    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-subtle">
+      <span>Priority 0 to 100:</span>
+      {PRIORITY_BANDS.map((b) => (
+        <span key={b.label} className="inline-flex items-center gap-1">
+          <span className={cn("rounded px-1.5 py-px font-semibold", b.tone)}>{b.label}</span>
+          {b.range}
+        </span>
+      ))}
+      <span>· ↑ or ↓ moved 5+ points since yesterday</span>
+    </p>
   );
 }
 

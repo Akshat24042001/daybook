@@ -1,14 +1,15 @@
 "use client";
 
 import {
-  DndContext, DragOverlay, KeyboardSensor, PointerSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors,
-  type DragEndEvent, type DragStartEvent,
+  DndContext, DragOverlay, KeyboardSensor, PointerSensor, TouchSensor, pointerWithin, rectIntersection, useDraggable, useDroppable, useSensor, useSensors,
+  type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent,
 } from "@dnd-kit/core";
-import { GripVertical } from "lucide-react";
+import { arrayMove } from "@dnd-kit/sortable";
+import { GripVertical, Pin } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { moveStageAction } from "@/app/sales-actions";
+import { moveStageAction, orderDealsAction, resetOrderAction } from "@/app/sales-actions";
 import { Button, Field, Input, Select, Sheet, Textarea } from "@/components/ui";
 import { StageMoveSheet, type PendingMove } from "./deal-rich";
 import { DEFAULT_REASONS, needsDetails, type FieldDef, type Reasons } from "@/lib/sales/fields";
@@ -18,18 +19,29 @@ import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import type { DealCard } from "@/lib/sales/deals";
 import type { Stage, Transition } from "@/lib/sales/stages";
-import { ago, ChannelIcon, money, Priority } from "./util";
+import { ago, ChannelIcon, money, Priority, PriorityLegend } from "./util";
 
 // the move sheet (closing checklists, reasons) lives with the deal components; re-exported for older imports
 export { StageMoveSheet, type PendingMove } from "./deal-rich";
 
 type SortKey = "priority" | "value" | "touch" | "stuck" | "newest";
-const SORTS: [SortKey, string][] = [["priority", "Priority"], ["value", "Value"], ["touch", "Last touch"], ["stuck", "Longest in stage"], ["newest", "Newest"]];
+const SORTS: [SortKey, string][] = [["priority", "Priority + your order"], ["value", "Value"], ["touch", "Last touch"], ["stuck", "Longest in stage"], ["newest", "Newest"]];
+
+/** What is under your finger or pointer wins: a card first (to reorder), else the column (to move stage). */
+const collide: CollisionDetection = (args) => {
+  const hits = pointerWithin(args);
+  const cards = hits.filter((h) => String(h.id).startsWith("card-"));
+  if (cards.length) return cards;
+  return hits.length ? hits : rectIntersection(args);
+};
 
 function sortDeals(list: DealCard[], key: SortKey): DealCard[] {
   const t = (x: string | null) => (x ? new Date(x).getTime() : 0);
   const by: Record<SortKey, (a: DealCard, b: DealCard) => number> = {
-    priority: (a, b) => b.priority - a.priority,
+    // the deals you placed by hand first, in your order; then everything else by priority
+    priority: (a, b) =>
+      a.manual_rank != null && b.manual_rank != null ? a.manual_rank - b.manual_rank
+      : a.manual_rank != null ? -1 : b.manual_rank != null ? 1 : b.priority - a.priority,
     value: (a, b) => Number(b.value_usd ?? 0) - Number(a.value_usd ?? 0),
     touch: (a, b) => t(b.last_touch_at) - t(a.last_touch_at),
     stuck: (a, b) => t(a.stage_changed_at) - t(b.stage_changed_at),
@@ -46,6 +58,7 @@ function CardBody({ d, s }: { d: DealCard; s: Stage | undefined }) {
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-semibold leading-snug">{d.title}</p>
         <span className="flex shrink-0 items-center gap-1">
+          {d.manual_rank != null ? <span title="You placed this by hand. Reset order on the column goes back to automatic." aria-label="Placed by you"><Pin className="h-3 w-3 text-subtle" /></span> : null}
           {d.fit ? <span title={`Fit ${d.fit.score}/100`} className={cn("rounded px-1 text-[11px] font-semibold", d.fit.grade === "A" ? "bg-p-mint text-p-mint-fg" : d.fit.grade === "B" ? "bg-p-sky text-p-sky-fg" : d.fit.grade === "C" ? "bg-p-butter text-p-butter-fg" : "bg-muted text-subtle")}>{d.fit.grade}</span> : null}
           <Priority value={d.priority} prev={d.priority_prev} why={d.priority_why} compact />
         </span>
@@ -62,12 +75,26 @@ function CardBody({ d, s }: { d: DealCard; s: Stage | undefined }) {
   );
 }
 
-function DraggableCard({ d, s, onMove, targets }: { d: DealCard; s: Stage | undefined; onMove: (d: DealCard, to: number) => void; targets: Stage[] }) {
+function DraggableCard({ d, s, onMove, targets, hint, dropOff }: {
+  d: DealCard; s: Stage | undefined; onMove: (d: DealCard, to: number) => void; targets: Stage[];
+  /** while another card of this column is dragged over this one: where it will land */
+  hint: "above" | "below" | null;
+  dropOff: boolean;
+}) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: d.id });
+  // every card is also a drop target: drop a card of the same stage on it to put it above (or below) this one
+  const drop = useDroppable({ id: `card-${d.id}`, disabled: dropOff });
   return (
-    <li ref={setNodeRef} className={cn("group rounded-xl border border-border bg-surface p-2.5 shadow-[var(--shadow-sm)] transition-opacity", isDragging && "opacity-30")}>
+    <li
+      ref={(n) => {
+        setNodeRef(n);
+        drop.setNodeRef(n);
+      }}
+      className={cn("group relative rounded-xl border border-border bg-surface p-2.5 shadow-[var(--shadow-sm)] transition-opacity", isDragging && "opacity-30")}
+    >
+      {hint ? <span aria-hidden className={cn("pointer-events-none absolute inset-x-1 h-1 rounded-full bg-accent", hint === "above" ? "-top-1.5" : "-bottom-1.5")} /> : null}
       <div className="flex gap-1.5">
-        <button type="button" {...listeners} {...attributes} aria-label={`Drag ${d.title} to another stage`} className="-ml-1 mt-0.5 h-6 cursor-grab touch-none rounded text-subtle/50 hover:text-fg active:cursor-grabbing">
+        <button type="button" {...listeners} {...attributes} aria-label={`Drag ${d.title} to reorder or to another stage`} className="-ml-1 mt-0.5 h-6 cursor-grab touch-none rounded text-subtle/50 hover:text-fg active:cursor-grabbing">
           <GripVertical className="h-4 w-4" />
         </button>
         <Link href={`/sales/deal/${d.id}`} className="min-w-0 flex-1">
@@ -84,7 +111,7 @@ function DraggableCard({ d, s, onMove, targets }: { d: DealCard; s: Stage | unde
   );
 }
 
-function Column({ s, count, total, cur, state, children }: { s: Stage; count: number; total: number; cur: string; state: "idle" | "allowed" | "blocked" | "home"; children: React.ReactNode }) {
+function Column({ s, count, total, cur, state, onReset, children }: { s: Stage; count: number; total: number; cur: string; state: "idle" | "allowed" | "blocked" | "home"; onReset?: () => void; children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id: `stage-${s.id}`, disabled: state === "blocked" });
   return (
     <section
@@ -102,7 +129,10 @@ function Column({ s, count, total, cur, state, children }: { s: Stage; count: nu
           {s.name}
           <span className="font-normal text-subtle">{count}</span>
         </h2>
-        <span className="text-xs tabular text-subtle">{total ? money(Math.round(total), cur) : ""}</span>
+        <span className="flex items-baseline gap-2 text-xs tabular text-subtle">
+          {onReset ? <button type="button" onClick={onReset} title="Forget the order you set by hand; go back to automatic priority" className="underline-offset-2 hover:text-fg hover:underline">Reset order</button> : null}
+          {total ? money(Math.round(total), cur) : ""}
+        </span>
       </header>
       {children}
     </section>
@@ -124,6 +154,7 @@ export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR
   const [sort, setSort] = useState<SortKey>("priority");
   const [pending, setPending] = useState<PendingMove | null>(null);
   const [dragging, setDragging] = useState<DealCard | null>(null);
+  const [overCard, setOverCard] = useState<number | null>(null);
   const [busy, start] = useTransition();
   const { toast } = useToast();
   const router = useRouter();
@@ -178,12 +209,59 @@ export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR
     });
   };
 
+  /** You dropped d on target, in the same column: d takes target's place, and the column's top down to there is saved. */
+  const reorder = (d: DealCard, target: DealCard) => {
+    if (sort !== "priority") return toast("Your own order shows with Sort: Priority + your order. Switch to it, then drag.", "error");
+    const list = filtered.filter((x) => x.stage_id === d.stage_id);
+    const from = list.findIndex((x) => x.id === d.id);
+    const to = list.findIndex((x) => x.id === target.id);
+    if (from < 0 || to < 0 || from === to) return;
+    const next = arrayMove(list, from, to);
+    // keep every card you placed before, plus everything down to where this one landed
+    const lastPlaced = next.reduce((m, x, i) => (x.manual_rank != null ? i : m), -1);
+    const top = next.slice(0, Math.max(to, lastPlaced) + 1);
+    const rank = new Map(top.map((x, i) => [x.id, i + 1]));
+    const before = items;
+    setItems((cur) => cur.map((x) => (rank.has(x.id) ? { ...x, manual_rank: rank.get(x.id)! } : x)));
+    start(async () => {
+      const r = await orderDealsAction(d.stage_id, top.map((x) => x.id));
+      if (!r.ok) {
+        setItems(before);
+        return toast(r.error, "error");
+      }
+      toast(`${d.title} placed ${to < from ? "above" : "below"} ${target.title}`);
+    });
+  };
+  const resetColumn = (stageId: number) => {
+    const before = items;
+    setItems((cur) => cur.map((x) => (x.stage_id === stageId ? { ...x, manual_rank: null } : x)));
+    start(async () => {
+      const r = await resetOrderAction(stageId);
+      if (!r.ok) {
+        setItems(before);
+        return toast(r.error, "error");
+      }
+      toast("Back to automatic order");
+    });
+  };
+
   const onDragStart = (e: DragStartEvent) => setDragging(items.find((d) => d.id === e.active.id) ?? null);
+  const onDragOver = (e: DragOverEvent) => {
+    const over = e.over?.id;
+    setOverCard(typeof over === "string" && over.startsWith("card-") ? Number(over.slice(5)) : null);
+  };
   const onDragEnd = (e: DragEndEvent) => {
     const d = dragging;
     setDragging(null);
+    setOverCard(null);
     const over = e.over?.id;
     if (!d || typeof over !== "string") return;
+    if (over.startsWith("card-")) {
+      const target = items.find((x) => x.id === Number(over.slice(5)));
+      if (!target || target.id === d.id) return;
+      // on a card in the same stage: reorder; on a card in another stage: move there
+      return target.stage_id === d.stage_id ? reorder(d, target) : move(d, target.stage_id);
+    }
     move(d, Number(over.replace("stage-", "")));
   };
   const allowed = dragging ? new Set(edgesFrom(dragging.stage_id).map((t) => t.to_stage)) : null;
@@ -215,26 +293,33 @@ export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR
         {busy ? <span className="text-xs text-subtle">Saving…</span> : null}
       </div>
 
+      <PriorityLegend />
       {view === "ranked" ? (
         <DealTable deals={filtered.filter((d) => cols.some((c) => c.id === d.stage_id))} stages={stages} customDefs={customDefs} team={team} pipelines={pipelines} transitions={transitions} />
       ) : (
         <>
-          <p className="hidden text-xs text-subtle md:block">Drag a card by its handle. While you drag, the stages it can move to light up; the rest fade.</p>
-          <DndContext id="pipeline-board" sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
+          <p className="text-xs text-subtle">
+            Drag a card by its handle: onto another card in its column to put it above or below that one (it stays where you put it), or to another stage to move it.
+          </p>
+          <DndContext id="pipeline-board" sensors={sensors} collisionDetection={collide} autoScroll={{ threshold: { x: 0.08, y: 0.12 } }} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setDragging(null); setOverCard(null); }}>
             <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-4 md:mx-0 md:px-0">
               {cols.map((s) => {
                 const list = filtered.filter((d) => d.stage_id === s.id);
                 const total = list.reduce((sum, d) => sum + Number(d.value_usd ?? 0), 0) / (report.rate > 0 ? report.rate : 1);
                 const state = !dragging ? "idle" : dragging.stage_id === s.id ? "home" : allowed?.has(s.id) ? "allowed" : "blocked";
                 return (
-                  <Column key={s.id} s={s} count={list.length} total={total} cur={report.cur} state={state}>
+                  <Column key={s.id} s={s} count={list.length} total={total} cur={report.cur} state={state} onReset={sort === "priority" && list.some((d) => d.manual_rank != null) ? () => resetColumn(s.id) : undefined}>
                     <ul className="min-h-16 space-y-2">
-                      {list.map((d) => (
+                      {list.map((d, i) => (
                         <DraggableCard
                           key={d.id}
                           d={d}
                           s={s}
                           onMove={move}
+                          dropOff={state === "blocked"}
+                          hint={dragging && overCard === d.id && dragging.id !== d.id && dragging.stage_id === s.id
+                            ? (list.findIndex((x) => x.id === dragging.id) < i ? "below" : "above")
+                            : null}
                           targets={edgesFrom(d.stage_id).map((t) => stages.find((x) => x.id === t.to_stage)).filter((x): x is Stage => !!x && x.active)}
                         />
                       ))}

@@ -4,7 +4,7 @@ import { voiceConfigured } from "@/lib/deepgram";
 import { reportMoney, salesConfig } from "@/lib/sales/config";
 import { currentFocus } from "@/lib/sales/focus";
 import { googleConfigured } from "@/lib/sales/google";
-import { listMoves, refreshMoves } from "@/lib/sales/moves";
+import { listMoves, refreshMovesIfStale } from "@/lib/sales/moves";
 import { CaptureBox } from "@/components/sales/capture-box";
 import { MovesView } from "@/components/sales/moves-view";
 import { NewDealButton } from "@/components/sales/new-deal";
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 export default async function SalesPage() {
   // cheap rules only, so the list is always current when you open it
-  await refreshMoves().catch((e) => console.warn("[sales] refresh failed:", (e as Error).message));
+  await refreshMovesIfStale();
   const [moves, cfg, google] = await Promise.all([listMoves({ horizonHours: 48 }), salesConfig(), googleConfigured()]);
   const k = await one<{ open_usd: number | null; weighted: number | null; won_unpaid: number | null; replies: number; radar: number; meetings: number; deals: number }>(
     `select

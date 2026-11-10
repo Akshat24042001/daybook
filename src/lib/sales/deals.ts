@@ -39,6 +39,8 @@ export interface DealRow {
   heat: number;
   priority: number;
   priority_prev: number | null;
+  /** your hand-set place in its stage column (smaller is higher); null follows priority */
+  manual_rank: number | null;
   priority_why: string[];
   summary: string | null;
   requirements: string | null;

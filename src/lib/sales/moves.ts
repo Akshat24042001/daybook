@@ -74,6 +74,8 @@ async function bestChannel(dealId: number): Promise<string | null> {
 }
 
 interface Extra {
+  /** the best channel for this deal, looked up for all deals at once (else it is looked up here) */
+  channel?: string | null;
   offers: Offer[];
   /** the company already has another open deal, so it is already buying more: no upsell */
   otherOpenDeal: boolean;
@@ -108,7 +110,7 @@ async function desiredForDeal(cfg: SalesConfig, d: DealCard, now: number, extra:
   const lastOut = t(d.last_outbound_at);
   const role = d.stage_role;
   const open = d.stage_category === "open";
-  const channel = await bestChannel(d.id);
+  const channel = extra.channel !== undefined ? extra.channel : await bestChannel(d.id);
   const name = who(d);
 
   // 1. they wrote last: reply
@@ -286,9 +288,16 @@ export async function refreshMoves(dealId?: number): Promise<{ open: number }> {
   const openByCompany = new Map((await q<{ company_id: number; n: number }>(
     "select d.company_id, count(*)::int as n from sales_deals d join sales_stages s on s.id = d.stage_id where s.category = 'open' and d.company_id is not null group by 1",
   )).map((r) => [r.company_id, r.n]));
+  // each deal's best channel in one query, not one per deal
+  const channels = new Map((await q<{ deal_id: number; channel: string }>(
+    `select distinct on (deal_id) deal_id, channel from sales_interactions
+     where deal_id = any($1::int[]) and channel in ('whatsapp','email','linkedin','instagram','sms','twitter','call')
+     order by deal_id, (direction in ('in','both')) desc, occurred_at desc`,
+    [deals.map((d) => d.id)],
+  )).map((r) => [r.deal_id, r.channel]));
   for (const d of deals) {
     if (blocked.has(d.id)) continue;
-    desired.push(...(await desiredForDeal(cfg, d, now, { offers, otherOpenDeal: !!(d.company_id && openByCompany.get(d.company_id)) })));
+    desired.push(...(await desiredForDeal(cfg, d, now, { channel: channels.get(d.id) ?? null, offers, otherOpenDeal: !!(d.company_id && openByCompany.get(d.company_id)) })));
   }
   const global = await desiredGlobal(cfg, now);
   desired.push(...(dealId ? global.filter((g) => g.deal_id === dealId) : global));
@@ -296,14 +305,21 @@ export async function refreshMoves(dealId?: number): Promise<{ open: number }> {
   const valid = desired.filter((d) => Number.isFinite(d.due_at.getTime()));
   if (valid.length < desired.length) console.warn("[sales] moves with a bad date skipped:", desired.filter((d) => !valid.includes(d)).map((d) => d.key).join(", "));
   const keys = valid.map((d) => d.key);
-  for (const d of valid) {
+  // every move in one statement; a move that did not change is not rewritten
+  if (valid.length) {
     await q(
       `insert into sales_moves (deal_id, radar_item_id, kind, title, why, channel, due_at, score, dedupe_key)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       select v.deal_id, v.radar_item_id, v.kind, v.title, v.why, v.channel, v.due_at, v.score, v.dedupe_key
+       from jsonb_to_recordset($1::jsonb) as v(deal_id int, radar_item_id int, kind text, title text, why text, channel text, due_at timestamptz, score int, dedupe_key text)
        on conflict (dedupe_key) do update set title = excluded.title, why = excluded.why, score = excluded.score,
          channel = coalesce(sales_moves.channel, excluded.channel),
-         status = case when sales_moves.status = 'obsolete' then 'open' else sales_moves.status end`,
-      [d.deal_id, d.radar_item_id ?? null, d.kind, d.title.slice(0, 300), d.why, d.channel, d.due_at, score(d, now), d.key],
+         status = case when sales_moves.status = 'obsolete' then 'open' else sales_moves.status end
+       where (sales_moves.title, sales_moves.why, sales_moves.score) is distinct from (excluded.title, excluded.why, excluded.score)
+          or sales_moves.status = 'obsolete' or (sales_moves.channel is null and excluded.channel is not null)`,
+      [JSON.stringify(valid.map((d) => ({
+        deal_id: d.deal_id, radar_item_id: d.radar_item_id ?? null, kind: d.kind, title: d.title.slice(0, 300), why: d.why, channel: d.channel,
+        due_at: d.due_at.toISOString(), score: score(d, now), dedupe_key: d.key,
+      })))],
     );
   }
   // automatic moves whose reason is gone
@@ -315,7 +331,51 @@ export async function refreshMoves(dealId?: number): Promise<{ open: number }> {
   // snoozes that ran out
   await q("update sales_moves set status = 'open', snoozed_until = null where status = 'snoozed' and snoozed_until <= now()");
   const n = await one<{ n: number }>("select count(*)::int as n from sales_moves where status = 'open' and due_at <= now() + interval '1 day'");
+  if (dealId) R.deals.set(dealId, Date.now());
+  else R.last = Date.now();
   return { open: n?.n ?? 0 };
+}
+
+// Page loads refresh only when the last refresh is older than this. Every change you make, and the 10-minute job,
+// refresh straight away anyway, so a page never shows stale moves; it just does not redo the same work on each visit.
+const PAGE_REFRESH_MS = 60_000;
+const gs = globalThis as unknown as { __movesRefresh?: { last: number; running: Promise<unknown> | null; deals: Map<number, number> } };
+const R = (gs.__movesRefresh ??= { last: 0, running: null, deals: new Map() });
+
+/** True when anything that can create or close a move happened after t: an action, a message, a radar lead, a quote view. */
+async function changedSince(t: number): Promise<boolean> {
+  const r = await one<{ t: string | null }>(
+    `select greatest(
+       (select created_at from change_actions order by id desc limit 1),
+       (select created_at from sales_interactions order by id desc limit 1),
+       (select found_at from sales_radar_items order by id desc limit 1),
+       (select viewed_at from sales_doc_views order by id desc limit 1)) as t`,
+  );
+  return !!r?.t && new Date(r.t).getTime() > t;
+}
+
+/** Something changed (any sales action): the next page load rebuilds the moves instead of trusting the last run. */
+export function markMovesStale(): void {
+  R.last = 0;
+  R.deals.clear();
+}
+
+/** For a page load: refreshes all moves (or one deal's) unless that happened in the last minute. Never throws. */
+export async function refreshMovesIfStale(dealId?: number): Promise<void> {
+  try {
+    const since = dealId ? Math.max(R.last, R.deals.get(dealId) ?? 0) : R.last;
+    // recent enough, and nothing new anywhere since (another server instance may have handled a change)
+    if (Date.now() - since < PAGE_REFRESH_MS && !(await changedSince(since))) return;
+    if (dealId) {
+      await refreshMoves(dealId);
+      return;
+    }
+    // two tabs opening at once share one refresh
+    R.running ??= refreshMoves().finally(() => (R.running = null));
+    await R.running;
+  } catch (e) {
+    console.warn("[sales] refresh failed:", (e as Error).message);
+  }
 }
 
 export interface MoveRow {

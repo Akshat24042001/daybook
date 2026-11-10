@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { reportMoney, salesConfig } from "@/lib/sales/config";
-import { listDeals, refreshHeat } from "@/lib/sales/deals";
+import { listDeals } from "@/lib/sales/deals";
+import { refreshPrioritiesIfStale } from "@/lib/sales/priority";
 import { asFieldDefs, listCustomFields } from "@/lib/sales/custom-fields";
 import { fitForDeals, loadFitContext } from "@/lib/sales/fit";
 import { listPipelines, listTeam } from "@/lib/sales/org";
@@ -14,11 +15,11 @@ export const metadata: Metadata = { title: "Pipeline" };
 export const dynamic = "force-dynamic";
 
 export default async function PipelinePage({ searchParams }: { searchParams: Promise<{ p?: string }> }) {
-  await refreshHeat().catch(() => {});
+  await refreshPrioritiesIfStale();
   const [stages, transitions, all, cfg, pipelines, team] = await Promise.all([
     listStages(), listTransitions(),
     listDeals("(s.category in ('open','won','parked') or d.updated_at > now() - interval '120 days')"),
-    salesConfig(), listPipelines(), listTeam(),
+    salesConfig(), listPipelines().catch(() => []), listTeam().catch(() => []),
   ]);
   const want = Number((await searchParams).p);
   const current = pipelines.find((p) => p.id === want) ?? pipelines[0] ?? null;
@@ -27,7 +28,11 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
   const deals = current ? all.filter((d) => (pipelines.some((p) => p.id === d.pipeline_id) ? d.pipeline_id : first) === current.id) : all;
   // the pipeline's own stages, plus any stage one of its deals is in, so a deal never disappears from view
   const shown = current?.stage_ids.length ? stages.filter((s) => current.stage_ids.includes(s.id) || deals.some((d) => d.stage_id === s.id)) : stages;
-  const fits = await fitForDeals(deals.map((d) => d.id), await loadFitContext());
+  // the fit grade is a nice-to-have: if it fails, the board still opens
+  const fits = await loadFitContext().then((ctx) => fitForDeals(deals.map((d) => d.id), ctx)).catch((e) => {
+    console.warn("[pipeline] fit failed:", (e as Error).message);
+    return new Map() as Awaited<ReturnType<typeof fitForDeals>>;
+  });
   const withFit = deals.map((d) => ({ ...d, fit: fits.has(d.id) ? { score: fits.get(d.id)!.score, grade: fits.get(d.id)!.grade } : null }));
   return (
     <div className="space-y-3">

@@ -27,8 +27,8 @@ function journalWrites(pool: pg.Pool): pg.Pool {
     return (async () => {
       const client = await pool.connect();
       try {
-        await client.query("begin");
-        await client.query("select set_config('app.action', $1, true)", [String(act.id)]);
+        // begin and the action tag in one round trip (the id is our own integer, never user input)
+        await client.query(`begin; select set_config('app.action', '${Math.trunc(Number(act.id))}', true)`);
         const res = await client.query(text, values as unknown[]);
         await client.query("commit");
         return res;
@@ -77,7 +77,8 @@ export function getPool(): pg.Pool {
       max: process.env.VERCEL ? 3 : 8,
       ssl: needsSsl(url) ? { rejectUnauthorized: false } : undefined,
       idleTimeoutMillis: 20_000,
-      connectionTimeoutMillis: 5_000,
+      // a busy moment waits for a free connection instead of failing the page after 5 seconds
+      connectionTimeoutMillis: 15_000,
     }));
   }
   return g.__daybookPool;
@@ -95,9 +96,18 @@ export async function q<T = Record<string, unknown>>(
   params: unknown[] = [],
   db: Db = getPool(),
 ): Promise<T[]> {
+  if (!TRACE) {
+    const res = await db.query(sql, params as unknown[]);
+    return res.rows as T[];
+  }
+  const t0 = performance.now();
   const res = await db.query(sql, params as unknown[]);
+  console.log(`[sql] ${(performance.now() - t0).toFixed(1)}ms ${sql.replace(/\s+/g, " ").trim().slice(0, 90)}`);
   return res.rows as T[];
 }
+
+/** SQL_TRACE=1 logs every query with its time (for finding slow pages; never on in production by default). */
+const TRACE = process.env.SQL_TRACE === "1";
 
 export async function one<T = Record<string, unknown>>(
   sql: string,
