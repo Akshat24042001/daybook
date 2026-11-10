@@ -7,7 +7,7 @@ const { setup, check } = require("./lib.cjs");
   const person = (await one("insert into sales_people (full_name, phones) values ('Ravi Mehta', '{+971501234567}') returning id")).id;
   const deal = (await one("insert into sales_deals (title, stage_id, person_id) select 'E2E send', id, $1 from sales_stages where role = 'new' returning id", [person])).id;
   await db.query("insert into sales_deal_people (deal_id, person_id, role) values ($1,$2,'contact')", [deal, person]);
-  const mv = (await one("insert into sales_moves (deal_id, kind, title, channel, draft, ai_draft, due_at, score) values ($1,'first_touch','First message to Ravi Mehta','whatsapp',$2,$2, now() - interval '1 hour', 99) returning id", [deal, "Hi Ravi, saw your post about missed calls."])).id;
+  const mv = (await one("insert into sales_moves (deal_id, kind, title, channel, draft, ai_draft, due_at, score, dedupe_key) values ($1::int,'first_touch','First message to Ravi Mehta','whatsapp',$2,$2, now() - interval '1 hour', 99, 'first:' || ($1::int)::text) returning id", [deal, "Hi Ravi, saw your post about missed calls."])).id;
   const today0 = (await one("select config from sales_settings")).config;
   await go("/sales");
   const card = page.locator("li", { hasText: "First message to Ravi Mehta" });
@@ -23,6 +23,9 @@ const { setup, check } = require("./lib.cjs");
   const url = decodeURIComponent(asked[0] ?? "").replace(/\+/g, " ");
   check("WhatsApp opened for Ravi's number with the edited text", url.includes("971501234567") && url.includes("how many calls a day go unanswered"), url.slice(0, 160));
   await wa.close();
+  // opening the link logs nothing; only confirming does
+  check("nothing logged just because WhatsApp opened", !(await one("select 1 as x from sales_interactions where move_id = $1", [mv])));
+  await card.getByRole("button", { name: "Yes, sent" }).click();
   await page.waitForTimeout(2000);
   const i = await one("select channel, direction, move_kind, drafted, edited, body from sales_interactions where move_id = $1", [mv]);
   check("send logged with purpose, AI draft used and edited", i && i.channel === "whatsapp" && i.direction === "out" && i.move_kind === "first_touch" && i.drafted === true && i.edited === true, i);

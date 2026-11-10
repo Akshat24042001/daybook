@@ -10,67 +10,17 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { moveStageAction } from "@/app/sales-actions";
 import { Button, Field, Input, Select, Sheet, Textarea } from "@/components/ui";
+import { StageMoveSheet, type PendingMove } from "./deal-rich";
+import { DEFAULT_REASONS, needsDetails, type FieldDef, type Reasons } from "@/lib/sales/fields";
+import { applyFilters, DealTable, FilterBar, NO_FILTERS, type Filters } from "./pipeline-table";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import type { DealCard } from "@/lib/sales/deals";
 import type { Stage, Transition } from "@/lib/sales/stages";
 import { ago, ChannelIcon, money, Priority } from "./util";
 
-export interface PendingMove {
-  deal: { id: number; title: string; stage_id: number };
-  to: Stage;
-  requires: string;
-}
-
-/** The guard dialog for a stage move that needs a reason, a date or a quote. */
-export function StageMoveSheet({ pending, onDone, onCancel }: { pending: PendingMove | null; onDone: () => void; onCancel?: () => void }) {
-  const [reason, setReason] = useState("");
-  const [date, setDate] = useState("");
-  const [note, setNote] = useState("");
-  const [busy, start] = useTransition();
-  const { toast } = useToast();
-  const router = useRouter();
-  if (!pending) return null;
-  const req = pending.requires;
-  const cancel = () => (onCancel ?? onDone)();
-  const submit = () =>
-    start(async () => {
-      const r = await moveStageAction(pending.deal.id, pending.to.id, { reason, date, note });
-      if (!r.ok) return toast(r.error, "error");
-      toast(`Moved to ${pending.to.name}`);
-      setReason("");
-      setDate("");
-      setNote("");
-      onDone();
-      router.refresh();
-    });
-  return (
-    <Sheet open onOpenChange={(o) => !o && cancel()} title={`Move to ${pending.to.name}`} description={pending.deal.title}>
-      <div className="space-y-3">
-        {req === "reason" || pending.to.category === "lost" ? (
-          <Field label="Reason (required)">
-            <Select value={reason} onChange={(e) => setReason(e.target.value)}>
-              <option value="">Pick one…</option>
-              {["Price too high", "Chose a competitor", "No budget", "Timing: not now", "No response", "Went in-house", "Not a fit", "Scope too small", "Backed out after yes", "Other"].map((r) => <option key={r}>{r}</option>)}
-            </Select>
-          </Field>
-        ) : null}
-        {req === "date" || pending.to.category === "parked" ? (
-          <Field label="Revisit on (required)">
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </Field>
-        ) : null}
-        <Field label={req === "quote" ? "No quote sent from Daybook: say how you sent it" : "Note (optional)"} hint={req === "quote" ? "e.g. PDF sent on email on 6 Nov" : undefined}>
-          <Textarea value={note} onChange={(e) => setNote(e.target.value)} className="min-h-[64px]" />
-        </Field>
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={cancel}>Cancel</Button>
-          <Button variant="primary" disabled={busy} onClick={submit}>Move</Button>
-        </div>
-      </div>
-    </Sheet>
-  );
-}
+// the move sheet (closing checklists, reasons) lives with the deal components; re-exported for older imports
+export { StageMoveSheet, type PendingMove } from "./deal-rich";
 
 type SortKey = "priority" | "value" | "touch" | "stuck" | "newest";
 const SORTS: [SortKey, string][] = [["priority", "Priority"], ["value", "Value"], ["touch", "Last touch"], ["stuck", "Longest in stage"], ["newest", "Newest"]];
@@ -155,36 +105,10 @@ function Column({ s, count, total, cur, state, children }: { s: Stage; count: nu
   );
 }
 
-function RankedList({ deals, stages }: { deals: DealCard[]; stages: Stage[] }) {
-  return (
-    <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
-      <table className="w-full min-w-[820px] text-sm">
-        <thead className="bg-muted text-left text-xs text-subtle">
-          <tr><th className="p-2">#</th><th className="p-2">Priority</th><th className="p-2">Deal</th><th className="p-2">Why</th><th className="p-2">Stage</th><th className="p-2 text-right">Value</th><th className="p-2">Last touch</th></tr>
-        </thead>
-        <tbody>
-          {deals.map((d, i) => {
-            const s = stages.find((x) => x.id === d.stage_id);
-            return (
-              <tr key={d.id} className="border-t border-border align-top hover:bg-muted/40">
-                <td className="p-2 text-xs tabular text-subtle">{i + 1}</td>
-                <td className="p-2"><Priority value={d.priority} prev={d.priority_prev} why={d.priority_why} /></td>
-                <td className="p-2"><Link href={`/sales/deal/${d.id}`} className="font-medium hover:text-accent">{d.title}</Link><p className="text-xs text-subtle">{[d.person_name, d.company_name].filter(Boolean).join(" · ")}</p></td>
-                <td className="p-2 text-xs text-subtle">{(d.priority_why ?? []).slice(0, 3).join(" · ")}</td>
-                <td className="p-2 text-xs"><span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: s?.color }} />{d.stage_name}</span></td>
-                <td className="p-2 text-right text-xs tabular">{d.value_amount ? money(d.value_amount, d.currency) : ""}</td>
-                <td className="p-2 text-xs text-subtle">{d.last_touch_at ? ago(d.last_touch_at) : "never"}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 /** report: column totals are added up in USD and shown in your report currency (rate = 1 unit in USD). */
-export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR", rate: 0.012 } }: { stages: Stage[]; deals: DealCard[]; transitions: Transition[]; report?: { cur: string; rate: number } }) {
+export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR", rate: 0.012 }, reasons = DEFAULT_REASONS, customDefs = [] }: { stages: Stage[]; deals: DealCard[]; transitions: Transition[]; report?: { cur: string; rate: number }; reasons?: Reasons; customDefs?: FieldDef[] }) {
+  const wonFields = customDefs.filter((c) => c.required_to_win);
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [items, setItems] = useState(deals);
   const [query, setQuery] = useState("");
   const [show, setShow] = useState<"open" | "won" | "parked" | "lost" | "all">("open");
@@ -222,9 +146,9 @@ export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR
   const cols = stages.filter((s) => show === "all" || s.category === show);
   const filtered = useMemo(() => {
     const qy = query.trim().toLowerCase();
-    const list = qy ? items.filter((d) => [d.title, d.person_name, d.company_name, d.source, d.country].some((x) => x?.toLowerCase().includes(qy))) : items;
-    return sortDeals(list, sort);
-  }, [items, query, sort]);
+    const list = qy ? items.filter((d) => [d.title, d.person_name, d.company_name, d.source, d.country, d.city, d.industry, ...(d.tags ?? [])].some((x) => x?.toLowerCase().includes(qy))) : items;
+    return sortDeals(applyFilters(list, filters), sort);
+  }, [items, query, sort, filters]);
   const edgesFrom = (stageId: number) => transitions.filter((t) => t.from_stage === stageId);
 
   const move = (d: DealCard, toId: number) => {
@@ -232,7 +156,7 @@ export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR
     const t = transitions.find((x) => x.from_stage === d.stage_id && x.to_stage === toId);
     const to = stages.find((s) => s.id === toId)!;
     if (!t) return toast(`${d.stage_name} cannot go to ${to.name}. Change the flow in Sales settings.`, "error");
-    if (t.requires !== "none" || to.category === "lost" || to.category === "parked") return setPending({ deal: d, to, requires: t.requires });
+    if (needsDetails({ category: d.stage_category }, to, t.requires)) return setPending({ deal: d, to, requires: t.requires });
     const before = items;
     setItems((cur) => cur.map((x) => (x.id === d.id ? { ...x, stage_id: toId, stage_name: to.name, stage_changed_at: new Date().toISOString() } : x)));
     start(async () => {
@@ -262,11 +186,12 @@ export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR
         <div className="flex rounded-lg border border-border bg-muted p-0.5 text-xs">
           {(["board", "ranked"] as const).map((v) => (
             <button key={v} type="button" onClick={() => { setView(v); remember("sales-pipeline-view", v); }} className={cn("rounded-md px-3 py-1", view === v ? "bg-surface text-fg shadow-[var(--shadow-sm)]" : "text-subtle hover:text-fg")}>
-              {v === "board" ? "Board" : "Ranked by priority"}
+              {v === "board" ? "Board" : "List"}
             </button>
           ))}
         </div>
-        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search deals, people, companies" className="h-9 max-w-xs text-sm" />
+        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search deals, people, companies, city, tag" className="h-9 max-w-xs text-sm" />
+        <FilterBar deals={items} f={filters} onChange={setFilters} />
         {view === "board" ? (
           <Select value={sort} onChange={(e) => { setSort(e.target.value as SortKey); remember("sales-pipeline-sort", e.target.value); }} aria-label="Sort cards" className="h-9 w-44 text-xs">
             {SORTS.map(([k, l]) => <option key={k} value={k}>Sort: {l}</option>)}
@@ -281,7 +206,7 @@ export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR
       </div>
 
       {view === "ranked" ? (
-        <RankedList deals={sortDeals(filtered.filter((d) => cols.some((c) => c.id === d.stage_id)), "priority")} stages={stages} />
+        <DealTable deals={filtered.filter((d) => cols.some((c) => c.id === d.stage_id))} stages={stages} customDefs={customDefs} />
       ) : (
         <>
           <p className="hidden text-xs text-subtle md:block">Drag a card by its handle. While you drag, the stages it can move to light up; the rest fade.</p>
@@ -319,7 +244,7 @@ export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR
           </DndContext>
         </>
       )}
-      <StageMoveSheet pending={pending} onDone={() => setPending(null)} />
+      <StageMoveSheet pending={pending} onDone={() => setPending(null)} reasons={reasons} wonFields={wonFields} />
     </div>
   );
 }

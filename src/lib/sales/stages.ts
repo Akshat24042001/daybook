@@ -95,15 +95,16 @@ interface DealRow {
   stage_id: number;
 }
 
-/** Moves a deal, enforcing the state machine. Returns the new stage, or null when nothing changed. */
-export async function moveDeal(dealId: number, toStage: number, o: MoveOpts = {}): Promise<Stage | null> {
+/**
+ * Checks that a manual move is allowed (an edge exists and its requirement is met) without changing anything, so a
+ * caller can refuse before it writes related details. Returns the deal's current stage id and the target.
+ */
+export async function assertMove(dealId: number, toStage: number, o: MoveOpts = {}): Promise<{ from: number; target: Stage }> {
   const deal = await one<DealRow>("select id, stage_id from sales_deals where id = $1", [dealId]);
   if (!deal) throw new UserError("That deal no longer exists.");
-  if (deal.stage_id === toStage) return null;
   const target = await one<Stage>("select * from sales_stages where id = $1", [toStage]);
   if (!target) throw new UserError("That stage does not exist.");
-
-  if (!o.force) {
+  if (!o.force && deal.stage_id !== toStage) {
     const edge = await one<Transition>("select * from sales_transitions where from_stage = $1 and to_stage = $2", [deal.stage_id, toStage]);
     if (!edge) {
       const from = await one<Stage>("select * from sales_stages where id = $1", [deal.stage_id]);
@@ -116,6 +117,14 @@ export async function moveDeal(dealId: number, toStage: number, o: MoveOpts = {}
       if (!sent && !o.note?.trim()) throw new UserError(`Moving to ${target.name} needs a sent quote. Send one from the deal, or add a note (for example "sent the PDF on email").`);
     }
   }
+  return { from: deal.stage_id, target };
+}
+
+/** Moves a deal, enforcing the state machine. Returns the new stage, or null when nothing changed. */
+export async function moveDeal(dealId: number, toStage: number, o: MoveOpts = {}): Promise<Stage | null> {
+  const { from, target } = await assertMove(dealId, toStage, o);
+  if (from === toStage) return null;
+  const deal = { id: dealId, stage_id: from };
 
   const closing = target.category === "won" || target.category === "lost";
   const revisit = o.date ?? (target.role === "ghosted" ? null : undefined);

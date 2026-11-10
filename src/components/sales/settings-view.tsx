@@ -12,6 +12,8 @@ import { cn } from "@/lib/cn";
 import type { SalesConfig } from "@/lib/sales/config";
 import { CURRENCIES, currencyLabel, currencySymbol, money } from "./format";
 import type { Stage, Transition } from "@/lib/sales/stages";
+import type { CustomField } from "@/lib/sales/custom-fields";
+import { CustomFieldsCard, ReasonsCard } from "./settings-fields";
 
 export interface SettingsData {
   cfg: SalesConfig;
@@ -24,6 +26,8 @@ export interface SettingsData {
   env: { key: string; ok: boolean; what: string; free: string }[];
   lastGoogle: string | null;
   script: string;
+  /** your own fields, hidden ones included */
+  customFields: CustomField[];
 }
 
 function Card({ id, title, sub, children }: { id?: string; title: string; sub?: string; children: React.ReactNode }) {
@@ -249,6 +253,14 @@ export function SettingsView({ d }: { d: SettingsData }) {
         </div>
         <div className="mt-2 max-w-[200px]"><Field label="Max calls per day"><Input value={String(esc.max_per_day)} onChange={(e) => setEsc({ ...esc, max_per_day: Number(e.target.value) || 0 })} /></Field></div>
         <div className="mt-3 flex justify-end"><Button variant="primary" disabled={busy} onClick={() => save({ escalation: esc })}>Save</Button></div>
+      </Card>
+
+      <Card id="fields" title="Your fields" sub="Anything a deal, company or person should record that the built-in fields do not cover. They show on every record, in the pipeline columns, and (if you choose) in the Won checklist.">
+        <CustomFieldsCard fields={d.customFields} />
+      </Card>
+
+      <Card id="reasons" title="Reasons" sub="The choices offered when a deal is won, lost, disqualified, parked or reopened. Keeping them to a fixed list is what makes win and loss patterns countable.">
+        <ReasonsCard reasons={c.reasons} />
       </Card>
 
       <Card id="currency" title="Currency" sub="Every deal, quote and payment keeps the currency it was agreed in. Totals are converted at the rates below.">

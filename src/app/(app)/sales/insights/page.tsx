@@ -205,7 +205,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
       </div>
 
       <nav className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-subtle" aria-label="Sections">
-        {[["target", "Target"], ["findings", "What the data says"], ["funnel", "Funnel"], ["segments", "Win rate"], ["quotes", "Quotes"], ["messages", "Messages"], ["speed", "Speed"]].map(([id, l]) => (
+        {[["target", "Target"], ["findings", "What the data says"], ["funnel", "Funnel"], ["segments", "Win rate"], ["reasons", "Why"], ["quotes", "Quotes"], ["messages", "Messages"], ["speed", "Speed"]].map(([id, l]) => (
           <a key={id} href={`#${id}`} className="hover:text-fg">{l}</a>
         ))}
       </nav>
@@ -240,6 +240,29 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
           <SegmentTable title="By country" rows={wl.by_country} cur={wl.currency} />
           <SegmentTable title="By source" rows={wl.by_source} cur={wl.currency} />
           <SegmentTable title="By deal size" rows={wl.by_size} cur={wl.currency} />
+        </div>
+      </Section>
+
+      <Section id="reasons" title="Why you win and lose" hint={`Deals closed in the last ${days} days, by the reason picked when closing. Edit the lists in Sales settings > Reasons.`}>
+        <div className="grid gap-6 md:grid-cols-3">
+          {([["Won because", wl.reasons.won], ["Lost because", wl.reasons.lost], ["Lost to", wl.reasons.lost_to]] as const).map(([title, rows]) => {
+            const total = rows.reduce((a, r) => a + r.n, 0);
+            return (
+              <div key={title}>
+                <p className="mb-1.5 text-[13px] font-medium">{title}</p>
+                {rows.length ? (
+                  <ul className="space-y-1.5 text-[13px]">
+                    {rows.map((r) => (
+                      <li key={r.reason}>
+                        <div className="flex justify-between gap-2"><span className="min-w-0 truncate" title={r.reason}>{r.reason}</span><span className="tabular text-subtle">{r.n}</span></div>
+                        <div className="mt-0.5 h-1.5 rounded-full bg-muted"><div className="h-full rounded-full bg-accent" style={{ width: `${(r.n / Math.max(1, total)) * 100}%` }} /></div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : <p className="text-[13px] text-subtle">None recorded yet.</p>}
+              </div>
+            );
+          })}
         </div>
       </Section>
 

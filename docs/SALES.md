@@ -18,6 +18,55 @@ find at least one qualified opportunity a day, and track every quote until the m
 | **Playbook** | Your offers (with packages and prices), proof (case studies), the objections you hear with your best answers, and the do-not-contact list. Drafts and the radar use all of it. |
 | **Settings** | The state machine, your voice, targeting, rhythm, phone escalation, keys, Google, bookmarklet, iPhone Shortcut. |
 
+## The deal record
+
+Every field a deal has is defined once in `src/lib/sales/fields.ts`, and the edit form, the details panel, the pipeline
+columns, the closing checklists and the history all read that list. Why the qualification fields are the ones they are
+(BANT, MEDDPICC, gap selling, Ziglar's five obstacles) is in [SALES_METHODS.md](SALES_METHODS.md).
+
+- **Details** (deal page): grouped as Basics (type, source, value, win chance, expected close, services, industry,
+  tags), Location (city, state, country, address), The need (requirement, problem today, what they use now, what they
+  want instead, what it is worth to them, why now, budget, timeline), How they decide (who signs, champion, how they
+  will choose, steps to a yes, paperwork, competitors, risks), and Notes. A qualification meter counts the 12 answers a
+  qualified deal has, and each missing one opens the form at the right tab. **Edit details** has a tab per group; only
+  what you change is saved.
+- **History**: every change to a field (old value, new value, when, and whether it was you, the AI reading a
+  conversation, or Telegram) is a `field` event. The running "where we are" summary is not tracked (it changes on every
+  capture).
+- **Journey**: every stage move with its date and time, who made it, the reason or note, the time spent in the stage it
+  left, and a marker on moves backwards. Totals per stage sit on top (the current one "so far"). Any move can be given a
+  reason or note afterwards. Field changes can be shown in the same timeline.
+- **Activity log**: log a call, meeting, site visit, WhatsApp, email, LinkedIn, Instagram, SMS or a remark at the date
+  and time it happened (back-dating is fine, the future is refused), with who started it, duration, outcome, the person,
+  what was discussed (one point per line) and the next step. Remarks are internal and do not count as a touch. Any
+  timeline entry can be corrected (date, channel, direction, words, outcome, duration); the deal's last-touch dates are
+  recomputed and the entry is marked edited. The "Log something" box is still there for pasting a chat for the AI.
+- **Closing checklists** (`src/lib/sales/closing.ts`), on the deal page and when dragging on the board:
+  - *Won*: point of contact (someone on the deal or someone new), final amount and currency, start date, delivery date
+    or delivery time, exact scope (prefilled from the requirement), payment terms, contract or PO number, why they chose
+    you, competitors considered, and your own fields marked "needed to win". An advance % sets up the advance and balance
+    payments if none are planned. Required: contact, amount, delivery, scope, reason.
+  - *Lost*: why (from your list), lost to, what happened, the lesson, an optional date to try again.
+  - *Disqualified*: why it was never a real deal. *Parked*: why, and the date to come back. *Reopened*: why.
+  - Nothing is written until every check passes, including the flow's own rules (a move the flow does not allow writes
+    nothing). Deals won outside the checklist (Telegram, a client accepting a quote) show what their closing record is
+    missing, with a Complete button.
+- **Reasons** (Sales settings > Reasons): the lists for won, lost, disqualified, parked and reopened. Insights shows
+  "Why you win and lose" from them, and names the biggest loss reason once there are 5 losses.
+- **Your fields** (Sales settings > Fields): add any field to deals, companies or people: short or long text, number,
+  amount, date, pick one, pick several, yes/no, link, phone, email. Each gets a key that never changes (renaming is safe);
+  hiding one keeps its values. Deal fields can be required to close as won, and appear as pipeline columns.
+- **Companies and people**: edit from the deal page. Companies have address, PIN code, state, office phone and email,
+  and GST / tax ID; people have department, seniority, WhatsApp, best way to reach, language, whether they decide on the
+  money, and notes. New emails, phones and LinkedIn become identities, so their messages find them.
+- **Documents**: an upload asks what it is (proposal, signed contract, PO, scope of work, NDA, invoice, receipt, brief,
+  design, deck, other) and whether it is internal. Internal papers open only for you, are never served as a tracked link,
+  and never count as a client view.
+- **Pipeline**: the List view has a column chooser (any field above, your own fields, days in stage, qualification) and
+  sorts by any column; Filters (source, type, city, country, tag, service, expected close, untouched for N days, low
+  qualification) apply to the board and the list. Search also matches city, industry and tags.
+- **New lead** asks for city, state, industry, type, services and expected close too.
+
 ## The state machine
 
 Stages and allowed moves live in the database and are editable in **Sales, Settings**. Automation only targets stages by

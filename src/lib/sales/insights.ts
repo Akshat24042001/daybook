@@ -204,6 +204,8 @@ export async function quoteStats(days: number): Promise<QuoteStats> {
 
 export interface WinLoss {
   days: number;
+  /** why deals closed in the period were won and lost (the reasons picked when closing), most common first */
+  reasons: { won: { reason: string; n: number }[]; lost: { reason: string; n: number }[]; lost_to: { reason: string; n: number }[] };
   /** the report currency every amount here is in */
   currency: string;
   funnel: FunnelStep[];
@@ -246,7 +248,19 @@ export async function winLoss(days = 180): Promise<WinLoss> {
     if (wd.rate <= nd.rate) findings.push(`Discounts are not buying wins: quotes with a discount were accepted ${wd.rate}% of the time, without one ${nd.rate}%. Hold your price.`);
     else if (wd.rate - nd.rate >= 15) findings.push(`Discounted quotes close more (${wd.rate}% against ${nd.rate}%), at an average ${wd.avg_pct ?? 0}% off. Check that the extra wins pay for the margin.`);
   }
-  return { days, currency: cur, funnel: funnelOf(deals), by_service, by_country, by_source, by_size, quotes, findings };
+  const count = (sql: string) => q<{ reason: string; n: number }>(sql, [String(days)]);
+  const reasons = {
+    won: await count(`select d.won_reason as reason, count(*)::int as n from sales_deals d join sales_stages s on s.id = d.stage_id
+      where s.category = 'won' and d.won_reason is not null and d.closed_at > now() - ($1 || ' days')::interval group by 1 order by 2 desc, 1`),
+    lost: await count(`select d.lost_reason as reason, count(*)::int as n from sales_deals d join sales_stages s on s.id = d.stage_id
+      where s.category = 'lost' and d.lost_reason is not null and d.closed_at > now() - ($1 || ' days')::interval group by 1 order by 2 desc, 1`),
+    lost_to: await count(`select d.lost_to as reason, count(*)::int as n from sales_deals d join sales_stages s on s.id = d.stage_id
+      where s.category = 'lost' and nullif(trim(d.lost_to), '') is not null and d.closed_at > now() - ($1 || ' days')::interval group by 1 order by 2 desc, 1 limit 10`),
+  };
+  const topLost = reasons.lost[0];
+  const lostTotal = reasons.lost.reduce((a, r) => a + r.n, 0);
+  if (topLost && lostTotal >= MIN_SAMPLE && topLost.n / lostTotal >= 0.3) findings.push(`Most losses are "${topLost.reason}" (${topLost.n} of ${lostTotal}). That is the one thing to fix first.`);
+  return { days, currency: cur, funnel: funnelOf(deals), by_service, by_country, by_source, by_size, quotes, findings, reasons };
 }
 
 // ---------- 4. target, forecast and the activity it takes ----------

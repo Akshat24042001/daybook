@@ -2,7 +2,7 @@
 
 import type { LinkGroup } from "@/lib/sales/quick-links-types";
 import { QuickLinks } from "./quick-links";
-import { ArrowDownLeft, ArrowUpRight, Check, Copy, ExternalLink, FileText, Link2, Loader2, Plus, Radar, Sparkles, Trash2, Upload, Users, X } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Check, Copy, ExternalLink, FileText, Link2, Loader2, Pencil, Plus, Radar, Sparkles, Trash2, Upload, Users, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
@@ -20,7 +20,9 @@ import type { Stage } from "@/lib/sales/stages";
 import { CaptureBox } from "./capture-box";
 import { EnrichmentPanel } from "./enrichment-panel";
 import { MoveCard } from "./moves-view";
-import { StageMoveSheet, type PendingMove } from "./pipeline-board";
+import { ActivityLogger, ClosingRecord, DealDetails, DealEditSheet, DocCategory, Journey, RecordEditSheet, StageMoveSheet, TimelineItem, type JourneyEvent, type PendingMove } from "./deal-rich";
+import { COMPANY_EDIT_FIELDS, DOC_CATEGORIES, needsDetails, PERSON_EDIT_FIELDS, type FieldDef, type Reasons } from "@/lib/sales/fields";
+import { updateCompanyAction, updatePersonAction } from "@/app/sales-actions";
 import { ago, ChannelIcon, CHANNEL_LABEL, CURRENCIES, currencyLabel, currencySymbol, fmtDate, Label, money, Priority } from "./util";
 
 export interface QuotePackage { offerId: number; index: number; offer: string; name: string; currency: string; total: number; items: number; timeline: string; fits: boolean }
@@ -32,12 +34,21 @@ export interface DealPageData {
   touches: { channel: string; last_at: string; last_in: string | null; count: number }[];
   commitments: CommitmentRow[];
   payments: PaymentRow[];
-  docs: { id: number; slug: string; kind: string; title: string; status: string; view_count: number; last_viewed_at: string | null; current_rev: number; total: number | null; currency: string | null; sent_at: string | null }[];
+  docs: { id: number; slug: string; kind: string; title: string; status: string; view_count: number; last_viewed_at: string | null; current_rev: number; total: number | null; currency: string | null; sent_at: string | null; category?: string | null; internal?: boolean }[];
   moves: MoveRow[];
-  people: { id: number; full_name: string; title: string | null; role: string; emails: string[]; phones: string[]; linkedin: string | null; is_decision_maker: boolean | null }[];
-  company: { id: number; name: string; website: string | null; industry: string | null; country: string | null; employees: number | null; revenue_usd: number | null; revenue_is_estimate: boolean; enrichment: Enrichment; enriched_at: string | null; audit: { summary?: string; opportunities?: { title: string; problem: string; fix: string; impact: string; effort: string }[]; money_leak?: string; first_project?: string } | null } | null;
+  people: ({ id: number; full_name: string; title: string | null; role: string; emails: string[]; phones: string[]; linkedin: string | null; is_decision_maker: boolean | null } & Record<string, unknown>)[];
+  company: ({ id: number; name: string; website: string | null; industry: string | null; country: string | null; employees: number | null; city?: string | null; region?: string | null; address?: string | null; postal_code?: string | null; phone?: string | null; email?: string | null; tax_id?: string | null } & Record<string, unknown> & { revenue_usd: number | null; revenue_is_estimate: boolean; enrichment: Enrichment; enriched_at: string | null; audit: { summary?: string; opportunities?: { title: string; problem: string; fix: string; impact: string; effort: string }[]; money_leak?: string; first_project?: string } | null }) | null;
   person: { id: number; full_name: string; enrichment: Enrichment; enriched_at: string | null } | null;
-  events: { id: number; from_name: string | null; to_name: string | null; cause: string; detail: string | null; created_at: string }[];
+  /** your own company and person fields */
+  companyDefs: FieldDef[];
+  personDefs: FieldDef[];
+  events: JourneyEvent[];
+  /** choices for closing, parking and reopening (Sales settings > Reasons) */
+  reasons: Reasons;
+  /** your own deal fields */
+  customDefs: FieldDef[];
+  /** what a won deal's closing record still lacks */
+  gaps: string[];
   meetings: { id: number; title: string; starts_at: string; link: string | null }[];
   companyFields: { group: string; fields: [string, string][] }[];
   personFields: { group: string; fields: [string, string][] }[];
@@ -69,7 +80,15 @@ export function DealView({ d }: { d: DealPageData }) {
   const { toast } = useToast();
   const [busy, start] = useTransition();
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
+  const [completing, setCompleting] = useState(false);
   const [edit, setEdit] = useState(false);
+  const [editGroup, setEditGroup] = useState<string | undefined>(undefined);
+  const [editPerson, setEditPerson] = useState<DealPageData["people"][number] | null>(null);
+  const [editCompany, setEditCompany] = useState(false);
+  const people = d.people.map((p) => ({ id: p.id, full_name: p.full_name, title: p.title }));
+  const wonFields = d.customDefs.filter((c) => c.required_to_win);
+  const customLabels = Object.fromEntries(d.customDefs.map((c) => [c.key.replace(/^custom\./, ""), c.label]));
+  const openEdit = (g?: string) => { setEditGroup(g); setEdit(true); };
   const [f, setF] = useState({
     title: deal.title, value_amount: deal.value_amount ?? "", currency: deal.currency, expected_close: deal.expected_close ? String(deal.expected_close).slice(0, 10) : "",
     summary: deal.summary ?? "", requirements: deal.requirements ?? "", budget: deal.budget ?? "", timeline: deal.timeline ?? "", next_action: deal.next_action ?? "",
@@ -138,13 +157,13 @@ export function DealView({ d }: { d: DealPageData }) {
               key={t.id}
               type="button"
               disabled={busy}
-              onClick={() => (t.requires !== "none" || t.category === "lost" || t.category === "parked" ? setPendingMove({ deal, to: t, requires: t.requires }) : act(async () => (await import("@/app/sales-actions")).moveStageAction(deal.id, t.id), `Moved to ${t.name}`))}
+              onClick={() => (needsDetails({ category: deal.stage_category }, t, t.requires) ? setPendingMove({ deal, to: t, requires: t.requires }) : act(async () => (await import("@/app/sales-actions")).moveStageAction(deal.id, t.id), `Moved to ${t.name}`))}
               className="rounded-md border border-border px-2.5 py-1 text-xs hover:border-accent hover:text-accent"
             >
               {t.name}{t.requires !== "none" ? " *" : ""}
             </button>
           ))}
-          <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setEdit(true)}>Edit details</Button>
+          <Button size="sm" variant="ghost" className="ml-auto" onClick={() => openEdit()}>Edit details</Button>
           {!d.blocked && (d.company?.website || deal.company_name || deal.person_name) ? (
             <Button size="sm" variant="ghost" className="text-bad hover:text-bad" title="Stop all outreach to them, now and in future radar leads"
               onClick={() => {
@@ -181,13 +200,14 @@ export function DealView({ d }: { d: DealPageData }) {
           <Section title="Where we are">
             {deal.summary ? <p className="whitespace-pre-line text-sm">{deal.summary}</p> : <p className="text-sm text-subtle">Log a conversation below and this fills itself.</p>}
             <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-              {deal.requirements ? <div className="sm:col-span-2"><dt className="text-subtle">Requirement</dt><dd className="whitespace-pre-line">{deal.requirements}</dd></div> : null}
-              {deal.budget ? <div><dt className="text-subtle">Budget</dt><dd>{deal.budget}</dd></div> : null}
-              {deal.timeline ? <div><dt className="text-subtle">Timeline</dt><dd>{deal.timeline}</dd></div> : null}
               {deal.objections?.length ? <div className="sm:col-span-2"><dt className="text-subtle">Objections</dt><dd>{deal.objections.join(" · ")}</dd></div> : null}
               {deal.next_action ? <div className="sm:col-span-2"><dt className="text-subtle">Next step</dt><dd className="font-medium">{deal.next_action}{deal.next_action_at ? ` (${fmtDate(deal.next_action_at)})` : ""}</dd></div> : null}
             </dl>
           </Section>
+
+          <ClosingRecord deal={deal} people={people} gaps={d.gaps} onComplete={() => setCompleting(true)} />
+
+          <DealDetails deal={deal} people={people} customDefs={d.customDefs} onEdit={openEdit} />
 
           {d.moves.length ? (
             <div>
@@ -196,8 +216,9 @@ export function DealView({ d }: { d: DealPageData }) {
             </div>
           ) : null}
 
-          <div>
+          <div className="space-y-2">
             <Label>Log something</Label>
+            <ActivityLogger dealId={deal.id} people={people} />
             <CaptureBox dealId={deal.id} voiceEnabled={d.voiceEnabled} compact placeholder={`Paste the latest chat with ${deal.person_name ?? "them"}, an email, or speak a debrief. Promises and next steps are picked out for you.`} />
           </div>
 
@@ -236,16 +257,19 @@ export function DealView({ d }: { d: DealPageData }) {
                   return (
                     <li key={x.id} className="rounded-xl border border-border p-2.5">
                       <div className="flex items-start justify-between gap-2">
-                        <Link href={`/sales/docs/${x.id}`} className="text-sm font-medium hover:text-accent">
-                          {x.kind === "quote" ? <FileText className="mr-1 inline h-3.5 w-3.5" /> : <Link2 className="mr-1 inline h-3.5 w-3.5" />}
-                          {x.title}{x.kind === "quote" ? ` v${x.current_rev}` : ""}
-                        </Link>
+                        <span className="min-w-0">
+                          <Link href={x.internal ? `/api/sales/file/${x.slug}` : `/sales/docs/${x.id}`} target={x.internal ? "_blank" : undefined} className="text-sm font-medium hover:text-accent">
+                            {x.kind === "quote" ? <FileText className="mr-1 inline h-3.5 w-3.5" /> : <Link2 className="mr-1 inline h-3.5 w-3.5" />}
+                            {x.title}{x.kind === "quote" ? ` v${x.current_rev}` : ""}
+                          </Link>
+                          <DocCategory category={DOC_CATEGORIES.find(([k]) => k === x.category)?.[1] ?? x.category} internal={x.internal} />
+                        </span>
                         <Chip className={cn(x.status === "accepted" && "bg-p-mint text-p-mint-fg", x.status === "viewed" && "bg-p-sky text-p-sky-fg", x.status === "changes" && "bg-p-butter text-p-butter-fg")}>{x.status}</Chip>
                       </div>
                       <p className="mt-0.5 text-xs text-subtle">
                         {x.total ? `${money(x.total, x.currency ?? deal.currency)} · ` : ""}{x.view_count ? `opened ${x.view_count}x, last ${ago(x.last_viewed_at)}` : x.sent_at ? "not opened yet" : "draft"}
                       </p>
-                      <div className="mt-1.5 flex items-center gap-1">
+                      <div className={cn("mt-1.5 flex items-center gap-1", x.internal && "hidden")}>
                         <code className="truncate rounded bg-muted px-1.5 py-0.5 text-xs">{url.replace(/^https?:\/\//, "")}</code>
                         <Button size="sm" variant="ghost" className="h-6 px-1.5" onClick={() => void navigator.clipboard.writeText(url).then(() => toast("Link copied. Send it instead of an attachment."), () => toast("Your browser blocked copying. Select the text and copy it by hand.", "error"))}>
                           <Copy className="h-3 w-3" />
@@ -270,7 +294,10 @@ export function DealView({ d }: { d: DealPageData }) {
                     <p className="font-medium">{p.full_name} <span className="text-xs font-normal text-subtle">{p.role.replace("_", " ")}{p.is_decision_maker ? " · decides" : ""}</span></p>
                     <p className="truncate text-xs text-subtle">{[p.title, ...p.emails, ...p.phones].filter(Boolean).join(" · ")}</p>
                   </div>
-                  <button type="button" aria-label="Remove from deal" onClick={() => act(() => removeDealPersonAction(deal.id, p.id))} className="text-subtle hover:text-bad"><X className="h-3.5 w-3.5" /></button>
+                  <span className="flex shrink-0 gap-1">
+                    <button type="button" aria-label={`Edit ${p.full_name}`} onClick={() => setEditPerson(p)} className="text-subtle hover:text-accent"><Pencil className="h-3.5 w-3.5" /></button>
+                    <button type="button" aria-label="Remove from deal" onClick={() => act(() => removeDealPersonAction(deal.id, p.id))} className="text-subtle hover:text-bad"><X className="h-3.5 w-3.5" /></button>
+                  </span>
                 </li>
               ))}
               {!d.people.length ? <li className="text-sm text-subtle">Nobody yet.</li> : null}
@@ -286,6 +313,21 @@ export function DealView({ d }: { d: DealPageData }) {
             ) : null}
           </Section>
 
+          {d.company ? (
+            <Section title={`Company: ${d.company.name}`} action={<Button size="sm" variant="ghost" onClick={() => setEditCompany(true)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>}>
+              <dl className="grid gap-x-3 gap-y-1.5 text-xs sm:grid-cols-2">
+                {([
+                  ["Industry", d.company.industry], ["Employees", d.company.employees ? String(d.company.employees) : null],
+                  ["Location", [d.company.city, d.company.region, d.company.country].filter(Boolean).join(", ")], ["PIN / postal code", d.company.postal_code],
+                  ["Phone", d.company.phone], ["Email", d.company.email], ["GST / tax ID", d.company.tax_id], ["Website", d.company.website],
+                  ...d.companyDefs.map((c) => [c.label, (() => { const v = ((d.company!.custom ?? {}) as Record<string, unknown>)[c.key.replace(/^custom\./, "")]; return v === null || v === undefined ? null : Array.isArray(v) ? v.join(", ") : String(v); })()]),
+                ] as [string, string | null | undefined][]).filter(([, v]) => v).map(([k, v]) => <div key={k}><dt className="text-subtle">{k}</dt><dd className="break-words">{v}</dd></div>)}
+                {d.company.address ? <div className="sm:col-span-2"><dt className="text-subtle">Address</dt><dd className="whitespace-pre-line">{d.company.address}</dd></div> : null}
+              </dl>
+              {!d.company.city && !d.company.address && !d.company.tax_id ? <p className="mt-2 text-xs text-subtle">No address or GST yet. Edit to add them.</p> : null}
+            </Section>
+          ) : null}
+
           {d.company?.audit?.summary ? (
             <Section title="Opportunity audit">
               <p className="text-sm">{d.company.audit.summary}</p>
@@ -297,83 +339,31 @@ export function DealView({ d }: { d: DealPageData }) {
             </Section>
           ) : null}
 
-          <Section title="Stage history">
-            <ol className="space-y-1 text-xs">
-              {d.events.map((e) => (
-                <li key={e.id} className="flex justify-between gap-2">
-                  <span>{e.from_name ? `${e.from_name} → ` : "Created in "}{e.to_name}{e.detail ? <span className="text-subtle"> · {e.detail}</span> : null}</span>
-                  <span className="shrink-0 text-subtle">{e.cause} · {ago(e.created_at)}</span>
-                </li>
-              ))}
-            </ol>
-          </Section>
+          <Journey events={d.events} created={deal.created_at} customLabels={customLabels} />
         </div>
       </div>
 
       {d.company ? <EnrichmentPanel kind="company" id={d.company.id} data={d.company.enrichment} groups={d.companyFields} enrichedAt={d.company.enriched_at} title={`Company: ${d.company.name}`} /> : null}
       {d.person ? <EnrichmentPanel kind="person" id={d.person.id} data={d.person.enrichment} groups={d.personFields} enrichedAt={d.person.enriched_at} title={`Person: ${d.person.full_name}`} /> : null}
 
-      <Sheet open={edit} onOpenChange={setEdit} title="Deal details">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2"><Field label="Title"><Input value={f.title} onChange={set("title")} /></Field></div>
-          <Field label={`Value (${currencySymbol(f.currency)})`}><Input value={String(f.value_amount)} onChange={set("value_amount")} inputMode="decimal" /></Field>
-          <Field label="Currency"><Select value={f.currency} onChange={set("currency")}>{[...new Set([...CURRENCIES, f.currency])].map((c) => <option key={c} value={c}>{currencyLabel(c)}</option>)}</Select></Field>
-          <Field label="Win probability % (blank = stage default)"><Input value={String(f.probability)} onChange={set("probability")} inputMode="numeric" /></Field>
-          <Field label="Expected close"><Input type="date" value={f.expected_close} onChange={set("expected_close")} /></Field>
-          <Field label="Source">
-            <Select value={f.source} onChange={set("source")}>{["outbound", "inbound", "referral", "network", "content", "partner", "radar", "repeat", "other"].map((s) => <option key={s}>{s}</option>)}</Select>
-          </Field>
-          <Field label="Country"><Input value={f.country} onChange={set("country")} /></Field>
-          <Field label="Commission to intermediary">
-            <Select value={f.commission_type} onChange={set("commission_type")}><option value="">None</option><option value="percent">Percent</option><option value="fixed">Fixed amount</option></Select>
-          </Field>
-          <Field label="Commission value"><Input value={String(f.commission_value)} onChange={set("commission_value")} inputMode="decimal" /></Field>
-          <div className="sm:col-span-2"><Field label="Where we are"><Textarea value={f.summary} onChange={set("summary")} /></Field></div>
-          <div className="sm:col-span-2"><Field label="Requirement"><Textarea value={f.requirements} onChange={set("requirements")} /></Field></div>
-          <Field label="Budget"><Input value={f.budget} onChange={set("budget")} /></Field>
-          <Field label="Timeline"><Input value={f.timeline} onChange={set("timeline")} /></Field>
-          <Field label="Next step"><Input value={f.next_action} onChange={set("next_action")} /></Field>
-          <Field label="Next step at"><Input type="datetime-local" value={f.next_action_at} onChange={set("next_action_at")} /></Field>
-        </div>
-        <div className="mt-4 flex items-center justify-between">
-          <Button variant="danger" size="sm" onClick={() => confirm("Delete this deal and its whole history?") && act(async () => {
-            const r = await deleteDealAction(deal.id);
-            if (r.ok) router.push("/sales/pipeline");
-            return r;
-          })}><Trash2 className="h-4 w-4" /> Delete</Button>
-          <Button variant="primary" onClick={() => { save(); setEdit(false); }} disabled={busy}>Save</Button>
-        </div>
-      </Sheet>
-      <StageMoveSheet pending={pendingMove} onDone={() => setPendingMove(null)} />
+      <DealEditSheet deal={deal} people={people} customDefs={d.customDefs} open={edit} onOpenChange={setEdit} focusGroup={editGroup}
+        footer={<Button variant="danger" size="sm" onClick={() => confirm("Delete this deal and its whole history?") && act(async () => {
+          const r = await deleteDealAction(deal.id);
+          if (r.ok) router.push("/sales/pipeline");
+          return r;
+        })}><Trash2 className="h-4 w-4" /> Delete</Button>} />
+      <StageMoveSheet pending={pendingMove} onDone={() => setPendingMove(null)} reasons={d.reasons} people={people} wonFields={wonFields} />
+      {editPerson ? (
+        <RecordEditSheet title={editPerson.full_name} description="Every change is saved to this person, across all their deals." fields={PERSON_EDIT_FIELDS} customDefs={d.personDefs}
+          record={editPerson} onSave={(patch) => updatePersonAction(editPerson.id, patch)} onClose={() => setEditPerson(null)} />
+      ) : null}
+      {editCompany && d.company ? (
+        <RecordEditSheet title={d.company.name} description="Company details, shared by every deal with them." fields={COMPANY_EDIT_FIELDS} customDefs={d.companyDefs}
+          record={d.company} onSave={(patch) => updateCompanyAction(d.company!.id, patch)} onClose={() => setEditCompany(false)} />
+      ) : null}
+      <StageMoveSheet pending={completing ? { deal, to: d.targets[0] ?? ({ id: deal.stage_id, name: deal.stage_name, category: deal.stage_category } as never), requires: "none" } : null}
+        onDone={() => setCompleting(false)} reasons={d.reasons} people={people} wonFields={wonFields} complete />
     </div>
-  );
-}
-
-// channels stay neutral on purpose: colour is reserved for meaning (action, success, attention, urgent)
-const CHANNEL_TINT: Record<string, string> = {};
-
-function TimelineItem({ i, onDelete }: { i: InteractionRow; onDelete: () => void }) {
-  const [open, setOpen] = useState(false);
-  const Dir = i.direction === "in" ? ArrowDownLeft : i.direction === "out" ? ArrowUpRight : Users;
-  return (
-    <li className="rounded-xl border border-border p-2.5">
-      <div className="flex items-start gap-2">
-        <span className={cn("mt-0.5 rounded-lg p-1", CHANNEL_TINT[i.channel] ?? "bg-muted text-subtle")}><ChannelIcon channel={i.channel} className="h-3.5 w-3.5" /></span>
-        <div className="min-w-0 flex-1">
-          <p className="flex flex-wrap items-center gap-1 text-xs text-subtle">
-            <Dir className="h-3 w-3" /> {CHANNEL_LABEL[i.channel] ?? i.channel} · {i.direction === "in" ? "from them" : i.direction === "out" ? "from you" : i.direction === "both" ? "both" : "note"} · {fmtDate(i.occurred_at)}
-            {i.confidence === "assumed" ? <span title="Logged when you tapped a Daybook send link">· via link</span> : null}
-            {i.person_name ? <span>· {i.person_name}</span> : null}
-          </p>
-          <p className="text-sm">{i.summary || i.subject || (i.body ?? "").slice(0, 200)}</p>
-          {i.body && (i.summary || i.body.length > 200) ? (
-            <button type="button" className="text-xs text-accent" onClick={() => setOpen((o) => !o)}>{open ? "Hide" : "Show full text"}</button>
-          ) : null}
-          {open ? <pre className="mt-1 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-2 font-sans text-xs">{i.body}</pre> : null}
-        </div>
-        <button type="button" aria-label="Delete" onClick={() => confirm("Delete this entry?") && onDelete()} className="text-subtle/50 hover:text-bad"><Trash2 className="h-3.5 w-3.5" /></button>
-      </div>
-    </li>
   );
 }
 
@@ -558,13 +548,22 @@ function DocButtons({ dealId, companyId, packages }: { dealId: number; companyId
   const fileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const router = useRouter();
+  const [picked, setPicked] = useState<File | null>(null);
+  const [meta, setMeta] = useState({ title: "", category: "other", internal: false });
+  const choose = (file: File) => {
+    const guess = /contract|agreement|signed/i.test(file.name) ? "contract" : /(^|[^a-z])po([^a-z]|$)|purchase/i.test(file.name) ? "po" : /invoice/i.test(file.name) ? "invoice" : /(^|[^a-z])nda([^a-z]|$)/i.test(file.name) ? "nda" : /proposal|quote/i.test(file.name) ? "proposal" : "other";
+    setMeta({ title: file.name.replace(/\.[a-z0-9]+$/i, ""), category: guess, internal: ["contract", "po", "invoice", "receipt", "nda"].includes(guess) });
+    setPicked(file);
+  };
   const upload = (file: File) =>
     start(async () => {
-      const r = await startFileAction(dealId, file.name, { name: file.name, mime: file.type, size: file.size });
+      const r = await startFileAction(dealId, meta.title || file.name, { name: file.name, mime: file.type, size: file.size }, { category: meta.category, internal: meta.internal });
       if (!r.ok) return toast(r.error, "error");
       const put = await fetch(r.uploadUrl, { method: "PUT", body: file, headers: { "content-type": file.type || "application/octet-stream" } });
       if (!put.ok) return toast("Upload failed. Is file storage set up (SUPABASE_SERVICE_ROLE_KEY)?", "error");
-      toast("File ready. Copy its tracked link.");
+      toast(meta.internal ? "Saved on the deal (internal)." : "File ready. Copy its tracked link.");
+      setPicked(null);
+      if (fileRef.current) fileRef.current.value = "";
       router.refresh();
     });
   return (
@@ -612,7 +611,25 @@ function DocButtons({ dealId, companyId, packages }: { dealId: number; companyId
           router.push(`/sales/docs/${r.id}`);
         })}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Brief</Button>
       ) : null}
-      <input ref={fileRef} type="file" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+      <input ref={fileRef} type="file" hidden onChange={(e) => e.target.files?.[0] && choose(e.target.files[0])} aria-label="Choose a file" />
+      <Sheet open={!!picked} onOpenChange={(o) => !o && setPicked(null)} title="Attach a document" description={picked ? `${picked.name} · ${(picked.size / 1024 / 1024).toFixed(1)} MB` : undefined}>
+        <div className="space-y-3">
+          <Field label="Name"><Input value={meta.title} onChange={(e) => setMeta((m) => ({ ...m, title: e.target.value }))} aria-label="Document name" /></Field>
+          <Field label="What it is">
+            <Select value={meta.category} onChange={(e) => setMeta((m) => ({ ...m, category: e.target.value }))} aria-label="Document type">
+              {DOC_CATEGORIES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </Select>
+          </Field>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1" checked={meta.internal} onChange={(e) => setMeta((m) => ({ ...m, internal: e.target.checked }))} />
+            <span>Internal: kept on the deal for you only (signed contract, PO, invoice). Untick to get a tracked link to send to the client.</span>
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setPicked(null)}>Cancel</Button>
+            <Button variant="primary" disabled={busy} onClick={() => picked && upload(picked)}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} Upload</Button>
+          </div>
+        </div>
+      </Sheet>
       <Sheet open={linkOpen} onOpenChange={setLinkOpen} title="Tracked link" description="Wrap a Loom, Drive file or case study. You get pinged when they open it.">
         <div className="space-y-3">
           <Field label="Title"><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Demo video" /></Field>

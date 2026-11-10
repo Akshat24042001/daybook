@@ -30,6 +30,9 @@ export interface DocRow {
   id: number;
   slug: string;
   kind: "quote" | "brief" | "link" | "file";
+  category?: string | null;
+  /** internal papers: kept on the deal, never sent as a tracked link */
+  internal?: boolean;
   deal_id: number | null;
   company_id: number | null;
   title: string;
@@ -198,14 +201,14 @@ export async function markDocSent(docId: number, o: { logTouch?: boolean; channe
   if (doc.kind === "quote" && doc.current_rev > 1) await applyEvent(doc.deal_id, "quote_sent");
 }
 
-export async function createLinkDoc(o: { deal_id: number | null; title: string; url?: string | null; kind?: "link" | "file" | "brief"; body?: string | null; file_path?: string | null; file_name?: string | null; company_id?: number | null }): Promise<number> {
+export async function createLinkDoc(o: { deal_id: number | null; title: string; url?: string | null; kind?: "link" | "file" | "brief"; body?: string | null; file_path?: string | null; file_name?: string | null; company_id?: number | null; category?: string | null; internal?: boolean }): Promise<number> {
   const kind = o.kind ?? "link";
   if (kind === "link" && !/^https?:\/\//i.test(o.url ?? "")) throw new UserError("Give a full link starting with https://");
   let companyId = o.company_id ?? null;
   if (!companyId && o.deal_id) companyId = (await getDeal(o.deal_id))?.company_id ?? null;
   const row = await one<{ id: number }>(
-    "insert into sales_docs (slug, kind, deal_id, company_id, title, target_url, body, file_path, file_name) values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id",
-    [newSlug(), kind, o.deal_id, companyId, o.title.trim() || "Document", o.url ?? null, o.body ?? null, o.file_path ?? null, o.file_name ?? null],
+    "insert into sales_docs (slug, kind, deal_id, company_id, title, target_url, body, file_path, file_name, category, internal) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning id",
+    [newSlug(), kind, o.deal_id, companyId, o.title.trim() || "Document", o.url ?? null, o.body ?? null, o.file_path ?? null, o.file_name ?? null, o.category ?? null, !!o.internal],
   );
   return row!.id;
 }

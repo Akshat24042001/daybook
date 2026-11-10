@@ -7,11 +7,12 @@ import { createDealAction } from "@/app/sales-actions";
 import { Button, Field, Input, Select, Sheet, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { CURRENCIES, currencyLabel, currencySymbol } from "./format";
+import { DEAL_TYPES } from "@/lib/sales/fields";
 
 /** defaultCurrency: Sales settings > Default currency (INR unless you changed it). */
 export function NewDealButton({ defaultCurrency = "INR" }: { defaultCurrency?: string }) {
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ person_name: "", company_name: "", email: "", phone: "", linkedin: "", source: "outbound", referrer_name: "", value_amount: "", currency: defaultCurrency, notes: "", stage_role: "new" });
+  const [f, setF] = useState({ person_name: "", company_name: "", email: "", phone: "", linkedin: "", source: "outbound", referrer_name: "", value_amount: "", currency: defaultCurrency, notes: "", stage_role: "new", city: "", region: "", industry: "", deal_type: "new", expected_close: "", services: "" });
   const [pending, start] = useTransition();
   const { toast } = useToast();
   const router = useRouter();
@@ -64,6 +65,16 @@ export function NewDealButton({ defaultCurrency = "INR" }: { defaultCurrency?: s
               {CURRENCIES.map((c) => <option key={c} value={c}>{currencyLabel(c)}</option>)}
             </Select>
           </Field>
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <Field label="City"><Input value={f.city} onChange={set("city")} placeholder="Pune" /></Field>
+          <Field label="State / region"><Input value={f.region} onChange={set("region")} placeholder="Maharashtra" /></Field>
+          <Field label="Industry"><Input value={f.industry} onChange={set("industry")} placeholder="Clinics, logistics, retail…" /></Field>
+          <Field label="Type">
+            <Select value={f.deal_type} onChange={set("deal_type")} aria-label="Deal type">{DEAL_TYPES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</Select>
+          </Field>
+          <Field label="Services" hint="Comma separated"><Input value={f.services} onChange={set("services")} placeholder="Website, WhatsApp bot" /></Field>
+          <Field label="Expected close"><Input type="date" value={f.expected_close} onChange={set("expected_close")} aria-label="Expected close" /></Field>
         </div>
         <div className="mt-3">
           <Field label="What they need"><Textarea value={f.notes} onChange={set("notes")} placeholder="Requirement, context, anything" /></Field>

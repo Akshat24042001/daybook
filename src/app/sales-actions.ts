@@ -6,8 +6,12 @@ import { journaled } from "@/lib/undo";
 import { completeMove, markOpened, sendMoveEmail, targetsFor } from "@/lib/sales/act";
 import { salesConfig, updateSalesConfig, type SalesConfig } from "@/lib/sales/config";
 import {
-  addCommitment, addPayment, createDeal, deletePayment, markPaid, setCommitment, updateDeal, deleteDeal,
+  addCommitment, addPayment, createDeal, deletePayment, editInteraction, logActivity, markPaid, recomputeTouches, setCommitment, updateDeal, deleteDeal,
+  type NewActivity,
 } from "@/lib/sales/deals";
+import { closeDeal, type ClosePayload } from "@/lib/sales/closing";
+import { updateCompany, updatePerson } from "@/lib/sales/records";
+import { saveCustomField, setCustomFieldActive, type CustomType, type Scope } from "@/lib/sales/custom-fields";
 import { createLinkDoc, createQuote, deleteDoc, markDocSent, newRevision, saveRevision, type RevisionRow } from "@/lib/sales/docs";
 import { auditCompany } from "@/lib/sales/enrich";
 import { researchRadarItem, researchView, startResearch, type ResearchView } from "@/lib/sales/research";
@@ -94,6 +98,7 @@ export async function refreshMovesAction() {
 export async function createDealAction(d: {
   title?: string; person_name?: string; company_name?: string; email?: string; phone?: string; linkedin?: string; source?: string;
   value_amount?: number | null; currency?: string; notes?: string; referrer_name?: string; stage_role?: string;
+  city?: string; region?: string; industry?: string; deal_type?: string; expected_close?: string; services?: string;
 }) {
   return run<{ id: number }>(async () => {
     const companyId = d.company_name?.trim() ? await ensureCompany(d.company_name.trim()) : null;
@@ -106,6 +111,11 @@ export async function createDealAction(d: {
       title: d.title, company_id: companyId, person_id: personId, source: d.source ?? (referrer ? "referral" : "outbound"),
       value_amount: d.value_amount ?? null, currency: d.currency, referrer_id: referrer, requirements: d.notes ?? null, stage_role: d.stage_role,
     });
+    const more = Object.fromEntries((["city", "region", "industry", "deal_type", "expected_close", "services"] as const).filter((k) => d[k]?.trim()).map((k) => [k, d[k]!.trim()]));
+    if (Object.keys(more).length) await updateDeal(id, more);
+    if (companyId && (d.city?.trim() || d.region?.trim() || d.industry?.trim())) {
+      await q("update sales_companies set city = coalesce(city, $2), region = coalesce(region, $3), industry = coalesce(industry, $4) where id = $1", [companyId, d.city?.trim() || null, d.region?.trim() || null, d.industry?.trim() || null]);
+    }
     if (personId) await enqueue("enrich_person", { id: personId }, { dedupeKey: `enrich_person:${personId}` });
     if (companyId) await enqueue("enrich_company", { id: companyId }, { dedupeKey: `enrich_company:${companyId}` });
     await refreshMoves(id);
@@ -127,6 +137,36 @@ export async function moveStageAction(id: number, toStage: number, o: { reason?:
     await refreshMoves(id);
   }, ALL);
 }
+/** A move by hand with what it needs: the Won checklist, a lost, disqualified, parked or reopen reason, or a note. */
+export async function closeDealAction(id: number, toStage: number | null, p: ClosePayload, complete = false) {
+  return run(async () => {
+    await closeDeal(id, toStage, p, { complete });
+    await refreshMoves(id);
+  }, [...ALL, "/sales/insights"]);
+}
+/** Adds a note to (or corrects the note on) a line of the deal's history. */
+export async function setEventNoteAction(eventId: number, note: string) {
+  return run(async () => {
+    const r = await one("update sales_deal_events set detail = $2, edited_at = now() where id = $1 returning id", [eventId, note.trim().slice(0, 2000) || null]);
+    if (!r) throw new UserError("That history entry no longer exists.");
+  }, ALL);
+}
+export async function logActivityAction(dealId: number, a: NewActivity) {
+  return run<{ id: number }>(async () => {
+    const id = await logActivity(dealId, a);
+    await refreshMoves(dealId);
+    return { id };
+  }, ALL);
+}
+export async function editInteractionAction(id: number, patch: Parameters<typeof editInteraction>[1]) {
+  return run(() => editInteraction(id, patch), ALL);
+}
+export async function saveCustomFieldAction(f: { id?: number; scope?: Scope; label: string; type: CustomType; options?: string; help?: string; required_to_win?: boolean }) {
+  return run<{ id: number }>(async () => ({ id: await saveCustomField(f) }), ["/sales/settings", ...ALL]);
+}
+export async function setCustomFieldActiveAction(id: number, active: boolean) {
+  return run(() => setCustomFieldActive(id, active), ["/sales/settings", ...ALL]);
+}
 export async function setPersonAction(dealId: number, o: { name?: string; email?: string; phone?: string; linkedin?: string; title?: string; role?: string; as?: "primary" | "member" | "referrer" | "intermediary" }) {
   return run(async () => {
     const deal = await one<{ company_id: number | null }>("select company_id from sales_deals where id = $1", [dealId]);
@@ -145,33 +185,14 @@ export async function removeDealPersonAction(dealId: number, personId: number) {
     await q("delete from sales_deal_people where deal_id = $1 and person_id = $2", [dealId, personId]);
   }, ALL);
 }
-export async function updatePersonAction(id: number, patch: { full_name?: string; title?: string; emails?: string[]; phones?: string[]; linkedin?: string; instagram?: string; relationship?: string; notes?: string; city?: string; country?: string }) {
-  return run(async () => {
-    const allowed = ["full_name", "title", "emails", "phones", "linkedin", "instagram", "relationship", "notes", "city", "country"];
-    const sets: string[] = [];
-    const params: unknown[] = [id];
-    for (const [k, v] of Object.entries(patch)) {
-      if (!allowed.includes(k)) continue;
-      params.push(v === "" ? null : v);
-      sets.push(`${k} = $${params.length}`);
-    }
-    if (sets.length) await q(`update sales_people set ${sets.join(", ")}, updated_at = now() where id = $1`, params);
-    const { addIdentities } = await import("@/lib/sales/identity");
-    for (const e of patch.emails ?? []) await addIdentities(id, { email: e });
-    for (const p of patch.phones ?? []) await addIdentities(id, { phone: p });
-    if (patch.linkedin) await addIdentities(id, { linkedin: patch.linkedin });
-  }, [...ALL, "/sales/accounts"]);
+export async function updatePersonAction(id: number, patch: Record<string, unknown>) {
+  return run(() => updatePerson(id, patch), [...ALL, "/sales/accounts"]);
 }
 export async function mergePeopleAction(into: number, from: number) {
   return run(() => mergePeople(into, from), [...ALL, "/sales/accounts"]);
 }
-export async function updateCompanyAction(id: number, patch: { name?: string; website?: string; country?: string; industry?: string; notes?: string }) {
-  return run(async () => {
-    await q(
-      "update sales_companies set name = coalesce($2, name), website = coalesce($3, website), country = coalesce($4, country), industry = coalesce($5, industry), notes = coalesce($6, notes), updated_at = now() where id = $1",
-      [id, patch.name || null, patch.website || null, patch.country || null, patch.industry || null, patch.notes ?? null],
-    );
-  }, [...ALL, "/sales/accounts"]);
+export async function updateCompanyAction(id: number, patch: Record<string, unknown>) {
+  return run(() => updateCompany(id, patch), [...ALL, "/sales/accounts"]);
 }
 
 // ------------------------------------------------------------------ logging (paste anything)
@@ -198,7 +219,8 @@ export async function addCommitmentAction(dealId: number, owner: "me" | "them", 
 }
 export async function deleteInteractionAction(id: number) {
   return run(async () => {
-    await q("delete from sales_interactions where id = $1", [id]);
+    const row = await one<{ deal_id: number | null }>("delete from sales_interactions where id = $1 returning deal_id", [id]);
+    if (row?.deal_id) await recomputeTouches(row.deal_id);
   }, ALL);
 }
 
@@ -236,12 +258,12 @@ export async function markDocSentAction(docId: number) {
 export async function createLinkAction(dealId: number | null, title: string, url: string) {
   return run<{ id: number }>(async () => ({ id: await createLinkDoc({ deal_id: dealId, title, url }) }), ["/sales/docs", ...ALL]);
 }
-export async function startFileAction(dealId: number | null, title: string, file: { name: string; mime: string; size: number }) {
+export async function startFileAction(dealId: number | null, title: string, file: { name: string; mime: string; size: number }, o: { category?: string | null; internal?: boolean } = {}) {
   return run<{ id: number; uploadUrl: string }>(async () => {
     if (file.size > 45 * 1024 * 1024) throw new UserError("Keep files under 45 MB.");
     const path = newPath(new Date().toISOString().slice(0, 10), `sales-${file.name}`);
     const { url } = await fileStore().signUpload(path);
-    const id = await createLinkDoc({ deal_id: dealId, title: title || file.name, kind: "file", file_path: path, file_name: file.name });
+    const id = await createLinkDoc({ deal_id: dealId, title: title || file.name, kind: "file", file_path: path, file_name: file.name, category: o.category ?? null, internal: !!o.internal });
     return { id, uploadUrl: url };
   }, ["/sales/docs", ...ALL]);
 }

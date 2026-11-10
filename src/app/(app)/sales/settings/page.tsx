@@ -6,6 +6,7 @@ import { salesConfig, salesRow } from "@/lib/sales/config";
 import { baseUrl } from "@/lib/sales/links";
 import { listStages, listTransitions } from "@/lib/sales/stages";
 import { SettingsView } from "@/components/sales/settings-view";
+import { listCustomFields } from "@/lib/sales/custom-fields";
 
 export const metadata: Metadata = { title: "Sales settings" };
 export const dynamic = "force-dynamic";
@@ -41,7 +42,7 @@ export default async function SalesSettingsPage() {
     <SettingsView
       d={{
         cfg, stages, transitions, captureToken: row.capture_token, googleSecret: row.google_secret, appsScriptUrl: row.apps_script_url,
-        baseUrl: baseUrl(), env, lastGoogle: last?.t ? new Date(last.t).toISOString() : null, script,
+        baseUrl: baseUrl(), env, lastGoogle: last?.t ? new Date(last.t).toISOString() : null, script, customFields: await listCustomFields(undefined, true),
       }}
     />
   );

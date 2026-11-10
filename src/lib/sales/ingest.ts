@@ -342,12 +342,12 @@ export async function applyExtraction(cap: CaptureRow, ext: Extraction, a: Apply
   const deal = dealId ? await getDeal(dealId) : null;
   if (deal && ext.referrer?.name && !deal.referrer_id) {
     const rid = await upsertPerson({ name: ext.referrer.name, relationship: "referral" });
-    await updateDeal(deal.id, { referrer_id: rid, source: deal.source === "outbound" ? "referral" : deal.source });
+    await updateDeal(deal.id, { referrer_id: rid, source: deal.source === "outbound" ? "referral" : deal.source }, { cause: "ai" });
   }
   if (deal && ext.intermediary?.name && !deal.intermediary_id) {
     const iid = await upsertPerson({ name: ext.intermediary.name, relationship: "partner" });
     const type = ["agency", "broker", "consultant", "partner", "referrer"].includes(ext.intermediary.type ?? "") ? ext.intermediary.type : "partner";
-    await updateDeal(deal.id, { intermediary_id: iid, intermediary_type: type });
+    await updateDeal(deal.id, { intermediary_id: iid, intermediary_type: type }, { cause: "ai" });
   }
 
   // timeline: chats are grouped per day so the timeline stays readable; everything else is one entry
@@ -438,7 +438,13 @@ export async function applyExtraction(cap: CaptureRow, ext: Extraction, a: Apply
         patch.next_action = ext.next_step;
       }
       if (ext.company?.country && !d.country) patch.country = ext.company.country;
-      await updateDeal(dealId, patch);
+      // a value the AI could not read as a number must not lose the rest of what it picked out
+      await updateDeal(dealId, patch, { cause: "ai" }).catch(async (e) => {
+        if (!("value_amount" in patch)) throw e;
+        delete patch.value_amount;
+        delete patch.currency;
+        await updateDeal(dealId, patch, { cause: "ai" });
+      });
 
       // stage signals: forward moves are automatic, closing moves are only suggested
       const sig = ext.stage_signal ?? "none";

@@ -1,6 +1,7 @@
 /** Sales settings: one row, a JSON config merged over these defaults so new options appear without a migration. */
 import { one, q, UserError } from "../db";
 import { offerLines } from "./offers";
+import { DEFAULT_REASONS, type Reasons } from "./fields";
 
 export type Autonomy = "suggest" | "draft" | "auto";
 
@@ -81,6 +82,8 @@ export interface SalesConfig {
   default_currency: string;
   /** the currency targets, Insights, Stats, the review and Telegram summaries are shown in */
   report_currency: string;
+  /** the choices offered when a deal is lost, disqualified, won, parked or reopened (Sales settings > Reasons) */
+  reasons: Reasons;
   /** what to do with email threads from unknown senders: ask in the digest, create a lead, or ignore */
   unknown_email: "ask" | "auto" | "off";
 }
@@ -141,6 +144,7 @@ export const DEFAULT_CONFIG: SalesConfig = {
   fx: { USD: 1, INR: 0.012, AED: 0.2723, GBP: 1.27, EUR: 1.08, CAD: 0.73, AUD: 0.66, SGD: 0.74, SAR: 0.2666, CNY: 0.14 },
   default_currency: "INR",
   report_currency: "INR",
+  reasons: DEFAULT_REASONS,
   unknown_email: "ask",
 };
 
@@ -180,6 +184,9 @@ export async function salesConfig(): Promise<SalesConfig> {
   // the offer catalogue (Sales > Playbook) is the source of truth once it has anything in it
   const lines = await offerLines();
   if (lines.length) cfg.offers = lines;
+  // an empty reason list falls back to the defaults, so a closing form always has choices
+  cfg.reasons = { ...DEFAULT_REASONS, ...(cfg.reasons ?? {}) };
+  for (const k of Object.keys(DEFAULT_REASONS) as (keyof Reasons)[]) if (!cfg.reasons[k]?.length) cfg.reasons[k] = DEFAULT_REASONS[k];
   // an old USD target becomes a target in your report currency
   if (!cfg.targets.monthly_revenue && cfg.targets.monthly_revenue_usd) {
     const rate = cfg.fx[cfg.report_currency] ?? 1;

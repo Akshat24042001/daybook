@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { reportMoney, salesConfig } from "@/lib/sales/config";
 import { listDeals, refreshHeat } from "@/lib/sales/deals";
+import { asFieldDefs, listCustomFields } from "@/lib/sales/custom-fields";
 import { listStages, listTransitions } from "@/lib/sales/stages";
 import { NewDealButton } from "@/components/sales/new-deal";
 import { PipelineBoard } from "@/components/sales/pipeline-board";
@@ -24,7 +25,7 @@ export default async function PipelinePage() {
         </div>
         <NewDealButton defaultCurrency={cfg.default_currency} />
       </div>
-      <PipelineBoard stages={stages} deals={deals} transitions={transitions} report={{ cur: reportMoney(cfg).cur, rate: reportMoney(cfg).toUsd(1) }} />
+      <PipelineBoard stages={stages} deals={deals} transitions={transitions} report={{ cur: reportMoney(cfg).cur, rate: reportMoney(cfg).toUsd(1) }} reasons={cfg.reasons} customDefs={asFieldDefs(await listCustomFields("deal"))} />
     </div>
   );
 }

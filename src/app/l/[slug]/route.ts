@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const doc = await docBySlug(slug);
-  if (!doc?.target_url) return new NextResponse("This link has expired.", { status: 404 });
+  if (!doc?.target_url || (doc as { internal?: boolean }).internal) return new NextResponse("This link has expired.", { status: 404 });
   const h = await headers();
   if (!(await isOwnerRequest())) {
     await recordView(doc, { ua: h.get("user-agent") ?? "", visitor: visitorId(h), country: h.get("x-vercel-ip-country"), city: decodeURIComponent(h.get("x-vercel-ip-city") ?? "") || null }).catch(() => null);
