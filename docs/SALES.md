@@ -437,3 +437,21 @@ message, a breakup, a radar reply or a payment reminder.
 - If a page fails (usually a slow database moment), it shows "This page hit a snag" with Try again, inside the normal
   app, instead of a blank "Application error". After a deploy, a tab still running the old version reloads itself once.
 - `SQL_TRACE=1` logs every query with its time, for finding slow pages locally.
+
+## Screenshots and pasted mail or chats
+
+Drop, paste or pick screenshots (up to 4) or a WhatsApp export into the "Log anything" box on Moves, Pipeline or a deal,
+or send them to the Telegram bot. The AI reads them and files everything where it belongs:
+
+- the person and company (found by name, email, phone or handle; created when new), the deal (or a new lead with a
+  proper name like "BrightSmile: WhatsApp booking bot")
+- each message on the timeline, from them or from you, on the right channel
+- promises both ways, a meeting it mentions, the value, the next step, stage moves
+- the deal's details: pain, desired outcome, impact, current solution, why now, decision criteria and process,
+  competitors, risks, scope, payment terms, expected close, start date, type, industry, city
+- the person's title, city, department, seniority, WhatsApp, language, decision maker, preferred channel; the
+  company's website, industry, city, phone, email, LinkedIn, address, size (from signatures and profile headers)
+
+It only fills what is empty, so it never overwrites what you wrote. Send the same screenshot twice, or one that overlaps
+an earlier one, and the messages already on the deal are skipped. Afterwards the box shows what it filed and where,
+with Undo. When it cannot tell who it is about, it asks: pick the person or type a new name.

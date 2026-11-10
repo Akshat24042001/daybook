@@ -9,6 +9,8 @@ import { listPipelines, listTeam } from "@/lib/sales/org";
 import { listStages, listTransitions } from "@/lib/sales/stages";
 import { cn } from "@/lib/cn";
 import { NewDealButton } from "@/components/sales/new-deal";
+import { CaptureBox } from "@/components/sales/capture-box";
+import { voiceConfigured } from "@/lib/deepgram";
 import { PipelineBoard } from "@/components/sales/pipeline-board";
 
 export const metadata: Metadata = { title: "Pipeline" };
@@ -43,6 +45,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
         </div>
         <NewDealButton defaultCurrency={cfg.default_currency} pipelineId={current?.id ?? null} />
       </div>
+      <CaptureBox dealId={null} voiceEnabled={voiceConfigured()} compact placeholder="New lead or an update? Paste or drop a screenshot of the mail or chat, or paste the text. AI finds the person and the deal (or creates the lead) and files every detail it finds." />
       {pipelines.length > 1 ? (
         <nav className="flex flex-wrap gap-1 border-b border-border" aria-label="Pipelines">
           {pipelines.map((p) => (

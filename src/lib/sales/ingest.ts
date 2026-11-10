@@ -12,7 +12,7 @@ import { iso } from "./context";
 import {
   addCommitment, createDeal, dealForPerson, getDeal, logInteraction, updateDeal, type Channel, type Direction,
 } from "./deals";
-import { addIdentities, ensureCompany, resolvePerson, upsertPerson, type PersonRow } from "./identity";
+import { addIdentities, domainOf, ensureCompany, resolvePerson, upsertPerson, type PersonRow } from "./identity";
 import { enqueue } from "./jobs";
 import { llmJson, type Part } from "./llm";
 import { applyEvent, moveDeal, stageByRole } from "./stages";
@@ -109,8 +109,18 @@ function isMe(cfg: SalesConfig, name: string): boolean {
 export interface Extraction {
   kind: "conversation" | "note" | "meeting_notes" | "lead_post" | "profile" | "email" | "other";
   is_sales_related: boolean;
-  people: { name?: string; company?: string; title?: string; email?: string; phone?: string; linkedin?: string; instagram?: string; country?: string; city?: string; role?: string; is_me?: boolean }[];
-  company?: { name?: string; website?: string; country?: string; industry?: string } | null;
+  people: {
+    name?: string; company?: string; title?: string; email?: string; phone?: string; linkedin?: string; instagram?: string; country?: string; city?: string;
+    role?: string; is_me?: boolean; department?: string; seniority?: string; whatsapp?: string; language?: string; is_decision_maker?: boolean;
+  }[];
+  company?: { name?: string; website?: string; country?: string; industry?: string; city?: string; phone?: string; email?: string; linkedin?: string; address?: string; employees?: number } | null;
+  /** the deal's details, filled only where you have not written anything yet */
+  details?: {
+    deal_title?: string | null; deal_type?: string | null; industry?: string | null; city?: string | null;
+    pain?: string | null; desired_outcome?: string | null; impact?: string | null; current_solution?: string | null; compelling_event?: string | null;
+    decision_criteria?: string | null; decision_process?: string | null; competitors?: string[] | null; risks?: string | null;
+    scope?: string | null; payment_terms?: string | null; expected_close?: string | null; start_date?: string | null;
+  } | null;
   channel?: string | null;
   direction?: Direction | null;
   occurred_at?: string | null;
@@ -140,8 +150,10 @@ Read the input (a chat, transcript, screenshot, email, note or web page) and ret
 {
  "kind": "conversation|note|meeting_notes|lead_post|profile|email|other",
  "is_sales_related": true if this is about a client, prospect, lead, partner, referral, project, quote or payment,
- "people": [{"name","company","title","email","phone","linkedin","instagram","country","city","role":"decision_maker|champion|influencer|user|finance|gatekeeper|contact","is_me":false}],
- "company": {"name","website","country","industry"} or null,
+ "people": [{"name","company","title","email","phone","linkedin","instagram","country","city","role":"decision_maker|champion|influencer|user|finance|gatekeeper|contact","is_me":false,
+   "department","seniority":"owner|c_level|vp|head|manager|individual" or null,"whatsapp","language","is_decision_maker":true|false|null}],
+   (read email signatures, letterheads and profile headers for title, phone, website, city)
+ "company": {"name","website","country","industry","city","phone","email","linkedin","address","employees": number or null} or null,
  "channel": "whatsapp|linkedin|email|call|meeting|in_person|instagram|sms|twitter|other",
  "direction": "in" (they wrote / spoke) | "out" (owner wrote) | "both",
  "occurred_at": ISO time if known else null,
@@ -158,7 +170,19 @@ Read the input (a chat, transcript, screenshot, email, note or web page) and ret
  "value": {"amount": number, "currency": "INR|USD|AED|GBP|EUR|CAD|AUD|SGD"} if a price or budget number is stated, else null (amount as a plain number: 2 lakh is 200000; leave currency out unless it is named or shown, e.g. ₹, Rs, $, and ${cfg.default_currency} is assumed),
  "next_step": the single best next action for the owner, imperative, under 15 words,
  "referrer": {"name"} if someone referred this lead, else null,
- "intermediary": {"name","type":"agency|broker|consultant|partner"} if the deal runs through a middle person, else null
+ "intermediary": {"name","type":"agency|broker|consultant|partner"} if the deal runs through a middle person, else null,
+ "details": {
+   "deal_title": short deal name like "Shah Dental: WhatsApp booking bot" or null,
+   "deal_type": "new|upsell|renewal|repeat|partnership|other" or null,
+   "industry", "city": of the client, or null,
+   "pain": the problem in their words, "desired_outcome": what they want to achieve, "impact": what the problem costs them,
+   "current_solution": what they use or do today, "compelling_event": why now / deadline,
+   "decision_criteria": how they will choose, "decision_process": who decides and the steps,
+   "competitors": [other vendors or options they mention], "risks": what could kill or delay it,
+   "scope": what is to be delivered, "payment_terms": e.g. "50% advance, 50% on delivery",
+   "expected_close": YYYY-MM-DD when they plan to decide, "start_date": YYYY-MM-DD when work should start
+   (each null unless stated or clearly implied in the input)
+ }
 }
 Use only facts in the input. Unknown fields are null. Never invent emails or phone numbers.`;
 
@@ -189,6 +213,13 @@ export interface CaptureResult {
   message_count?: number;
   skipped?: string;
   seen?: string[];
+  /** fields this capture filled in (deal, person, company), by their labels */
+  filled?: string[];
+  /** messages in it that were already on the deal (sent before), not logged again */
+  already?: number;
+  deal_title?: string | null;
+  meeting_at?: string | null;
+  commitment_texts?: string[];
 }
 
 interface CaptureRow {
@@ -280,7 +311,8 @@ interface ApplyCtx {
   newPersonName?: string;
 }
 
-export async function applyExtraction(cap: CaptureRow, ext: Extraction, a: ApplyCtx): Promise<CaptureResult> {
+export async function applyExtraction(cap: CaptureRow, extIn: Extraction, a: ApplyCtx): Promise<CaptureResult> {
+  let ext = extIn;
   const { cfg } = a;
   const res: CaptureResult = { summary: ext.summary, next_step: ext.next_step ?? null, interactions: [], commitments: [] };
   let dealId = a.dealId;
@@ -350,6 +382,23 @@ export async function applyExtraction(cap: CaptureRow, ext: Extraction, a: Apply
     await updateDeal(deal.id, { intermediary_id: iid, intermediary_type: type }, { cause: "ai" });
   }
 
+  // the same screenshot (or an overlapping one) sent twice: messages already on this deal are not logged again
+  const msgKey = (m: { from: string; text: string }) => hash(`msg|${dealId}|${m.from}|${m.text.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 500)}`);
+  let freshMsgs = ext.messages ?? [];
+  let allSeen = false;
+  if (!a.chat && dealId && freshMsgs.length) {
+    const keys = freshMsgs.map(msgKey);
+    const seen = new Set((await q<{ hash: string }>("select hash from sales_seen where hash = any($1)", [keys])).map((r) => r.hash));
+    freshMsgs = freshMsgs.filter((_, i) => !seen.has(keys[i]));
+    res.already = keys.length - freshMsgs.length;
+    allSeen = freshMsgs.length === 0;
+    const newKeys = keys.filter((k) => !seen.has(k));
+    if (newKeys.length) {
+      await q("insert into sales_seen (hash) select unnest($1::text[]) on conflict do nothing", [newKeys]);
+      res.seen = [...(res.seen ?? []), ...newKeys];
+    }
+  }
+
   // timeline: chats are grouped per day so the timeline stays readable; everything else is one entry
   const channel = asChannel(a.chat ? "whatsapp" : ext.channel ?? cap.channel, cap.source === "email" ? "email" : "note");
   const ids: number[] = [];
@@ -378,9 +427,11 @@ export async function applyExtraction(cap: CaptureRow, ext: Extraction, a: Apply
       }
     }
     res.message_count = a.chat.length;
-  } else if (ext.messages?.length && ext.messages.length > 1) {
-    const theirs = ext.messages.filter((m) => m.from === "them");
-    const mine = ext.messages.filter((m) => m.from === "me");
+  } else if (allSeen) {
+    // nothing new to log; the details below are still filled in
+  } else if (freshMsgs.length > 1) {
+    const theirs = freshMsgs.filter((m) => m.from === "them");
+    const mine = freshMsgs.filter((m) => m.from === "me");
     for (const [group, dir] of [[theirs, "in"], [mine, "out"]] as const) {
       if (!group.length) continue;
       const last = group[group.length - 1];
@@ -395,9 +446,10 @@ export async function applyExtraction(cap: CaptureRow, ext: Extraction, a: Apply
         if (r.moved) res.moved = r.moved.name;
       }
     }
-    res.message_count = ext.messages.length;
+    res.message_count = freshMsgs.length;
   } else {
-    const dir: Direction = cap.hints?.direction ?? ext.direction ?? (ext.kind === "note" || ext.kind === "meeting_notes" ? "both" : "in");
+    const one1 = freshMsgs.length === 1 ? freshMsgs[0] : null;
+    const dir: Direction = cap.hints?.direction ?? (one1 ? (one1.from === "me" ? "out" : "in") : null) ?? ext.direction ?? (ext.kind === "note" || ext.kind === "meeting_notes" ? "both" : "in");
     const r = await logInteraction({
       deal_id: dealId, person_id: personId,
       channel: ext.kind === "meeting_notes" && channel === "note" ? "meeting" : channel,
@@ -415,6 +467,13 @@ export async function applyExtraction(cap: CaptureRow, ext: Extraction, a: Apply
   res.channel = channel;
 
   if (dealId) {
+    // extra details are a bonus: if filling them fails, the log itself still goes through
+    res.filled = [...(res.filled ?? []), ...(await fillPersonAndCompany(personId, primary, ext, channel).catch((e) => {
+      console.warn("[capture] details not filled:", (e as Error).message);
+      return [] as string[];
+    }))];
+    if (allSeen) ext = { ...ext, commitments: [], meeting_at: null, stage_signal: "none" };
+    res.commitment_texts = (ext.commitments ?? []).filter((c) => c?.text).map((c) => `${c.owner === "me" ? "You" : "They"}: ${c.text}${c.due ? ` (by ${c.due})` : ""}`);
     for (const c of ext.commitments ?? []) {
       if (!c?.text || (c.owner !== "me" && c.owner !== "them")) continue;
       const cid = await addCommitment({ deal_id: dealId, person_id: personId, owner: c.owner, text: c.text, due_at: dueIso(c.due), interaction_id: ids[0] ?? null });
@@ -438,6 +497,23 @@ export async function applyExtraction(cap: CaptureRow, ext: Extraction, a: Apply
         patch.next_action = ext.next_step;
       }
       if (ext.company?.country && !d.country) patch.country = ext.company.country;
+      // the deal's details: only where nothing is written yet, so the AI never overwrites you
+      const det = ext.details ?? {};
+      const blank = (v: unknown) => v == null || v === "" || (Array.isArray(v) && !v.length);
+      const dd = d as unknown as Record<string, unknown>;
+      for (const k of ["pain", "desired_outcome", "impact", "current_solution", "compelling_event", "decision_criteria", "decision_process", "risks", "scope", "payment_terms", "industry", "city"] as const) {
+        const v = det[k];
+        if (typeof v === "string" && v.trim() && blank(dd[k])) patch[k] = v.trim().slice(0, 2000);
+      }
+      if (det.competitors?.length && blank(dd.competitors)) patch.competitors = det.competitors.slice(0, 10);
+      for (const k of ["expected_close", "start_date"] as const) {
+        const v = det[k];
+        if (v && /^\d{4}-\d{2}-\d{2}/.test(v) && !Number.isNaN(Date.parse(v.slice(0, 10))) && blank(dd[k])) patch[k] = v.slice(0, 10);
+      }
+      if (det.deal_type && ["new", "upsell", "renewal", "repeat", "partnership", "other"].includes(det.deal_type) && blank(dd.deal_type)) patch.deal_type = det.deal_type;
+      // a new lead gets a proper name instead of just the person's name
+      if (res.created_deal && det.deal_title?.trim()) patch.title = det.deal_title.trim().slice(0, 200);
+      res.filled = [...(res.filled ?? []), ...Object.keys(patch).filter((k) => !["summary", "next_action", "currency"].includes(k)).map((k) => FIELD_LABEL[k] ?? k.replace(/_/g, " "))];
       // a value the AI could not read as a number must not lose the rest of what it picked out
       await updateDeal(dealId, patch, { cause: "ai" }).catch(async (e) => {
         if (!("value_amount" in patch)) throw e;
@@ -467,6 +543,7 @@ export async function applyExtraction(cap: CaptureRow, ext: Extraction, a: Apply
         res.suggestion = { kind: "stage", role: d.stage_role === "won" ? "active" : "paid", label: "Payment mentioned. Record it on the deal?" };
       }
       if (ext.meeting_at && !Number.isNaN(Date.parse(ext.meeting_at)) && Date.parse(ext.meeting_at) > Date.now()) {
+        res.meeting_at = ext.meeting_at;
         await q(
           `insert into sales_meetings (external_id, deal_id, person_id, title, starts_at, ends_at) values ($1,$2,$3,$4,$5,$5::timestamptz + interval '45 minutes') on conflict (external_id) do nothing`,
           [`cap:${cap.id}`, dealId, personId, `Call with ${d.person_name ?? d.title}`, ext.meeting_at],
@@ -477,8 +554,64 @@ export async function applyExtraction(cap: CaptureRow, ext: Extraction, a: Apply
       }
     }
     await enqueue("refresh_moves", { deal_id: dealId }, { dedupeKey: `refresh_moves:${dealId}` });
+    res.deal_title = (await one<{ title: string }>("select title from sales_deals where id = $1", [dealId]))?.title ?? null;
   }
   return res;
+}
+
+const FIELD_LABEL: Record<string, string> = {
+  requirements: "Requirements", budget: "Budget", timeline: "Timeline", objections: "Objections", services: "Services", value_amount: "Value",
+  country: "Country", pain: "Pain", desired_outcome: "Desired outcome", impact: "Impact", current_solution: "Current solution",
+  compelling_event: "Why now", decision_criteria: "Decision criteria", decision_process: "Decision process", risks: "Risks", scope: "Scope",
+  payment_terms: "Payment terms", industry: "Industry", city: "City", competitors: "Competitors", expected_close: "Expected close",
+  start_date: "Start date", deal_type: "Deal type", title: "Deal name",
+};
+
+/** Fills the person's and the company's empty details from what the capture shows (signatures, profiles, letterheads). */
+async function fillPersonAndCompany(personId: number | null, p: Extraction["people"][number] | undefined, ext: Extraction, channel: string): Promise<string[]> {
+  const out: string[] = [];
+  if (personId) {
+    const cur = await one<Record<string, unknown>>("select title, city, country, department, seniority, whatsapp, language, preferred_channel, is_decision_maker, company_id from sales_people where id = $1", [personId]);
+    if (cur) {
+      const set: Record<string, unknown> = {};
+      const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim().slice(0, 200) : null);
+      for (const [k, label] of [["title", "Title"], ["city", "City"], ["country", "Country"], ["department", "Department"], ["seniority", "Seniority"], ["whatsapp", "WhatsApp"], ["language", "Language"]] as const) {
+        const v = str(p?.[k]);
+        if (v && !cur[k]) { set[k] = v; out.push(`Person: ${label}`); }
+      }
+      // they wrote to you on this channel: that is how they like to talk, until you say otherwise
+      if (!cur.preferred_channel && ["whatsapp", "email", "linkedin", "instagram", "call", "sms"].includes(channel) && ext.direction !== "out") { set.preferred_channel = channel; out.push("Person: Preferred channel"); }
+      if (p?.is_decision_maker === true && !cur.is_decision_maker) { set.is_decision_maker = true; out.push("Person: Decision maker"); }
+      const keys = Object.keys(set);
+      if (keys.length) await q(`update sales_people set ${keys.map((k, i) => `${k} = $${i + 2}`).join(", ")}, updated_at = now() where id = $1`, [personId, ...keys.map((k) => set[k])]);
+      // the company: from the person, or the one named in the capture
+      let companyId = (cur.company_id as number | null) ?? null;
+      if (!companyId && (ext.company?.name || ext.company?.website)) {
+        companyId = await ensureCompany(ext.company?.name ?? null, { website: ext.company?.website, country: ext.company?.country, industry: ext.company?.industry });
+        if (companyId) { await q("update sales_people set company_id = $2 where id = $1 and company_id is null", [personId, companyId]); out.push("Person: Company"); }
+      }
+      const c = ext.company;
+      if (companyId && c) {
+        const co = await one<Record<string, unknown>>("select website, domain, industry, country, city, phone, email, linkedin, address, employees from sales_companies where id = $1", [companyId]);
+        if (co) {
+          const cs: Record<string, unknown> = {};
+          for (const [k, label] of [["website", "Website"], ["industry", "Industry"], ["country", "Country"], ["city", "City"], ["phone", "Phone"], ["email", "Email"], ["linkedin", "LinkedIn"], ["address", "Address"]] as const) {
+            const v = str(c[k]);
+            if (v && !co[k]) { cs[k] = v; out.push(`Company: ${label}`); }
+          }
+          if (cs.website && !co.domain) {
+            const dom = domainOf(String(cs.website));
+            // a domain belongs to one company only
+            if (dom && !(await one("select 1 from sales_companies where lower(domain) = lower($1) and id <> $2", [dom, companyId]))) cs.domain = dom;
+          }
+          if (typeof c.employees === "number" && c.employees > 0 && !co.employees) { cs.employees = Math.round(c.employees); out.push("Company: Employees"); }
+          const ck = Object.keys(cs).filter((k) => cs[k] != null);
+          if (ck.length) await q(`update sales_companies set ${ck.map((k, i) => `${k} = $${i + 2}`).join(", ")}, updated_at = now() where id = $1`, [companyId, ...ck.map((k) => cs[k])]);
+        }
+      }
+    }
+  }
+  return out;
 }
 
 /** Takes back everything a capture did: timeline entries, promises, stage moves, and a person or deal it created. */

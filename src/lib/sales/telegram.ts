@@ -181,6 +181,9 @@ export async function report(id: number, r: CaptureResult, chat: number | null, 
       `${channelEmoji(r.channel)} ${esc(r.channel ?? "note")}${r.message_count ? ` · ${r.message_count} messages` : ""} · stage <b>${esc(d?.stage_name ?? "?")}</b>${r.moved ? " (moved)" : ""}`,
       r.summary ? `📝 ${esc(r.summary.slice(0, 500))}` : "",
       ...commits.map((c) => `${c.owner === "me" ? "📌 You promised" : "🤝 They promised"}: ${esc(c.text)}${c.due_at ? ` (by ${iso(c.due_at).slice(0, 10)})` : ""}`),
+      r.already ? `♻️ ${r.already} message${r.already > 1 ? "s were" : " was"} already logged, skipped` : "",
+      r.meeting_at ? `📅 Meeting ${esc(new Date(r.meeting_at).toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" }))}` : "",
+      r.filled?.length ? `🗂 Filled in: ${esc([...new Set(r.filled)].join(", ").slice(0, 400))}` : "",
       r.next_step ? `➡️ ${esc(r.next_step)}` : "",
     ].filter(Boolean);
     text = lines.join("\n");

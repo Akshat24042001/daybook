@@ -269,6 +269,15 @@ export async function logToDealAction(dealId: number | null, text: string, o: { 
     return { result: { ...result, capture_id: id } as CaptureResult };
   }, ALL);
 }
+/** The capture could not tell who it was about: you pick the person (or name a new one) and it is filed again. */
+export async function resolveCaptureAction(captureId: number, who: { person_id?: number; newPersonName?: string }) {
+  return run<{ result: CaptureResult }>(async () => {
+    const name = who.newPersonName?.trim().slice(0, 80);
+    if (!who.person_id && !name) throw new UserError("Pick a person or type a name.");
+    const result = await processCapture(captureId, who.person_id ? { person_id: who.person_id } : { newPersonName: name });
+    return { result: { ...result, capture_id: captureId } as CaptureResult };
+  }, ALL);
+}
 export async function undoCaptureAction(id: number) {
   return run(() => undoCapture(id), ALL);
 }
