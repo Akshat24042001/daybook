@@ -23,6 +23,10 @@ import { MoveCard } from "./moves-view";
 import { ActivityLogger, ClosingRecord, DealDetails, DealEditSheet, DocCategory, Journey, RecordEditSheet, StageMoveSheet, TimelineItem, type JourneyEvent, type PendingMove } from "./deal-rich";
 import { COMPANY_EDIT_FIELDS, DOC_CATEGORIES, needsDetails, PERSON_EDIT_FIELDS, type FieldDef, type Reasons } from "@/lib/sales/fields";
 import { updateCompanyAction, updatePersonAction } from "@/app/sales-actions";
+import { FitCard, LineItems, PlaybookCard, type PackageOpt } from "./deal-extras";
+import type { Fit } from "@/lib/sales/fit-calc";
+import type { DealItem } from "@/lib/sales/items-calc";
+import type { StagePlay } from "@/lib/sales/playbook-stages";
 import { ago, ChannelIcon, CHANNEL_LABEL, CURRENCIES, currencyLabel, currencySymbol, fmtDate, Label, money, Priority } from "./util";
 
 export interface QuotePackage { offerId: number; index: number; offer: string; name: string; currency: string; total: number; items: number; timeline: string; fits: boolean }
@@ -49,6 +53,17 @@ export interface DealPageData {
   customDefs: FieldDef[];
   /** what a won deal's closing record still lacks */
   gaps: string[];
+  fit: Fit | null;
+  items: DealItem[];
+  defaultTax: number;
+  itemPackages: PackageOpt[];
+  stageKey: string;
+  play: StagePlay;
+  ticked: string[];
+  objections: { label: string; answer: string }[];
+  owner: { name: string; company: string };
+  /** pick-lists filled at load: pipelines and team members */
+  choices: Record<string, [string, string][]>;
   meetings: { id: number; title: string; starts_at: string; link: string | null }[];
   companyFields: { group: string; fields: [string, string][] }[];
   personFields: { group: string; fields: [string, string][] }[];
@@ -207,7 +222,11 @@ export function DealView({ d }: { d: DealPageData }) {
 
           <ClosingRecord deal={deal} people={people} gaps={d.gaps} onComplete={() => setCompleting(true)} />
 
-          <DealDetails deal={deal} people={people} customDefs={d.customDefs} onEdit={openEdit} />
+          <PlaybookCard key={d.stageKey} deal={deal} stageKey={d.stageKey} play={d.play} ticked={d.ticked} objections={d.objections} owner={d.owner} />
+
+          <DealDetails deal={deal} people={people} customDefs={d.customDefs} onEdit={openEdit} choices={d.choices} />
+
+          <LineItems deal={deal} items={d.items} defaultTax={d.defaultTax} packages={d.itemPackages} />
 
           {d.moves.length ? (
             <div>
@@ -232,6 +251,8 @@ export function DealView({ d }: { d: DealPageData }) {
         </div>
 
         <div className="space-y-4">
+          {d.fit ? <FitCard fit={d.fit} deal={deal} /> : null}
+
           <Section title="Promises">
             <Promises dealId={deal.id} mine={mine} theirs={theirs} onChange={() => router.refresh()} />
           </Section>
@@ -346,7 +367,7 @@ export function DealView({ d }: { d: DealPageData }) {
       {d.company ? <EnrichmentPanel kind="company" id={d.company.id} data={d.company.enrichment} groups={d.companyFields} enrichedAt={d.company.enriched_at} title={`Company: ${d.company.name}`} /> : null}
       {d.person ? <EnrichmentPanel kind="person" id={d.person.id} data={d.person.enrichment} groups={d.personFields} enrichedAt={d.person.enriched_at} title={`Person: ${d.person.full_name}`} /> : null}
 
-      <DealEditSheet deal={deal} people={people} customDefs={d.customDefs} open={edit} onOpenChange={setEdit} focusGroup={editGroup}
+      <DealEditSheet deal={deal} people={people} customDefs={d.customDefs} open={edit} onOpenChange={setEdit} focusGroup={editGroup} choices={d.choices}
         footer={<Button variant="danger" size="sm" onClick={() => confirm("Delete this deal and its whole history?") && act(async () => {
           const r = await deleteDealAction(deal.id);
           if (r.ok) router.push("/sales/pipeline");

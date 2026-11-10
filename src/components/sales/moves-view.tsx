@@ -37,6 +37,7 @@ const KIND: Record<string, { label: string; tone: string }> = {
   checkin: { label: "Client check-in", tone: "bg-p-mint text-p-mint-fg" },
   upsell: { label: "More work", tone: "bg-p-mint text-p-mint-fg" },
   retainer: { label: "Retainer", tone: "bg-p-mint text-p-mint-fg" },
+  renewal: { label: "Renewal", tone: "bg-p-butter text-p-butter-fg" },
 };
 
 /** Copies text; when the browser refuses (some Safari setups), says so plainly instead of failing silently. */

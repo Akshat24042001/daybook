@@ -28,9 +28,11 @@ export interface FieldDef {
   /** a field you defined yourself (Sales settings > Fields) */
   custom?: boolean;
   required_to_win?: boolean;
+  /** shown text for select values (e.g. a pipeline's name for its id) */
+  optionLabels?: Record<string, string>;
 }
 
-export const FIELD_GROUPS = ["Basics", "Location", "The need", "How they decide", "Closing", "Notes", "Your fields"] as const;
+export const FIELD_GROUPS = ["Basics", "Location", "The need", "How they decide", "Recurring", "Closing", "Notes", "Your fields"] as const;
 export type FieldGroup = (typeof FIELD_GROUPS)[number];
 
 export const DEAL_TYPES: [string, string][] = [
@@ -42,6 +44,8 @@ export const SOURCES = ["outbound", "inbound", "referral", "network", "content",
 export const DEAL_FIELDS: FieldDef[] = [
   // basics
   { key: "title", label: "Deal name", group: "Basics", type: "text" },
+  { key: "pipeline_id", label: "Pipeline", group: "Basics", type: "select" },
+  { key: "owner_id", label: "Owner", group: "Basics", type: "select", hint: "Who on your team handles it (Sales settings > Team)" },
   { key: "deal_type", label: "Type", group: "Basics", type: "select", options: DEAL_TYPES.map(([k]) => k) },
   { key: "source", label: "Source", group: "Basics", type: "select", options: SOURCES },
   { key: "source_detail", label: "Source detail", group: "Basics", type: "text", hint: "Campaign, post link, event, who passed it on" },
@@ -73,6 +77,13 @@ export const DEAL_FIELDS: FieldDef[] = [
   { key: "paper_process", label: "Paperwork", group: "How they decide", type: "long_text", hint: "PO, vendor registration, legal review, NDA, contract signing" },
   { key: "competitors", label: "Competitors", group: "How they decide", type: "tags", hint: "Who else they are talking to, comma separated. Doing nothing counts." },
   { key: "risks", label: "Risks", group: "How they decide", type: "long_text", hint: "What could kill or delay it" },
+  // recurring revenue
+  { key: "recurring_amount", label: "Recurring amount", group: "Recurring", type: "money", hint: "Retainer, maintenance or subscription, per billing period" },
+  { key: "billing_cycle", label: "Billed", group: "Recurring", type: "select", options: ["monthly", "quarterly", "yearly"] },
+  { key: "contract_start", label: "Contract start", group: "Recurring", type: "date" },
+  { key: "contract_end", label: "Contract end", group: "Recurring", type: "date", hint: "A renewal reminder comes before this" },
+  { key: "renewal_notice_days", label: "Remind me before the end (days)", group: "Recurring", type: "number" },
+  { key: "auto_renew", label: "Renews on its own", group: "Recurring", type: "checkbox" },
   // closing record
   { key: "poc_id", label: "Point of contact", group: "Closing", type: "person", hint: "Who you work with day to day once it is signed" },
   { key: "start_date", label: "Start date", group: "Closing", type: "date" },
@@ -95,6 +106,19 @@ export const DEAL_FIELDS: FieldDef[] = [
 ];
 
 export const DEAL_FIELD = new Map(DEAL_FIELDS.map((f) => [f.key, f]));
+
+/**
+ * The deal fields with their choices filled in (pipelines and team members by name). A pick-list with no choices
+ * (no team yet) is left out rather than shown empty.
+ */
+export function dealFieldsWith(choices: Record<string, [string, string][]> = {}): FieldDef[] {
+  return DEAL_FIELDS.flatMap((d) => {
+    const c = choices[d.key];
+    if (c) return c.length ? [{ ...d, options: c.map(([v]) => v), optionLabels: Object.fromEntries(c) }] : [];
+    if (d.type === "select" && !d.options) return [];
+    return [d];
+  });
+}
 
 /** Fields whose changes are written to the deal's history (not the running summary, which changes on every capture). */
 export const TRACKED_FIELDS = new Set(DEAL_FIELDS.map((f) => f.key).filter((k) => !["summary"].includes(k)).concat(["currency", "custom"]));

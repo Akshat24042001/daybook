@@ -20,12 +20,12 @@ import { draftChannel, isHandle, targetInput } from "./reply-targets";
 export type MoveKind =
   | "reply" | "follow_up" | "breakup" | "reengage" | "commit_mine" | "commit_theirs" | "stale" | "quote_hot" | "quote_unseen"
   | "quote_silent" | "payment_due" | "referral_ask" | "resurrect" | "next_action" | "radar" | "debrief" | "first_touch" | "custom"
-  | "checkin" | "upsell" | "retainer";
+  | "checkin" | "upsell" | "retainer" | "renewal";
 
 const BASE: Record<MoveKind, number> = {
   quote_hot: 95, reply: 90, commit_mine: 82, payment_due: 78, debrief: 75, next_action: 70, first_touch: 62, commit_theirs: 62,
   quote_silent: 60, quote_unseen: 58, follow_up: 55, breakup: 52, reengage: 50, radar: 50, stale: 42, resurrect: 38, referral_ask: 34, custom: 60,
-  retainer: 48, upsell: 44, checkin: 40,
+  retainer: 48, upsell: 44, checkin: 40, renewal: 72,
 };
 
 export const KIND_LABEL: Record<MoveKind, string> = {
@@ -33,7 +33,7 @@ export const KIND_LABEL: Record<MoveKind, string> = {
   commit_theirs: "Their promise", stale: "Stuck", quote_hot: "Hot: quote being read", quote_unseen: "Quote not opened",
   quote_silent: "Quote read, no reply", payment_due: "Payment", referral_ask: "Ask for referral", resurrect: "Revisit",
   next_action: "Next step", radar: "New lead", debrief: "Debrief", first_touch: "First touch", custom: "To do",
-  checkin: "Client check-in", upsell: "More work", retainer: "Retainer",
+  checkin: "Client check-in", upsell: "More work", retainer: "Retainer", renewal: "Renewal",
 };
 
 interface Desired {
@@ -160,6 +160,22 @@ async function desiredForDeal(cfg: SalesConfig, d: DealCard, now: number, extra:
   if ((role === "nurture" || role === "ghosted" || role === "hold" || (d.stage_category === "lost" && d.revisit_on)) && d.revisit_on) {
     const at = t(`${String(d.revisit_on).slice(0, 10)}T04:00:00Z`);
     if (at - now < 2 * D) out.push({ ...base, kind: "resurrect", title: `Revisit ${name}`, why: `${d.stage_name}${d.lost_reason ? ` (${d.lost_reason})` : ""}. The date you set has come. Open with something new.`, channel, due_at: new Date(at), key: `res:${d.id}:${String(d.revisit_on).slice(0, 10)}` });
+  }
+
+  // 7b. a contract that ends: talk renewal before it does (won deals with an end date)
+  if (d.stage_category === "won" && d.contract_end) {
+    const ce = d.contract_end as unknown;
+    const endDay = ce instanceof Date ? ce.toISOString().slice(0, 10) : String(ce).slice(0, 10);
+    const end = t(`${endDay}T04:00:00Z`);
+    const notice = Number(d.renewal_notice_days ?? 30);
+    if (now >= end - notice * D && now < end + 30 * D) {
+      const left = Math.round((end - now) / D);
+      out.push({
+        ...base, kind: "renewal", title: `Renewal: ${name}${left >= 0 ? `, contract ends in ${left} day${left === 1 ? "" : "s"}` : `, contract ended ${-left} day${left === -1 ? "" : "s"} ago`}`,
+        why: d.auto_renew ? "It renews on its own: confirm they are happy, and send the invoice on time." : "Agree the renewal (and any price change or more scope) before it lapses.",
+        channel, due_at: new Date(end - notice * D), key: `renew:${d.id}:${endDay}`,
+      });
+    }
   }
 
   // 8. referral ask three weeks after delivery or full payment
@@ -407,6 +423,7 @@ const PURPOSE: Partial<Record<MoveKind, string>> = {
   stale: "Move a stuck deal forward with one clear question.",
   checkin: "Check in with a client after delivery: ask how it is working and what changed for them. One specific question about results. If something is not working, offer to fix it. No pitch.",
   upsell: "Suggest one more thing you can do for an existing happy client, tied to what they already have and a problem they likely have now. Short, specific, easy yes or no. Name the offer in plain words.",
+  renewal: "A client's contract is ending: confirm what they got from it (one specific result), propose the renewal (and any change in scope or price) plainly, and ask for a yes or a call this week.",
   retainer: "Offer a monthly retainer after delivery: support, small improvements and a monthly check that everything runs. Frame it around keeping what you built working and improving. Ask if they want the details.",
 };
 

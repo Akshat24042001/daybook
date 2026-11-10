@@ -67,6 +67,45 @@ columns, the closing checklists and the history all read that list. Why the qual
   qualification) apply to the board and the list. Search also matches city, industry and tags.
 - **New lead** asks for city, state, industry, type, services and expected close too.
 
+## Fit, items, recurring revenue, pipelines, playbooks, reports, bulk, team
+
+- **Fit** (`lib/sales/fit-calc.ts`, deal page and pipeline): 0 to 100, graded A (75+), B (55+), C (35+), D. Seven
+  parts, each listed with the reason it gave or lost points: industry 25 (one of yours, plus up to 10 for your own
+  results there from the radar plan), location 15 (India, your home market from your time zone, or a target country),
+  need 20 (what they asked for or what research found matches an offer), size 10 (10 to 1,000 staff is the sweet spot),
+  money 10, decision maker 10, source 10 (repeat and referral highest, cold outreach lowest). Grade on every pipeline
+  card, a Fit column, and a Fit filter.
+- **Service hints**: which of your offers they would likely buy, strongest first, each with why. Only from the record:
+  services they asked about, words in what they said or research found ("missed calls", "Excel", "CCTV"), and their
+  industry's usual needs (clinics lose bookings on the phone; factories need safety and quality checks...). They point
+  at your own catalogue (name first, then keywords, then description), say when the client already bought it, and Add
+  puts it on the deal's services.
+- **Items** (deal page): name, quantity, price, discount %, GST % (default 18%, Sales settings > Currency), and one-time,
+  monthly, quarterly or yearly. Totals split one-time and per month; "Use these totals" sets the deal value and the
+  recurring amount (both recorded in the history). A package's lines can be added in one go.
+- **Recurring** (Edit details > Recurring): amount, billing, contract start and end, days of notice, renews on its own.
+  A Renewal move appears that many days before a won deal's contract ends. Insights > Recurring revenue shows the monthly
+  total across currencies and cycles, the yearly figure, and renewals in the next 60 days.
+- **Pipelines** (Sales settings > Pipelines): named lanes of deals, each showing the stages you tick (none = all), as
+  tabs on the Pipeline page. Stages and automation are shared. A pipeline also shows any stage one of its deals is in,
+  so a deal never disappears; turning a pipeline off moves its deals to the first one; one always stays on. New leads
+  start in the pipeline you are looking at.
+- **Stage playbooks** (deal page, Sales settings > Stage playbooks): questions to ask and a checklist for each stage,
+  ticked per deal. Discovery's 12 questions cover the qualification fields. **Call script** puts together an opening
+  that agrees the purpose of the call, the stage's questions, your saved objection answers (this deal's first), and a
+  close on a next step.
+- **Reports** (Insights): Stage by stage (of deals that entered each stage in the period: forward, won, back, lost,
+  parked, still there, pass rate, median and average days) and Recurring revenue.
+- **Bulk** (Pipeline > List): tick deals, then change pipeline, owner, source, type, city, state, country, industry,
+  expected close, add tags, move to an open stage, or delete. Moves that need details (won, lost, parked, reopened)
+  are refused in bulk and done on the deal. Failures are listed by deal.
+- **CSV**: Export CSV downloads every deal with every field and your own fields (signed in only; cells that would run as
+  a spreadsheet formula are kept as text). Import CSV matches your columns to fields automatically (editable), shows the
+  first rows, imports into the current pipeline, and lists skipped rows with their row number and reason. Imported
+  stages must be open stages: close deals on the deal so the record is captured.
+- **Team** (Sales settings > Team): people you work with; a deal can have an owner (recorded in the history), with an
+  Owner column and filter. There is still one login: team members do not sign in.
+
 ## The state machine
 
 Stages and allowed moves live in the database and are editable in **Sales, Settings**. Automation only targets stages by

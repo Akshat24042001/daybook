@@ -4,6 +4,7 @@ import { money } from "@/components/sales/format";
 import { cn } from "@/lib/cn";
 import { forecast, speed, winLoss, type Forecast, type SegmentRow } from "@/lib/sales/insights";
 import { messagePerformance } from "@/lib/sales/learning";
+import { recurringSummary, stageReport } from "@/lib/sales/stage-report";
 import type { Bucket } from "@/lib/sales/learning-calc";
 
 export const metadata: Metadata = { title: "Sales insights" };
@@ -183,7 +184,7 @@ const PERIODS = [30, 90, 180];
 export default async function InsightsPage({ searchParams }: { searchParams: Promise<{ days?: string }> }) {
   const raw = Number((await searchParams).days);
   const days = PERIODS.includes(raw) ? raw : 90;
-  const [f, wl, mp, sp] = await Promise.all([forecast(), winLoss(days), messagePerformance(days), speed(days)]);
+  const [f, wl, mp, sp, stages, rec] = await Promise.all([forecast(), winLoss(days), messagePerformance(days), speed(days), stageReport(days), recurringSummary()]);
   const findings = [...wl.findings, ...mp.findings, ...sp.findings];
   const top = wl.funnel[0]?.n || 0;
 
@@ -205,7 +206,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
       </div>
 
       <nav className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-subtle" aria-label="Sections">
-        {[["target", "Target"], ["findings", "What the data says"], ["funnel", "Funnel"], ["segments", "Win rate"], ["reasons", "Why"], ["quotes", "Quotes"], ["messages", "Messages"], ["speed", "Speed"]].map(([id, l]) => (
+        {[["target", "Target"], ["findings", "What the data says"], ["funnel", "Funnel"], ["segments", "Win rate"], ["stages", "Stages"], ["recurring", "Recurring"], ["reasons", "Why"], ["quotes", "Quotes"], ["messages", "Messages"], ["speed", "Speed"]].map(([id, l]) => (
           <a key={id} href={`#${id}`} className="hover:text-fg">{l}</a>
         ))}
       </nav>
@@ -241,6 +242,47 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
           <SegmentTable title="By source" rows={wl.by_source} cur={wl.currency} />
           <SegmentTable title="By deal size" rows={wl.by_size} cur={wl.currency} />
         </div>
+      </Section>
+
+      <Section id="stages" title="Stage by stage" hint={`Deals that entered each stage in the last ${days} days: where they went next and how long they stayed. Pass rate = moved forward or won, out of those that left.`}>
+        {stages.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-[13px]">
+              <thead className="text-left text-xs text-subtle">
+                <tr><th className="py-1 font-medium">Stage</th><th className="py-1 text-right font-medium">Entered</th><th className="py-1 text-right font-medium">Forward</th><th className="py-1 text-right font-medium">Won</th><th className="py-1 text-right font-medium">Back</th><th className="py-1 text-right font-medium">Lost</th><th className="py-1 text-right font-medium">Parked</th><th className="py-1 text-right font-medium">Still there</th><th className="py-1 pl-3 font-medium">Pass rate</th><th className="py-1 text-right font-medium">Days (median / avg)</th></tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {stages.map((s) => (
+                  <tr key={s.stage_id}>
+                    <td className="py-1.5 pr-2">{s.name}</td>
+                    <td className="tabular py-1.5 text-right">{s.entered}</td>
+                    <td className="tabular py-1.5 text-right">{s.forward}</td>
+                    <td className="tabular py-1.5 text-right">{s.won}</td>
+                    <td className="tabular py-1.5 text-right">{s.back}</td>
+                    <td className="tabular py-1.5 text-right">{s.lost}</td>
+                    <td className="tabular py-1.5 text-right">{s.parked}</td>
+                    <td className="tabular py-1.5 text-right">{s.still}</td>
+                    <td className="py-1.5 pl-3"><RateBar value={s.pass_rate} thin={s.entered - s.still < 5} /></td>
+                    <td className="tabular py-1.5 text-right">{s.median_days ?? "–"} / {s.avg_days ?? "–"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="text-sm text-subtle">No stage moves in this period.</p>}
+      </Section>
+
+      <Section id="recurring" title="Recurring revenue" hint="Retainers and subscriptions on won deals, per month in your report currency, and contracts ending in the next 60 days.">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Stat label="Per month" value={money(rec.mrr, rec.currency)} sub={`${rec.clients} client${rec.clients === 1 ? "" : "s"}`} />
+          <Stat label="Per year" value={money(rec.mrr * 12, rec.currency)} sub="at today's rate" />
+          <Stat label="Renewals in 60 days" value={rec.renewals.length} sub={rec.renewals.length ? "talk before they lapse" : "none due"} />
+        </div>
+        {rec.renewals.length ? (
+          <ul className="mt-3 space-y-1 text-[13px]">
+            {rec.renewals.map((r) => <li key={r.id} className="flex justify-between gap-3"><Link href={`/sales/deal/${r.id}`} className="truncate hover:underline">{r.title}</Link><span className="shrink-0 text-subtle">ends {r.contract_end}{r.auto_renew ? " (renews itself)" : ""} · {money(r.amount, rec.currency)}/mo</span></li>)}
+          </ul>
+        ) : null}
       </Section>
 
       <Section id="reasons" title="Why you win and lose" hint={`Deals closed in the last ${days} days, by the reason picked when closing. Edit the lists in Sales settings > Reasons.`}>

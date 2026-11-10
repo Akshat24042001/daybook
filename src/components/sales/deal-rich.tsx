@@ -9,7 +9,7 @@ import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import type { DealCard, InteractionRow } from "@/lib/sales/deals";
 import {
-  ACTIVITY_TYPES, closeKind, DEAL_FIELD, DEAL_FIELDS, DEAL_TYPES, FIELD_GROUPS, OUTCOMES, qualification, SOURCES,
+  ACTIVITY_TYPES, closeKind, DEAL_FIELD, dealFieldsWith, DEAL_TYPES, FIELD_GROUPS, OUTCOMES, qualification, SOURCES,
   type FieldDef, type Reasons,
 } from "@/lib/sales/fields";
 import type { Stage } from "@/lib/sales/stages";
@@ -225,7 +225,7 @@ export function FieldInput({ def, value, onChange, people = [] }: { def: FieldDe
       input = (
         <Select value={s} onChange={(e) => onChange(e.target.value)} {...common}>
           <option value="">—</option>
-          {(def.options ?? []).map((o) => <option key={o} value={o}>{def.key === "deal_type" ? DEAL_TYPES.find(([k]) => k === o)?.[1] ?? o : o}</option>)}
+          {(def.options ?? []).map((o) => <option key={o} value={o}>{def.optionLabels?.[o] ?? (def.key === "deal_type" ? DEAL_TYPES.find(([k]) => k === o)?.[1] ?? o : o)}</option>)}
         </Select>
       );
       break;
@@ -267,11 +267,13 @@ function shown(def: FieldDef, deal: DealCard, people: PersonOpt[]): string {
   if (def.type === "datetime") return fmtWhen(String(v));
   if (def.type === "checkbox") return v ? "Yes" : "No";
   if (def.key === "deal_type") return DEAL_TYPES.find(([k]) => k === v)?.[1] ?? String(v);
+  if (def.optionLabels) return def.optionLabels[String(v)] ?? String(v);
   if (def.key === "probability") return `${v}%`;
   return Array.isArray(v) ? v.join(", ") : String(v);
 }
 
-export function DealDetails({ deal, people, customDefs, onEdit }: { deal: DealCard; people: PersonOpt[]; customDefs: FieldDef[]; onEdit: (group?: string) => void }) {
+export function DealDetails({ deal, people, customDefs, onEdit, choices }: { deal: DealCard; people: PersonOpt[]; customDefs: FieldDef[]; onEdit: (group?: string) => void; choices?: Record<string, [string, string][]> }) {
+  const DEAL_FIELDS = dealFieldsWith(choices);
   const [open, setOpen] = useState(false);
   const qual = qualification(deal as unknown as Record<string, unknown>);
   const skip = new Set(["title", "summary", "next_action", "next_action_at", "value_amount"]);
@@ -327,19 +329,21 @@ export function DealDetails({ deal, people, customDefs, onEdit }: { deal: DealCa
 
 // ---------------------------------------------------------------- edit every field
 
-export function DealEditSheet({ deal, people, customDefs, open, onOpenChange, focusGroup, footer }: {
+export function DealEditSheet({ deal, people, customDefs, open, onOpenChange, focusGroup, footer, choices }: {
   deal: DealCard; people: PersonOpt[]; customDefs: FieldDef[]; open: boolean; onOpenChange: (o: boolean) => void; focusGroup?: string; footer?: React.ReactNode;
+  choices?: Record<string, [string, string][]>;
 }) {
+  const DEAL_FIELDS = useMemo(() => dealFieldsWith(choices), [choices]);
   const initial = useMemo(() => {
     const o: Record<string, unknown> = {};
     for (const f of DEAL_FIELDS) {
       const v = (deal as unknown as Record<string, unknown>)[f.key];
-      o[f.key] = v === null || v === undefined ? "" : Array.isArray(v) ? v.join(", ") : f.type === "date" ? String(v).slice(0, 10) : v;
+      o[f.key] = v === null || v === undefined ? "" : Array.isArray(v) ? v.join(", ") : f.type === "date" ? String(v).slice(0, 10) : f.type === "select" ? String(v) : v;
     }
     o.currency = deal.currency;
     for (const c of customDefs) o[c.key] = (deal.custom ?? {})[c.key.replace(/^custom\./, "")] ?? "";
     return o;
-  }, [deal, customDefs]);
+  }, [deal, customDefs, DEAL_FIELDS]);
   const [f, setF] = useState(initial);
   const [tab, setTab] = useState<string>(focusGroup ?? "Basics");
   const [lastOpen, setLastOpen] = useState(false);

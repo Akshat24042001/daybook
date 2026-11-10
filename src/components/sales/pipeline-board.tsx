@@ -13,6 +13,7 @@ import { Button, Field, Input, Select, Sheet, Textarea } from "@/components/ui";
 import { StageMoveSheet, type PendingMove } from "./deal-rich";
 import { DEFAULT_REASONS, needsDetails, type FieldDef, type Reasons } from "@/lib/sales/fields";
 import { applyFilters, DealTable, FilterBar, NO_FILTERS, type Filters } from "./pipeline-table";
+import { ImportExport } from "./pipeline-io";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import type { DealCard } from "@/lib/sales/deals";
@@ -44,7 +45,10 @@ function CardBody({ d, s }: { d: DealCard; s: Stage | undefined }) {
     <>
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-semibold leading-snug">{d.title}</p>
-        <Priority value={d.priority} prev={d.priority_prev} why={d.priority_why} compact />
+        <span className="flex shrink-0 items-center gap-1">
+          {d.fit ? <span title={`Fit ${d.fit.score}/100`} className={cn("rounded px-1 text-[11px] font-semibold", d.fit.grade === "A" ? "bg-p-mint text-p-mint-fg" : d.fit.grade === "B" ? "bg-p-sky text-p-sky-fg" : d.fit.grade === "C" ? "bg-p-butter text-p-butter-fg" : "bg-muted text-subtle")}>{d.fit.grade}</span> : null}
+          <Priority value={d.priority} prev={d.priority_prev} why={d.priority_why} compact />
+        </span>
       </div>
       {d.person_name ? <p className="truncate text-xs text-subtle">{d.person_name}{d.company_name && d.company_name !== d.title ? ` · ${d.company_name}` : ""}</p> : null}
       <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-subtle">
@@ -106,12 +110,16 @@ function Column({ s, count, total, cur, state, children }: { s: Stage; count: nu
 }
 
 /** report: column totals are added up in USD and shown in your report currency (rate = 1 unit in USD). */
-export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR", rate: 0.012 }, reasons = DEFAULT_REASONS, customDefs = [] }: { stages: Stage[]; deals: DealCard[]; transitions: Transition[]; report?: { cur: string; rate: number }; reasons?: Reasons; customDefs?: FieldDef[] }) {
+export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR", rate: 0.012 }, reasons = DEFAULT_REASONS, customDefs = [], team = [], pipelines = [], pipelineId = null }: {
+  stages: Stage[]; deals: DealCard[]; transitions: Transition[]; report?: { cur: string; rate: number }; reasons?: Reasons; customDefs?: FieldDef[];
+  team?: { id: number; name: string }[]; pipelines?: { id: number; name: string }[]; pipelineId?: number | null;
+}) {
   const wonFields = customDefs.filter((c) => c.required_to_win);
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [items, setItems] = useState(deals);
   const [query, setQuery] = useState("");
-  const [show, setShow] = useState<"open" | "won" | "parked" | "lost" | "all">("open");
+  // a pipeline with no open stages (say, Retainers: won and live only) starts on All, not on an empty Open view
+  const [show, setShow] = useState<"open" | "won" | "parked" | "lost" | "all">(stages.some((s) => s.category === "open") ? "open" : "all");
   const [view, setView] = useState<"board" | "ranked">("board");
   const [sort, setSort] = useState<SortKey>("priority");
   const [pending, setPending] = useState<PendingMove | null>(null);
@@ -191,7 +199,9 @@ export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR
           ))}
         </div>
         <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search deals, people, companies, city, tag" className="h-9 max-w-xs text-sm" />
-        <FilterBar deals={items} f={filters} onChange={setFilters} />
+        <FilterBar deals={items} f={filters} onChange={setFilters} team={team} />
+        <span className="flex-1" />
+        <ImportExport pipelineId={pipelineId} />
         {view === "board" ? (
           <Select value={sort} onChange={(e) => { setSort(e.target.value as SortKey); remember("sales-pipeline-sort", e.target.value); }} aria-label="Sort cards" className="h-9 w-44 text-xs">
             {SORTS.map(([k, l]) => <option key={k} value={k}>Sort: {l}</option>)}
@@ -206,7 +216,7 @@ export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR
       </div>
 
       {view === "ranked" ? (
-        <DealTable deals={filtered.filter((d) => cols.some((c) => c.id === d.stage_id))} stages={stages} customDefs={customDefs} />
+        <DealTable deals={filtered.filter((d) => cols.some((c) => c.id === d.stage_id))} stages={stages} customDefs={customDefs} team={team} pipelines={pipelines} transitions={transitions} />
       ) : (
         <>
           <p className="hidden text-xs text-subtle md:block">Drag a card by its handle. While you drag, the stages it can move to light up; the rest fade.</p>

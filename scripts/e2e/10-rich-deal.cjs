@@ -5,6 +5,7 @@ const { setup, check, choose } = require("./lib.cjs");
   console.log("Deal page: every field, history, activity log, closing checklists; pipeline columns and filters; your own fields");
   const st = async (role) => (await one("select id from sales_stages where role = $1", [role])).id;
   await db.query("delete from sales_custom_fields");
+  await db.query("delete from sales_deals where title = 'E2E rich deal'");
   const deal = (await one("insert into sales_deals (title, stage_id, value_amount, currency, value_usd) values ('E2E rich deal', $1, 200000, 'INR', 2400) returning id", [await st("negotiation")])).id;
   const person = (await one("insert into sales_people (full_name) values ('E2E Meera Iyer') returning id")).id;
   await db.query("insert into sales_deal_people (deal_id, person_id, role) values ($1,$2,'contact')", [deal, person]);
@@ -34,7 +35,7 @@ const { setup, check, choose } = require("./lib.cjs");
   await page.getByLabel("Problem today").fill("Front desk misses 30 calls a day");
   await page.getByLabel("Budget", { exact: true }).fill("2 to 3 lakh");
   await page.getByRole("tab", { name: "How they decide" }).click();
-  await choose(page, page.getByLabel("Who signs"), /E2E Meera Iyer/);
+  await choose(page, page.getByRole("dialog").getByLabel("Who signs", { exact: true }), /E2E Meera Iyer/);
   await page.getByLabel("Competitors").fill("Zoho, in-house");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.waitForTimeout(1800);
@@ -82,7 +83,7 @@ const { setup, check, choose } = require("./lib.cjs");
   await page.waitForTimeout(1800);
   const lost = await one("select s.role, d.lost_reason, d.lost_to, d.lost_detail, d.lessons from sales_deals d join sales_stages s on s.id = d.stage_id where d.id = $1", [deal]);
   check("lost with reason, competitor, detail, lesson", lost.role === "lost" && lost.lost_reason === "Chose a competitor" && lost.lost_to === "Acme Digital" && lost.lessons.startsWith("Lead"), lost);
-  check("closing record shows why it was lost", /Why it was lost[\s\S]*Chose a competitor[\s\S]*Acme Digital/.test(await page.getByLabel("Closing record").innerText()));
+  check("closing record shows why it was lost", /Why it was lost[\s\S]*Chose a competitor[\s\S]*Acme Digital/.test(await page.getByLabel("Closing record", { exact: true }).innerText()));
   const reopenTo = (await all("select s.name from sales_transitions t join sales_stages s on s.id = t.to_stage where t.from_stage = $1 and s.category = 'open' order by s.sort", [await st("lost")]))[0];
   if (reopenTo) {
     await page.getByRole("button", { name: new RegExp(`^${reopenTo.name}`) }).click();
@@ -115,7 +116,7 @@ const { setup, check, choose } = require("./lib.cjs");
   check("won with the full record", w.category === "won" && w.poc_id === person && w.v === 240000 && w.delivery_duration === "6 weeks" && w.won_reason.startsWith("Proof") && w.custom.signed_by === "Director", w);
   const pays = await all("select label, amount::float as a from sales_payments where deal_id = $1 order by id", [deal]);
   check("advance and balance planned", pays.length === 2 && pays[0].a === 120000 && pays[1].a === 120000, pays);
-  const rec = await page.getByLabel("Closing record").innerText();
+  const rec = await page.getByLabel("Closing record", { exact: true }).innerText();
   check("closing record shows contact, amount and scope", /E2E Meera Iyer/.test(rec) && /₹2,40,000/.test(rec) && /WhatsApp booking bot/.test(rec));
 
   // ---- the journey

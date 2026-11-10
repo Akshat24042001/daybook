@@ -88,6 +88,16 @@ export interface DealRow {
   lost_to?: string | null;
   lessons?: string | null;
   custom?: Record<string, unknown>;
+  // migration 040
+  pipeline_id?: number | null;
+  owner_id?: number | null;
+  recurring_amount?: number | null;
+  billing_cycle?: string | null;
+  contract_start?: string | null;
+  contract_end?: string | null;
+  renewal_notice_days?: number | null;
+  auto_renew?: boolean;
+  checklist?: Record<string, string[]>;
 }
 
 export interface DealCard extends DealRow {
@@ -103,6 +113,8 @@ export interface DealCard extends DealRow {
   referrer_name: string | null;
   intermediary_name: string | null;
   open_moves: number;
+  /** how well the lead fits your business (set by the pipeline page) */
+  fit?: { score: number; grade: string } | null;
   last_channel: string | null;
 }
 
@@ -144,6 +156,7 @@ export interface NewDeal {
   intermediary_type?: string | null;
   radar_item_id?: number | null;
   requirements?: string | null;
+  pipeline_id?: number | null;
 }
 
 export async function createDeal(d: NewDeal): Promise<number> {
@@ -161,11 +174,12 @@ export async function createDeal(d: NewDeal): Promise<number> {
   const currency = (d.currency ?? cfg.default_currency).toUpperCase();
   const row = await one<{ id: number }>(
     `insert into sales_deals (title, company_id, person_id, stage_id, source, source_detail, value_amount, currency, value_usd,
-       services, country, referrer_id, intermediary_id, intermediary_type, radar_item_id, requirements)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) returning id`,
+       services, country, referrer_id, intermediary_id, intermediary_type, radar_item_id, requirements, pipeline_id)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
+             coalesce($17::int, (select id from sales_pipelines where active order by sort, id limit 1))) returning id`,
     [title, d.company_id ?? null, d.person_id ?? null, stage.id, d.source ?? "outbound", d.source_detail ?? null, d.value_amount ?? null,
       currency, toUsd(cfg, d.value_amount, currency), d.services ?? [], d.country ?? null, d.referrer_id ?? null, d.intermediary_id ?? null,
-      d.intermediary_type ?? null, d.radar_item_id ?? null, d.requirements ?? null],
+      d.intermediary_type ?? null, d.radar_item_id ?? null, d.requirements ?? null, d.pipeline_id ?? null],
   );
   const id = row!.id;
   await q("insert into sales_deal_events (deal_id, kind, to_stage, cause, detail) values ($1,'created',$2,'manual',$3)", [id, stage.id, d.source ?? null]);
@@ -184,12 +198,15 @@ const EDITABLE = new Set([
   "economic_buyer_id", "champion_id", "decision_criteria", "decision_process", "paper_process", "competitors", "risks", "poc_id", "start_date",
   "delivery_date", "delivery_duration", "scope", "payment_terms", "contract_ref", "won_reason", "won_detail", "lost_reason", "lost_detail",
   "lost_to", "lessons",
+  // migration 040
+  "recurring_amount", "billing_cycle", "contract_start", "contract_end", "renewal_notice_days", "auto_renew", "pipeline_id", "owner_id",
 ]);
 const ARRAYS = new Set(["services", "objections", "tags", "competitors"]);
 const PEOPLE = new Set(["person_id", "referrer_id", "intermediary_id", "economic_buyer_id", "champion_id", "poc_id"]);
-const NUMBERS = new Set(["value_amount", "probability", "commission_value"]);
-const DATES = new Set(["expected_close", "revisit_on", "start_date", "delivery_date"]);
-const BOOLS = new Set(["talk_via_intermediary", "sequence_paused"]);
+const NUMBERS = new Set(["value_amount", "probability", "commission_value", "recurring_amount", "renewal_notice_days"]);
+const DATES = new Set(["expected_close", "revisit_on", "start_date", "delivery_date", "contract_start", "contract_end"]);
+const BOOLS = new Set(["talk_via_intermediary", "sequence_paused", "auto_renew"]);
+const REFS = new Set(["pipeline_id", "owner_id"]);
 
 export type EventCause = "manual" | "auto" | "ai" | "telegram" | "client";
 
@@ -215,6 +232,12 @@ function clean(k: string, v: unknown): unknown {
     return s;
   }
   if (k === "deal_type" && !DEAL_TYPES.some(([t]) => t === v)) throw new UserError("Pick a deal type from the list.");
+  if (k === "billing_cycle" && !["monthly", "quarterly", "yearly"].includes(String(v))) throw new UserError("Billing is monthly, quarterly or yearly.");
+  if (REFS.has(k)) {
+    const n = Math.trunc(Number(v));
+    if (!Number.isFinite(n)) throw new UserError(`Pick a ${k === "owner_id" ? "person" : "pipeline"} from the list.`);
+    return n;
+  }
   if (k === "title" && !String(v).trim()) throw new UserError("A deal needs a name.");
   return typeof v === "string" ? v.trim().slice(0, 20_000) : v;
 }
@@ -222,8 +245,9 @@ function clean(k: string, v: unknown): unknown {
 /** A value as you would read it in the history: amounts with their currency, people by name, lists joined. */
 function said(k: string, v: unknown, cur: string, names: Map<number, string>): string {
   if (v === null || v === undefined || v === "" || (Array.isArray(v) && !v.length)) return "";
-  if (k === "value_amount" || k === "commission_value") return money(Number(v), cur);
+  if (k === "value_amount" || k === "commission_value" || k === "recurring_amount") return money(Number(v), cur);
   if (PEOPLE.has(k)) return names.get(Number(v)) ?? `#${v}`;
+  if (REFS.has(k)) return names.get(-Number(v) - (k === "owner_id" ? 1_000_000 : 0)) ?? `#${v}`;
   if (k === "deal_type") return DEAL_TYPES.find(([t]) => t === v)?.[1] ?? String(v);
   if (k === "probability") return `${v}%`;
   if (v instanceof Date) return DATES.has(k) ? v.toISOString().slice(0, 10) : v.toISOString();
@@ -238,6 +262,8 @@ function said(k: string, v: unknown, cur: string, names: Map<number, string>): s
 export async function updateDeal(id: number, patch: Record<string, unknown>, o: { cause?: EventCause } = {}): Promise<void> {
   const old = await one<Record<string, unknown>>("select * from sales_deals where id = $1", [id]);
   if (!old) throw new UserError("That deal no longer exists.");
+  if (patch.pipeline_id && !(await one("select 1 from sales_pipelines where id = $1", [Number(patch.pipeline_id)]))) throw new UserError("That pipeline no longer exists.");
+  if (patch.owner_id && !(await one("select 1 from sales_team where id = $1", [Number(patch.owner_id)]))) throw new UserError("That team member no longer exists.");
   const sets: string[] = [];
   const params: unknown[] = [id];
   const changes: { k: string; from: unknown; to: unknown }[] = [];
@@ -268,6 +294,14 @@ export async function updateDeal(id: number, patch: Record<string, unknown>, o: 
   if (changes.length) {
     const ids = changes.flatMap((c) => (PEOPLE.has(c.k) ? [c.from, c.to] : [])).filter((x) => x != null).map(Number);
     const names = new Map((ids.length ? await q<{ id: number; full_name: string }>("select id, full_name from sales_people where id = any($1::int[])", [ids]) : []).map((r) => [r.id, r.full_name]));
+    // pipelines and owners by name too (negative keys keep them apart from people)
+    for (const c of changes.filter((x) => REFS.has(x.k))) {
+      const table = c.k === "owner_id" ? "sales_team" : "sales_pipelines";
+      for (const v of [c.from, c.to].filter((x) => x != null)) {
+        const r = await one<{ name: string }>(`select name from ${table} where id = $1`, [Number(v)]);
+        if (r) names.set(-Number(v) - (c.k === "owner_id" ? 1_000_000 : 0), r.name);
+      }
+    }
     const curOld = String(old.currency ?? "INR");
     const curNew = String((patch.currency as string | undefined) ?? curOld);
     for (const c of changes) {

@@ -10,7 +10,7 @@ import { CURRENCIES, currencyLabel, currencySymbol } from "./format";
 import { DEAL_TYPES } from "@/lib/sales/fields";
 
 /** defaultCurrency: Sales settings > Default currency (INR unless you changed it). */
-export function NewDealButton({ defaultCurrency = "INR" }: { defaultCurrency?: string }) {
+export function NewDealButton({ defaultCurrency = "INR", pipelineId = null }: { defaultCurrency?: string; pipelineId?: number | null }) {
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ person_name: "", company_name: "", email: "", phone: "", linkedin: "", source: "outbound", referrer_name: "", value_amount: "", currency: defaultCurrency, notes: "", stage_role: "new", city: "", region: "", industry: "", deal_type: "new", expected_close: "", services: "" });
   const [pending, start] = useTransition();
@@ -20,7 +20,7 @@ export function NewDealButton({ defaultCurrency = "INR" }: { defaultCurrency?: s
 
   const save = () =>
     start(async () => {
-      const r = await createDealAction({ ...f, value_amount: f.value_amount ? Number(f.value_amount) : null });
+      const r = await createDealAction({ ...f, value_amount: f.value_amount ? Number(f.value_amount) : null, pipeline_id: pipelineId });
       if (!r.ok) return toast(r.error, "error");
       setOpen(false);
       router.push(`/sales/deal/${r.id}`);

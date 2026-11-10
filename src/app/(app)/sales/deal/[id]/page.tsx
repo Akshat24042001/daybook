@@ -16,6 +16,10 @@ import { dealQuickLinks } from "@/lib/sales/quick-links";
 import { salesConfig } from "@/lib/sales/config";
 import { closingGaps } from "@/lib/sales/closing";
 import { asFieldDefs, listCustomFields } from "@/lib/sales/custom-fields";
+import { fitForDeals } from "@/lib/sales/fit";
+import { listItems } from "@/lib/sales/items";
+import { listPipelines, listTeam } from "@/lib/sales/org";
+import { playFor } from "@/lib/sales/playbook-stages";
 
 export const metadata: Metadata = { title: "Deal" };
 export const dynamic = "force-dynamic";
@@ -51,6 +55,18 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
     offerId: p.offer.id, index: p.index, offer: p.offer.name, name: p.pkg.name, currency: p.pkg.currency, total: packageTotal(p.pkg), items: p.pkg.items.length, timeline: p.pkg.timeline, fits: p.fits,
   }));
   const links = await dealQuickLinks(id);
+  const [pipelines, team] = await Promise.all([listPipelines(), listTeam()]);
+  const stageRow = await one<{ key: string }>("select key from sales_stages where id = $1", [deal.stage_id]);
+  const stageKey = deal.stage_role ?? stageRow?.key ?? String(deal.stage_id);
+  // your objection answers: the ones this deal raised first, then your most common
+  const objections = await q<{ label: string; answer: string }>(
+    `select o.label, o.answer from sales_objections o
+     where o.answer is not null and length(trim(o.answer)) > 0
+     order by exists (select 1 from sales_deal_objections x where x.objection_id = o.id and x.deal_id = $1) desc,
+              (select count(*) from sales_deal_objections x where x.objection_id = o.id) desc
+     limit 4`,
+    [id],
+  ).catch(() => []);
   const meetings = await q<DealPageData["meetings"][number]>("select id, title, starts_at, link from sales_meetings where deal_id = $1 and not cancelled order by starts_at desc limit 10", [id]);
   return (
     <DealView
@@ -58,6 +74,14 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         deal, targets, timeline: tl, touches, commitments: commits, payments: pays, docs, moves, people, company, person, events, meetings,
         companyFields: COMPANY_FIELDS, personFields: PERSON_FIELDS, googleReady: google, voiceEnabled: voiceConfigured(), baseUrl: baseUrl(), blocked, packages, links,
         reasons: cfg.reasons, customDefs: asFieldDefs(customDefs), gaps, companyDefs: asFieldDefs(companyDefs), personDefs: asFieldDefs(personDefs),
+        fit: (await fitForDeals([id])).get(id) ?? null, items: await listItems(id), defaultTax: cfg.default_tax_pct,
+        itemPackages: packages.map((p) => ({ offerId: p.offerId, index: p.index, label: `${p.offer} · ${p.name}` })),
+        stageKey, play: playFor({ role: deal.stage_role, key: stageRow?.key }, cfg.playbook), ticked: (deal.checklist ?? {})[stageKey] ?? [],
+        objections, owner: { name: cfg.owner.name, company: cfg.owner.company },
+        choices: {
+          pipeline_id: pipelines.map((p) => [String(p.id), p.name] as [string, string]),
+          owner_id: team.map((t) => [String(t.id), t.name] as [string, string]),
+        },
       }}
     />
   );

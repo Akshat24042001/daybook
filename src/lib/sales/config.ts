@@ -84,6 +84,10 @@ export interface SalesConfig {
   report_currency: string;
   /** the choices offered when a deal is lost, disqualified, won, parked or reopened (Sales settings > Reasons) */
   reasons: Reasons;
+  /** GST / tax % new line items start with */
+  default_tax_pct: number;
+  /** your edits to the stage playbooks (questions and checklists), by stage role or key; missing ones use the defaults */
+  playbook: Record<string, { questions: string[]; checklist: string[] }>;
   /** what to do with email threads from unknown senders: ask in the digest, create a lead, or ignore */
   unknown_email: "ask" | "auto" | "off";
 }
@@ -145,6 +149,8 @@ export const DEFAULT_CONFIG: SalesConfig = {
   default_currency: "INR",
   report_currency: "INR",
   reasons: DEFAULT_REASONS,
+  default_tax_pct: 18,
+  playbook: {},
   unknown_email: "ask",
 };
 

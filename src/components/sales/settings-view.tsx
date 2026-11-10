@@ -14,6 +14,8 @@ import { CURRENCIES, currencyLabel, currencySymbol, money } from "./format";
 import type { Stage, Transition } from "@/lib/sales/stages";
 import type { CustomField } from "@/lib/sales/custom-fields";
 import { CustomFieldsCard, ReasonsCard } from "./settings-fields";
+import { PipelinesCard, PlaybookEditor, TaxCard, TeamCard } from "./settings-org";
+import type { Pipeline, TeamMember } from "@/lib/sales/org";
 
 export interface SettingsData {
   cfg: SalesConfig;
@@ -28,6 +30,8 @@ export interface SettingsData {
   script: string;
   /** your own fields, hidden ones included */
   customFields: CustomField[];
+  pipelines: Pipeline[];
+  team: TeamMember[];
 }
 
 function Card({ id, title, sub, children }: { id?: string; title: string; sub?: string; children: React.ReactNode }) {
@@ -255,6 +259,18 @@ export function SettingsView({ d }: { d: SettingsData }) {
         <div className="mt-3 flex justify-end"><Button variant="primary" disabled={busy} onClick={() => save({ escalation: esc })}>Save</Button></div>
       </Card>
 
+      <Card id="pipelines" title="Pipelines" sub="Separate lanes of deals (new projects, retainers, partnerships), each showing the stages you pick. Stages and their automation are shared.">
+        <PipelinesCard pipelines={d.pipelines} stages={d.stages} />
+      </Card>
+
+      <Card id="team" title="Team" sub="The people you work with, so a deal can have an owner and the pipeline can be filtered by who handles what.">
+        <TeamCard team={d.team} />
+      </Card>
+
+      <Card id="stage-playbooks" title="Stage playbooks" sub="What to ask and what to do at each stage. Shown on every deal in that stage, with a call script; ticks are saved per deal.">
+        <PlaybookEditor stages={d.stages.filter((s) => s.active !== false)} mine={c.playbook ?? {}} />
+      </Card>
+
       <Card id="fields" title="Your fields" sub="Anything a deal, company or person should record that the built-in fields do not cover. They show on every record, in the pipeline columns, and (if you choose) in the Won checklist.">
         <CustomFieldsCard fields={d.customFields} />
       </Card>
@@ -274,6 +290,7 @@ export function SettingsView({ d }: { d: SettingsData }) {
           <p key={x} className="mt-1.5 text-xs text-warn">No rate for {x} yet: add a line like {x}=0.01 or its amounts cannot be added up.</p>
         ))}
         <div className="mt-3 flex justify-end"><Button variant="primary" disabled={busy} onClick={saveCurrency}>Save</Button></div>
+        <div className="mt-4 border-t border-border pt-3"><TaxCard value={c.default_tax_pct ?? 18} /></div>
       </Card>
     </div>
   );

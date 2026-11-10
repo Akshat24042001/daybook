@@ -11,6 +11,9 @@ import {
 } from "@/lib/sales/deals";
 import { closeDeal, type ClosePayload } from "@/lib/sales/closing";
 import { updateCompany, updatePerson } from "@/lib/sales/records";
+import { addPackageItems, applyItemTotals, deleteItem, saveItem } from "@/lib/sales/items";
+import { savePipeline, saveMember } from "@/lib/sales/org";
+import { bulkDeals, importDeals, type BulkOp } from "@/lib/sales/bulk";
 import { saveCustomField, setCustomFieldActive, type CustomType, type Scope } from "@/lib/sales/custom-fields";
 import { createLinkDoc, createQuote, deleteDoc, markDocSent, newRevision, saveRevision, type RevisionRow } from "@/lib/sales/docs";
 import { auditCompany } from "@/lib/sales/enrich";
@@ -99,6 +102,7 @@ export async function createDealAction(d: {
   title?: string; person_name?: string; company_name?: string; email?: string; phone?: string; linkedin?: string; source?: string;
   value_amount?: number | null; currency?: string; notes?: string; referrer_name?: string; stage_role?: string;
   city?: string; region?: string; industry?: string; deal_type?: string; expected_close?: string; services?: string;
+  pipeline_id?: number | null;
 }) {
   return run<{ id: number }>(async () => {
     const companyId = d.company_name?.trim() ? await ensureCompany(d.company_name.trim()) : null;
@@ -110,6 +114,7 @@ export async function createDealAction(d: {
     const id = await createDeal({
       title: d.title, company_id: companyId, person_id: personId, source: d.source ?? (referrer ? "referral" : "outbound"),
       value_amount: d.value_amount ?? null, currency: d.currency, referrer_id: referrer, requirements: d.notes ?? null, stage_role: d.stage_role,
+      pipeline_id: d.pipeline_id ?? null,
     });
     const more = Object.fromEntries((["city", "region", "industry", "deal_type", "expected_close", "services"] as const).filter((k) => d[k]?.trim()).map((k) => [k, d[k]!.trim()]));
     if (Object.keys(more).length) await updateDeal(id, more);
@@ -161,6 +166,63 @@ export async function logActivityAction(dealId: number, a: NewActivity) {
 export async function editInteractionAction(id: number, patch: Parameters<typeof editInteraction>[1]) {
   return run(() => editInteraction(id, patch), ALL);
 }
+// ------------------------------------------------------------------ line items
+export async function saveItemAction(dealId: number, item: Parameters<typeof saveItem>[1]) {
+  return run<{ id: number }>(async () => ({ id: await saveItem(dealId, item) }), ALL);
+}
+export async function deleteItemAction(dealId: number, id: number) {
+  return run(() => deleteItem(dealId, id), ALL);
+}
+export async function applyItemTotalsAction(dealId: number) {
+  return run(async () => {
+    await applyItemTotals(dealId);
+    await refreshMoves(dealId);
+  }, [...ALL, "/sales/insights"]);
+}
+export async function addPackageItemsAction(dealId: number, offerId: number, index: number) {
+  return run<{ n: number }>(async () => {
+    const { listOffers } = await import("@/lib/sales/offers");
+    const pkg = (await listOffers()).find((o) => o.id === offerId)?.packages[index];
+    if (!pkg) throw new UserError("That package no longer exists.");
+    return { n: await addPackageItems(dealId, pkg, (await salesConfig()).default_tax_pct) };
+  }, ALL);
+}
+
+// ------------------------------------------------------------------ stage playbooks
+/** Ticks or unticks a checklist item for the deal's stage. */
+export async function toggleChecklistAction(dealId: number, stageKey: string, item: string, on: boolean) {
+  return run(async () => {
+    const row = await one<{ checklist: Record<string, string[]> }>("select checklist from sales_deals where id = $1", [dealId]);
+    if (!row) throw new UserError("That deal no longer exists.");
+    const cur = new Set(row.checklist?.[stageKey] ?? []);
+    if (on) cur.add(item.slice(0, 300));
+    else cur.delete(item);
+    await q("update sales_deals set checklist = jsonb_set(coalesce(checklist, '{}'::jsonb), $2::text[], $3::jsonb), updated_at = now() where id = $1", [dealId, [stageKey], JSON.stringify([...cur])]);
+  }, ALL);
+}
+
+// ------------------------------------------------------------------ pipelines, team, bulk, import
+export async function savePipelineAction(p: { id?: number; name: string; stage_ids?: number[]; active?: boolean }) {
+  return run<{ id: number }>(async () => ({ id: await savePipeline(p) }), ["/sales/settings", "/sales/pipeline", ...ALL]);
+}
+export async function saveMemberAction(m: { id?: number; name: string; email?: string | null; phone?: string | null; role?: string | null; active?: boolean }) {
+  return run<{ id: number }>(async () => ({ id: await saveMember(m) }), ["/sales/settings", "/sales/pipeline"]);
+}
+export async function bulkDealsAction(ids: number[], op: BulkOp) {
+  return run<{ result: Awaited<ReturnType<typeof bulkDeals>> }>(async () => {
+    const result = await bulkDeals(ids, op);
+    if (!op.delete) for (const id of ids.slice(0, 200)) await refreshMoves(id).catch(() => {});
+    return { result };
+  }, ["/sales", "/sales/pipeline", "/sales/insights"]);
+}
+export async function importDealsAction(rows: Record<string, string>[], pipelineId?: number | null) {
+  return run<{ result: Awaited<ReturnType<typeof importDeals>> }>(async () => {
+    const result = await importDeals(rows, { pipeline_id: pipelineId ?? null });
+    await refreshMoves();
+    return { result };
+  }, ["/sales", "/sales/pipeline"]);
+}
+
 export async function saveCustomFieldAction(f: { id?: number; scope?: Scope; label: string; type: CustomType; options?: string; help?: string; required_to_win?: boolean }) {
   return run<{ id: number }>(async () => ({ id: await saveCustomField(f) }), ["/sales/settings", ...ALL]);
 }
