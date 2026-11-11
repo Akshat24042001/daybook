@@ -60,7 +60,7 @@ function CardBody({ d, s }: { d: DealCard; s: Stage | undefined }) {
         <p className="text-sm font-semibold leading-snug">{d.title}</p>
         <span className="flex shrink-0 items-center gap-1">
           {d.manual_rank != null ? <span title="You placed this by hand. Reset order on the column goes back to automatic." aria-label="Placed by you"><Pin className="h-3 w-3 text-subtle" /></span> : null}
-          {d.fit ? <span title={`Fit ${d.fit.score}/100`} className={cn("rounded px-1 text-[11px] font-semibold", d.fit.grade === "A" ? "bg-p-mint text-p-mint-fg" : d.fit.grade === "B" ? "bg-p-sky text-p-sky-fg" : d.fit.grade === "C" ? "bg-p-butter text-p-butter-fg" : "bg-muted text-subtle")}>{d.fit.grade}</span> : null}
+          {d.fit ? <span title={`Fit ${d.fit.grade}: ${d.fit.score}/100, how well they suit your business`} className={cn("rounded px-1 text-[11px] font-semibold", d.fit.grade === "A" ? "bg-p-mint text-p-mint-fg" : d.fit.grade === "B" ? "bg-p-sky text-p-sky-fg" : d.fit.grade === "C" ? "bg-p-butter text-p-butter-fg" : "bg-muted text-subtle")}>Fit {d.fit.grade}</span> : null}
           <Priority value={d.priority} prev={d.priority_prev} why={d.priority_why} compact />
         </span>
       </div>
@@ -137,6 +137,21 @@ function Column({ s, count, total, cur, state, onReset, children }: { s: Stage; 
       </header>
       {children}
     </section>
+  );
+}
+
+/** What the two badges on a card mean, the colours, and dragging. */
+function BoardHelp() {
+  return (
+    <div className="space-y-2">
+      <p><span className="font-semibold">Each card has two badges:</span></p>
+      <ul className="list-disc space-y-0.5 pl-4">
+        <li><span className="font-semibold">Fit A to D</span>: how well they suit your business (industry, country, need, size, money). Open the deal to see the fit score out of 100 and why.</li>
+        <li><span className="font-semibold">The number</span> (0 to 100) is priority: how much they need you right now. It rises and falls with replies, quote opens, meetings and deal size.</li>
+      </ul>
+      <PriorityLegend />
+      <p><span className="font-semibold">Drag</span> a card by its handle onto another card in its column to put it above or below (a pin shows; Reset order undoes it), or onto another stage to move the deal.</p>
+    </div>
   );
 }
 
@@ -291,18 +306,14 @@ export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR
             {k}
           </button>
         ))}
+        <span className="inline-flex items-center gap-1 text-xs text-subtle">How it works <InfoTip label="How the board works"><BoardHelp /></InfoTip></span>
         {busy ? <span className="text-xs text-subtle">Saving…</span> : null}
       </div>
 
-      <PriorityLegend />
       {view === "ranked" ? (
         <DealTable deals={filtered.filter((d) => cols.some((c) => c.id === d.stage_id))} stages={stages} customDefs={customDefs} team={team} pipelines={pipelines} transitions={transitions} />
       ) : (
         <>
-          <p className="flex items-center gap-1 text-xs text-subtle">
-            Drag a card to reorder it or move its stage.
-            <InfoTip label="How dragging works">{"Drag a card by its handle:\n- onto another card in the same column to put it above or below that one. It stays where you put it (a pin shows), and Reset order undoes it.\n- onto another stage to move the deal there."}</InfoTip>
-          </p>
           <DndContext id="pipeline-board" sensors={sensors} collisionDetection={collide} autoScroll={{ threshold: { x: 0.08, y: 0.12 } }} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setDragging(null); setOverCard(null); }}>
             <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-4 md:mx-0 md:px-0">
               {cols.map((s) => {

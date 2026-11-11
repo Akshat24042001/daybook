@@ -119,7 +119,7 @@ function HuntForm({ draft, setDraft, cap, providers }: { draft: Draft; setDraft:
       <p className={cn("rounded-xl px-3 py-2 text-xs", perDay > cap && paid ? "bg-p-butter text-p-butter-fg" : "bg-muted text-subtle")}>
         About <b>{perDay}</b> web searches a day.{" "}
         {paid ? (perDay > cap ? `Your paid-search cap is ${cap} a day, so the rest fall back to the free DuckDuckGo search, which is weaker. Raise the cap in Settings if your plan allows.` : `Inside your paid-search cap of ${cap} a day.`)
-          : "No search key is set, so only the free DuckDuckGo fallback runs. Add TAVILY_API_KEY or SERPER_API_KEY for real coverage."}
+          : "No search key is set: the free engines (Bing, DuckDuckGo, Mojeek) and, with a Gemini key, Google run instead. A free TAVILY_API_KEY gives steadier coverage."}
       </p>
     </div>
   );

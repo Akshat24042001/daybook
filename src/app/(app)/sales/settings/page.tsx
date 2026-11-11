@@ -26,7 +26,7 @@ export default async function SalesSettingsPage() {
     script = "// integrations/daybook-sales.gs was not found in this deployment";
   }
   const env = [
-    { key: "GEMINI_API_KEY", ok: has("GEMINI_API_KEY"), what: "Best free AI for screenshots, transcripts and research (Google AI Studio)", free: "free tier" },
+    { key: "GEMINI_API_KEY", ok: has("GEMINI_API_KEY"), what: "Best free AI, and Google Search for deep research (Google AI Studio)", free: "free tier" },
     { key: "OPENROUTER_API_KEY", ok: has("OPENROUTER_API_KEY"), what: "Free open models, already used by Daybook; fallback when Gemini is busy", free: "free models" },
     { key: "TAVILY_API_KEY", ok: has("TAVILY_API_KEY"), what: "Web search for the radar and research", free: "1,000 searches / month free" },
     { key: "SERPER_API_KEY", ok: has("SERPER_API_KEY"), what: "Google results, second search provider", free: "2,500 searches free (one time)" },
@@ -37,7 +37,7 @@ export default async function SalesSettingsPage() {
     { key: "OMNIDIM_API_KEY + OMNIDIM_AGENT_ID + OWNER_PHONE", ok: has("OMNIDIM_API_KEY", "OMNIDIM_AGENT_ID", "OWNER_PHONE"), what: "Emergency phone call to you", free: "free tier" },
     { key: "SUPABASE_SERVICE_ROLE_KEY", ok: has("SUPABASE_SERVICE_ROLE_KEY") || has("SUPABASE_SECRET_KEY"), what: "File uploads for tracked files (already used by the scratchpad)", free: "free tier" },
     { key: "APP_BASE_URL", ok: has("APP_BASE_URL"), what: "Your https address, used in every link you send", free: "" },
-    { key: "JINA_API_KEY", ok: has("JINA_API_KEY"), what: "Optional: higher limits for reading JavaScript-heavy websites", free: "free key" },
+    { key: "JINA_API_KEY", ok: has("JINA_API_KEY"), what: "Web search and reading JavaScript-heavy websites", free: "free key, 1M tokens" },
   ];
   return (
     <SettingsView

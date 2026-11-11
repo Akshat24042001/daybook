@@ -18,7 +18,7 @@ import { llm } from "./llm";
 import { draftForMove, refreshMoves } from "./moves";
 import { ownerChat, push } from "./notify";
 import { reportHunt, runHunt, scheduleHunts } from "./hunts";
-import { personStage, researchRadarItem, searchStage, siteStage, startResearch, synthStage } from "./research";
+import { deepStage, personStage, personSynthStage, researchRadarItem, searchStage, siteStage, startResearch, synthStage } from "./research";
 import { dailyDigest, hunt, qualifyPending, runRadar } from "./radar";
 import { weeklyReview, reviewMessage, reviewInsights } from "./review";
 import { syncObjections } from "./objections";
@@ -61,8 +61,14 @@ export const HANDLERS: Record<string, Handler> = {
   async research_search(p) {
     await searchStage(Number(p.runId));
   },
+  async research_deep(p) {
+    await deepStage(Number(p.runId));
+  },
   async research_synth(p) {
     await synthStage(Number(p.runId));
+  },
+  async research_person_synth(p) {
+    await personSynthStage(Number(p.runId));
   },
   async research_person(p) {
     await personStage(Number(p.runId));

@@ -461,3 +461,17 @@ full size) and a thumbnail on the timeline entry each one made. They move to you
 SUPABASE_SERVICE_ROLE_KEY is set (private bucket, opened through short-lived links), otherwise they stay in the
 database. Only you can open them. Undo takes them off the deal. Screenshots shared before this change are linked to
 their deals too.
+
+## Research without paid keys
+
+Research searches with whatever is set, best first: Tavily, Serper, Brave, Jina (keys), then the keyless engines
+Bing (RSS), DuckDuckGo (HTML and lite) and Mojeek, asked all at once with the results merged. Keyless engines often
+refuse cloud servers; that shows as an error on Radar > Plan > Searches, never as "no results".
+
+With a free GEMINI_API_KEY, research also searches Google itself through Gemini's grounding (a "Searching Google in
+depth" step for companies and people): it runs its own searches and reports facts with their sources. Its write-up
+informs the profile, but an email or a LinkedIn link is only saved when it appears in a page or result that was
+actually read. The free tier allows a few searches a minute; research waits its turn.
+
+The website is found by search, then by likely domains checked live (the domain must resolve and the page must
+carry the company's name), then by asking Google.

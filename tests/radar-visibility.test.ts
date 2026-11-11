@@ -36,8 +36,12 @@ describe("the search log and the plan", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(
       `<a class="result__a" href="https://example.com/a">Hit title</a><a class="result__snippet">a snippet</a>`, { status: 200 })));
     await webSearch("logistics founders need automation", 5, "hunt: Gulf");
-    const row = (await one<{ provider: string; query: string; hits: number; label: string }>("select * from sales_search_log"))!;
+    const row = (await one<{ provider: string; query: string; hits: number; label: string }>("select * from sales_search_log where provider = 'duckduckgo'"))!;
     expect(row).toMatchObject({ provider: "duckduckgo", query: "logistics founders need automation", hits: 1, label: "hunt: Gulf" });
+    // an engine that refuses this server is logged as an error, never as an empty result
+    const bingRow = (await one<{ hits: number; error: string | null }>("select hits, error from sales_search_log where provider = 'bing'"))!;
+    expect(bingRow.hits).toBe(0);
+    expect(bingRow.error).toMatch(/refused/);
   });
 
   it("explains the focus, the next 7 days, the platforms, the sources and the searches", async () => {

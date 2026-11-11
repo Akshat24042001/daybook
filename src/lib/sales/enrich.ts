@@ -8,7 +8,7 @@ import { one, q } from "../db";
 import { salesConfig } from "./config";
 import { domainOf } from "./identity";
 import { llmJson } from "./llm";
-import { fetchPage, strip, webSearch, type SearchHit } from "./search";
+import { fetchPage, geminiSearchReady, groundedResearch, strip, webSearch, type SearchHit } from "./search";
 
 export * from "./research-fields";
 import { COMPANY_FIELDS, PERSON_FIELDS, type Enrichment, type Field } from "./research-fields";
@@ -108,10 +108,74 @@ export function subLinks(base: string, html: string): string[] {
   return [...out].slice(0, 4);
 }
 
-export async function findWebsite(name: string): Promise<string | null> {
-  const hits = await webSearch(`${name} official website`, 5).catch(() => [] as SearchHit[]);
-  const skip = /linkedin|facebook|instagram|wikipedia|crunchbase|zaubacorp|tofler|glassdoor|indeed|justdial|indiamart|yelp|trustpilot|bloomberg|zoominfo|dnb\.com|twitter|x\.com|youtube/i;
-  return hits.find((h) => !skip.test(h.url))?.url ?? null;
+const NOT_THEIR_SITE = /linkedin|facebook|instagram|wikipedia|crunchbase|zaubacorp|tofler|glassdoor|indeed|justdial|indiamart|yelp|trustpilot|bloomberg|zoominfo|dnb\.com|twitter|x\.com|youtube|google\.|bing\.|duckduckgo|mojeek|ambitionbox|naukri|sulekha|tracxn|owler|apollo\.io|rocketreach|signalhire|lusha|instafinancials|thecompanycheck|falconebiz|vertexaisearch/i;
+
+/** The distinctive words of a company name ("Glowyug Skincare Pvt Ltd" -> ["glowyug", "skincare"]). Pure. */
+export function nameWords(name: string): string[] {
+  return name.toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9\s-]/g, " ")
+    .replace(/\b(private|pvt|limited|ltd|llp|llc|inc|co|corp|corporation|company|the|india|international|intl|group|opc)\b/g, " ")
+    .split(/[\s-]+/).filter((w) => w.length > 1);
+}
+
+/** Likely domains for a company, most likely first (Indian endings first for an Indian company). Pure. */
+export function domainGuesses(name: string, country?: string | null): string[] {
+  const w = nameWords(name);
+  if (!w.length) return [];
+  const stems = [...new Set([w.join(""), w.join("-"), w[0], w.slice(0, 2).join("")].filter((x) => x.length >= 3))].slice(0, 3);
+  const tlds = /india|^in$/i.test(country ?? "") ? ["in", "com", "co.in", "co", "io"] : ["com", "in", "co", "io", "co.in"];
+  return stems.flatMap((st) => tlds.map((t) => `${st}.${t}`)).slice(0, 12);
+}
+
+async function resolves(domain: string): Promise<boolean> {
+  try {
+    const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=A`, { headers: { accept: "application/dns-json" }, signal: AbortSignal.timeout(5_000) });
+    const j = (await res.json()) as { Answer?: unknown[] };
+    return !!j.Answer?.length;
+  } catch {
+    return false;
+  }
+}
+
+/** True when a page is plainly this company's (its distinctive name word is in the title or the opening text). */
+async function isTheirs(url: string, name: string): Promise<string | null> {
+  const page = await fetchPage(url, { maxChars: 3000, reader: false }).catch(() => null);
+  if (!page) return null;
+  const words = nameWords(name);
+  const key = words.find((x) => x.length >= 4) ?? words[0];
+  const hay = `${page.title} ${page.text.slice(0, 1500)}`.toLowerCase();
+  return key && hay.includes(key) ? page.url || url : null;
+}
+
+/**
+ * Finds a company's own website: wide web search (preferring a domain that carries their name), then likely domains
+ * checked live (it must resolve and its page must name them), then Google through Gemini.
+ */
+export async function findWebsite(name: string, country?: string | null): Promise<string | null> {
+  const words = nameWords(name);
+  const hits = await webSearch(`${name} official website`, 8, undefined, { wide: true }).catch(() => [] as SearchHit[]);
+  const own = hits.filter((h) => !NOT_THEIR_SITE.test(h.url));
+  const named = own.find((h) => words.some((w) => w.length >= 4 && (domainOf(h.url) ?? "").includes(w)));
+  if (named) return named.url;
+  for (const d of domainGuesses(name, country)) {
+    if (!(await resolves(d))) continue;
+    const ok = await isTheirs(`https://${d}`, name);
+    if (ok) return ok;
+  }
+  if (own[0]) return own[0].url;
+  if (geminiSearchReady()) {
+    try {
+      const g = await groundedResearch(`What is the official website of the company "${name}"${country ? ` (${country})` : ""}? Answer with the URL only, or "not found".`, { timeoutMs: 25_000, label: `website: ${name}` });
+      const fromText = g.text.match(/https?:\/\/[^\s)"'<>\]]+/)?.[0];
+      const cands = [fromText, ...g.sources.map((x) => x.url)].filter((u): u is string => !!u && !NOT_THEIR_SITE.test(u));
+      for (const u of cands.slice(0, 3)) {
+        const ok = await isTheirs(u, name);
+        if (ok) return ok;
+      }
+    } catch {
+      /* no website from Google either */
+    }
+  }
+  return null;
 }
 
 // ------------------------------------------------------------------ company

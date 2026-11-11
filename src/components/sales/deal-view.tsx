@@ -150,6 +150,7 @@ export function DealView({ d }: { d: DealPageData }) {
                 <span className="h-2 w-2 rounded-full" style={{ background: deal.stage_color }} />{deal.stage_name}
               </span>
               <Priority value={deal.priority} prev={deal.priority_prev} why={deal.priority_why} />
+              {d.fit ? <span title="Fit: how well they suit your business (see the Fit card)" className={cn("rounded-md px-2 py-0.5 text-xs font-semibold", d.fit.grade === "A" ? "bg-p-mint text-p-mint-fg" : d.fit.grade === "B" ? "bg-p-sky text-p-sky-fg" : d.fit.grade === "C" ? "bg-p-butter text-p-butter-fg" : "bg-muted text-subtle")}>Fit {d.fit.grade} · {d.fit.score}</span> : null}
               <Chip>{deal.source}{deal.source_detail && !/^https?:/.test(deal.source_detail) ? `: ${deal.source_detail.slice(0, 40)}` : ""}</Chip>
               {deal.source_detail && /^https?:/.test(deal.source_detail) ? <a href={deal.source_detail} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-accent">source <ExternalLink className="h-3 w-3" /></a> : null}
               {deal.country ? <Chip>{deal.country}</Chip> : null}

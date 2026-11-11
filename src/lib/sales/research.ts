@@ -20,7 +20,7 @@ import { llmJson } from "./llm";
 import {
   ageYears, classifyMx, extractContacts, guessEmail, learnEmailPattern, mergeContacts, parseRdap, parseSpf, type Contacts, type EmailPattern,
 } from "./research-extract";
-import { fetchPage, webSearch, type SearchHit } from "./search";
+import { fetchPage, geminiSearchReady, groundedResearch, webSearch, type Grounded, type SearchHit } from "./search";
 
 /**
  * A LinkedIn profile or email the AI reports is kept only if it literally appears in what was read (pages, search
@@ -36,7 +36,7 @@ export function seenIn(text: string, value: string | null | undefined): boolean 
 }
 
 export const STAGE_LABEL: Record<string, string> = {
-  queued: "Waiting to start", site: "Reading their website", search: "Searching the web", synth: "Writing the profile", people: "Finding the people", done: "Done",
+  queued: "Waiting to start", site: "Reading their website", search: "Searching the web", deep: "Searching Google in depth", synth: "Writing the profile", people: "Finding the people", done: "Done",
 };
 
 export interface Source {
@@ -69,6 +69,8 @@ interface Evidence {
   audit: unknown;
   intel: { registered: string | null; age: number | null; registrar: string | null; nameservers: string[]; mail: string | null; tools: string[] };
   pattern?: EmailPattern | null;
+  /** Google research through Gemini: its write-up (read by the AI, but never proof of an email or profile link) */
+  grounded?: string | null;
 }
 
 const UA = "Mozilla/5.0 (compatible; DaybookResearch/1.0)";
@@ -120,7 +122,7 @@ const LINK_KINDS: RegExp[] = [
 ];
 
 /** The pages worth reading after the home page: at most one per kind, in order of how much they tell you. Pure. */
-export function pickLinks(base: string, html: string, max = 7): string[] {
+export function pickLinks(base: string, html: string, max = 9): string[] {
   const hrefs = new Set<string>();
   for (const m of html.matchAll(/href=["']([^"'#]+)["']/gi)) {
     try {
@@ -168,7 +170,7 @@ export async function siteStage(runId: number): Promise<void> {
     await say(runId, `Starting research on ${c.name}.`);
     let website = c.website ?? (c.domain ? `https://${c.domain}` : null);
     if (!website) {
-      website = await findWebsite(c.name);
+      website = await findWebsite(c.name, (await one<{ country: string | null }>("select country from sales_companies where id = $1", [c.id]))?.country ?? null);
       await say(runId, website ? `Found their website: ${website}` : "Could not find an official website. Continuing with web search only.");
     }
     const parts: string[] = [];
@@ -250,6 +252,9 @@ export function companyQueries(name: string, year: number): string[] {
     `"${name}" hiring OR careers OR jobs`,
     `"${name}" competitors OR alternatives`,
     `"${name}" customers OR clients OR "case study"`,
+    `"${name}" site:zaubacorp.com OR site:tofler.in OR site:thecompanycheck.com`,
+    `"${name}" contact email phone address`,
+    `"${name}" instagram OR facebook`,
   ];
 }
 
@@ -260,14 +265,14 @@ async function searchBatch(queries: string[], label: string, deadline: number): 
   let ran = 0;
   for (let i = 0; i < queries.length; i += 3) {
     if (Date.now() > deadline) break;
-    const results = await Promise.allSettled(queries.slice(i, i + 3).map((qy) => webSearch(qy, 6, label)));
+    const results = await Promise.allSettled(queries.slice(i, i + 3).map((qy) => webSearch(qy, 6, label, { wide: true })));
     results.forEach((r, j) => {
       ran += 1;
       const qy = queries[i + j];
       const list: SearchHit[] = r.status === "fulfilled" ? r.value : [];
       hits += list.length;
       if (list.length) parts.push(`[search: ${qy}]\n${list.map((h) => `- ${h.title} | ${h.url} | ${h.snippet}`).join("\n")}`);
-      for (const h of list.slice(0, 4)) sources.push({ label: h.title.slice(0, 90), url: h.url, kind: "search" });
+      for (const h of list.slice(0, 6)) sources.push({ label: h.title.slice(0, 90), url: h.url, kind: "search" });
     });
   }
   return { parts, sources, hits, ran };
@@ -283,7 +288,75 @@ export async function searchStage(runId: number): Promise<void> {
     const r = await searchBatch(companyQueries(c.name, new Date().getUTCFullYear()), `research: ${c.name}`, Date.now() + 38_000);
     await q("update sales_research_runs set evidence = $2 where id = $1", [runId, JSON.stringify({ ...ev, search: r.parts })]);
     await addSources(runId, r.sources);
-    await say(runId, `Ran ${r.ran} web searches and read ${r.hits} results.`);
+    await say(runId, r.hits ? `Ran ${r.ran} web searches and read ${r.hits} results.` : `Ran ${r.ran} web searches, but the free search engines returned nothing from this server.`);
+    await stage(runId, "deep");
+    await enqueue("research_deep", { runId }, { dedupeKey: `research_deep:${runId}` });
+  } catch (e) {
+    await failRun(runId, e);
+    throw e;
+  }
+}
+
+// ------------------------------------------------------------------ stage 2b: Google, in depth (free Gemini key)
+
+/** What to ask Google about a company. Pure. */
+export function companyBrief(name: string, o: { website?: string | null; country?: string | null; industry?: string | null; year: number }): string {
+  return `Research the company "${name}"${o.website ? ` (website ${o.website})` : ""}${o.country ? `, ${o.country}` : ""}${o.industry ? `, ${o.industry}` : ""} using Google Search.
+Run several searches (the company name with: founder, CEO, owner, LinkedIn, revenue, turnover, employees, funding, news ${o.year}, reviews, hiring, contact, Instagram, address, GST or registration, competitors).
+Make sure every fact is about THIS company (same name and same website or city); skip namesakes.
+Report only what you found, as short lines, each ending with its source in brackets:
+- What they do, for whom, and where (cities, branches)
+- Founded year, legal name, registration (e.g. GST, CIN) if public
+- Size: employees, branches; revenue or turnover; funding and investors
+- Founders, owners and leaders: full name, title, and their LinkedIn profile URL when you found it
+- Official contact: email, phone, WhatsApp, address; social profiles (Instagram, Facebook, LinkedIn, YouTube, X)
+- Recent news and announcements (last 18 months), hiring, expansion
+- Reputation: ratings and what reviews praise or complain about
+- Tools and tech they visibly use; competitors
+Write "not found" for anything you could not find. Never guess.`;
+}
+
+export function personBrief(name: string, o: { company?: string | null; title?: string | null; country?: string | null; linkedin?: string | null }): string {
+  return `Research the person "${name}"${o.title ? `, ${o.title}` : ""}${o.company ? ` at ${o.company}` : ""}${o.country ? ` (${o.country})` : ""}${o.linkedin ? `, LinkedIn ${o.linkedin}` : ""} using Google Search.
+Run several searches (their name with the company, LinkedIn, interview, podcast, news, X/Twitter, Instagram).
+Make sure every fact is about THIS person (same name AND same company or role); skip namesakes.
+Report only what you found, as short lines, each ending with its source in brackets:
+- Current role and since when; past roles and companies; education
+- LinkedIn profile URL and headline; other public profiles (X, Instagram, YouTube, Medium, GitHub)
+- What they post or talk about; interviews, talks, awards, news
+- Anything public about how to reach them for work (company email, office phone)
+Write "not found" for anything you could not find. Never guess.`;
+}
+
+/** The Google research as evidence: the write-up, and its sources as search lines (those links are real). */
+function groundedParts(g: Grounded, title: string): { prose: string; lines: string; sources: Source[] } {
+  return {
+    prose: `[google research: ${title}]\n${g.text}`,
+    lines: g.sources.length ? `[google sources: ${title}]\n${g.sources.map((s) => `- ${s.title} | ${s.url} | ${s.snippet}`).join("\n")}` : "",
+    sources: g.sources.slice(0, 15).map((s) => ({ label: `Google: ${s.title || s.url}`.slice(0, 90), url: s.url, kind: "search" as const })),
+  };
+}
+
+export async function deepStage(runId: number): Promise<void> {
+  const run = await getRun(runId);
+  try {
+    await stage(runId, "deep");
+    const c = await one<{ name: string; country: string | null; industry: string | null }>("select name, country, industry from sales_companies where id = $1", [run.subject_id]);
+    if (!c) throw new UserError("That company no longer exists.");
+    const ev = (run as unknown as { evidence: Evidence }).evidence ?? ({} as Evidence);
+    if (geminiSearchReady()) {
+      try {
+        const g = await groundedResearch(companyBrief(c.name, { website: ev.website, country: c.country, industry: c.industry, year: new Date().getUTCFullYear() }), { timeoutMs: 50_000, label: `research: ${c.name}` });
+        const gp = groundedParts(g, c.name);
+        await q("update sales_research_runs set evidence = $2 where id = $1", [runId, JSON.stringify({ ...ev, grounded: gp.prose, search: [...(ev.search ?? []), gp.lines].filter(Boolean) })]);
+        await addSources(runId, gp.sources);
+        await say(runId, `Searched Google in depth (${g.queries.length || "several"} searches, ${g.sources.length} sources).`);
+      } catch (e) {
+        await say(runId, `Google search through Gemini did not complete (${(e as Error).message.slice(0, 80)}). Continuing with what was found.`);
+      }
+    } else {
+      await say(runId, "Tip: add a free GEMINI_API_KEY to also search Google itself, for much richer results.");
+    }
     await stage(runId, "synth");
     await enqueue("research_synth", { runId }, { dedupeKey: `research_synth:${runId}` });
   } catch (e) {
@@ -368,8 +441,10 @@ export async function synthStage(runId: number): Promise<void> {
       ev.audit ? `[site scan] ${JSON.stringify(ev.audit)}` : "",
       ev.intel?.registered ? `[domain] registered ${ev.intel.registered}${ev.intel.age !== null ? ` (${ev.intel.age} years)` : ""}, email on ${ev.intel.mail ?? "unknown"}, sends via ${ev.intel.tools.join(", ") || "unknown"}` : "",
     ].filter(Boolean);
+    // what was literally read (pages, search results): only this can prove an email or a LinkedIn link
     const evidenceText = [...ev.site, ...facts, ...ev.search].join("\n\n").slice(0, 30_000);
-    const out = await llmJson<Enrichment>(companySystem(cfg.offers, year), `COMPANY: ${c.name}${c.country ? `, ${c.country}` : ""}${c.industry ? `, ${c.industry}` : ""}\n\nEVIDENCE:\n${evidenceText}`, { maxTokens: 6500, totalMs: 38_000 });
+    const aiText = [ev.grounded ?? "", evidenceText].filter(Boolean).join("\n\n").slice(0, 36_000);
+    const out = await llmJson<Enrichment>(companySystem(cfg.offers, year), `COMPANY: ${c.name}${c.country ? `, ${c.country}` : ""}${c.industry ? `, ${c.industry}` : ""}\n\nEVIDENCE:\n${aiText}`, { maxTokens: 6500, totalMs: 38_000 });
     applyFacts(out, { contacts, intel: ev.intel ?? { registered: null, age: null, registrar: null, nameservers: [], mail: null, tools: [] } });
     await saveCompany(c.id, out, ev.website, ev.domain, ev.audit);
     const filled = Object.values(out).filter((f) => f?.v !== null && f?.v !== undefined && f?.v !== "").length;
@@ -378,7 +453,7 @@ export async function synthStage(runId: number): Promise<void> {
     // the people behind the company
     let found = 0;
     try {
-      const people = await llmJson<{ people?: Candidate[] }>(PEOPLE_SYSTEM, `COMPANY: ${c.name}\n\nEVIDENCE:\n${evidenceText}`, { maxTokens: 1500, totalMs: 20_000 });
+      const people = await llmJson<{ people?: Candidate[] }>(PEOPLE_SYSTEM, `COMPANY: ${c.name}\n\nEVIDENCE:\n${aiText}`, { maxTokens: 1500, totalMs: 20_000 });
       const names: string[] = [];
       const decisionMakers: number[] = [];
       for (const p of (people.people ?? []).slice(0, 8)) {
@@ -457,7 +532,8 @@ export async function personStage(runId: number): Promise<void> {
       `"${p.full_name}" ${p.company ?? ""} twitter OR x.com`, `"${p.full_name}" ${p.company ?? ""} github OR medium OR substack OR youtube`,
       `"${p.full_name}" ${p.company ?? ""} news OR award`, `site:linkedin.com/in "${p.full_name}" ${p.company ?? ""}`,
     ];
-    const r = await searchBatch(queries, `research: ${p.full_name}`, Date.now() + 34_000);
+    // leave room in this time slot for the Google pass below
+    const r = await searchBatch(queries, `research: ${p.full_name}`, Date.now() + (geminiSearchReady() ? 20_000 : 34_000));
     await addSources(runId, r.sources);
     await say(runId, `Ran ${r.ran} web searches and read ${r.hits} results.`);
     const evidence = [...r.parts];
@@ -481,7 +557,46 @@ export async function personStage(runId: number): Promise<void> {
       [p.id],
     );
     if (own?.n) evidence.push(`[your own conversations with them] ${own.n.slice(0, 3000)}`);
+    // Google, in depth (free Gemini key): the write-up informs the profile; its links count as read
+    let grounded: string | null = null;
+    if (geminiSearchReady()) {
+      await stage(runId, "deep");
+      try {
+        const g = await groundedResearch(personBrief(p.full_name, { company: p.company, title: p.title, country: p.country, linkedin: p.linkedin }), { timeoutMs: 30_000, label: `research: ${p.full_name}` });
+        const gp = groundedParts(g, p.full_name);
+        grounded = gp.prose;
+        if (gp.lines) evidence.push(gp.lines);
+        await addSources(runId, gp.sources);
+        await say(runId, `Searched Google in depth (${g.sources.length} sources).`);
+      } catch (e) {
+        await say(runId, `Google search through Gemini did not complete (${(e as Error).message.slice(0, 80)}).`);
+      }
+    }
+    // the write-up runs as its own step, so the searching and the writing each get a full time slot
+    await q("update sales_research_runs set evidence = $2 where id = $1", [runId, JSON.stringify({ person: { evidence, grounded, pattern, domain } })]);
     await stage(runId, "synth");
+    await enqueue("research_person_synth", { runId }, { dedupeKey: `research_person_synth:${runId}` });
+  } catch (e) {
+    await failRun(runId, e);
+    throw e;
+  }
+}
+
+export async function personSynthStage(runId: number): Promise<void> {
+  const run = await getRun(runId);
+  try {
+    await stage(runId, "synth");
+    const cfg = await salesConfig();
+    const p = await one<{ id: number; full_name: string; title: string | null; linkedin: string | null; company: string | null; country: string | null; emails: string[]; phones: string[] }>(
+      `select p.id, p.full_name, p.title, p.linkedin, c.name as company, coalesce(p.country, c.country) as country, p.emails, p.phones
+       from sales_people p left join sales_companies c on c.id = p.company_id where p.id = $1`,
+      [run.subject_id],
+    );
+    if (!p) throw new UserError("That person no longer exists.");
+    const saved = ((run as unknown as { evidence: { person?: { evidence: string[]; grounded: string | null; pattern: EmailPattern | null; domain: string | null } } }).evidence?.person) ?? { evidence: [], grounded: null, pattern: null, domain: null };
+    const evidence = saved.evidence ?? [];
+    const pattern = saved.pattern ?? null;
+    const domain = saved.domain ?? null;
     const year = new Date().getUTCFullYear();
     const system = `You are a sales researcher. Build a profile of this person from the EVIDENCE only (public information and the owner's own conversations).
 Return JSON whose keys are exactly: ${allKeys(PERSON_FIELDS).join(", ")}.
@@ -496,7 +611,7 @@ Rules:
 - other_profiles: GitHub, Medium, Substack, YouTube and similar, only URLs literally in the evidence. linkedin_snippet: what the LinkedIn result says about them.
 - what_they_care_about, talking_points, opener, likely_objections: practical, specific, for ${cfg.owner.name} of an AI agency.
 - email_found / email_guess / email_pattern_basis / phone_found are filled in afterwards from verified data: leave them null.`;
-    const out = await llmJson<Enrichment>(system, `PERSON: ${p.full_name}${p.title ? `, ${p.title}` : ""}${p.company ? ` at ${p.company}` : ""}${p.country ? `, ${p.country}` : ""}${p.linkedin ? `\nLinkedIn: ${p.linkedin}` : ""}\n\nEVIDENCE:\n${evidence.join("\n\n").slice(0, 22_000)}`, { maxTokens: 5200, totalMs: 38_000 });
+    const out = await llmJson<Enrichment>(system, `PERSON: ${p.full_name}${p.title ? `, ${p.title}` : ""}${p.company ? ` at ${p.company}` : ""}${p.country ? `, ${p.country}` : ""}${p.linkedin ? `\nLinkedIn: ${p.linkedin}` : ""}\n\nEVIDENCE:\n${[saved.grounded ?? "", ...evidence].filter(Boolean).join("\n\n").slice(0, 28_000)}`, { maxTokens: 5200, totalMs: 45_000 });
     // reach-them facts come from data we hold, never from the AI
     if (p.emails[0]) set(out, "email_found", p.emails[0], "your records or their company's site");
     if (p.phones[0]) set(out, "phone_found", p.phones[0], "your records");

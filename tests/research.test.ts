@@ -63,7 +63,7 @@ vi.mock("@/lib/sales/search", async (orig) => {
 import { one, q } from "@/lib/db";
 import { qualifyPending } from "@/lib/sales/radar";
 import {
-  companyQueries, identifyLead, personStage, pickLinks, researchRadarItem, researchView, searchStage, siteStage, startResearch, synthStage,
+  companyQueries, deepStage, identifyLead, personStage, personSynthStage, pickLinks, researchRadarItem, researchView, searchStage, siteStage, startResearch, synthStage,
 } from "@/lib/sales/research";
 
 const rdap = { events: [{ eventAction: "registration", eventDate: "2014-03-02T00:00:00Z" }], entities: [{ roles: ["registrar"], vcardArray: ["vcard", [["fn", {}, "text", "GoDaddy.com, LLC"]]] }], nameservers: [{ ldhName: "ns1.example.com" }] };
@@ -95,7 +95,7 @@ describe("picking the pages worth reading", () => {
     expect(pickLinks("https://acme.com", html)).toEqual([
       "https://acme.com/about-us", "https://acme.com/our-team", "https://acme.com/contact-us", "https://acme.com/careers", "https://acme.com/services", "https://acme.com/blog/post-1",
     ]);
-    expect(companyQueries("Acme", 2026)).toHaveLength(12);
+    expect(companyQueries("Acme", 2026)).toHaveLength(15);
   });
 });
 
@@ -131,8 +131,13 @@ describe("the research pipeline", () => {
 
     await searchStage(runId);
     run = (await one("select * from sales_research_runs where id = $1", [runId]))!;
+    expect(run.stage).toBe("deep");
+    expect(run.log.join("\n")).toMatch(/Ran 15 web searches/);
+    // no Gemini key in tests: the Google pass is skipped with a tip, and the profile is still written
+    await deepStage(runId);
+    run = (await one("select * from sales_research_runs where id = $1", [runId]))!;
     expect(run.stage).toBe("synth");
-    expect(run.log.join("\n")).toMatch(/Ran 12 web searches/);
+    expect(run.log.join("\n")).toMatch(/GEMINI_API_KEY/);
 
     await synthStage(runId);
     run = (await one("select * from sales_research_runs where id = $1", [runId]))!;
@@ -163,6 +168,7 @@ describe("the research pipeline", () => {
     const omar = (await one<{ id: number }>("select id from sales_people where full_name = 'Omar Saeed'"))!;
     const omarRun = personRuns.find((r) => r.subject_id === omar.id)!;
     await personStage(omarRun.id);
+    await personSynthStage(omarRun.id);
     const p = (await one<{ enrichment: Record<string, { v: unknown; est?: boolean; conf?: string }> }>("select enrichment from sales_people where id = $1", [omar.id]))!;
     expect(p.enrichment.email_guess).toMatchObject({ v: "omar.saeed@acmefreight.com", est: true, conf: "medium" }); // not the AI's "invented@x.com"
     expect(String(p.enrichment.email_pattern_basis.v)).toMatch(/first\.last@acmefreight\.com/);
@@ -183,6 +189,7 @@ describe("the research pipeline", () => {
     const runId = await startResearch({ subject: "company", id: cid });
     await siteStage(runId);
     await searchStage(runId);
+    await deepStage(runId);
     ai.failSynth = true;
     await expect(synthStage(runId)).rejects.toThrow("model overloaded");
     const run = (await one<{ status: string; error: string }>("select status, error from sales_research_runs where id = $1", [runId]))!;

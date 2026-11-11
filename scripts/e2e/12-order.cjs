@@ -19,7 +19,14 @@ const { setup, check, choose } = require("./lib.cjs");
   const titles = async () => (await col.locator("li p.text-sm.font-semibold").allInnerTexts()).filter((x) => x.startsWith("OR "));
   const before = await titles();
   check("three cards in the column", before.length === 3, before);
-  check("priority legend explains the colours", await page.getByText("moved 5+ points since yesterday").isVisible());
+  // the board's help sits behind one "i": the two badges, the colours, dragging
+  await page.getByText("How it works").locator("..").getByRole("button", { name: "More info" }).click();
+  const help = page.getByRole("dialog", { name: "How the board works" });
+  await help.waitFor({ timeout: 5000 }).catch(() => {});
+  check("board help explains fit, priority colours and dragging", (await help.getByText("moved 5+ points since yesterday").first().isVisible()) && (await help.getByText(/Fit A to D/).first().isVisible()) && (await help.getByText(/Drag/).first().isVisible()));
+  await page.keyboard.press("Escape");
+  check("no instruction lines on the board itself", (await page.getByText("Drag a card to reorder it or move its stage.").count()) === 0);
+  check("fit badge is labelled \"Fit X\" on cards", (await page.getByText(/^Fit [ABCD]$/).count()) > 0);
 
   // drag the last card onto the first: it goes above it (column centred, away from the auto-scroll edges)
   await col.evaluate((el) => { const sc = el.parentElement; sc.scrollLeft = el.offsetLeft - sc.clientWidth / 2 + el.clientWidth / 2; window.scrollTo(0, 0); });
