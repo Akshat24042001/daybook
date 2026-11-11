@@ -2,10 +2,11 @@
 
 import { ArrowDownLeft, ArrowUpRight, ChevronDown, CornerUpLeft, FileText, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { createContext, useContext, useMemo, useState, useTransition } from "react";
 import { closeDealAction, editInteractionAction, logActivityAction, setEventNoteAction, updateDealAction } from "@/app/sales-actions";
 import { Button, Chip, Field, Input, Select, Sheet, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
+import { VoiceButton } from "@/components/voice-button";
 import { cn } from "@/lib/cn";
 import type { DealCard, InteractionRow } from "@/lib/sales/deals";
 import {
@@ -200,14 +201,22 @@ export function StageMoveSheet({
 
 // ---------------------------------------------------------------- one input for any field
 
+/** Whether speech-to-text is set up on the server: the deal page provides it, so every text field can take a mic. */
+export const VoiceReady = createContext(false);
+
 export function FieldInput({ def, value, onChange, people = [] }: { def: FieldDef; value: unknown; onChange: (v: unknown) => void; people?: PersonOpt[] }) {
   const s = value === null || value === undefined ? "" : Array.isArray(value) ? value.join(", ") : String(value);
   const label = def.label;
   const common = { "aria-label": def.label.replace(/ \*$/, "") };
+  const voice = useContext(VoiceReady);
+  // speak into a text field: what you say is added to what is there
+  const mic = (
+    <VoiceButton enabled={voice} className="shrink-0" label="Speak into this field" onText={(t) => onChange(s ? `${s}${def.type === "long_text" ? "\n" : " "}${t}` : t)} />
+  );
   let input: React.ReactNode;
   switch (def.type) {
     case "long_text":
-      input = <Textarea value={s} onChange={(e) => onChange(e.target.value)} className="min-h-[70px]" {...common} />;
+      input = <div className="flex items-start gap-1.5"><Textarea value={s} onChange={(e) => onChange(e.target.value)} className="min-h-[70px]" {...common} />{mic}</div>;
       break;
     case "date":
       input = <Input type="date" value={s.slice(0, 10)} onChange={(e) => onChange(e.target.value)} {...common} />;
@@ -252,6 +261,7 @@ export function FieldInput({ def, value, onChange, people = [] }: { def: FieldDe
       break;
     default:
       input = <Input value={s} onChange={(e) => onChange(e.target.value)} inputMode={def.type === "phone" ? "tel" : def.type === "email" ? "email" : def.type === "url" ? "url" : undefined} {...common} />;
+      if (def.type === "text") input = <div className="flex items-center gap-1.5">{input}{mic}</div>;
   }
   return <Field label={label} hint={def.hint}>{input}</Field>;
 }

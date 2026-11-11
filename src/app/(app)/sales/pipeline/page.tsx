@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SalesChat } from "@/components/sales/sales-chat";
 import { InfoTip } from "@/components/info-tip";
 import Link from "next/link";
 import { reportMoney, salesConfig } from "@/lib/sales/config";
@@ -44,7 +45,10 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
           <h1 className="font-display text-2xl">Pipeline</h1>
           <p className="flex items-center gap-1 text-sm text-subtle">Your deals, most urgent first. <InfoTip label="About the pipeline">{"- Stages move on their own as conversations happen.\n- Priority (0 to 100) rises and falls with real engagement, so whoever needs you most is on top.\n- Fit (A to D) is how well they suit your business."}</InfoTip></p>
         </div>
-        <NewDealButton defaultCurrency={cfg.default_currency} pipelineId={current?.id ?? null} />
+        <div className="flex flex-wrap gap-2">
+          <SalesChat focus={{ area: "sales" }} title="Chat about sales" voiceEnabled={voiceConfigured()} />
+          <NewDealButton defaultCurrency={cfg.default_currency} pipelineId={current?.id ?? null} />
+        </div>
       </div>
       <CaptureBox dealId={null} voiceEnabled={voiceConfigured()} compact placeholder="New lead or update? Paste or drop a screenshot, mail or chat." />
       {pipelines.length > 1 ? (

@@ -348,6 +348,12 @@ export async function salesCallback(chat: number, mid: number | undefined, parts
     else await sendMessage(chat, text, markup);
   };
   switch (op) {
+    case "lc": {
+      // a lead from /leads: its card
+      const { sendLeadCard } = await import("../telegram/leads");
+      await sendLeadCard(chat, id);
+      return undefined;
+    }
     case "m": {
       const m = await movesMessage();
       await sendMessage(chat, m.text, m.markup);

@@ -1,5 +1,6 @@
 import { aiConfigured } from "@/lib/ai";
 import { askAssistant } from "@/lib/assistant/run";
+import { cleanFocus } from "@/lib/sales/chat-focus";
 import type { StreamEvent } from "@/lib/assistant/types";
 import { UserError } from "@/lib/db";
 import { cleanModel } from "@/lib/services/assistant";
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
-  let body: { chatId?: unknown; message?: unknown; model?: unknown };
+  let body: { chatId?: unknown; message?: unknown; model?: unknown; focus?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -35,6 +36,8 @@ export async function POST(req: Request) {
           // the picker's choice travels with every message
           model: "model" in body ? cleanModel(body.model) : undefined,
           source: "web",
+          // the Sales chat: about the pipeline, or about one lead
+          focus: cleanFocus(body.focus),
           deadline: started + 56_000,
           onChat: (chat) => send({ t: "chat", chatId: chat.id, title: chat.title }),
           onStatus: (text) => send({ t: "status", text }),

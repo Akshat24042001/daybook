@@ -1,4 +1,6 @@
 "use client";
+import { SalesChat } from "./sales-chat";
+import { VoiceReady } from "./deal-rich";
 import { InfoTip } from "@/components/info-tip";
 
 import type { LinkGroup } from "@/lib/sales/quick-links-types";
@@ -140,6 +142,7 @@ export function DealView({ d }: { d: DealPageData }) {
     : null;
 
   return (
+    <VoiceReady.Provider value={d.voiceEnabled}>
     <div className="space-y-4">
       {/* header */}
       <div className="rounded-2xl border border-border bg-surface p-4">
@@ -182,7 +185,9 @@ export function DealView({ d }: { d: DealPageData }) {
               {t.name}{t.requires !== "none" ? " *" : ""}
             </button>
           ))}
-          <Button size="sm" variant="ghost" className="ml-auto" onClick={() => openEdit()}>Edit details</Button>
+          <span className="ml-auto" />
+          <SalesChat focus={{ deal_id: deal.id }} title={`Chat about ${deal.title}`} voiceEnabled={d.voiceEnabled} label="Chat about this lead" />
+          <Button size="sm" variant="ghost" onClick={() => openEdit()}>Edit details</Button>
           {!d.blocked && (d.company?.website || deal.company_name || deal.person_name) ? (
             <Button size="sm" variant="ghost" className="text-bad hover:text-bad" title="Stop all outreach to them, now and in future radar leads"
               onClick={() => {
@@ -405,6 +410,7 @@ export function DealView({ d }: { d: DealPageData }) {
       <StageMoveSheet pending={completing ? { deal, to: d.targets[0] ?? ({ id: deal.stage_id, name: deal.stage_name, category: deal.stage_category } as never), requires: "none" } : null}
         onDone={() => setCompleting(false)} reasons={d.reasons} people={people} wonFields={wonFields} complete />
     </div>
+    </VoiceReady.Provider>
   );
 }
 

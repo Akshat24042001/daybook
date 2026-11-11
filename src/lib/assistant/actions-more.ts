@@ -6,6 +6,7 @@
  * The one-line `doc` of each action is what the model reads, so keep it accurate.
  */
 import { one, q, UserError } from "../db";
+import { SALES_ACTIONS } from "./actions-sales";
 import { ACTIVITIES } from "../activity";
 import { formatRepeat, describeRrule, parseRepeatPhrase, parseRepeat } from "../recurrence";
 import { updateSettings, type Ctx, type SettingsPatch } from "../settings";
@@ -958,4 +959,7 @@ function scratchData(kind: string, o: Record<string, unknown>): unknown {
 }
 
 /** Every type the registry adds, for the prompt. */
+// sales: leads, stages, timeline, promises, contacts
+Object.assign(MORE, SALES_ACTIONS);
+
 export const MORE_DOCS = Object.values(MORE).map((d) => `- ${d.doc}`).join("\n");

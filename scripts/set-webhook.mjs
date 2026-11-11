@@ -35,7 +35,12 @@ const cmds = await fetch(`${api}/bot${token}/setMyCommands`, {
   headers: { "content-type": "application/json" },
   body: JSON.stringify({
     commands: [
+      { command: "leads",   description: "Open leads, most urgent first" },
+      { command: "lead",    description: "A lead's card, or /lead name: question or update" },
+      { command: "ask",     description: "Ask anything about your data" },
       { command: "today",   description: "Today's task list" },
+      { command: "new",     description: "Start a new assistant chat" },
+      { command: "chats",   description: "Switch assistant chats" },
       { command: "score",   description: "Set day score — /score 8 or /score 8.5" },
       { command: "steps",   description: "Log step count — /steps 8500" },
       { command: "worked",  description: "Set hours worked — /worked 7.5h" },

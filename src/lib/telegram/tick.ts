@@ -1,4 +1,5 @@
 import { isWorkKind } from "../hours";
+import { registerBotCommands } from "./commands";
 import { one, q } from "../db";
 import { dueFor } from "../sections";
 import { buildCtx, getSettings, isWorkingDay, type Ctx } from "../settings";
@@ -306,6 +307,8 @@ export async function runTick(now: Date = new Date(), opts: { touchLastTick?: bo
 
   const chat = telegramConfigured() ? await ownerChat(ctx) : null;
   if (chat) {
+    // the "/" menu, kept current (new commands appear without running any script)
+    await guard("bot-commands", async () => { await registerBotCommands(ctx.today); });
     await guard("missed-exercise", () => resolveMissedExercise(ctx));
 
     const entries = await entriesForDate(ctx.today);

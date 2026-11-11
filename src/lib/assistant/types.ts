@@ -51,6 +51,8 @@ export interface ChatSummary {
   /** chosen OpenRouter model id, or null for automatic */
   model: string | null;
   updatedAt: string;
+  /** what the chat is about: {"area":"sales"} or {"deal_id":12}; null for a general chat */
+  focus?: Record<string, unknown> | null;
 }
 
 /** A free model on OpenRouter, from its live catalogue. */

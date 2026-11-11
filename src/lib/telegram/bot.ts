@@ -27,6 +27,7 @@ import {
   type InlineMarkup, type Markup, type ReplyKeyboard,
 } from "./api";
 import { sendRecapOnce } from "./notify";
+import { handleLeadCommand, handleLeadReply, LEAD_HELP } from "./leads";
 import { captureText, handleSalesMessage, handleSalesReply, isSalesText, salesCallback, salesMenu, type TgSalesMessage } from "../sales/telegram";
 import { askFromTelegram, askMenu, assistantCallback, listChatsMessage, looksLikeQuestion, newChat, STARTERS } from "./assistant";
 import {
@@ -142,6 +143,16 @@ export async function handleUpdate(update: TgUpdate, now: Date = new Date()): Pr
     return;
   }
 
+  // Leads: "/leads", "/lead name", "/lead name: question or update" (before the "lead: …" capture below)
+  if (msg?.text && /^\/leads?\b/i.test(msg.text.trim())) {
+    try {
+      if (await handleLeadCommand(ctx, chat, msg.text, later)) return;
+    } catch (e) {
+      await reply(`⚠️ ${esc(errorText(e))}`).catch(() => {});
+      return;
+    }
+  }
+
   // Sales: screenshots, files, forwarded messages and "lead: ..." texts
   if (msg && (msg.photo || msg.document || msg.forward_origin || msg.forward_date || (msg.text && isSalesText(msg.text)))) {
     try {
@@ -186,6 +197,8 @@ interface TextOpts {
 async function handleText(ctx: Ctx, chat: number, text: string, opts: TextOpts = {}): Promise<void> {
   // A reply to the "add a note" prompt attaches the text (or transcript) to that task.
   if (opts.replyToId) {
+    // a reply to a lead card: ask about that lead or update it (text or voice)
+    if (await handleLeadReply(ctx, chat, opts.replyToId, text, later)) return;
     // a reply to a Sales prompt ("who is this?", "how did the call go?")
     if (await handleSalesReply(chat, opts.replyToId, text, (t) => void later(t))) return;
     const prompt = await one<{ ref_id: string }>(
@@ -308,6 +321,8 @@ async function handleText(ctx: Ctx, chat: number, text: string, opts: TextOpts =
 /worked 7.5h — set hours worked manually
 /score clear · /steps clear · /sleep clear · /worked clear — remove a value entered by mistake
 /pause — toggle exercise pings on/off
+
+${LEAD_HELP}
 
 <b>Assistant</b>
 /ask how was my week? — ask anything about your data (or just type a question)

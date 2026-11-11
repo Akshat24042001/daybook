@@ -475,3 +475,29 @@ actually read. The free tier allows a few searches a minute; research waits its 
 
 The website is found by search, then by likely domains checked live (the domain must resolve and the page must
 carry the company's name), then by asking Google.
+
+## Chat about Sales or one lead (web and Telegram)
+
+**Web.** "Chat" on Moves and Pipeline talks about the whole pipeline; "Chat about this lead" on a deal talks about
+that lead (the assistant gets its whole record with every question). Type or tap Speak. Changes come back as buttons:
+nothing changes until you tap one, and each can be undone. "Open in Assistant" continues the same chat there.
+Edit details on a deal has a mic on every text field: what you say is added to the field.
+
+What the assistant can change: a lead's details (value "2 lakh", next step and date, budget, timeline, pain, why
+now, competitors, expected close… anything on Edit details), its stage (with a reason for lost or won), a note on
+the timeline, a promise (yours or theirs), the contact (title, email, phone, WhatsApp, LinkedIn, decision maker), and
+new leads.
+
+**Telegram.**
+
+| Send | What happens |
+|---|---|
+| `/leads` | Open leads, most urgent first; tap one for its card |
+| `/lead Shah Dental` | The lead's card: stage, priority, value, contact, next step, promises, latest conversation |
+| `/lead Shah Dental: what's happening?` | Answer about that lead |
+| `/lead Shah Dental: budget 2 lakh, call on Friday` | The changes as buttons: tap to apply, tap again to undo |
+| Reply to a lead card (text or voice note) | Same as the line above, for that lead |
+| `lead: …` with a chat, email or screenshot | Logs a new conversation (unchanged) |
+
+A lead is found by a few words of the deal name, the contact's name or the company. The chat behind it is shared with
+the web, so follow-ups keep the context for 12 hours.

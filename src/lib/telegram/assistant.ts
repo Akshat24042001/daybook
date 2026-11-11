@@ -8,6 +8,7 @@
 import { one, q, UserError } from "../db";
 import { applyStoredAction, undoStoredAction } from "../assistant/actions";
 import { askAssistant } from "../assistant/run";
+import type { ChatFocus } from "../sales/chat-focus";
 import type { ActionItem, Block, ChatSummary, MessageView } from "../assistant/types";
 import type { Ctx } from "../settings";
 import { listChats } from "../services/assistant";
@@ -225,7 +226,7 @@ async function deliver(chat: number, replaceId: number | null, c: ChatSummary, m
  * Answers a question in Telegram: a "Thinking…" message that shows progress, replaced by the answer. Status edits
  * are chained and stop before the answer lands, so a late status can never overwrite it.
  */
-export async function askFromTelegram(ctx: Ctx, chat: number, text: string, chatId?: number | null): Promise<void> {
+export async function askFromTelegram(ctx: Ctx, chat: number, text: string, chatId?: number | null, focus?: ChatFocus | null): Promise<void> {
   const started = Date.now();
   await tg("sendChatAction", { chat_id: chat, action: "typing" }).catch(() => undefined);
   const mid = await sendMessage(chat, "🤔 Thinking…");
@@ -245,6 +246,7 @@ export async function askFromTelegram(ctx: Ctx, chat: number, text: string, chat
       chatId: chatId === undefined ? await currentChatId(ctx) : chatId,
       message: text,
       source: "telegram",
+      focus: focus ?? null,
       ctx,
       deadline: started + 52_000,
       onStatus: (t) => { status = t; show(); },

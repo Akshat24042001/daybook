@@ -2,14 +2,14 @@
 import { getPool, one, q, type Db } from "../db";
 import type { ActionItem, Block, ChatSummary, MemoryFact, MessageView, Step } from "../assistant/types";
 
-interface ChatRow { id: number; title: string; pinned: boolean; model: string | null; created_at: Date; updated_at: Date }
+interface ChatRow { id: number; title: string; pinned: boolean; model: string | null; focus?: Record<string, unknown> | null; created_at: Date; updated_at: Date }
 interface MessageRow {
   id: number; chat_id: number; role: "user" | "assistant"; content: string; blocks: Block[]; steps: Step[];
   model: string | null; created_at: Date;
 }
 
 const toChat = (r: ChatRow): ChatSummary => ({
-  id: r.id, title: r.title, pinned: r.pinned, model: r.model, updatedAt: r.updated_at.toISOString(),
+  id: r.id, title: r.title, pinned: r.pinned, model: r.model, updatedAt: r.updated_at.toISOString(), focus: r.focus ?? null,
 });
 export const toMessage = (r: MessageRow): MessageView => ({
   id: r.id, role: r.role, content: r.content, blocks: r.blocks ?? [], steps: r.steps ?? [], model: r.model,
@@ -31,10 +31,11 @@ export async function createChat(
   model: string | null = null,
   source: "web" | "telegram" = "web",
   db: Db = getPool(),
+  focus: Record<string, unknown> | null = null,
 ): Promise<ChatSummary> {
   const r = await one<ChatRow>(
-    "insert into assistant_chats (title, model, source) values ($1, $2, $3) returning *",
-    [cleanTitle(title), cleanModel(model), source],
+    "insert into assistant_chats (title, model, source, focus) values ($1, $2, $3, $4) returning *",
+    [cleanTitle(title), cleanModel(model), source, focus ? JSON.stringify(focus) : null],
     db,
   );
   return toChat(r!);

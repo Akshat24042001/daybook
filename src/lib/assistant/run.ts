@@ -3,6 +3,7 @@
  * agent with a live snapshot and memory, turn proposed changes into stored action buttons, save the answer.
  */
 import { q, UserError } from "../db";
+import { cleanFocus, focusContext, type ChatFocus } from "../sales/chat-focus";
 import { makeCtx, type Ctx } from "../settings";
 import {
   addMemory, addMessage, createChat, deleteMemory, getChat, listMemory, messagesFor, renameChat, setChatModel,
@@ -81,6 +82,8 @@ export async function askAssistant(o: {
   model?: string | null;
   source: "web" | "telegram";
   deadline: number;
+  /** a new chat about Sales or one lead; an existing chat keeps the focus it was started with */
+  focus?: ChatFocus | null;
   /** the moment the question was asked (Telegram passes the update's time); default: now */
   ctx?: Ctx;
   onChat?: (chat: ChatSummary) => void;
@@ -92,7 +95,7 @@ export async function askAssistant(o: {
   if (message.length > 4000) throw new UserError("That is too long. Keep it under 4000 characters.");
   const ctx = o.ctx ?? (await makeCtx());
   const existing = o.chatId ? await getChat(o.chatId) : null;
-  const chat = existing ?? (await createChat(message, o.model ?? null, o.source));
+  const chat = existing ?? (await createChat(message, o.model ?? null, o.source, undefined, o.focus ? { ...o.focus } : null));
   if (existing && o.model !== undefined && o.model !== existing.model) {
     await setChatModel(existing.id, o.model);
     chat.model = o.model;
@@ -101,7 +104,9 @@ export async function askAssistant(o: {
 
   const prior = await messagesFor(chat.id);
   await addMessage(chat.id, { role: "user", content: message });
-  const [memory, snap] = await Promise.all([listMemory(), snapshot(ctx)]);
+  const [memory, snapBase, focusText] = await Promise.all([listMemory(), snapshot(ctx), focusContext(cleanFocus(chat.focus)).catch(() => "")]);
+  // a chat about Sales or one lead carries that context with every question
+  const snap = focusText ? `${snapBase}\n\n${focusText}` : snapBase;
 
   const result = await runAgent({
     ctx,

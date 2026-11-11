@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SalesChat } from "@/components/sales/sales-chat";
 import { InfoTip } from "@/components/info-tip";
 import { one } from "@/lib/db";
 import { voiceConfigured } from "@/lib/deepgram";
@@ -45,7 +46,10 @@ export default async function SalesPage() {
           <h1 className="font-display text-2xl sm:text-3xl leading-tight">Moves</h1>
           <p className="flex items-center gap-1 text-sm text-subtle">What needs you, most important first. <InfoTip label="About moves">Each move comes with a draft in your voice. Send it in one tap and it logs itself.</InfoTip></p>
         </div>
-        <NewDealButton defaultCurrency={cfg.default_currency} />
+        <div className="flex flex-wrap gap-2">
+          <SalesChat focus={{ area: "sales" }} title="Chat about sales" voiceEnabled={voiceConfigured()} />
+          <NewDealButton defaultCurrency={cfg.default_currency} />
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
         {tiles.map((t) => (
