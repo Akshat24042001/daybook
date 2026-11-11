@@ -91,7 +91,7 @@ export function ObjectionsSection({ rows, pending }: { rows: ObjectionRow[]; pen
         </div>
       ) : null}
       {rows.length ? <ul className="space-y-2">{rows.map((o) => <ObjectionItem key={o.id} o={o} />)}</ul> : (
-        <p className="text-[13px] text-subtle">No objections recorded yet. They are picked out of every conversation you log (chats, emails, call notes) and appear here.</p>
+        <p className="text-[13px] text-subtle">None yet. They are picked out of the conversations you log.</p>
       )}
     </div>
   );

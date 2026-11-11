@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, ImagePlus, Loader2, Send, UserPlus, X } from "lucide-react";
+import { InfoTip } from "@/components/info-tip";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
@@ -154,7 +155,7 @@ export function CaptureBox({ dealId, voiceEnabled, placeholder, compact }: { dea
       <Textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder={placeholder ?? "Paste a chat, an email, meeting notes, or just say what happened. Paste or drop screenshots too. AI files it: who, what, promises, next step, and the details it finds."}
+        placeholder={placeholder ?? "Paste or drop a chat, mail, notes or screenshot, or speak."}
         className={compact ? "min-h-[64px]" : "min-h-[96px]"}
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
@@ -196,6 +197,7 @@ export function CaptureBox({ dealId, voiceEnabled, placeholder, compact }: { dea
           <ImagePlus className="h-4 w-4" /> Screenshot
         </Button>
         <VoiceButton enabled={voiceEnabled} onText={(t) => setText((cur) => (cur ? `${cur}\n${t}` : t))} showLabel label="Speak" />
+        <InfoTip label="What happens when you log">{"AI reads it (screenshots too) and files it for you:\n- finds the person and the deal, or creates the lead\n- logs each message on the timeline\n- picks out promises, meetings, value and the next step\n- fills in empty details (it never overwrites yours)\n- keeps the screenshot on the deal\nThe same screenshot twice is not logged twice. Undo takes it all back."}</InfoTip>
         <Button size="sm" variant="primary" className="ml-auto" disabled={pending || (!text.trim() && !images.length)} onClick={submit}>
           {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {pending ? "Reading…" : "Log it"}
         </Button>

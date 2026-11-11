@@ -1,4 +1,5 @@
 "use client";
+import { InfoTip } from "@/components/info-tip";
 
 import { Download, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -68,7 +69,7 @@ export function ImportExport({ pipelineId }: { pipelineId: number | null }) {
                 </tbody>
               </table>
             </div>
-            <p className="text-xs text-subtle">Deals are created in this pipeline. A stage must be an open stage (New, Contacted…): close won or lost deals on the deal, so the closing record and reason are captured. Rows with a problem are skipped and listed; the rest are imported.</p>
+            <p className="flex items-center gap-1 text-xs text-subtle">Rows with a problem are skipped and listed. <InfoTip label="About importing">{"- Deals are created in this pipeline.\n- A stage must be an open one (New, Contacted…). Close won or lost deals on the deal itself, so the reason is recorded.\n- Rows with a problem are skipped and listed; the rest are imported."}</InfoTip></p>
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
               <Button variant="primary" disabled={busy || !usable} onClick={() => start(async () => {

@@ -7,7 +7,7 @@ export function ExportCard() {
     <section id="export" aria-label="Your data" className="scroll-mt-24 space-y-3">
       <div>
         <h2 className="text-xs font-semibold uppercase tracking-wider text-subtle">Your data</h2>
-        <p className="text-xs text-subtle">It is yours. Download all of it any time, for a backup or to analyse elsewhere.</p>
+        <p className="text-xs text-subtle">Download all your data any time.</p>
       </div>
       <div className="rounded-2xl border border-border bg-surface p-4 shadow-[var(--shadow-sm)]">
         <a

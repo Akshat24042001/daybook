@@ -4,7 +4,7 @@ const { setup, check } = require("./lib.cjs");
   const { page, go } = t;
   console.log("Capture box: on the pipeline, screenshots by drop, a failure reported plainly");
   await go("/sales/pipeline");
-  const box = page.locator("textarea[placeholder^='New lead or an update?']");
+  const box = page.locator("textarea[placeholder^='New lead or update?']");
   check("capture box on the pipeline", await box.isVisible());
   // drop a screenshot onto the box
   const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { InfoTip } from "@/components/info-tip";
 import Link from "next/link";
 import { money } from "@/components/sales/format";
 import { cn } from "@/lib/cn";
@@ -14,11 +15,12 @@ const amt = (n: number | null | undefined, cur: string) => (n === null || n === 
 const pct = (n: number | null | undefined) => (n === null || n === undefined ? "–" : `${n}%`);
 const hrs = (h: number | null | undefined) => (h === null || h === undefined ? "–" : h < 1 ? `${Math.round(h * 60)} min` : h < 48 ? `${h} h` : `${Math.round(h / 24)} days`);
 
-function Section({ id, title, hint, children, className }: { id?: string; title: string; hint?: React.ReactNode; children: React.ReactNode; className?: string }) {
+function Section({ id, title, hint, info, children, className }: { id?: string; title: string; hint?: React.ReactNode; info?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
     <section id={id} className={cn("scroll-mt-24 rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-sm)]", className)}>
-      <h2 className="text-[15px] font-semibold">{title}</h2>
-      {hint ? <p className="mt-0.5 text-[13px] text-subtle">{hint}</p> : null}
+      {/* a short hint stays visible; a long one sits behind the "i" next to the title */}
+      <h2 className="flex items-center gap-1 text-[15px] font-semibold">{title}{info ? <InfoTip label={`About ${title}`}>{info}</InfoTip> : hint && (typeof hint !== "string" || hint.length > 70) ? <InfoTip label={`About ${title}`}>{hint}</InfoTip> : null}</h2>
+      {typeof hint === "string" && hint.length <= 70 ? <p className="mt-0.5 text-[13px] text-subtle">{hint}</p> : null}
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -116,7 +118,7 @@ function TargetCard({ f }: { f: Forecast }) {
   const pace = f.target ? Math.min(100, (f.day / f.days_in_month) * 100) : 0;
   const monthName = new Date(`${f.month}-15T12:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric" });
   return (
-    <Section id="target" title={`Target · ${monthName}`} hint={`Day ${f.day} of ${f.days_in_month}. Won means the deal reached a Won stage this month; cash is what was paid.`}>
+    <Section id="target" title={`Target · ${monthName}`} hint={`Day ${f.day} of ${f.days_in_month}`} info="Won means the deal reached a Won stage this month. Cash is what was actually paid.">
       {f.target ? (
         <>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -193,7 +195,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl sm:text-3xl leading-tight">Insights</h1>
-          <p className="mt-0.5 text-sm text-subtle">Where the money comes from, what gets replies, and what it takes to hit your number.</p>
+          <p className="mt-0.5 text-sm text-subtle">What works, and what it takes to hit your number.</p>
         </div>
         <div className="flex rounded-lg border border-border bg-muted p-0.5 text-[13px]" role="tablist" aria-label="Period">
           {PERIODS.map((p) => (
@@ -213,10 +215,10 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
 
       <TargetCard f={f} />
 
-      <Section id="findings" title="What the data says" hint="Only claims your numbers support: at least 5 cases and a real gap. Fewer than that and it stays quiet.">
+      <Section id="findings" title="What the data says" hint="Patterns in your own numbers." info="Only claims your numbers support: at least 5 cases and a real gap. With fewer, it stays quiet.">
         {findings.length ? (
           <ul className="space-y-2 text-sm">{findings.map((x) => <li key={x} className="flex gap-2"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />{x}</li>)}</ul>
-        ) : <p className="text-sm text-subtle">Not enough history yet to say anything with confidence. Keep logging; this fills in as deals close and messages get answered.</p>}
+        ) : <p className="text-sm text-subtle">Not enough history yet. This fills in as deals close.</p>}
       </Section>
 
       <Section id="funnel" title="Funnel" hint={`Leads created in the last ${days} days and the furthest step each reached.`}>
@@ -235,7 +237,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
         ) : <p className="text-sm text-subtle">No leads in this period.</p>}
       </Section>
 
-      <Section id="segments" title="Win rate by segment" hint="Closed means won, lost, disqualified or ghosted. Grey rows have fewer than 5 closed deals: too few to judge.">
+      <Section id="segments" title="Win rate by segment" hint="Which kinds of deals you win." info="Closed means won, lost, disqualified or ghosted. Grey rows have fewer than 5 closed deals: too few to judge.">
         <div className="grid gap-6 xl:grid-cols-2">
           <SegmentTable title="By service" rows={wl.by_service} cur={wl.currency} />
           <SegmentTable title="By country" rows={wl.by_country} cur={wl.currency} />
@@ -244,7 +246,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
         </div>
       </Section>
 
-      <Section id="stages" title="Stage by stage" hint={`Deals that entered each stage in the last ${days} days: where they went next and how long they stayed. Pass rate = moved forward or won, out of those that left.`}>
+      <Section id="stages" title="Stage by stage" hint="Where deals move on, and where they stall." info={`Deals that entered each stage in the last ${days} days: where they went next and how long they stayed. Pass rate = moved forward or won, out of those that left.`}>
         {stages.length ? (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-[13px]">
@@ -272,7 +274,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
         ) : <p className="text-sm text-subtle">No stage moves in this period.</p>}
       </Section>
 
-      <Section id="recurring" title="Recurring revenue" hint="Retainers and subscriptions on won deals, per month in your report currency, and contracts ending in the next 60 days.">
+      <Section id="recurring" title="Recurring revenue" hint="Retainers, and renewals coming up." info="Retainers and subscriptions on won deals, per month in your report currency, and contracts ending in the next 60 days.">
         <div className="grid gap-3 sm:grid-cols-3">
           <Stat label="Per month" value={money(rec.mrr, rec.currency)} sub={`${rec.clients} client${rec.clients === 1 ? "" : "s"}`} />
           <Stat label="Per year" value={money(rec.mrr * 12, rec.currency)} sub="at today's rate" />
@@ -285,7 +287,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
         ) : null}
       </Section>
 
-      <Section id="reasons" title="Why you win and lose" hint={`Deals closed in the last ${days} days, by the reason picked when closing. Edit the lists in Sales settings > Reasons.`}>
+      <Section id="reasons" title="Why you win and lose" hint={`Deals closed in the last ${days} days.`} info="By the reason picked when closing. Edit the lists in Sales settings > Reasons.">
         <div className="grid gap-6 md:grid-cols-3">
           {([["Won because", wl.reasons.won], ["Lost because", wl.reasons.lost], ["Lost to", wl.reasons.lost_to]] as const).map(([title, rows]) => {
             const total = rows.reduce((a, r) => a + r.n, 0);
@@ -308,7 +310,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
         </div>
       </Section>
 
-      <Section id="quotes" title="Quotes" hint={`Quotes sent in the last ${days} days. Accepted means the client accepted or the deal was won.`}>
+      <Section id="quotes" title="Quotes" hint={`Quotes sent in the last ${days} days.`} info="Accepted means the client accepted the quote or the deal was won.">
         {wl.quotes.sent ? (
           <>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -331,7 +333,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
         ) : <p className="text-sm text-subtle">No quotes sent in this period.</p>}
       </Section>
 
-      <Section id="messages" title="What gets replies" hint={<>A message counts as answered if they replied (or you spoke) before your next message, within 14 days. {mp.pending ? `${mp.pending} recent message${mp.pending === 1 ? " is" : "s are"} under 3 days old and not counted yet.` : ""}</>}>
+      <Section id="messages" title="What gets replies" hint="Which messages people answer." info={`A message counts as answered if they replied (or you spoke) before your next message, within 14 days.${mp.pending ? ` ${mp.pending} recent message${mp.pending === 1 ? " is" : "s are"} under 3 days old and not counted yet.` : ""}`}>
         <div className="grid grid-cols-3 gap-4">
           <Stat label="Messages sent" value={mp.sent} />
           <Stat label="Got a reply" value={mp.replied} />
@@ -344,14 +346,14 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
           <BucketTable title="By length" rows={mp.by_length} />
           <div>
             <BucketTable title="AI drafts against your own words" rows={mp.by_draft} empty="Shows once you send from moves inside Daybook." />
-            <p className="mt-1.5 text-xs text-subtle">Messages sent with a one-tap WhatsApp or LinkedIn link are left out here: Daybook cannot see what you changed in the app.</p>
+            <p className="mt-1.5 flex items-center gap-1 text-xs text-subtle">One-tap WhatsApp and LinkedIn sends are left out. <InfoTip label="Why left out">Daybook cannot see what you changed in the other app before sending.</InfoTip></p>
           </div>
           <BucketTable title="By weekday" rows={mp.by_weekday} />
         </div>
-        <p className="mt-3 text-xs text-subtle">Drafts now learn from this: each new draft is shown your real messages of the same kind that got replies, closest match first.</p>
+        <p className="mt-3 flex items-center gap-1 text-xs text-subtle">Drafts learn from what gets replies. <InfoTip label="How drafts learn">Each new draft is shown your real messages of the same kind that got replies, closest match first.</InfoTip></p>
       </Section>
 
-      <Section id="speed" title="Speed" hint="Leads that came to you or the radar found, not deals you started with your own message. Clock hours, not working hours.">
+      <Section id="speed" title="Speed" hint="How fast you reach new leads and reply." info="Counts leads that came to you or the radar found, not deals you started yourself. Clock hours, not working hours.">
         <div className="grid gap-6 lg:grid-cols-2">
           <div>
             <p className="mb-2 text-[13px] font-medium">Time to first message</p>

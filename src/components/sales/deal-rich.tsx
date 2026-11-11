@@ -162,7 +162,7 @@ export function StageMoveSheet({
                 return <div key={w.key} className={w.type === "long_text" ? "sm:col-span-2" : ""}><FieldInput def={{ ...w, label: `${w.label} *` }} value={custom[k]} onChange={(v) => setCustom((c) => ({ ...c, [k]: v }))} people={people} /></div>;
               })}
             </div>
-            <p className="text-xs text-subtle">Attach the signed contract or PO under Documents on the deal (choose Signed contract or Purchase order, kept internal).</p>
+            <p className="text-xs text-subtle">Attach the signed contract or PO under Documents.</p>
           </>
         ) : null}
 

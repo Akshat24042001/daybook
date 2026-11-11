@@ -1,4 +1,5 @@
 "use client";
+import { InfoTip } from "@/components/info-tip";
 
 import { Loader2, Pencil, Play, Plus, Radar, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -169,7 +170,7 @@ export function HuntsPanel({ hunts, searchCap, providers, tz }: { hunts: HuntVie
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-p-teal px-4 py-3 text-p-teal-fg">
-        <p className="max-w-2xl text-sm">A hunt is an AI that searches the web for buyers on a schedule you set. Make as many as you like: one broad daily sweep, one hourly watch on a hot niche, one weekly deep dive on a country.</p>
+        <p className="flex max-w-2xl items-center gap-1 text-sm">AI that searches the web for buyers on your schedule. <InfoTip label="About hunts">Make as many as you like: one broad daily sweep, one hourly watch on a hot niche, one weekly deep dive on a country.</InfoTip></p>
         <Button size="sm" variant="primary" onClick={() => setEditing({ draft: blank() })}><Plus className="h-4 w-4" /> New hunt</Button>
       </div>
       {hunts.length === 0 ? <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-subtle">No hunts yet. Create one to start finding leads automatically.</p> : null}

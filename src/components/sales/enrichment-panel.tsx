@@ -87,7 +87,7 @@ export function EnrichmentPanel({ kind, id, data, groups, enrichedAt, title }: {
           })}
         </div>
       ) : (
-        <p className="text-sm text-subtle">Research runs automatically for new leads. Tap Research now to do it immediately.</p>
+        <p className="text-sm text-subtle">Runs on its own for new leads.</p>
       )}
     </section>
   );

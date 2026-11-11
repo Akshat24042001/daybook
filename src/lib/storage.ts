@@ -15,7 +15,8 @@ export const MAX_FILE_BYTES = 50 * 1024 * 1024;
 
 export interface FileStore {
   signUpload(path: string): Promise<{ url: string }>;
-  signDownloads(paths: string[], expiresSec: number): Promise<Map<string, string>>;
+  /** download: a file name makes the link save the file instead of opening it */
+  signDownloads(paths: string[], expiresSec: number, download?: string): Promise<Map<string, string>>;
   info(path: string): Promise<{ size: number; mime: string | null } | null>;
   copy(from: string, to: string): Promise<void>;
   remove(paths: string[]): Promise<void>;
@@ -79,11 +80,11 @@ function supabaseStore(): FileStore {
       fail("upload link", error);
       return { url: data!.signedUrl };
     },
-    async signDownloads(paths, expiresSec) {
+    async signDownloads(paths, expiresSec, download) {
       const out = new Map<string, string>();
       if (!paths.length) return out;
       await ensureBucket();
-      const { data, error } = await files().createSignedUrls(paths, expiresSec);
+      const { data, error } = await files().createSignedUrls(paths, expiresSec, download ? { download } : undefined);
       fail("download links", error);
       for (const d of data ?? []) if (d.path && d.signedUrl) out.set(d.path, d.signedUrl);
       return out;

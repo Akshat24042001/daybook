@@ -1,4 +1,5 @@
 "use client";
+import { InfoTip } from "@/components/info-tip";
 
 import {
   ArrowUp, Bot, Brain, Check, ChevronDown, Cpu, Database, Loader2, Menu, MessageSquarePlus, Pencil, Pin, PinOff, RefreshCw,
@@ -133,7 +134,7 @@ function ModelSheet({
     cn("w-full rounded-xl border p-2.5 text-left transition-colors", active ? "border-accent bg-accent-muted" : "border-border hover:bg-muted");
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()} title="Model for this chat" description="Free models on OpenRouter, live. If the one you pick is busy, the assistant falls back to the next free model.">
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()} title="Model for this chat" description="Free models. If yours is busy, the next one answers.">
       <div className="space-y-3">
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -190,7 +191,7 @@ function MemorySheet({
   const { toast } = useToast();
   const [draft, setDraft] = useState("");
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()} title="What the assistant remembers" description="Used in every chat. It adds facts when you say “remember…” or state a lasting goal; you can add or remove them here.">
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()} title="What the assistant remembers" description="Used in every chat. Say “remember…” to add a fact.">
       <div className="space-y-3">
         <form
           className="flex gap-2"
@@ -543,7 +544,7 @@ export function AssistantApp({
                 <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent-muted text-accent"><Bot className="h-6 w-6" /></span>
                 <div>
                   <p className="font-display text-lg">Ask anything about your Daybook</p>
-                  <p className="text-sm text-subtle">It reads your tasks, time, projects, exercise, sleep, diary and contacts, and answers with the numbers.</p>
+                  <p className="text-sm text-subtle">Ask about your tasks, time, health, diary or contacts.</p>
                 </div>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -632,7 +633,7 @@ export function AssistantApp({
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
             </button>
           </div>
-          <p className="mx-auto mt-1 max-w-3xl px-1 text-[10px] text-subtle">It reads everything; it changes something only when you tap a suggested change, and every change can be undone. Enter to send, Shift+Enter for a new line.</p>
+          <p className="mx-auto mt-1 flex max-w-3xl items-center gap-1 px-1 text-[10px] text-subtle">Changes only what you tap, and it can be undone. <InfoTip label="About the assistant">{"It reads everything, but changes something only when you tap a suggested change, and every change can be undone.\nEnter sends; Shift+Enter starts a new line."}</InfoTip></p>
         </form>
       </section>
 

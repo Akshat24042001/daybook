@@ -83,9 +83,9 @@ export function CustomFieldsCard({ fields }: { fields: CustomField[] }) {
           </div>
         );
       })}
-      {!fields.length ? <p className="text-[13px] text-subtle">None yet. Add any field you need, for example GST number, Decision date, Number of branches, or Preferred language.</p> : null}
+      {!fields.length ? <p className="text-[13px] text-subtle">None yet. For example: GST number, Number of branches.</p> : null}
       {editing === "new" ? <FieldForm f={{}} onDone={() => setEditing(null)} /> : <Button variant="outline" size="sm" onClick={() => setEditing("new")}><Plus className="h-4 w-4" /> Add a field</Button>}
-      <p className="text-xs text-subtle">Hiding a field keeps what you saved in it; showing it again brings the values back.</p>
+      <p className="text-xs text-subtle">Hiding a field keeps its saved values.</p>
     </div>
   );
 }
@@ -125,7 +125,7 @@ export function ReasonsCard({ reasons }: { reasons: Reasons }) {
           router.refresh();
         })}>Save</Button>
       </div>
-      <p className="text-xs text-subtle">Renaming a reason does not change deals already closed with the old wording.</p>
+      <p className="text-xs text-subtle">Renaming does not change deals already closed.</p>
     </div>
   );
 }

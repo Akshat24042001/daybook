@@ -1,4 +1,5 @@
 "use client";
+import { InfoTip } from "@/components/info-tip";
 
 import { Archive, Check, CheckCheck, History, Hourglass, Plus, Search, Star, Undo2, X } from "lucide-react";
 import Link from "next/link";
@@ -210,8 +211,9 @@ export function UnfinishedClient({ rows, waiting = [] }: { rows: UnfinishedRow[]
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl sm:text-3xl leading-tight">Unfinished</h1>
-          <p className="mt-1 max-w-xl text-sm text-subtle">
-            Open tasks from earlier days that are not on today or any later day. Bring back what still matters; close the rest.
+          <p className="mt-1 flex max-w-xl items-center gap-1 text-sm text-subtle">
+            Bring back what still matters; close the rest.
+            <InfoTip label="About unfinished">Open tasks from earlier days that are not on today or any later day.</InfoTip>
           </p>
         </div>
       </header>

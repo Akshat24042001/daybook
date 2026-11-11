@@ -103,7 +103,7 @@ export function ResearchSheet({ open, onOpenChange, radarItemId, companyId, titl
 
         {view && !co && !active ? (
           <Box title="Who is this lead about?" icon={Building2} tone="bg-p-butter text-p-butter-fg">
-            <p className="mb-2 text-xs">Type the company name or website and the research starts: the company, its contact details, and the people behind it.</p>
+            <p className="mb-2 text-xs">Type the company name or website to research it.</p>
             <div className="grid gap-2 sm:grid-cols-2">
               <Field label="Company name"><Input value={fix.company} onChange={(ev) => setFix({ ...fix, company: ev.target.value })} placeholder="Acme Logistics" /></Field>
               <Field label="Website"><Input value={fix.website} onChange={(ev) => setFix({ ...fix, website: ev.target.value })} placeholder="acmelogistics.com" /></Field>

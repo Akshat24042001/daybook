@@ -154,7 +154,7 @@ export function GoalsClient(props: {
     <div className="space-y-8">
       <header>
         <h1 className="font-display text-2xl sm:text-3xl leading-tight">Goals</h1>
-        <p className="mt-1 text-sm text-subtle">Where your time should go, targets, habits that need a nudge, and things to do when you are free.</p>
+        <p className="mt-1 text-sm text-subtle">Targets, habits, and where your time should go.</p>
       </header>
 
       {props.timeGoals}

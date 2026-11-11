@@ -70,7 +70,7 @@ const { setup, check } = require("./lib.cjs");
   await page.getByRole("button", { name: "Do not contact" }).click();
   await page.waitForTimeout(2000);
   await go(`/sales/deal/${deal}`);
-  check("deal shows the do-not-contact banner", (await page.getByText(/On your do-not-contact list/).count()) === 1);
+  check("deal shows the do-not-contact banner", (await page.getByText(/Do not contact: no outreach moves/).count()) === 1);
   check("Do not contact button gone once blocked", (await page.getByRole("button", { name: "Do not contact" }).count()) === 0);
   const open = await all("select kind from sales_moves where deal_id = $1 and status = 'open'", [deal]);
   check("no open outreach moves for the blocked deal", open.length === 0, open);

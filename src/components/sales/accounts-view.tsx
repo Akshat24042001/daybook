@@ -35,7 +35,7 @@ export function AccountsView({ companies, people, companyFields, personFields, c
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl sm:text-3xl leading-tight">Accounts</h1>
-          <p className="text-sm text-subtle">Everyone you sell to, everyone who refers you, and what public sources say about them.</p>
+          <p className="text-sm text-subtle">Companies and people you sell to.</p>
         </div>
         <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>Import from Contacts</Button>
       </div>

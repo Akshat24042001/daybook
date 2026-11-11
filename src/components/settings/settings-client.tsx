@@ -1,4 +1,5 @@
 "use client";
+import { InfoTip } from "@/components/info-tip";
 
 import { CheckCircle2, ChevronRight, CircleAlert, Monitor, Moon, Send, Sun } from "lucide-react";
 import Link from "next/link";
@@ -186,9 +187,9 @@ export function SettingsClient({
                 );
               })}
             </div>
-            <p className="mt-1.5 text-xs text-subtle">
-              A day off gets no daily repeating tasks, no carried-over tasks and no exercise pings. Stats, streaks, review
-              and goal pace skip it, unless you worked or finished something that day.
+            <p className="mt-1.5 flex items-center gap-1 text-xs text-subtle">
+              No tasks or pings on a day off.
+              <InfoTip label="About days off">A day off gets no daily repeating tasks, no carried-over tasks and no exercise pings. Stats, streaks, review and goal pace skip it, unless you worked or finished something that day.</InfoTip>
             </p>
           </div>
         </Card>

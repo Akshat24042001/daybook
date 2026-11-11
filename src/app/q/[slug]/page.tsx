@@ -9,6 +9,7 @@ import { sign } from "@/lib/sales/links";
 import { mdToHtml } from "@/lib/sales/md";
 import { isOwnerRequest, visitorId } from "@/lib/sales/visitor";
 import { ViewBeacon } from "./beacon";
+import { PdfView } from "./pdf-view";
 import { currencySymbol } from "@/components/sales/format";
 
 const display = Archivo({ subsets: ["latin"], weight: ["700", "800"], variable: "--q-display" });
@@ -64,17 +65,17 @@ export default async function PublicDoc({ params, searchParams }: { params: Prom
       {viewId ? <ViewBeacon v={viewId} k={sign(`view.${viewId}`)} /> : null}
       <header className="qh">
         <span className="qbrand">{cfg.owner.company.toUpperCase()}</span>
-        <span className="qmeta">{doc.title}{rev ? ` · v${rev.rev}` : ""}</span>
+        {rev ? <span className="qmeta">Version {rev.rev}</span> : null}
       </header>
       <main className="qmain">
-        {owner ? <p className="qnote">You are signed in to Daybook, so this visit is not counted as a client view.</p> : null}
+        {owner ? <p className="qnote" title="You are signed in to Daybook, so opening this page is not counted as a client view.">Your preview · not counted as a view</p> : null}
         {sp.done === "accept" ? <div className="qcallout">Thank you. Your acceptance is recorded and {cfg.owner.name.split(" ")[0]} has been notified.</div> : null}
         {sp.done === "changes" ? <div className="qcallout">Thanks, your note has been sent. You will hear back shortly.</div> : null}
         {sp.e === "stale" ? <div className="qcallout bad">This proposal changed or expired. Reload the page to see the latest version.</div> : sp.e ? <div className="qcallout bad">Please add your name and try again.</div> : null}
         {superseded ? <div className="qcallout warm">This is an older version. <a href={`/q/${slug}`}>See the latest (v{latestSent!.rev})</a>.</div> : null}
 
         <p className="qlabel">{doc.kind === "quote" ? "Proposal" : doc.kind === "brief" ? "Opportunity brief" : "Document"}</p>
-        <h1>{doc.title}</h1>
+        <h1>{doc.kind === "file" ? readable(doc.title) : doc.title}</h1>
 
         {doc.kind === "quote" && rev ? (
           <>
@@ -151,17 +152,38 @@ export default async function PublicDoc({ params, searchParams }: { params: Prom
         {doc.kind === "brief" && doc.body ? <div className="qprose" dangerouslySetInnerHTML={{ __html: mdToHtml(doc.body) }} /> : null}
 
         {doc.kind === "file" ? (
-          <section className="qactions">
+          <section className="qfile">
             {doc.body ? <div className="qprose" dangerouslySetInnerHTML={{ __html: mdToHtml(doc.body) }} /> : null}
-            <a className="qbtn" href={`/api/sales/file/${slug}`}>Download {doc.file_name ?? "file"} →</a>
+            {/* the document itself, right on the page; the buttons are for saving it or opening it full screen */}
+            {fileKind(doc.file_name) === "pdf" ? (
+              <PdfView src={`/api/sales/file/${slug}`} title={readable(doc.title)} />
+            ) : fileKind(doc.file_name) === "image" ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img className="qimg" src={`/api/sales/file/${slug}`} alt={readable(doc.title)} />
+            ) : null}
+            <div className="qrow">
+              <a className="qbtn" href={`/api/sales/file/${slug}?dl=1`}>Download{fileKind(doc.file_name) === "pdf" ? " PDF" : ""}</a>
+              {fileKind(doc.file_name) ? <a className="qbtn outline" href={`/api/sales/file/${slug}`} target="_blank" rel="noreferrer">Open full screen</a> : null}
+            </div>
           </section>
         ) : null}
 
-        <p className="qcontact">Questions? Reply on WhatsApp or email {cfg.owner.emails[0]}.</p>
+        <p className="qcontact">Questions? Reply on WhatsApp or <a href={`mailto:${cfg.owner.emails[0]}`}>email {cfg.owner.emails[0]}</a>.</p>
       </main>
       <footer className="qf"><span>{cfg.owner.website}</span><span>© {cfg.owner.company}</span></footer>
     </div>
   );
+}
+
+/** "Aivaura-Glowyug-WhatsApp-AI-Agent-Scope.pdf" reads as "Aivaura Glowyug WhatsApp AI Agent Scope". */
+function readable(t: string): string {
+  const s = t.replace(/\.(pdf|png|jpe?g|webp|docx?|pptx?|xlsx?)$/i, "");
+  return /\s/.test(s) ? s : s.replace(/[-_]+/g, " ").trim();
+}
+
+function fileKind(name: string | null | undefined): "pdf" | "image" | null {
+  const ext = (name ?? "").split(".").pop()?.toLowerCase() ?? "";
+  return ext === "pdf" ? "pdf" : ["png", "jpg", "jpeg", "webp", "gif"].includes(ext) ? "image" : null;
 }
 
 const CSS = `
@@ -199,5 +221,11 @@ td{padding:12px 14px;border-top:1px solid var(--line);vertical-align:top}tr:nth-
 .qbtn:hover{filter:brightness(.97)}.qbtn.outline{background:transparent;border:1px solid var(--line);color:var(--fg)!important}.qbtn.outline:hover{border-color:var(--soft-line)}
 .qchanges summary{cursor:pointer;color:var(--muted);font-size:14px}.qchanges .qform{margin-top:12px}
 .qcontact{margin-top:32px;color:var(--muted);font-size:14px}
+.qfile{margin-top:8px;display:grid;gap:16px}
+.qview{width:100%;height:min(80vh,1100px);border:1px solid var(--line);border-radius:8px;background:#fff}
+.qimg{max-width:100%;height:auto;border:1px solid var(--line);border-radius:8px}
+.qrow{display:flex;flex-wrap:wrap;gap:10px}.qrow .qbtn{margin-top:0}
+.qnote{margin:0 0 16px}
+.qpages{display:grid;gap:12px}.qpages canvas{display:block;border:1px solid var(--line);border-radius:6px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 @media (max-width:600px){.qh,.qf,.qmain{padding-left:16px;padding-right:16px}table{min-width:0}th:nth-child(2),th:nth-child(3),td:nth-child(2),td:nth-child(3){display:none}}
 `;

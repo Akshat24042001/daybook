@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { InfoTip } from "@/components/info-tip";
 import { one } from "@/lib/db";
 import { voiceConfigured } from "@/lib/deepgram";
 import { reportMoney, salesConfig } from "@/lib/sales/config";
@@ -42,7 +43,7 @@ export default async function SalesPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl sm:text-3xl leading-tight">Moves</h1>
-          <p className="text-sm text-subtle">Everything that needs you, ranked. Draft in your voice, send in one tap, it logs itself.</p>
+          <p className="flex items-center gap-1 text-sm text-subtle">What needs you, most important first. <InfoTip label="About moves">Each move comes with a draft in your voice. Send it in one tap and it logs itself.</InfoTip></p>
         </div>
         <NewDealButton defaultCurrency={cfg.default_currency} />
       </div>
@@ -55,7 +56,7 @@ export default async function SalesPage() {
           </div>
         ))}
       </div>
-      <CaptureBox dealId={null} voiceEnabled={voiceConfigured()} placeholder="Log anything: paste a chat or email, drop a screenshot, or speak what happened in a meeting. AI finds the person and deal." compact />
+      <CaptureBox dealId={null} voiceEnabled={voiceConfigured()} placeholder="Log anything: paste or drop a chat, mail or screenshot, or speak." compact />
       <MovesView moves={moves} googleReady={google} />
     </div>
   );

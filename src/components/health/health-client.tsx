@@ -1,4 +1,5 @@
 "use client";
+import { InfoTip } from "@/components/info-tip";
 
 import { ChevronDown, Flame, Footprints, Moon, Plus, Sparkles } from "lucide-react";
 import Link from "next/link";
@@ -247,7 +248,7 @@ export function HealthClient(props: {
               ))}
             </ol>
           )}
-          <p className="text-xs text-subtle">Newest at the top. Telegram pings you every half hour in your exercise window. Tap any past slot to log or correct it.</p>
+          <p className="flex items-center gap-1 text-xs text-subtle">Tap a past slot to log or correct it. <InfoTip label="About exercise slots">Newest at the top. Telegram pings you every half hour in your exercise window.</InfoTip></p>
         </section>
 
         {/* steps + sleep */}

@@ -119,9 +119,9 @@ export function TeamCard({ team }: { team: TeamMember[] }) {
           </li>
         ))}
       </ul>
-      {!team.length ? <p className="text-[13px] text-subtle">Just you for now. Add the people you work with to give deals an owner and filter by them.</p> : null}
+      {!team.length ? <p className="text-[13px] text-subtle">Just you for now.</p> : null}
       {editing === "new" ? <MemberForm m={{ active: true }} onDone={() => setEditing(null)} /> : <Button variant="outline" size="sm" onClick={() => setEditing("new")}><Plus className="h-4 w-4" /> Add a person</Button>}
-      <p className="text-xs text-subtle">Team members do not get their own login: Daybook has one sign-in. Owners are for knowing who handles what.</p>
+      <p className="text-xs text-subtle">Members do not get their own login.</p>
     </div>
   );
 }

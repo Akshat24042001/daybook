@@ -1,5 +1,6 @@
 "use client";
 
+import { InfoTip } from "@/components/info-tip";
 import {
   DndContext, DragOverlay, KeyboardSensor, PointerSensor, TouchSensor, pointerWithin, rectIntersection, useDraggable, useDroppable, useSensor, useSensors,
   type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent,
@@ -298,8 +299,9 @@ export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR
         <DealTable deals={filtered.filter((d) => cols.some((c) => c.id === d.stage_id))} stages={stages} customDefs={customDefs} team={team} pipelines={pipelines} transitions={transitions} />
       ) : (
         <>
-          <p className="text-xs text-subtle">
-            Drag a card by its handle: onto another card in its column to put it above or below that one (it stays where you put it), or to another stage to move it.
+          <p className="flex items-center gap-1 text-xs text-subtle">
+            Drag a card to reorder it or move its stage.
+            <InfoTip label="How dragging works">{"Drag a card by its handle:\n- onto another card in the same column to put it above or below that one. It stays where you put it (a pin shows), and Reset order undoes it.\n- onto another stage to move the deal there."}</InfoTip>
           </p>
           <DndContext id="pipeline-board" sensors={sensors} collisionDetection={collide} autoScroll={{ threshold: { x: 0.08, y: 0.12 } }} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setDragging(null); setOverCard(null); }}>
             <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-4 md:mx-0 md:px-0">

@@ -1,4 +1,5 @@
 "use client";
+import { InfoTip } from "@/components/info-tip";
 
 import type { LinkGroup } from "@/lib/sales/quick-links-types";
 import { QuickLinks } from "./quick-links";
@@ -166,7 +167,7 @@ export function DealView({ d }: { d: DealPageData }) {
           </div>
         </div>
         {deal.radar_item_id ? <SendBackToRadar dealId={deal.id} /> : null}
-        {d.blocked ? <p className="mt-3 rounded-md bg-p-rose px-3 py-2 text-xs text-p-rose-fg">On your do-not-contact list: no outreach moves are made for this deal. Their messages to you are still logged. Manage the list in <a href="/sales/playbook#dnc" className="font-medium underline">Playbook</a>.</p> : null}
+        {d.blocked ? <p className="mt-3 rounded-md bg-p-rose px-3 py-2 text-xs text-p-rose-fg">Do not contact: no outreach moves. <a href="/sales/playbook#dnc" className="font-medium underline">Manage</a></p> : null}
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-subtle">Move to:</span>
           {d.targets.map((t) => (
@@ -491,7 +492,7 @@ function Payments({ dealId, currency, payments, onChange }: { dealId: number; cu
   const total = payments.reduce((s, p) => s + Number(p.amount), 0);
   return (
     <div className="space-y-2">
-      {payments.length ? <p className="text-xs text-subtle">{money(paid, currency)} of {money(total, currency)} received</p> : <p className="text-xs text-subtle">Payments appear here when a quote is accepted, or add them yourself. A deal is not done until it is paid.</p>}
+      {payments.length ? <p className="text-xs text-subtle">{money(paid, currency)} of {money(total, currency)} received</p> : <p className="text-xs text-subtle">None yet. They appear when a quote is accepted, or add one.</p>}
       <ul className="space-y-1.5">
         {payments.map((p) => {
           const late = p.status === "due" && p.due_on && new Date(String(p.due_on)).getTime() < Date.now() - 86_400_000;
@@ -661,7 +662,8 @@ function DocButtons({ dealId, companyId, packages }: { dealId: number; companyId
           </Field>
           <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" className="mt-1" checked={meta.internal} onChange={(e) => setMeta((m) => ({ ...m, internal: e.target.checked }))} />
-            <span>Internal: kept on the deal for you only (signed contract, PO, invoice). Untick to get a tracked link to send to the client.</span>
+            <span>For me only <span className="text-subtle">(contract, PO, invoice)</span></span>
+            <InfoTip label="About internal documents">Internal documents stay on the deal for you only. Untick to get a tracked link you can send to the client.</InfoTip>
           </label>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setPicked(null)}>Cancel</Button>

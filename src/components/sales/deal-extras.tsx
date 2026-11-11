@@ -1,4 +1,5 @@
 "use client";
+import { InfoTip } from "@/components/info-tip";
 
 import { Check, ListChecks, Minus, Phone, Plus, Sparkles, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -34,8 +35,7 @@ export function FitCard({ fit, deal }: { fit: Fit; deal: DealCard }) {
   const { toast } = useToast();
   const router = useRouter();
   return (
-    <Card label="Fit" title={<span className="flex items-center gap-2">Fit <span className={cn("rounded-md px-2 py-0.5 text-sm font-semibold", GRADE_TONE[fit.grade])}>{fit.grade} · {fit.score}/100</span></span>}>
-      <p className="text-xs text-subtle">How well they fit Aivaura's work: your target industries and countries, your results there, what they need against what you sell, size, money, who you are talking to, and how they came.</p>
+    <Card label="Fit" title={<span className="flex items-center gap-2">Fit <InfoTip label="About fit">How well they fit Aivaura's work: your target industries and countries, your results there, what they need against what you sell, size, money, who you are talking to, and how they came.</InfoTip> <span className={cn("rounded-md px-2 py-0.5 text-sm font-semibold", GRADE_TONE[fit.grade])}>{fit.grade} · {fit.score}/100</span></span>}>
       <ul className="mt-2 space-y-1 text-[13px]">
         {fit.plus.map((p) => <li key={p} className="flex gap-1.5"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-good" />{p}</li>)}
         {fit.minus.map((p) => <li key={p} className="flex gap-1.5 text-subtle"><Minus className="mt-0.5 h-3.5 w-3.5 shrink-0" />{p}</li>)}
@@ -64,7 +64,7 @@ export function FitCard({ fit, deal }: { fit: Fit; deal: DealCard }) {
               );
             })}
           </ul>
-          <p className="mt-2 text-[11px] text-subtle">Hints only come from what is on the record (their words, research, their industry) and point at your own offers.</p>
+          <p className="mt-2 flex items-center gap-1 text-[11px] text-subtle">From what is on the record. <InfoTip label="Where hints come from">Hints only come from what is on the record (their words, research, their industry) and point at your own offers.</InfoTip></p>
         </div>
       ) : <p className="mt-3 text-xs text-subtle">No service hints yet: add their industry, the requirement, or research the company.</p>}
     </Card>
@@ -130,7 +130,7 @@ export function LineItems({ deal, items, defaultTax, packages }: { deal: DealCar
             })}>Use these totals as the deal value</Button>
           ) : null}
         </div>
-      ) : <p className="text-[13px] text-subtle">What the deal is made of: each item with quantity, price, discount and GST, one-time or recurring. The totals can set the deal value.</p>}
+      ) : <p className="flex items-center gap-1 text-[13px] text-subtle">No items yet. <InfoTip label="About items">What the deal is made of: each item with quantity, price, discount and GST, one-time or recurring. The totals can set the deal value.</InfoTip></p>}
       {packages.length ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Select value={pkg} onChange={(e) => setPkg(e.target.value)} aria-label="Add a package" className="h-8 w-64 text-xs">

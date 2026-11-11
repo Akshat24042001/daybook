@@ -1,4 +1,5 @@
 "use client";
+import { InfoTip } from "@/components/info-tip";
 
 import { Check, CircleAlert, Search } from "lucide-react";
 import { useState } from "react";
@@ -8,12 +9,12 @@ import { CATEGORY_HELP } from "@/lib/sales/radar-help";
 import type { RadarPlan } from "@/lib/sales/radar-plan";
 import { ago } from "./util";
 
-function Section({ title, hint, tone = "teal", children }: { title: string; hint?: string; tone?: "teal" | "lilac" | "peach" | "sky" | "mint"; children: React.ReactNode }) {
+function Section({ title, hint, info, tone = "teal", children }: { title: string; hint?: string; info?: string; tone?: "teal" | "lilac" | "peach" | "sky" | "mint"; children: React.ReactNode }) {
   const bar = { teal: "bg-teal-fill", lilac: "bg-lilac-fill", peach: "bg-peach-fill", sky: "bg-accent", mint: "bg-good" }[tone];
   return (
     <section className="rounded-2xl border border-border bg-surface p-4">
       <span className={cn("mb-2 block h-1 w-8 rounded-full", bar)} aria-hidden />
-      <h3 className="text-sm font-semibold">{title}</h3>
+      <h3 className="flex items-center gap-1 text-sm font-semibold">{title}{info ? <InfoTip label={`About ${title}`}>{info}</InfoTip> : null}</h3>
       {hint ? <p className="mb-3 mt-0.5 text-xs text-subtle">{hint}</p> : <div className="mb-2" />}
       {children}
     </section>
@@ -74,7 +75,7 @@ export function PlanPanel({ plan }: { plan: RadarPlan }) {
         </Section>
       </div>
 
-      <Section tone="teal" title="What each market has brought in (120 days)" hint="Points: 1 per qualified lead, 3 per conversation, 10 per deal won. Score is points per turn as the focus, so heavily targeted markets must keep earning their place.">
+      <Section tone="teal" title="What each market has brought in (120 days)" hint="Points per turn as the focus." info="Points: 1 per qualified lead, 3 per conversation, 10 per deal won. The score is points per turn as the focus, so heavily targeted markets must keep earning their place.">
         <div className="grid gap-4 lg:grid-cols-2">
           {([["Countries", plan.targeting.countries], ["Industries", plan.targeting.industries]] as const).map(([label, rows]) => (
             <div key={label} className="overflow-x-auto">
@@ -151,7 +152,7 @@ export function PlanPanel({ plan }: { plan: RadarPlan }) {
         </ul>
       </Section>
 
-      <Section tone="sky" title="Searches that actually ran" hint="The last 60 web searches, newest first: which engine, exactly what was asked, how many results, and who asked.">
+      <Section tone="sky" title="Searches that actually ran" hint="The last 60 web searches." info="Newest first: which engine, exactly what was asked, how many results, and who asked.">
         {plan.recent.length === 0 ? <p className="text-sm text-subtle">None yet. They appear as soon as the radar or a hunt runs.</p> : (
           <ul className="divide-y divide-border">
             {plan.recent.map((r, i) => (

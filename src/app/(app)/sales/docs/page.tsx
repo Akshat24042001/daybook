@@ -15,7 +15,7 @@ export default async function DocsPage() {
     <div className="space-y-3">
       <div>
         <h1 className="font-display text-2xl">Documents</h1>
-        <p className="text-sm text-subtle">Quotes with revisions, opportunity briefs, files and links. All tracked. Create them from a deal.</p>
+        <p className="text-sm text-subtle">Quotes, briefs, files and links, all tracked.</p>
       </div>
       <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
         <table className="w-full min-w-[640px] text-sm">

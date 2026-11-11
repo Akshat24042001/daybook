@@ -104,7 +104,7 @@ export function SegmentsSheet({
       open={open}
       onOpenChange={(o) => !o && onClose()}
       title="Time today"
-      description="Worked time counts At office, Out on work and Remote work. Commute, meals, breaks, exercise and personal time do not count."
+      description="Office, outside work and remote work count as worked."
     >
       <div className="space-y-4">
         <p className="tabular text-2xl font-medium">{fmtDuration(workedMin)} <span className="text-sm font-normal text-subtle">worked</span></p>

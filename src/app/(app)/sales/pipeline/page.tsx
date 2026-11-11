@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { InfoTip } from "@/components/info-tip";
 import Link from "next/link";
 import { reportMoney, salesConfig } from "@/lib/sales/config";
 import { listDeals } from "@/lib/sales/deals";
@@ -41,11 +42,11 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl">Pipeline</h1>
-          <p className="text-sm text-subtle">Stages move on their own as conversations happen. Priority (0 to 100) rises and falls with real engagement, so whoever needs you most is on top. Fit (A to D) is how well they suit your business.</p>
+          <p className="flex items-center gap-1 text-sm text-subtle">Your deals, most urgent first. <InfoTip label="About the pipeline">{"- Stages move on their own as conversations happen.\n- Priority (0 to 100) rises and falls with real engagement, so whoever needs you most is on top.\n- Fit (A to D) is how well they suit your business."}</InfoTip></p>
         </div>
         <NewDealButton defaultCurrency={cfg.default_currency} pipelineId={current?.id ?? null} />
       </div>
-      <CaptureBox dealId={null} voiceEnabled={voiceConfigured()} compact placeholder="New lead or an update? Paste or drop a screenshot of the mail or chat, or paste the text. AI finds the person and the deal (or creates the lead) and files every detail it finds." />
+      <CaptureBox dealId={null} voiceEnabled={voiceConfigured()} compact placeholder="New lead or update? Paste or drop a screenshot, mail or chat." />
       {pipelines.length > 1 ? (
         <nav className="flex flex-wrap gap-1 border-b border-border" aria-label="Pipelines">
           {pipelines.map((p) => (

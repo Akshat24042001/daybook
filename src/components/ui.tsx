@@ -6,6 +6,7 @@ import { Check, ChevronDown, Search, X } from "lucide-react";
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
+import { InfoTip } from "./info-tip";
 
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:opacity-40 disabled:pointer-events-none select-none",
@@ -145,12 +146,23 @@ export function Field({
   hint?: string;
   children: React.ReactNode;
 }) {
-  return (
+  // a short hint stays under the field; a long one goes behind an "i" next to the label, so forms stay short
+  const long = !!hint && hint.length > 60;
+  const field = (
     <label className="block">
-      <span className="mb-1.5 block text-[13px] font-medium text-fg">{label}</span>
+      <span className={cn("mb-1.5 block text-[13px] font-medium text-fg", long && "pr-6")}>{label}</span>
       {children}
-      {hint ? <span className="mt-1 block text-xs text-subtle">{hint}</span> : null}
+      {hint && !long ? <span className="mt-1 block text-xs text-subtle">{hint}</span> : null}
     </label>
+  );
+  if (!long) return field;
+  return (
+    <div className="relative">
+      {field}
+      <span className="absolute right-0 top-0">
+        <InfoTip label={`About ${label}`}>{hint!}</InfoTip>
+      </span>
+    </div>
   );
 }
 
