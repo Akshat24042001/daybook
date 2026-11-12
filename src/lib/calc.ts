@@ -71,7 +71,7 @@ function tokenize(src: string): Tok[] {
   const s = src
     .replace(/[×·]/g, "*")
     .replace(/÷/g, "/")
-    .replace(/[−–]/g, "-")
+    .replace(/[\u2212\u2013]/g, "-")
     .replace(/√/g, "sqrt");
   const out: Tok[] = [];
   let i = 0;

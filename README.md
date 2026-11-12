@@ -18,7 +18,7 @@ Paste these in Vercel → Project Settings → Environment Variables (all values
 | `DATABASE_URL` | Supabase → Connect → Transaction pooler (port 6543) |
 | `TELEGRAM_BOT_TOKEN` | @BotFather |
 | `TELEGRAM_WEBHOOK_SECRET` | pre-generated, in `.env` |
-| `TELEGRAM_OWNER_CHAT_ID` | leave empty — first `/start` locks the bot |
+| `TELEGRAM_OWNER_CHAT_ID` | leave empty, first `/start` locks the bot |
 | `DEEPGRAM_API_KEY` | Deepgram console |
 | `CRON_SECRET` | pre-generated, in `.env` |
 | `ADMIN_PASSWORD` | choose a strong password |

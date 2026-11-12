@@ -1,4 +1,4 @@
--- convert role, phone, email to arrays (linkedin stays single text — it's a URL)
+-- convert role, phone, email to arrays (linkedin stays single text, it's a URL)
 alter table contacts
   add column roles text[] not null default '{}',
   add column phones text[] not null default '{}',

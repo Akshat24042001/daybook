@@ -11,9 +11,9 @@ import type { Bucket } from "@/lib/sales/learning-calc";
 export const metadata: Metadata = { title: "Sales insights" };
 export const dynamic = "force-dynamic";
 
-const amt = (n: number | null | undefined, cur: string) => (n === null || n === undefined ? "–" : money(Math.round(n), cur));
-const pct = (n: number | null | undefined) => (n === null || n === undefined ? "–" : `${n}%`);
-const hrs = (h: number | null | undefined) => (h === null || h === undefined ? "–" : h < 1 ? `${Math.round(h * 60)} min` : h < 48 ? `${h} h` : `${Math.round(h / 24)} days`);
+const amt = (n: number | null | undefined, cur: string) => (n === null || n === undefined ? "-" : money(Math.round(n), cur));
+const pct = (n: number | null | undefined) => (n === null || n === undefined ? "-" : `${n}%`);
+const hrs = (h: number | null | undefined) => (h === null || h === undefined ? "-" : h < 1 ? `${Math.round(h * 60)} min` : h < 48 ? `${h} h` : `${Math.round(h / 24)} days`);
 
 function Section({ id, title, hint, info, children, className }: { id?: string; title: string; hint?: React.ReactNode; info?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
@@ -92,7 +92,7 @@ function SegmentTable({ title, rows, cur }: { title: string; rows: SegmentRow[];
                 <td className="tabular py-1.5 text-right">{r.won}/{r.closed}</td>
                 <td className="py-1.5 pl-3"><RateBar value={r.win_rate} thin={r.thin} /></td>
                 <td className="tabular py-1.5 text-right">{amt(r.won_value, cur)}</td>
-                <td className="tabular py-1.5 text-right">{r.median_days_to_close ?? "–"}</td>
+                <td className="tabular py-1.5 text-right">{r.median_days_to_close ?? "-"}</td>
               </tr>
             ))}
           </tbody>
@@ -265,7 +265,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
                     <td className="tabular py-1.5 text-right">{s.parked}</td>
                     <td className="tabular py-1.5 text-right">{s.still}</td>
                     <td className="py-1.5 pl-3"><RateBar value={s.pass_rate} thin={s.entered - s.still < 5} /></td>
-                    <td className="tabular py-1.5 text-right">{s.median_days ?? "–"} / {s.avg_days ?? "–"}</td>
+                    <td className="tabular py-1.5 text-right">{s.median_days ?? "-"} / {s.avg_days ?? "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -317,7 +317,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
               <Stat label="Sent" value={wl.quotes.sent} sub={`${wl.quotes.open} still open`} />
               <Stat label="Accepted" value={pct(wl.quotes.acceptance)} sub={`${wl.quotes.accepted} accepted, ${wl.quotes.lost} lost`} />
               <Stat label="With a discount" value={pct(wl.quotes.with_discount.rate)} sub={`${wl.quotes.with_discount.sent} sent${wl.quotes.with_discount.avg_pct !== null ? `, avg ${wl.quotes.with_discount.avg_pct}% off` : ""}`} />
-              <Stat label="Days to accept" value={wl.quotes.median_days_to_accept ?? "–"} sub="median" />
+              <Stat label="Days to accept" value={wl.quotes.median_days_to_accept ?? "-"} sub="median" />
             </div>
             <div className="mt-4 grid gap-6 sm:grid-cols-2">
               {([["By number of revisions", wl.quotes.by_revisions], ["By size", wl.quotes.by_size]] as const).map(([t, rows]) => (

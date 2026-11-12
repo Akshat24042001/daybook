@@ -102,7 +102,7 @@ function label(v: unknown): string {
 }
 function num(v: unknown): string {
   const n = Number(v);
-  if (v === null || v === undefined || !Number.isFinite(n)) return "–";
+  if (v === null || v === undefined || !Number.isFinite(n)) return "-";
   return (Math.abs(n) >= 100 ? Math.round(n) : Math.round(n * 10) / 10).toLocaleString("en-IN");
 }
 
@@ -140,8 +140,8 @@ export function blocksToTelegram(blocks: Block[]): string[] {
       const cols = b.columns.slice(0, 4);
       const rows = b.rows.slice(0, 12).map((r) => cols.map((c) => {
         const v = r[c];
-        if (v === null || v === undefined || v === "") return "–";
-        if (typeof v === "boolean") return v ? "✓" : "–";
+        if (v === null || v === undefined || v === "") return "-";
+        if (typeof v === "boolean") return v ? "✓" : "-";
         if (Array.isArray(v)) return v.join(", ");
         if (typeof v === "number") return num(v);
         return /^\d{4}-\d{2}-\d{2}/.test(String(v)) ? label(v) : String(v);

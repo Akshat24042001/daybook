@@ -312,36 +312,36 @@ async function handleText(ctx: Ctx, chat: number, text: string, opts: TextOpts =
     return;
   }
   if (/^\/help(@\w+)?$/.test(text)) {
-    await sendMessage(chat, `<b>Daybook — commands</b>
+    await sendMessage(chat, `<b>Daybook commands</b>
 
 <b>Slash commands</b>
-/today — today's task list
-/score 8 — set day score (0–10, decimals OK: 8.5)
-/steps 8500 — log step count
-/worked 7.5h — set hours worked manually
-/score clear · /steps clear · /sleep clear · /worked clear — remove a value entered by mistake
-/pause — toggle exercise pings on/off
+/today: today's task list
+/score 8: set day score (0-10, decimals OK: 8.5)
+/steps 8500: log step count
+/worked 7.5h: set hours worked manually
+/score clear · /steps clear · /sleep clear · /worked clear: remove a value entered by mistake
+/pause: toggle exercise pings on/off
 
 ${LEAD_HELP}
 
 <b>Assistant</b>
-/ask how was my week? — ask anything about your data (or just type a question)
-/new — start a new assistant chat · /chats — switch chats
+/ask how was my week?: ask anything about your data (or just type a question)
+/new: start a new assistant chat · /chats: switch chats
 Changes it suggests come as buttons: tap to apply, tap again to undo. Reply to an answer to follow up.
 
 <b>Quick text</b>
-<code>done [task]</code> — mark a task done
-<code>skip [task]</code> — skip a task
-<code>prog[ressed] [task]</code> — mark progressed
-<code>log 30m [task]</code> — log time on a task
-<code>log 15 push-ups</code> — log exercise
-<code>score 8.5</code> — set day score
-<code>steps 9000</code> — log steps
-<code>worked 8h</code> — set hours worked
-<code>diary had a great client call…</code> — add to today's diary (or reply to the evening prompt with a voice note)
-<code>plan</code> or <code>today</code> — see today's list
+<code>done [task]</code>: mark a task done
+<code>skip [task]</code>: skip a task
+<code>prog[ressed] [task]</code>: mark progressed
+<code>log 30m [task]</code>: log time on a task
+<code>log 15 push-ups</code>: log exercise
+<code>score 8.5</code>: set day score
+<code>steps 9000</code>: log steps
+<code>worked 8h</code>: set hours worked
+<code>diary had a great client call…</code>: add to today's diary (or reply to the evening prompt with a voice note)
+<code>plan</code> or <code>today</code>: see today's list
 
-Anything else is added as a task — with full quick-add syntax support.`);
+Anything else is added as a task, with full quick-add syntax support.`);
     return;
   }
   if (text.startsWith("/")) {
@@ -503,7 +503,7 @@ async function routeFreeText(ctx: Ctx, chat: number, text: string, fromVoice: bo
         await later(() => askFromTelegram(ctx, chat, text));
         return;
       case "unknown":
-        // AI couldn't classify it — show as task-add preview so user can confirm or discard
+        // AI couldn't classify it: show as task-add preview so user can confirm or discard
         await quickAddPreview(ctx, chat, fromVoice ? voiceToQuickAdd(text, await projectNames()) : text, true);
         return;
     }
@@ -665,7 +665,7 @@ async function quickAddPreview(ctx: Ctx, chat: number, text: string, aiUnknown =
   const pending = await one<{ id: number }>("insert into pending_adds (text) values ($1) returning id", [text]);
   const pid = pending!.id;
   const lines = describeParsed(parsed, { tz: ctx.tz, today: ctx.today });
-  const prefix = aiUnknown ? "🤔 Not sure what this is — adding as a task?\n" : "";
+  const prefix = aiUnknown ? "🤔 Not sure what this is: adding as a task?\n" : "";
   let body = `${prefix}<b>${esc(parsed.title)}</b>\n${lines.map(esc).join(" · ")}`;
   for (const n of parsed.notes) body += `\n<i>${esc(n)}</i>`;
   const rows: InlineMarkup["inline_keyboard"] = [];
@@ -941,7 +941,7 @@ async function handleCallback(ctx: Ctx, chat: number, cb: TgCallback): Promise<s
       if (parts[1] === "m") {
         const date = unpackDate(parts[3]);
         if (mid) await editMarkup(chat, mid, inline([...scoreDecimals(date, Number(parts[2]))]));
-        return `${parts[2]} — pick decimal`;
+        return `${parts[2]}: pick decimal`;
       }
       if (parts[1] === "s") {
         const date = unpackDate(parts[3]);

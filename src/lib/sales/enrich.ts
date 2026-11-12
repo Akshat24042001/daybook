@@ -72,7 +72,7 @@ export interface TechAudit {
 export function techAudit(url: string, html: string): TechAudit {
   const h = html.toLowerCase();
   const pick = (pairs: [RegExp, string][]) => pairs.find(([re]) => re.test(h))?.[1] ?? null;
-  const years = [...h.matchAll(/(?:©|&copy;|copyright)\s*(?:\d{4}\s*[-–]\s*)?(\d{4})/g)].map((m) => Number(m[1])).filter((y) => y > 1995 && y < 2100);
+  const years = [...h.matchAll(/(?:©|&copy;|copyright)\s*(?:\d{4}\s*[-\u2013]\s*)?(\d{4})/g)].map((m) => Number(m[1])).filter((y) => y > 1995 && y < 2100);
   return {
     https: url.startsWith("https://"),
     chat: pick([[/intercom/, "Intercom"], [/tawk\.to/, "Tawk"], [/crisp\.chat/, "Crisp"], [/drift\.com/, "Drift"], [/zendesk|zopim/, "Zendesk"], [/livechatinc|livechat\.com/, "LiveChat"], [/tidio/, "Tidio"], [/freshchat|freshdesk/, "Freshworks"], [/hubspot.*conversations|js\.usemessages/, "HubSpot chat"], [/botpress|voiceflow|chatbase|dialogflow/, "AI chatbot"]]),

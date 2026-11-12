@@ -12,7 +12,7 @@ interface Health {
 const INITIAL: Health = { stale: false, ageSec: null, lastTickAt: null };
 
 /**
- * Polls /api/health every 60s client-side. No server-side DB call needed —
+ * Polls /api/health every 60s client-side. No server-side DB call needed:
  * the banner starts hidden and shows immediately if the poll finds staleness.
  */
 export function StaleBanner() {

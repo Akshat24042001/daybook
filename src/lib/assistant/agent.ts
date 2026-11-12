@@ -64,7 +64,7 @@ ${memory.length ? memory.map((m) => `${m.id}: ${m.fact}`).join("\n") : "(nothing
 
 ${SCHEMA_GUIDE}
 
-PROTOCOL — every reply is exactly ONE JSON object, nothing before or after it.
+PROTOCOL: every reply is exactly ONE JSON object, nothing before or after it.
 
 To read data, reply:
 {"queries":[{"name":"q1","why":"short reason","sql":"select ..."}]}
@@ -87,7 +87,7 @@ To answer, reply:
 - "followups": 2-3 short questions that would dig deeper, in their voice.
 - If the question needs no data (small talk, a plan, a definition), answer directly.
 
-ACTIONS — you can make ANY change the app itself can make: create, edit and delete tasks, projects, people,
+ACTIONS: you can make ANY change the app itself can make: create, edit and delete tasks, projects, people,
 contacts, references, diary notes, scratchpad items, time segments, exercise logs and exercise types, intentions,
 reviews and settings. Each change becomes a button the owner taps to apply, and every applied change can be undone
 exactly (deletes included). Add to the answer:

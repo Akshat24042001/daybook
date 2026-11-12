@@ -122,8 +122,8 @@ function findTimeTokens(text: string): TimeToken[] {
     const before = text.slice(0, m.index).toLowerCase();
     const after = text.slice(m.index + m[0].length).toLowerCase();
     const explicit = m[2] !== undefined || m[3] !== undefined;
-    const contextBefore = /(?:\b(?:at|from|to|till|until|between|and|in|out|left|entered|arrived|reached|started|came|finished|ended|stopped|since)\s+|[-–—]\s*)$/.test(before);
-    const contextAfter = /^\s*(?:to|till|until|-|–|—)\s*\d/.test(after);
+    const contextBefore = /(?:\b(?:at|from|to|till|until|between|and|in|out|left|entered|arrived|reached|started|came|finished|ended|stopped|since)\s+|[-\u2013\u2014]\s*)$/.test(before);
+    const contextAfter = /^\s*(?:to|till|until|-|\u2013|\u2014)\s*\d/.test(after);
     if (!explicit && !contextBefore && !contextAfter) continue;
     const ampm = normaliseAmPm(m[3]);
     const minutes = clockToMinutes(+m[1], m[2] ? +m[2] : 0, ampm);

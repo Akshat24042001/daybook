@@ -121,7 +121,7 @@ body {
   overscroll-behavior-y: none;
 }
 
-/* Slightly refined display font — still system, but tighter tracking */
+/* Slightly refined display font, still system, but tighter tracking */
 .font-display {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   font-weight: 600;

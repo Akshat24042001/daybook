@@ -5,6 +5,7 @@
  * moves whose reason went away (they replied, the quote was accepted, the promise was kept). Score ranks the list:
  * kind urgency + deal size + how overdue + how hot.
  */
+import { noDashes } from "../text/no-dashes";
 import { money } from "@/components/sales/format";
 import { one, q } from "../db";
 import { salesConfig, type SalesConfig } from "./config";
@@ -518,6 +519,6 @@ export async function draftForMove(id: number, channelOverride?: string): Promis
     toCountry,
   });
   // ai_draft keeps the AI's own words; draft is what you edit. "Did you change it" compares the two.
-  await q("update sales_moves set draft = $2, ai_draft = $2, draft_subject = $3, channel = $4 where id = $1", [id, draft.message, draft.subject, channel]);
+  await q("update sales_moves set draft = $2, ai_draft = $2, draft_subject = $3, channel = $4 where id = $1", [id, noDashes(draft.message), noDashes(draft.subject), channel]);
   return getMove(id);
 }

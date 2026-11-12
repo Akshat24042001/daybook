@@ -129,7 +129,7 @@ function RefForm({
         />
       </div>
 
-      {/* url — only for links */}
+      {/* url, only for links */}
       {f.kind === "link" ? (
         <div>
           <label className="mb-1 block text-xs font-medium text-subtle">URL</label>
@@ -142,7 +142,7 @@ function RefForm({
         </div>
       ) : null}
 
-      {/* source — for quotes */}
+      {/* source, for quotes */}
       {f.kind === "quote" ? (
         <div>
           <label className="mb-1 block text-xs font-medium text-subtle">Source / Author</label>
@@ -154,7 +154,7 @@ function RefForm({
         </div>
       ) : null}
 
-      {/* body — description for links, content for notes */}
+      {/* body, description for links, content for notes */}
       {f.kind !== "quote" ? (
         <div>
           <label className="mb-1 block text-xs font-medium text-subtle">
@@ -260,7 +260,7 @@ function RefCard({
               <blockquote className="border-l-2 border-warn/60 pl-3">
                 <p className="text-sm font-medium leading-snug text-fg">{r.title}</p>
                 {r.source ? (
-                  <footer className="mt-1 text-xs text-subtle">— {r.source}</footer>
+                  <footer className="mt-1 text-xs text-subtle">Source: {r.source}</footer>
                 ) : null}
               </blockquote>
             ) : (
@@ -401,7 +401,7 @@ export function RefsClient({ refs, allTags, voiceEnabled }: { refs: Ref[]; allTa
         <div>
           <h1 className="font-display text-2xl sm:text-3xl leading-tight">References</h1>
           <p className="mt-1 text-sm text-subtle">
-            Links, notes, and quotes — all searchable by tag or keyword.
+            Links, notes, and quotes, all searchable by tag or keyword.
           </p>
         </div>
         <div className="flex gap-2">

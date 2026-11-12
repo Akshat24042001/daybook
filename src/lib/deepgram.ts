@@ -4,6 +4,7 @@
  * Never log the key or the audio.
  */
 
+import { noDashes } from "./text/no-dashes";
 export class VoiceError extends Error {
   constructor(message: string) {
     super(message);
@@ -64,5 +65,5 @@ export async function transcribe(audio: ArrayBuffer | Uint8Array, contentType: s
   } | null;
   const text = json?.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim() ?? "";
   if (!text) throw new VoiceError("I could not make out any words. Try again a bit closer to the mic.");
-  return text;
+  return noDashes(text);
 }

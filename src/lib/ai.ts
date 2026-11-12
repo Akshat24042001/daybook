@@ -1,8 +1,9 @@
 /**
  * OpenRouter LLM client for natural language task management.
- * API key read from OPENROUTER_API_KEY environment variable — never committed to code.
+ * API key read from OPENROUTER_API_KEY environment variable: never committed to code.
  */
 
+import { noDashes, withNoDashRule } from "./text/no-dashes";
 export function aiConfigured(): boolean {
   return !!process.env.OPENROUTER_API_KEY;
 }
@@ -52,7 +53,7 @@ async function chatOnce(messages: Message[], model: string, o: ChatOptions): Pro
     },
     body: JSON.stringify({
       model,
-      messages,
+      messages: withNoDashRule(messages),
       temperature: o.temperature ?? 0.2,
       max_tokens: o.maxTokens ?? 512,
       // reasoning models: think briefly and keep the thinking out of the answer
@@ -69,7 +70,7 @@ async function chatOnce(messages: Message[], model: string, o: ChatOptions): Pro
   const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
   const out = json.choices?.[0]?.message?.content?.trim() ?? "";
   if (!out) throw new Error(`OpenRouter ${model}: empty answer`);
-  return out;
+  return noDashes(out); // whatever the model wrote, no long dashes reach the app
 }
 
 /** Tries each open model in turn; returns the first answer and which model gave it. */
@@ -99,7 +100,7 @@ Convert the user's natural language into the Daybook quick-add syntax. Respond w
 
 Quick-add syntax rules:
 - Task title is the plain text (required)
-- Project: "ProjectName: task title" — prefix with project name and colon
+- Project: "ProjectName: task title": prefix with project name and colon
 - Estimate: ~30m, ~2h, ~1h30m (append after title)
 - Must-do: !! (append)
 - Date: @today, @tom, @mon, @tue, @wed, @thu, @fri, @sat, @sun, @15sep, @21oct
@@ -159,7 +160,7 @@ function buildTgSystemPrompt(exerciseTypes: string[]): string {
     ? `\nKnown exercise types in this user's app: ${exerciseTypes.join(", ")}. Any message mentioning one of these names + a quantity is ALWAYS an exercise log, never a task.`
     : "";
   return `You are the intent classifier for Daybook, a personal productivity app.
-The user sends a casual message from Telegram. Understand natural language — no rigid keywords needed.
+The user sends a casual message from Telegram. Understand natural language: no rigid keywords needed.
 Return a single JSON object. No markdown, no explanation, just raw JSON.
 
 DISAMBIGUATION RULES (read carefully):
@@ -180,19 +181,19 @@ DISAMBIGUATION RULES (read carefully):
 11. Anything truly ambiguous or a general observation with no clear action → unknown.${exList}
 
 Commands:
-{"kind":"exercise","amount":<number>,"name":"<exercise name>"} — user did a physical exercise. Convert word numbers to digits (five→5, twenty→20, etc.).
-{"kind":"done","query":"<task name>"} — user completed a work/personal task (not a physical exercise).
-{"kind":"skip","query":"<task name>"} — user is skipping a task.
-{"kind":"progressed","query":"<task name>"} — user made partial progress on a task.
-{"kind":"score","value":<0-10 number>} — user is rating their day.
-{"kind":"steps","value":<integer>} — user logged step count.
-{"kind":"log","minutes":<integer>,"query":"<task name>"} — user spent time on a specific named task.
-{"kind":"worked","minutes":<integer>} — user recording total hours worked today (not a specific task).
-{"kind":"add","syntax":"<quick-add syntax>"} — user wants to add a new task or reminder.
-{"kind":"plan"} — user wants to see today's task list.
-{"kind":"sales"} — a debrief or update about a client, lead or deal; it is logged to their deal.
-{"kind":"assistant"} — a question or analysis request, or several changes at once; the assistant handles it.
-{"kind":"unknown"} — genuinely unclear; will be shown as a task-add preview.
+{"kind":"exercise","amount":<number>,"name":"<exercise name>"}: user did a physical exercise. Convert word numbers to digits (five→5, twenty→20, etc.).
+{"kind":"done","query":"<task name>"}: user completed a work/personal task (not a physical exercise).
+{"kind":"skip","query":"<task name>"}: user is skipping a task.
+{"kind":"progressed","query":"<task name>"}: user made partial progress on a task.
+{"kind":"score","value":<0-10 number>}: user is rating their day.
+{"kind":"steps","value":<integer>}: user logged step count.
+{"kind":"log","minutes":<integer>,"query":"<task name>"}: user spent time on a specific named task.
+{"kind":"worked","minutes":<integer>}: user recording total hours worked today (not a specific task).
+{"kind":"add","syntax":"<quick-add syntax>"}: user wants to add a new task or reminder.
+{"kind":"plan"}: user wants to see today's task list.
+{"kind":"sales"}: a debrief or update about a client, lead or deal; it is logged to their deal.
+{"kind":"assistant"}: a question or analysis request, or several changes at once; the assistant handles it.
+{"kind":"unknown"}: genuinely unclear; will be shown as a task-add preview.
 
 Quick-add syntax for "add": plain title + optional: ~30m ~2h !! @today @tom @mon @3pm ? >> *7d +Person /p
 Use "Project: title" prefix when a project name is stated.
@@ -202,7 +203,7 @@ Examples:
 "just did 20 squats" → {"kind":"exercise","amount":20,"name":"squats"}
 "finished a 30 second plank" → {"kind":"exercise","amount":30,"name":"plank"}
 "did three sets of fifteen push-ups" → {"kind":"exercise","amount":45,"name":"push-ups"}
-"I'm done with my workout — 25 pushups" → {"kind":"exercise","amount":25,"name":"push-ups"}
+"I'm done with my workout: 25 pushups" → {"kind":"exercise","amount":25,"name":"push-ups"}
 "ran 5km" → {"kind":"exercise","amount":5,"name":"run"}
 "I finished the report" → {"kind":"done","query":"report"}
 "mark design review as done" → {"kind":"done","query":"design review"}

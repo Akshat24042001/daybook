@@ -30,7 +30,7 @@ const TYPE_OPTIONS = [
 const TILE_H = 150;
 const BIG_H = 300;
 
-const pct = (v: number | null) => (v === null ? "–" : `${Math.round(v * 100)}%`);
+const pct = (v: number | null) => (v === null ? "-" : `${Math.round(v * 100)}%`);
 const avgOf = (xs: (number | null)[]) => {
   const v = xs.filter((x): x is number => typeof x === "number");
   return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
@@ -509,7 +509,7 @@ export function StatsView({
         <Tile
           title="Day score"
           hue="lilac"
-          value={cur.avgScore === null ? "–" : cur.avgScore.toFixed(1)}
+          value={cur.avgScore === null ? "-" : cur.avgScore.toFixed(1)}
           delta={<Delta cur={cur.avgScore} prev={prev.avgScore} />}
           sub="avg / 10"
           onOpen={() => setOpen("score")}
@@ -519,7 +519,7 @@ export function StatsView({
         <Tile
           title="Hours worked"
           hue="teal"
-          value={cur.avgWorkedHours === null ? "–" : `${cur.avgWorkedHours.toFixed(1)}h`}
+          value={cur.avgWorkedHours === null ? "-" : `${cur.avgWorkedHours.toFixed(1)}h`}
           delta={<Delta cur={cur.avgWorkedHours} prev={prev.avgWorkedHours} unit="h" neutral />}
           sub={`per day · ${Math.round(cur.totalWorkedHours)}h total`}
           onOpen={() => setOpen("hours")}
@@ -540,7 +540,7 @@ export function StatsView({
         <Tile
           title="Your day, hour by hour"
           hue="teal"
-          value={tl.daysWithData ? fmtDuration(tl.tracked / tl.daysWithData) : "–"}
+          value={tl.daysWithData ? fmtDuration(tl.tracked / tl.daysWithData) : "-"}
           sub={tl.workPct === null ? undefined : `tracked a day · ${tl.workPct}% work`}
           onOpen={() => setOpen("timeline")}
           className="min-w-0 overflow-hidden"
@@ -550,7 +550,7 @@ export function StatsView({
         <Tile
           title="Unaccounted time"
           hue="butter"
-          value={cur.unaccountedPct === null ? "–" : `${Math.round(cur.unaccountedPct)}%`}
+          value={cur.unaccountedPct === null ? "-" : `${Math.round(cur.unaccountedPct)}%`}
           delta={<Delta cur={cur.unaccountedPct} prev={prev.unaccountedPct} unit="pt" digits={0} lowerIsBetter />}
           sub="target under 20%"
           warn={unaccountedWarn}
@@ -586,8 +586,8 @@ export function StatsView({
           <div style={{ minHeight: TILE_H }} className="flex flex-wrap items-center gap-4">
             <Heatmap data={stats.heatmap} cell={stats.heatmap.length > 100 ? 8 : stats.heatmap.length > 42 ? 13 : 17} />
             <div className="space-y-1.5 text-xs">
-              <p className="text-subtle">Best day <span className="block text-sm font-semibold text-fg">{d.best ? `${fmtDay(d.best.date)} · ${d.best.score}` : "–"}</span></p>
-              <p className="text-subtle">Best weekday <span className="block text-sm font-semibold text-fg">{d.bestDow ? `${d.bestDow.label} · ${d.bestDow.avgScore}` : "–"}</span></p>
+              <p className="text-subtle">Best day <span className="block text-sm font-semibold text-fg">{d.best ? `${fmtDay(d.best.date)} · ${d.best.score}` : "-"}</span></p>
+              <p className="text-subtle">Best weekday <span className="block text-sm font-semibold text-fg">{d.bestDow ? `${d.bestDow.label} · ${d.bestDow.avgScore}` : "-"}</span></p>
             </div>
           </div>
         </Tile>
@@ -625,8 +625,8 @@ export function StatsView({
           <div className="grid flex-1 grid-cols-2 gap-2">
             <MiniStat label="Completion" value={pct(cur.completionRate)} hint={<Delta cur={cur.completionRate === null ? null : cur.completionRate * 100} prev={prev.completionRate === null ? null : prev.completionRate * 100} unit="pt" digits={0} />} onOpen={() => setOpen("completion")} />
             <MiniStat label="Must-do hit" value={pct(cur.mustDoHitRate)} hint="done or progressed" good={(cur.mustDoHitRate ?? 0) >= 0.8} onOpen={() => setOpen("mustdo")} />
-            <MiniStat label="Logged on tasks" value={stats.efficiency.utilizationPct === null ? "–" : `${Math.round(stats.efficiency.utilizationPct)}%`} hint="of worked time" onOpen={() => setOpen("logged")} />
-            <MiniStat label="Estimates" value={stats.efficiency.estimateRatio === null ? "–" : `${stats.efficiency.estimateRatio.toFixed(1)}×`} hint="actual vs estimate" warn={(stats.efficiency.estimateRatio ?? 1) > 1.25} onOpen={() => setOpen("estimates")} />
+            <MiniStat label="Logged on tasks" value={stats.efficiency.utilizationPct === null ? "-" : `${Math.round(stats.efficiency.utilizationPct)}%`} hint="of worked time" onOpen={() => setOpen("logged")} />
+            <MiniStat label="Estimates" value={stats.efficiency.estimateRatio === null ? "-" : `${stats.efficiency.estimateRatio.toFixed(1)}×`} hint="actual vs estimate" warn={(stats.efficiency.estimateRatio ?? 1) > 1.25} onOpen={() => setOpen("estimates")} />
             <MiniStat label="Plan streak" value={`${stats.summary.planningStreak}d`} hint="planned ahead" warn={stats.summary.planningStreak === 0} onOpen={() => setOpen("planstreak")} />
             <MiniStat label="Must-do streak" value={`${stats.summary.mustDoStreak}d`} hint="all must-dos done" warn={stats.summary.mustDoStreak === 0} onOpen={() => setOpen("mustdostreak")} />
           </div>
@@ -639,7 +639,7 @@ export function StatsView({
         <Tile
           title="Steps"
           hue="mint"
-          value={d.stepAvg === null ? "–" : Math.round(d.stepAvg).toLocaleString("en-US")}
+          value={d.stepAvg === null ? "-" : Math.round(d.stepAvg).toLocaleString("en-US")}
           sub={`avg · goal ${d.stepHit}/${d.stepDays || 0} days`}
           onOpen={() => setOpen("steps")}
         >
@@ -657,7 +657,7 @@ export function StatsView({
         <Tile
           title="Sleep"
           hue="lilac"
-          value={d.sleepAvg === null ? "–" : `${d.sleepAvg.toFixed(1)}h`}
+          value={d.sleepAvg === null ? "-" : `${d.sleepAvg.toFixed(1)}h`}
           sub={d.sleepNights.length ? `avg · ${d.shortNights} under 7h` : "log sleep on Today"}
           warn={d.sleepAvg !== null && d.sleepAvg < 6.5}
           onOpen={() => setOpen("sleep")}
@@ -667,7 +667,7 @@ export function StatsView({
         <Tile
           title="Instagram"
           hue="pink"
-          value={d.igAvg === null ? "–" : fmtDuration(Math.round(d.igAvg))}
+          value={d.igAvg === null ? "-" : fmtDuration(Math.round(d.igAvg))}
           sub={d.igDays.length ? `avg · ${d.igOver} day${d.igOver === 1 ? "" : "s"} over 1h` : "log time on Today"}
           warn={d.igAvg !== null && d.igAvg > 60}
           onOpen={() => setOpen("instagram")}
@@ -685,7 +685,7 @@ export function StatsView({
         <Tile
           title="Diary · AI day rating"
           hue="lilac"
-          value={d.diaryAvg === null ? "–" : d.diaryAvg.toFixed(1)}
+          value={d.diaryAvg === null ? "-" : d.diaryAvg.toFixed(1)}
           sub={diary.length ? `avg over ${diary.length} summarised day${diary.length === 1 ? "" : "s"}` : "no summaries yet"}
           onOpen={() => setOpen("diary")}
           className="xl:col-span-2"
@@ -702,7 +702,7 @@ export function StatsView({
             {latestDiary ? (
               <div className="flex flex-col justify-center gap-2 rounded-2xl bg-muted/60 p-4">
                 <div className="flex items-center gap-2">
-                  <span className={cn("tabular rounded-lg px-2 py-0.5 text-sm font-bold", ratingTone(latestDiary.rating))}>{latestDiary.rating ?? "–"}</span>
+                  <span className={cn("tabular rounded-lg px-2 py-0.5 text-sm font-bold", ratingTone(latestDiary.rating))}>{latestDiary.rating ?? "-"}</span>
                   <span className="text-xs text-subtle">{fmtDay(latestDiary.date)}</span>
                 </div>
                 <p className="font-display text-base leading-snug">{latestDiary.headline}</p>
@@ -724,10 +724,10 @@ export function StatsView({
       {/* ── Detail dialogs ────────────────────────────────────── */}
       <DetailDialog open={open === "score"} onClose={close} title="Day score" subtitle={`${periodLabel}, compared with ${prevLabel}`}>
         <Facts>
-          <Fact label="Average" value={cur.avgScore?.toFixed(1) ?? "–"} />
-          <Fact label="Previous period" value={prev.avgScore?.toFixed(1) ?? "–"} />
-          <Fact label="Best day" value={d.best ? `${d.best.score} · ${fmtDay(d.best.date)}` : "–"} tone="good" />
-          <Fact label="Lowest day" value={d.worst ? `${d.worst.score} · ${fmtDay(d.worst.date)}` : "–"} tone="warn" />
+          <Fact label="Average" value={cur.avgScore?.toFixed(1) ?? "-"} />
+          <Fact label="Previous period" value={prev.avgScore?.toFixed(1) ?? "-"} />
+          <Fact label="Best day" value={d.best ? `${d.best.score} · ${fmtDay(d.best.date)}` : "-"} tone="good" />
+          <Fact label="Lowest day" value={d.worst ? `${d.worst.score} · ${fmtDay(d.worst.date)}` : "-"} tone="warn" />
         </Facts>
         <TrendChart data={series} y="score" avg="scoreAvg" kind="line" name="Score" height={BIG_H} domain={[0, 10]} large />
         <Note>Your own 0 to 10 rating of each day. The dashed line is the 7-day average, so a single bad day does not hide the trend.</Note>
@@ -736,8 +736,8 @@ export function StatsView({
       <DetailDialog open={open === "timeline"} onClose={close} title="Your day, hour by hour" subtitle={periodLabel}>
         <Facts>
           <Fact label="Tracked" value={fmtDuration(tl.tracked)} />
-          <Fact label="Per day" value={tl.daysWithData ? fmtDuration(tl.tracked / tl.daysWithData) : "–"} />
-          <Fact label="Work share" value={tl.workPct === null ? "–" : `${tl.workPct}%`} />
+          <Fact label="Per day" value={tl.daysWithData ? fmtDuration(tl.tracked / tl.daysWithData) : "-"} />
+          <Fact label="Work share" value={tl.workPct === null ? "-" : `${tl.workPct}%`} />
           <Fact label="Days tracked" value={`${tl.daysWithData} of ${timeline.length}`} />
         </Facts>
         <DayTimeline days={timeline} today={today} />
@@ -746,21 +746,21 @@ export function StatsView({
 
       <DetailDialog open={open === "hours"} onClose={close} title="Hours worked" subtitle={periodLabel}>
         <Facts>
-          <Fact label="Per day" value={cur.avgWorkedHours === null ? "–" : `${cur.avgWorkedHours.toFixed(1)}h`} />
+          <Fact label="Per day" value={cur.avgWorkedHours === null ? "-" : `${cur.avgWorkedHours.toFixed(1)}h`} />
           <Fact label="Total" value={`${cur.totalWorkedHours.toFixed(1)}h`} />
           <Fact label="Days worked" value={`${d.worked.length} of ${series.length}`} />
-          <Fact label="Longest day" value={d.longest ? `${d.longest.hours.toFixed(1)}h · ${fmtDay(d.longest.date)}` : "–"} />
+          <Fact label="Longest day" value={d.longest ? `${d.longest.hours.toFixed(1)}h · ${fmtDay(d.longest.date)}` : "-"} />
         </Facts>
         <TrendChart data={series} y="hours" avg="hoursAvg" kind="bar" name="Hours" unit="h" height={BIG_H} large />
-        <Note>Previous period averaged {prev.avgWorkedHours?.toFixed(1) ?? "–"}h a day. Worked time comes from your work segments (office, outside, remote) or the manual hours you enter on Today.</Note>
+        <Note>Previous period averaged {prev.avgWorkedHours?.toFixed(1) ?? "-"}h a day. Worked time comes from your work segments (office, outside, remote) or the manual hours you enter on Today.</Note>
       </DetailDialog>
 
       <DetailDialog open={open === "done"} onClose={close} title="Tasks done" subtitle={periodLabel}>
         <Facts>
           <Fact label="Done" value={cur.tasksDone} />
           <Fact label="Previous period" value={prev.tasksDone} />
-          <Fact label="Per worked hour" value={cur.tasksPerHour?.toFixed(2) ?? "–"} />
-          <Fact label="Busiest day" value={d.busiest && d.busiest.done > 0 ? `${d.busiest.done} · ${fmtDay(d.busiest.date)}` : "–"} />
+          <Fact label="Per worked hour" value={cur.tasksPerHour?.toFixed(2) ?? "-"} />
+          <Fact label="Busiest day" value={d.busiest && d.busiest.done > 0 ? `${d.busiest.done} · ${fmtDay(d.busiest.date)}` : "-"} />
         </Facts>
         <TrendChart data={series} y="done" avg="doneAvg" kind="bar" name="Done" height={BIG_H} large />
         <Note>Completion rate is {pct(cur.completionRate)} of everything scheduled; must-dos were done or progressed {pct(cur.mustDoHitRate)} of the time.</Note>
@@ -768,10 +768,10 @@ export function StatsView({
 
       <DetailDialog open={open === "unaccounted"} onClose={close} title="Unaccounted time" subtitle="Worked time not logged on any task">
         <Facts>
-          <Fact label="Unaccounted" value={cur.unaccountedPct === null ? "–" : `${Math.round(cur.unaccountedPct)}%`} tone={unaccountedWarn ? "warn" : "good"} />
-          <Fact label="Logged on tasks" value={stats.efficiency.utilizationPct === null ? "–" : `${Math.round(stats.efficiency.utilizationPct)}%`} />
+          <Fact label="Unaccounted" value={cur.unaccountedPct === null ? "-" : `${Math.round(cur.unaccountedPct)}%`} tone={unaccountedWarn ? "warn" : "good"} />
+          <Fact label="Logged on tasks" value={stats.efficiency.utilizationPct === null ? "-" : `${Math.round(stats.efficiency.utilizationPct)}%`} />
           <Fact label="Days over 20%" value={`${d.overTarget}`} tone={d.overTarget ? "warn" : undefined} />
-          <Fact label="Previous period" value={prev.unaccountedPct === null ? "–" : `${Math.round(prev.unaccountedPct)}%`} />
+          <Fact label="Previous period" value={prev.unaccountedPct === null ? "-" : `${Math.round(prev.unaccountedPct)}%`} />
         </Facts>
         <TrendChart data={series} y="unaccountedPct" kind="bar" name="Unaccounted" unit="%" height={BIG_H} domain={[0, 100]} target={{ value: 20, label: "20% target" }} flag="over" large />
         <Note>Amber bars are days above the 20% target. Log minutes on tasks as you finish them to bring this down.</Note>
@@ -818,8 +818,8 @@ export function StatsView({
       <DetailDialog open={open === "consistency"} onClose={close} title="Consistency" subtitle="Every day in the period, coloured by your score">
         <Facts>
           <Fact label="Days scored" value={`${d.scored.length} of ${series.length}`} />
-          <Fact label="Best weekday" value={d.bestDow ? `${d.bestDow.label} · ${d.bestDow.avgScore}` : "–"} tone="good" />
-          <Fact label="Hardest weekday" value={d.worstDow ? `${d.worstDow.label} · ${d.worstDow.avgScore}` : "–"} tone="warn" />
+          <Fact label="Best weekday" value={d.bestDow ? `${d.bestDow.label} · ${d.bestDow.avgScore}` : "-"} tone="good" />
+          <Fact label="Hardest weekday" value={d.worstDow ? `${d.worstDow.label} · ${d.worstDow.avgScore}` : "-"} tone="warn" />
           <Fact label="Plan streak" value={`${stats.summary.planningStreak}d`} />
         </Facts>
         <Heatmap data={stats.heatmap} cell={22} />
@@ -839,7 +839,7 @@ export function StatsView({
 
       <DetailDialog open={open === "steps"} onClose={close} title="Steps" subtitle={`Goal ${stats.health.stepGoal.toLocaleString("en-US")} a day`}>
         <Facts>
-          <Fact label="Average" value={d.stepAvg === null ? "–" : Math.round(d.stepAvg).toLocaleString("en-US")} />
+          <Fact label="Average" value={d.stepAvg === null ? "-" : Math.round(d.stepAvg).toLocaleString("en-US")} />
           <Fact label="Goal hit" value={`${d.stepHit} of ${d.stepDays} days`} tone={d.stepDays && d.stepHit / d.stepDays >= 0.7 ? "good" : "warn"} />
           <Fact label="Goal" value={stats.health.stepGoal.toLocaleString("en-US")} />
           <Fact label="Days recorded" value={`${d.stepDays} of ${series.length}`} />
@@ -852,7 +852,7 @@ export function StatsView({
         <Facts>
           <Fact label="Sets done" value={d.setsTotal} />
           <Fact label="Active days" value={`${d.setDays} of ${series.length}`} />
-          <Fact label="Per active day" value={d.setDays ? (d.setsTotal / d.setDays).toFixed(1) : "–"} />
+          <Fact label="Per active day" value={d.setDays ? (d.setsTotal / d.setDays).toFixed(1) : "-"} />
           <Fact label="Exercise types" value={stats.health.amountByType.length} />
         </Facts>
         <TrendChart data={stats.health.setsPerDay} y="sets" kind="bar" name="Sets" height={BIG_H - 60} large />
@@ -869,10 +869,10 @@ export function StatsView({
 
       <DetailDialog open={open === "sleep"} onClose={close} title="Sleep" subtitle={periodLabel}>
         <Facts>
-          <Fact label="Average" value={d.sleepAvg === null ? "–" : `${d.sleepAvg.toFixed(1)}h`} tone={d.sleepAvg !== null && d.sleepAvg < 7 ? "warn" : "good"} />
+          <Fact label="Average" value={d.sleepAvg === null ? "-" : `${d.sleepAvg.toFixed(1)}h`} tone={d.sleepAvg !== null && d.sleepAvg < 7 ? "warn" : "good"} />
           <Fact label="Nights under 7h" value={`${d.shortNights} of ${d.sleepNights.length}`} tone={d.shortNights ? "warn" : undefined} />
-          <Fact label="Longest / shortest" value={d.bestNight && d.worstNight ? `${d.bestNight.hours}h / ${d.worstNight.hours}h` : "–"} />
-          <Fact label="Quality" value={d.sleepQ === null ? "–" : `${d.sleepQ.toFixed(1)} / 5`} />
+          <Fact label="Longest / shortest" value={d.bestNight && d.worstNight ? `${d.bestNight.hours}h / ${d.worstNight.hours}h` : "-"} />
+          <Fact label="Quality" value={d.sleepQ === null ? "-" : `${d.sleepQ.toFixed(1)} / 5`} />
         </Facts>
         <TrendChart data={stats.health.sleepPerDay} y="hours" kind="bar" name="Sleep" unit="h" height={BIG_H} target={{ value: 7, label: "7h" }} flag="under" large />
         <Note>Amber bars are nights under 7 hours. Log sleep each morning on Today or in Telegram ("slept 7h"); with a few weeks of data, compare it with your day score.</Note>
@@ -880,9 +880,9 @@ export function StatsView({
 
       <DetailDialog open={open === "instagram"} onClose={close} title="Instagram" subtitle={`Limit 1 hour a day · ${periodLabel}`}>
         <Facts>
-          <Fact label="Average" value={d.igAvg === null ? "–" : fmtDuration(Math.round(d.igAvg))} tone={d.igAvg !== null && d.igAvg > 60 ? "warn" : "good"} />
+          <Fact label="Average" value={d.igAvg === null ? "-" : fmtDuration(Math.round(d.igAvg))} tone={d.igAvg !== null && d.igAvg > 60 ? "warn" : "good"} />
           <Fact label="Days over 1h" value={`${d.igOver} of ${d.igDays.length}`} tone={d.igOver ? "warn" : undefined} />
-          <Fact label="Most / least" value={d.igDays.length ? `${fmtDuration(Math.max(...d.igDays.map((n) => n.minutes!)))} / ${fmtDuration(Math.min(...d.igDays.map((n) => n.minutes!)))}` : "–"} />
+          <Fact label="Most / least" value={d.igDays.length ? `${fmtDuration(Math.max(...d.igDays.map((n) => n.minutes!)))} / ${fmtDuration(Math.min(...d.igDays.map((n) => n.minutes!)))}` : "-"} />
         </Facts>
         <TrendChart data={stats.health.instagramPerDay} y="minutes" kind="bar" name="Instagram" unit="m" height={BIG_H} target={{ value: 60, label: "1h limit" }} avgLine={d.igAvg === null ? undefined : { value: Math.round(d.igAvg), label: "average" }} flag="over" fmt={(v) => fmtDuration(Math.round(v))} large />
         <Note>Bars show the time you logged each day; amber bars went over the 1 hour limit. The dashed grey line is the 1 hour limit and the amber line is your average. Add time on Today.</Note>
@@ -897,7 +897,7 @@ export function StatsView({
             {diary.map((s) => (
               <details key={s.date} className="group rounded-2xl border border-border p-4 open:shadow-[var(--shadow-sm)]" open={s === latestDiary}>
                 <summary className="flex cursor-pointer list-none items-center gap-3">
-                  <span className={cn("tabular rounded-lg px-2 py-0.5 text-sm font-bold", ratingTone(s.rating))}>{s.rating ?? "–"}</span>
+                  <span className={cn("tabular rounded-lg px-2 py-0.5 text-sm font-bold", ratingTone(s.rating))}>{s.rating ?? "-"}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-xs text-subtle">{fmtDay(s.date)}</span>
                     <span className="block truncate font-medium">{s.headline}</span>
@@ -938,8 +938,8 @@ export function StatsView({
 
       <DetailDialog open={open === "logged"} onClose={close} title="Logged on tasks" subtitle="How much worked time is attached to a task">
         <Facts>
-          <Fact label="Logged" value={stats.efficiency.utilizationPct === null ? "–" : `${Math.round(stats.efficiency.utilizationPct)}%`} />
-          <Fact label="Unaccounted" value={cur.unaccountedPct === null ? "–" : `${Math.round(cur.unaccountedPct)}%`} tone={unaccountedWarn ? "warn" : "good"} />
+          <Fact label="Logged" value={stats.efficiency.utilizationPct === null ? "-" : `${Math.round(stats.efficiency.utilizationPct)}%`} />
+          <Fact label="Unaccounted" value={cur.unaccountedPct === null ? "-" : `${Math.round(cur.unaccountedPct)}%`} tone={unaccountedWarn ? "warn" : "good"} />
           <Fact label="Task time" value={fmtDuration(stats.totals.minutes)} />
           <Fact label="Worked" value={`${cur.totalWorkedHours.toFixed(1)}h`} />
         </Facts>
@@ -1029,7 +1029,7 @@ export function StatsView({
                 <div className="flex items-center justify-between gap-2">
                   <Link href={`/task/${c.id}`} className="min-w-0 truncate text-sm hover:underline">{c.title}</Link>
                   <span className="tabular shrink-0 text-xs text-subtle">
-                    every {c.target}d · actual {c.avgInterval === null ? "–" : `${c.avgInterval.toFixed(1)}d`} · {c.daysSince === null ? "never done" : `${c.daysSince}d ago`}
+                    every {c.target}d · actual {c.avgInterval === null ? "-" : `${c.avgInterval.toFixed(1)}d`} · {c.daysSince === null ? "never done" : `${c.daysSince}d ago`}
                   </span>
                 </div>
                 {c.avgInterval !== null ? <Progress className="mt-1 h-1.5" value={Math.min(1, c.target / c.avgInterval)} tone={c.avgInterval > c.target ? "warn" : "accent"} /> : null}

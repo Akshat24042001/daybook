@@ -69,7 +69,7 @@ describe("editing segments with minute-precision forms", () => {
     await seg("commute", ist("2026-09-28 15:40"), ist("2026-09-28 15:52"));
     const office = await seg("office", ist("2026-09-28 15:52"), null);
     await expect(updateSegment(ctx, office, { kind: "office", start: ist("2026-09-28 15:30"), end: null }))
-      .rejects.toThrow(/overlaps Commute 15:40–15:52/);
+      .rejects.toThrow(/overlaps Commute 15:40-15:52/);
   });
 
   it("a real overlap is refused and names the segment in the way", async () => {
@@ -77,6 +77,6 @@ describe("editing segments with minute-precision forms", () => {
     await seg("office", ist("2026-09-25 15:43"), ist("2026-09-25 18:50"));
     const brk = await seg("break", ist("2026-09-25 19:01"), null);
     await expect(updateSegment(ctx, brk, { kind: "break", start: ist("2026-09-25 18:30"), end: null }))
-      .rejects.toThrow(/overlaps At office 15:43–18:50/);
+      .rejects.toThrow(/overlaps At office 15:43-18:50/);
   });
 });

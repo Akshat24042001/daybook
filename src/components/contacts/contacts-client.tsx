@@ -561,7 +561,7 @@ export function ContactsClient({
         </div>
       )}
 
-      {/* contact list – flat alphabetical, no grouping */}
+      {/* contact list, flat alphabetical, no grouping */}
       {contacts.length === 0 ? (
         <EmptyState icon={Users} title="No contacts yet" actions={[{ label: "Add a contact", onClick: () => setAddOpen(true) }]}>
           Keep the people who matter in one place. Daybook nudges you when you have not been in touch for a while.

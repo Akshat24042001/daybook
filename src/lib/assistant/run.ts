@@ -39,7 +39,7 @@ export async function snapshot(ctx: Ctx): Promise<string> {
     const line = (r: Record<string, unknown>) =>
       `${r.date}: worked ${Math.round(Number(r.worked_min) / 6) / 10}h, logged ${Math.round(Number(r.logged_min) / 6) / 10}h, ` +
       `tasks done ${r.done}/${r.planned} (${r.still_open} still open), must-do ${r.must_do_done}/${r.must_do}, ` +
-      `exercise ${r.ex_done} done ${r.ex_missed} missed, steps ${r.steps ?? "–"}, score ${r.score ?? "–"}, sleep ${r.sleep_minutes ?? "–"} min`;
+      `exercise ${r.ex_done} done ${r.ex_missed} missed, steps ${r.steps ?? "-"}, score ${r.score ?? "-"}, sleep ${r.sleep_minutes ?? "-"} min`;
     const t = tasks[0];
     return [
       ...days.map(line),

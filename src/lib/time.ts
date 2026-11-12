@@ -211,13 +211,13 @@ export function fmtRelDay(date: DateStr, today: DateStr): string {
   return fmtDay(date, today);
 }
 
-/** A range in one style: "21 – 27 Sep", "28 Sep – 4 Oct", "28 Dec 2025 – 3 Jan 2026". */
+/** A range in one style: "21 to 27 Sep", "28 Sep to 4 Oct", "28 Dec 2025 to 3 Jan 2026". */
 export function fmtRange(from: DateStr, to: DateStr): string {
   const a = parseDateStr(from);
   const b = parseDateStr(to);
-  if (a.y !== b.y) return `${a.d} ${MONTHS[a.m - 1]} ${a.y} – ${b.d} ${MONTHS[b.m - 1]} ${b.y}`;
-  if (a.m !== b.m) return `${a.d} ${MONTHS[a.m - 1]} – ${b.d} ${MONTHS[b.m - 1]}`;
-  return `${a.d} – ${b.d} ${MONTHS[b.m - 1]}`;
+  if (a.y !== b.y) return `${a.d} ${MONTHS[a.m - 1]} ${a.y} to ${b.d} ${MONTHS[b.m - 1]} ${b.y}`;
+  if (a.m !== b.m) return `${a.d} ${MONTHS[a.m - 1]} to ${b.d} ${MONTHS[b.m - 1]}`;
+  return `${a.d} to ${b.d} ${MONTHS[b.m - 1]}`;
 }
 
 /** Monday of the week containing the date. */

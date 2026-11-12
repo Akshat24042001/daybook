@@ -531,3 +531,13 @@ Salespeople get their own login and see only what you give them. They sign in at
 - Five wrong passwords lock the login for 15 minutes. Unknown users and wrong passwords get the same answer.
 - Everything travels over HTTPS. The portal uses only `/api/team/*`, which needs JSON and a same-origin request. Owner server actions refuse any request without your session.
 - Every update records its author in the database (`author_user`), so visibility cannot be faked from the browser.
+
+## No long dashes, anywhere
+
+Em dashes and en dashes read as machine-written, so the app never uses them.
+
+- **Every AI call** carries the rule in its prompt, and every answer is cleaned before the app sees it (`lib/text/no-dashes.ts`). This covers sales AI, the assistant, Telegram, research and voice transcripts.
+- **Before anything leaves:** WhatsApp and email links, copied drafts, saved draft edits and the shared quote page are cleaned too, even text you typed yourself.
+- **How it cleans:** a range becomes a hyphen (10-12), a dash bullet becomes "- ", and any other dash becomes a comma.
+- **Stored text** was cleaned once by migration 045. What leads sent you is kept exactly as they wrote it.
+- **The code has none.** `tests/no-dashes.test.ts` fails if a long dash appears in any file in the repo.

@@ -151,7 +151,7 @@ export const MORE: Record<string, Def> = {
   },
 
   delete_task: {
-    doc: "delete_task: task_id — deletes the task with its whole history (undo brings it all back). Prefer set_task_state dropped to keep history.",
+    doc: "delete_task: task_id: deletes the task with its whole history (undo brings it all back). Prefer set_task_state dropped to keep history.",
     async prepare(ctx, o) {
       const t = await taskOr(o.task_id);
       const [h] = await q<{ days: number; min: number }>(
@@ -168,7 +168,7 @@ export const MORE: Record<string, Def> = {
   },
 
   set_task_state: {
-    doc: "set_task_state: task_id, state done|dropped|active — close the whole task (not just today's entry), drop it keeping history, or reopen it",
+    doc: "set_task_state: task_id, state done|dropped|active: close the whole task (not just today's entry), drop it keeping history, or reopen it",
     async prepare(ctx, o) {
       const t = await taskOr(o.task_id);
       const st = s(o.state, 10);
@@ -190,7 +190,7 @@ export const MORE: Record<string, Def> = {
   },
 
   must_do: {
-    doc: "must_do: entry_id, on (true|false) — mark or unmark a day's task as must-do",
+    doc: "must_do: entry_id, on (true|false): mark or unmark a day's task as must-do",
     async prepare(ctx, o) {
       const e = await entryOr(o.entry_id);
       const on = bool(o.on) ?? true;
@@ -205,7 +205,7 @@ export const MORE: Record<string, Def> = {
   },
 
   add_to_day: {
-    doc: "add_to_day: task_id, date (default today), must (true|false) — put an existing task (someday, cadence, target, any) on a day's list",
+    doc: "add_to_day: task_id, date (default today), must (true|false): put an existing task (someday, cadence, target, any) on a day's list",
     async prepare(ctx, o) {
       const t = await taskOr(o.task_id);
       if (t.state !== "active") throw new UserError("That task is closed; reopen it first with set_task_state.");
@@ -223,7 +223,7 @@ export const MORE: Record<string, Def> = {
   },
 
   remove_from_day: {
-    doc: "remove_from_day: entry_id — take an untouched (open) task off that day's list; the task itself stays",
+    doc: "remove_from_day: entry_id: take an untouched (open) task off that day's list; the task itself stays",
     async prepare(ctx, o) {
       const e = await entryOr(o.entry_id);
       if (e.status !== "open") throw new UserError("Only an untouched (open) entry can be removed; set a status instead.");
@@ -237,7 +237,7 @@ export const MORE: Record<string, Def> = {
   },
 
   end_waiting: {
-    doc: "end_waiting: task_id — the thing you were waiting on arrived: back to the task list today",
+    doc: "end_waiting: task_id: the thing you were waiting on arrived: back to the task list today",
     async prepare(_c, o) {
       const t = await taskOr(o.task_id);
       if (!t.waiting_until && !t.waiting_since) throw new UserError("That task is not waiting.");
@@ -251,7 +251,7 @@ export const MORE: Record<string, Def> = {
   },
 
   clear_time: {
-    doc: "clear_time: task_id, date (default today) — remove all minutes logged on that task that day (a wrong log)",
+    doc: "clear_time: task_id, date (default today): remove all minutes logged on that task that day (a wrong log)",
     async prepare(ctx, o) {
       const t = await taskOr(o.task_id);
       const date = dateArg(ctx, o.date);
@@ -267,7 +267,7 @@ export const MORE: Record<string, Def> = {
   },
 
   delete_note: {
-    doc: "delete_note: note_id (task_remarks.id) — delete one note on a task",
+    doc: "delete_note: note_id (task_remarks.id): delete one note on a task",
     async prepare(_c, o) {
       const r = await rowOr<{ id: number; task_id: number; body: string }>("task_remarks", int(o.note_id), "task note");
       const t = await getTask(r.task_id);
@@ -281,7 +281,7 @@ export const MORE: Record<string, Def> = {
   },
 
   someday: {
-    doc: "someday: task_id — park a task in the Someday pool (off every list until you pick it again)",
+    doc: "someday: task_id: park a task in the Someday pool (off every list until you pick it again)",
     async prepare(_c, o) {
       const t = await taskOr(o.task_id);
       if (t.type === "someday") throw new UserError("It is already in Someday.");
@@ -296,7 +296,7 @@ export const MORE: Record<string, Def> = {
   },
 
   snooze_cadence: {
-    doc: "snooze_cadence: task_id — snooze a cadence (every N days) task's nudge by a day",
+    doc: "snooze_cadence: task_id: snooze a cadence (every N days) task's nudge by a day",
     async prepare(_c, o) {
       const t = await taskOr(o.task_id);
       if (t.type !== "cadence") throw new UserError("Only cadence tasks can be snoozed.");
@@ -310,7 +310,7 @@ export const MORE: Record<string, Def> = {
   },
 
   bring_to_today: {
-    doc: "bring_to_today: task_ids (array), must (true|false) — put tasks that fell off every list (the Unfinished page) back on today",
+    doc: "bring_to_today: task_ids (array), must (true|false): put tasks that fell off every list (the Unfinished page) back on today",
     async prepare(ctx, o) {
       const ids = (Array.isArray(o.task_ids) ? o.task_ids : [o.task_ids ?? o.task_id]).map(int).filter((x): x is number => x !== null).slice(0, 30);
       if (!ids.length) throw new UserError("bring_to_today needs task_ids.");
@@ -328,7 +328,7 @@ export const MORE: Record<string, Def> = {
   },
 
   finish_plan: {
-    doc: "finish_plan: date (default tomorrow) — mark that day as planned (counts for the planning streak)",
+    doc: "finish_plan: date (default tomorrow): mark that day as planned (counts for the planning streak)",
     async prepare(ctx, o) {
       const date = dateArg(ctx, o.date, addDays(ctx.today, 1));
       const d = await getDay(date);
@@ -399,7 +399,7 @@ export const MORE: Record<string, Def> = {
   },
 
   delete_project: {
-    doc: "delete_project: project_id — deletes the project; its tasks stay, without a project (prefer update_project archived)",
+    doc: "delete_project: project_id: deletes the project; its tasks stay, without a project (prefer update_project archived)",
     async prepare(_c, o) {
       const pr = await rowOr<{ id: number; name: string }>("projects", int(o.project_id), "project");
       const [n] = await q<{ n: number }>("select count(*)::int as n from tasks where project_id = $1", [pr.id]);
@@ -413,7 +413,7 @@ export const MORE: Record<string, Def> = {
   },
 
   add_person: {
-    doc: "add_person: name, relation (optional) — a person named on tasks (+Name). For a full contact card use add_contact.",
+    doc: "add_person: name, relation (optional): a person named on tasks (+Name). For a full contact card use add_contact.",
     async prepare(_c, o) {
       const name = s(o.name, 80);
       if (!name) throw new UserError("add_person needs a name.");
@@ -450,7 +450,7 @@ export const MORE: Record<string, Def> = {
   },
 
   delete_person: {
-    doc: "delete_person: person_id — removes the person; tasks naming them stay, without the name",
+    doc: "delete_person: person_id: removes the person; tasks naming them stay, without the name",
     async prepare(_c, o) {
       const pe = await rowOr<{ id: number; name: string }>("people", int(o.person_id), "person");
       return { params: { person_id: pe.id }, label: `🗑 Delete person: ${pe.name}`, detail: null };
@@ -507,7 +507,7 @@ export const MORE: Record<string, Def> = {
   },
 
   delete_contact: {
-    doc: "delete_contact: contact_id — deletes the contact and its keep-in-touch history",
+    doc: "delete_contact: contact_id: deletes the contact and its keep-in-touch history",
     async prepare(_c, o) {
       const c = await rowOr<{ id: number; name: string }>("contacts", int(o.contact_id), "contact");
       return { params: { contact_id: c.id }, label: `🗑 Delete contact: ${c.name}`, detail: "undo restores it" };
@@ -520,7 +520,7 @@ export const MORE: Record<string, Def> = {
   },
 
   touch_every: {
-    doc: "touch_every: contact_id, days (1-365, or \"clear\" for the default) — how often to keep in touch",
+    doc: "touch_every: contact_id, days (1-365, or \"clear\" for the default): how often to keep in touch",
     async prepare(_c, o) {
       const c = await rowOr<{ id: number; name: string }>("contacts", int(o.contact_id), "contact");
       const days = isClear(o.days) ? null : int(o.days);
@@ -535,7 +535,7 @@ export const MORE: Record<string, Def> = {
   },
 
   snooze_contact: {
-    doc: "snooze_contact: contact_id, days (default 7) — stop the keep-in-touch reminder for a while",
+    doc: "snooze_contact: contact_id, days (default 7): stop the keep-in-touch reminder for a while",
     async prepare(ctx, o) {
       const c = await rowOr<{ id: number; name: string }>("contacts", int(o.contact_id), "contact");
       const days = int(o.days) ?? 7;
@@ -550,7 +550,7 @@ export const MORE: Record<string, Def> = {
   },
 
   delete_touch: {
-    doc: "delete_touch: touch_id (contact_touches.id) — remove a wrongly logged call/meeting",
+    doc: "delete_touch: touch_id (contact_touches.id): remove a wrongly logged call/meeting",
     async prepare(ctx, o) {
       const t = await rowOr<{ id: number; contact_id: number; date: DateStr; kind: string }>("contact_touches", int(o.touch_id), "contact touch");
       const [c] = await q<{ name: string }>("select name from contacts where id = $1", [t.contact_id]);
@@ -565,7 +565,7 @@ export const MORE: Record<string, Def> = {
 
   // ============================================================ references
   add_ref: {
-    doc: "add_ref: kind link|note|quote, title, url, body, source, tags (array), pinned — save a reference",
+    doc: "add_ref: kind link|note|quote, title, url, body, source, tags (array), pinned: save a reference",
     async prepare(_c, o) {
       const kind = (s(o.kind, 10) || (s(o.url, 10) ? "link" : "note")) as Ref["kind"];
       if (!["link", "note", "quote"].includes(kind)) throw new UserError("kind is link, note or quote.");
@@ -619,7 +619,7 @@ export const MORE: Record<string, Def> = {
 
   // ============================================================ diary
   edit_diary: {
-    doc: "edit_diary: diary_id (diary_entries.id), text — rewrite one diary note",
+    doc: "edit_diary: diary_id (diary_entries.id), text: rewrite one diary note",
     async prepare(ctx, o) {
       const d = await rowOr<{ id: number; date: DateStr }>("diary_entries", int(o.diary_id), "diary note");
       const text = s(o.text, 20000);
@@ -634,7 +634,7 @@ export const MORE: Record<string, Def> = {
   },
 
   delete_diary: {
-    doc: "delete_diary: diary_id — delete one diary note",
+    doc: "delete_diary: diary_id: delete one diary note",
     async prepare(ctx, o) {
       const d = await rowOr<{ id: number; date: DateStr; body: string }>("diary_entries", int(o.diary_id), "diary note");
       return { params: { diary_id: d.id }, label: `🗑 Delete diary note`, detail: changes([dayName(ctx, d.date), quote(d.body, 70)]) };
@@ -647,7 +647,7 @@ export const MORE: Record<string, Def> = {
   },
 
   summarize_diary: {
-    doc: "summarize_diary: date (default today) — (re)write the AI summary and rating of that day's diary",
+    doc: "summarize_diary: date (default today): (re)write the AI summary and rating of that day's diary",
     async prepare(ctx, o) {
       const date = dateArg(ctx, o.date);
       if (date > ctx.today) throw new UserError("Only today or earlier.");
@@ -697,7 +697,7 @@ export const MORE: Record<string, Def> = {
   },
 
   delete_scratch: {
-    doc: "delete_scratch: item_id — delete a scratchpad item (an uploaded file or voice memo cannot be brought back by undo)",
+    doc: "delete_scratch: item_id: delete a scratchpad item (an uploaded file or voice memo cannot be brought back by undo)",
     async prepare(_c, o) {
       const it = await rowOr<{ id: number; kind: string; title: string | null }>("scratch_items", int(o.item_id), "scratchpad item");
       const media = it.kind === "file" || it.kind === "voice";
@@ -712,7 +712,7 @@ export const MORE: Record<string, Def> = {
 
   // ============================================================ time segments
   add_segment: {
-    doc: `add_segment: kind (${[...SEG_KINDS].join("|")}), start "HH:MM", end "HH:MM" (or omit while still running), date (default today) — add a stretch of time you forgot to record`,
+    doc: `add_segment: kind (${[...SEG_KINDS].join("|")}), start "HH:MM", end "HH:MM" (or omit while still running), date (default today): add a stretch of time you forgot to record`,
     async prepare(ctx, o) {
       const kind = s(o.kind, 20);
       if (!SEG_KINDS.has(kind)) throw new UserError(`kind must be one of ${[...SEG_KINDS].join(", ")}.`);
@@ -723,7 +723,7 @@ export const MORE: Record<string, Def> = {
       if (start > ctx.now) throw new UserError("That starts in the future.");
       return {
         params: { kind, start: start.toISOString(), end: end ? end.toISOString() : null, date },
-        label: `◷ ${KIND_LABEL[kind as StateKind]} ${fmtHM(start, ctx.tz)}–${end ? fmtHM(end, ctx.tz) : "now"}`,
+        label: `◷ ${KIND_LABEL[kind as StateKind]} ${fmtHM(start, ctx.tz)}-${end ? fmtHM(end, ctx.tz) : "now"}`,
         detail: dayName(ctx, date),
       };
     },
@@ -736,12 +736,12 @@ export const MORE: Record<string, Def> = {
   },
 
   delete_segment: {
-    doc: "delete_segment: segment_id (v_segments.id) — remove a stretch of time recorded by mistake",
+    doc: "delete_segment: segment_id (v_segments.id): remove a stretch of time recorded by mistake",
     async prepare(ctx, o) {
       const g = await rowOr<{ id: number; date: DateStr; kind: StateKind; start_at: Date; end_at: Date | null }>("work_segments", int(o.segment_id), "time segment");
       return {
         params: { segment_id: g.id, date: g.date },
-        label: `🗑 ${KIND_LABEL[g.kind]} ${fmtHM(g.start_at, ctx.tz)}–${g.end_at ? fmtHM(g.end_at, ctx.tz) : "now"}`,
+        label: `🗑 ${KIND_LABEL[g.kind]} ${fmtHM(g.start_at, ctx.tz)}-${g.end_at ? fmtHM(g.end_at, ctx.tz) : "now"}`,
         detail: dayName(ctx, g.date),
       };
     },
@@ -754,7 +754,7 @@ export const MORE: Record<string, Def> = {
 
   // ============================================================ exercise
   skip_exercise: {
-    doc: "skip_exercise: time (\"HH:MM\" of the slot, default the current one), date (default today) — mark an exercise slot skipped",
+    doc: "skip_exercise: time (\"HH:MM\" of the slot, default the current one), date (default today): mark an exercise slot skipped",
     async prepare(ctx, o) {
       const date = dateArg(ctx, o.date);
       const slot = pickSlot(ctx, date, o.time);
@@ -768,7 +768,7 @@ export const MORE: Record<string, Def> = {
   },
 
   delete_exercise_log: {
-    doc: "delete_exercise_log: log_id (exercise_logs.id) — remove a wrongly logged set",
+    doc: "delete_exercise_log: log_id (exercise_logs.id): remove a wrongly logged set",
     async prepare(ctx, o) {
       const l = await rowOr<{ id: number; date: DateStr; slot_at: Date; exercise_type_id: number | null; amount: number | null; status: string }>("exercise_logs", int(o.log_id), "exercise log");
       const t = l.exercise_type_id ? await getExerciseType(l.exercise_type_id) : null;
@@ -826,7 +826,7 @@ export const MORE: Record<string, Def> = {
   },
 
   delete_exercise_type: {
-    doc: "delete_exercise_type: type_id — remove an exercise from the list (logged sets stay in history); prefer update_exercise_type active false",
+    doc: "delete_exercise_type: type_id: remove an exercise from the list (logged sets stay in history); prefer update_exercise_type active false",
     async prepare(_c, o) {
       const t = await getExerciseType(int(o.type_id) ?? -1);
       if (!t) throw new UserError("That exercise type does not exist.");
@@ -881,7 +881,7 @@ export const MORE: Record<string, Def> = {
   },
 
   generate_review: {
-    doc: "generate_review: period week|month, start (default the current period) — write (or rewrite) the AI review",
+    doc: "generate_review: period week|month, start (default the current period): write (or rewrite) the AI review",
     async prepare(ctx, o) {
       const period = (s(o.period, 6) || "week") as ReviewPeriod;
       if (period !== "week" && period !== "month") throw new UserError("period is week or month.");

@@ -222,7 +222,7 @@ async function dayContext(ctx: Ctx, date: DateStr, db: Db = getPool()): Promise<
   if (time.length) lines.push(`Time by project: ${time.map((t) => `${t.project ?? "no project"} ${fmtDuration(t.minutes)}`).join("; ")}`);
   const group = (s: string[]) => tasks.filter((t) => s.includes(t.status));
   const fmt = (t: (typeof tasks)[number]) =>
-    `${t.must_do ? "[must-do] " : ""}${t.project ? `${t.project}: ` : ""}${t.title}${t.personal ? " (personal)" : ""}${t.note ? ` — note: ${t.note}` : ""}`;
+    `${t.must_do ? "[must-do] " : ""}${t.project ? `${t.project}: ` : ""}${t.title}${t.personal ? " (personal)" : ""}${t.note ? `, note: ${t.note}` : ""}`;
   const done = group(["done"]);
   const progressed = group(["progressed", "attempted"]);
   const open = group(["open"]);

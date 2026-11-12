@@ -118,7 +118,7 @@ describe("assistant actions", () => {
     await q(`insert into work_segments (date, kind, start_at, end_at) values ('2026-09-25', 'commute', $1, $2)`, [ist("2026-09-25 15:10"), ist("2026-09-25 15:52")]);
     await q(`insert into work_segments (date, kind, start_at) values ('2026-09-25', 'office', $1)`, [ist("2026-09-25 15:52")]);
     const item = await tap(ctx, { type: "edit_segment", segment_id: 2, start: "15:50" });
-    expect(item.label).toBe("◷ At office: 15:52–now → 15:50–now");
+    expect(item.label).toBe("◷ At office: 15:52-now → 15:50-now");
     expect((await q("select end_at from work_segments where id = 1"))[0]).toEqual({ end_at: ist("2026-09-25 15:50") });
     await undoStoredAction(item.id);
     expect(await q("select id, start_at, end_at from work_segments order by id")).toEqual([

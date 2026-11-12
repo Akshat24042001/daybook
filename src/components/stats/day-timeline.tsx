@@ -22,7 +22,7 @@ function dayLabel(date: DateStr, today: DateStr): { top: string; bottom: string 
 }
 
 const tip = (s: TimelineSpan) =>
-  `${ACTIVITY[s.kind].emoji} ${ACTIVITY[s.kind].label} · ${clock(s.startMin)}–${s.open ? "now" : clock(s.endMin)} · ${fmtDuration(s.endMin - s.startMin)}`;
+  `${ACTIVITY[s.kind].emoji} ${ACTIVITY[s.kind].label} · ${clock(s.startMin)}-${s.open ? "now" : clock(s.endMin)} · ${fmtDuration(s.endMin - s.startMin)}`;
 
 /** Range-wide numbers for the tile header and the dialog. */
 export function timelineTotals(days: TimelineDay[]) {
@@ -253,7 +253,7 @@ export function DayTimeline({ days, today, height }: { days: TimelineDay[]; toda
                     !d.workedMin && "text-subtle",
                   )}
                 >
-                  {d.workedMin ? fmtDuration(d.workedMin) : "–"}
+                  {d.workedMin ? fmtDuration(d.workedMin) : "-"}
                 </span>
               </li>
             );

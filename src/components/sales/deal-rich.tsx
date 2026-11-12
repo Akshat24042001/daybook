@@ -233,7 +233,7 @@ export function FieldInput({ def, value, onChange, people = [] }: { def: FieldDe
     case "select":
       input = (
         <Select value={s} onChange={(e) => onChange(e.target.value)} {...common}>
-          <option value="">—</option>
+          <option value="">Not set</option>
           {(def.options ?? []).map((o) => <option key={o} value={o}>{def.optionLabels?.[o] ?? (def.key === "deal_type" ? DEAL_TYPES.find(([k]) => k === o)?.[1] ?? o : o)}</option>)}
         </Select>
       );
@@ -254,7 +254,7 @@ export function FieldInput({ def, value, onChange, people = [] }: { def: FieldDe
     case "person":
       input = (
         <Select value={s} onChange={(e) => onChange(e.target.value)} {...common}>
-          <option value="">—</option>
+          <option value="">Not set</option>
           {people.map((p) => <option key={p.id} value={String(p.id)}>{p.full_name}{p.title ? `, ${p.title}` : ""}</option>)}
         </Select>
       );
@@ -498,12 +498,12 @@ export function ActivityLogger({ dealId, people }: { dealId: number; people: Per
         {timed ? <Field label="Duration (minutes)"><Input value={f.duration} onChange={set("duration")} inputMode="numeric" aria-label="Duration" /></Field> : null}
         {!note ? (
           <Field label="Outcome">
-            <Select value={f.outcome} onChange={set("outcome")} aria-label="Outcome"><option value="">—</option>{outcomes.map((o) => <option key={o} value={o}>{o}</option>)}</Select>
+            <Select value={f.outcome} onChange={set("outcome")} aria-label="Outcome"><option value="">Not set</option>{outcomes.map((o) => <option key={o} value={o}>{o}</option>)}</Select>
           </Field>
         ) : null}
         {people.length && !note ? (
           <Field label="With">
-            <Select value={f.person} onChange={set("person")} aria-label="With"><option value="">—</option>{people.map((p) => <option key={p.id} value={String(p.id)}>{p.full_name}</option>)}</Select>
+            <Select value={f.person} onChange={set("person")} aria-label="With"><option value="">Not set</option>{people.map((p) => <option key={p.id} value={String(p.id)}>{p.full_name}</option>)}</Select>
           </Field>
         ) : null}
       </div>

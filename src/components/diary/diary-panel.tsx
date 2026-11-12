@@ -52,7 +52,7 @@ export function SummaryCard({ s, footer }: { s: DiarySummaryView; footer?: React
     <div className="space-y-4">
       <div className="flex items-start gap-3">
         <div className={cn("flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-2xl", ratingTone(s.rating))}>
-          <span className="tabular text-xl font-bold leading-none">{s.rating ?? "–"}</span>
+          <span className="tabular text-xl font-bold leading-none">{s.rating ?? "-"}</span>
           <span className="text-[9px] font-semibold uppercase opacity-80">/ 10</span>
         </div>
         <div className="min-w-0">
@@ -321,7 +321,7 @@ export function DiaryPanel({
         {compact && summary ? (
           <a href="/diary" className="block rounded-xl border border-border bg-bg/60 p-3 transition-colors hover:border-accent/40">
             <div className="flex items-center gap-2">
-              <span className={cn("tabular rounded-lg px-1.5 py-0.5 text-xs font-bold", ratingTone(summary.rating))}>{summary.rating ?? "–"}</span>
+              <span className={cn("tabular rounded-lg px-1.5 py-0.5 text-xs font-bold", ratingTone(summary.rating))}>{summary.rating ?? "-"}</span>
               <span className="min-w-0 flex-1 truncate text-sm font-medium">{summary.headline}</span>
               <ArrowRight className="h-3.5 w-3.5 shrink-0 text-subtle" />
             </div>

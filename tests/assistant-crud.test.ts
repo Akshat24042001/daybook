@@ -155,7 +155,7 @@ describe("the assistant can change everything the app can", () => {
     expect([await q("select * from exercise_types order by id"), await q("select * from exercise_logs")]).toEqual(before);
 
     const seg = await tap(ctx, { type: "add_segment", kind: "office", start: "09:30", end: "11:00" });
-    expect(seg.label).toBe("◷ At office 09:30–11:00");
+    expect(seg.label).toBe("◷ At office 09:30-11:00");
     expect(await q("select kind from work_segments")).toEqual([{ kind: "office" }]);
     await undoStoredAction(seg.id);
     expect(await q("select * from work_segments")).toEqual([]);

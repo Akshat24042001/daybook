@@ -1,5 +1,6 @@
 "use server";
 
+import { noDashes } from "@/lib/text/no-dashes";
 import { revalidatePath } from "next/cache";
 import { one, q, UserError } from "@/lib/db";
 import { journaled } from "@/lib/undo";
@@ -67,7 +68,7 @@ export async function moveSentAction(id: number, targetId: string, text?: string
 /** Remembers which button you opened (and keeps your edited draft). Logs nothing. */
 export async function moveOpenedAction(id: number, targetId: string, text?: string, subject?: string | null) {
   return run(async () => {
-    if (text !== undefined) await q("update sales_moves set draft = $2, draft_subject = coalesce($3, draft_subject) where id = $1", [id, text, subject ?? null]);
+    if (text !== undefined) await q("update sales_moves set draft = $2, draft_subject = coalesce($3, draft_subject) where id = $1", [id, noDashes(text), noDashes(subject) ?? null]);
     await markOpened(id, targetId);
   }, []);
 }
@@ -86,7 +87,7 @@ export async function sendMoveEmailAction(id: number, text: string, subject: str
 }
 export async function saveDraftAction(id: number, text: string, subject?: string | null) {
   return run(async () => {
-    await q("update sales_moves set draft = $2, draft_subject = coalesce($3, draft_subject) where id = $1", [id, text, subject ?? null]);
+    await q("update sales_moves set draft = $2, draft_subject = coalesce($3, draft_subject) where id = $1", [id, noDashes(text), noDashes(subject) ?? null]);
   }, []);
 }
 export async function addMoveAction(dealId: number | null, title: string, dueAt?: string | null) {

@@ -22,7 +22,7 @@ function fmtX(v: unknown): string {
 }
 
 function fmtNum(v: unknown, unit?: string): string {
-  if (v === null || v === undefined || v === "") return "–";
+  if (v === null || v === undefined || v === "") return "-";
   const n = Number(v);
   if (!Number.isFinite(n)) return String(v);
   const r = Math.abs(n) >= 100 ? Math.round(n) : Math.round(n * 10) / 10;
@@ -32,9 +32,9 @@ function fmtNum(v: unknown, unit?: string): string {
 }
 
 function cellText(v: unknown): string {
-  if (v === null || v === undefined || v === "") return "–";
-  if (typeof v === "boolean") return v ? "✓" : "–";
-  if (Array.isArray(v)) return v.length ? v.join(", ") : "–";
+  if (v === null || v === undefined || v === "") return "-";
+  if (typeof v === "boolean") return v ? "✓" : "-";
+  if (Array.isArray(v)) return v.length ? v.join(", ") : "-";
   if (typeof v === "number") return fmtNum(v);
   if (typeof v === "object") return JSON.stringify(v);
   const s = String(v);

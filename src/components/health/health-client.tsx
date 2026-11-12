@@ -259,7 +259,7 @@ export function HealthClient(props: {
               <h2 className="text-sm font-semibold">Steps</h2>
               <span className="tabular ml-auto text-xs text-subtle">goal {props.stepGoal.toLocaleString("en-US")}</span>
             </div>
-            <p className="tabular mt-2 font-display text-3xl leading-none">{props.steps === null ? "–" : props.steps.toLocaleString("en-US")}</p>
+            <p className="tabular mt-2 font-display text-3xl leading-none">{props.steps === null ? "-" : props.steps.toLocaleString("en-US")}</p>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
               <div className={cn("h-full rounded-full transition-all", stepPct >= 1 ? "bg-good" : "bg-accent")} style={{ width: `${stepPct * 100}%` }} />
             </div>
@@ -310,11 +310,11 @@ export function HealthClient(props: {
             </div>
             <div className="mt-2 flex items-baseline gap-4">
               <div>
-                <p className="tabular font-display text-3xl leading-none">{lastNight === null ? "–" : fmtDuration(lastNight)}</p>
+                <p className="tabular font-display text-3xl leading-none">{lastNight === null ? "-" : fmtDuration(lastNight)}</p>
                 <p className="text-xs text-subtle">last night</p>
               </div>
               <div>
-                <p className="tabular text-lg font-semibold leading-none">{sleepAvg === null ? "–" : fmtDuration(Math.round(sleepAvg))}</p>
+                <p className="tabular text-lg font-semibold leading-none">{sleepAvg === null ? "-" : fmtDuration(Math.round(sleepAvg))}</p>
                 <p className="text-xs text-subtle">7-day average</p>
               </div>
             </div>

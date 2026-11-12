@@ -56,7 +56,7 @@ const ALIAS: Record<string, string> = { next_step: "next_action", next_step_date
 
 export const SALES_ACTIONS: Record<string, SalesDef> = {
   update_deal: {
-    doc: `update_deal: deal_id + any of value ("2 lakh", 200000), currency (INR|USD|AED…), probability (0-100), ${Object.keys(TEXT_FIELDS).join(", ")}, ${Object.keys(DATE_FIELDS).join(", ")} (YYYY-MM-DD), ${Object.keys(LIST_FIELDS).join(", ")} (arrays; add:true appends) — change a lead's details ("clear" empties a field)`,
+    doc: `update_deal: deal_id + any of value ("2 lakh", 200000), currency (INR|USD|AED…), probability (0-100), ${Object.keys(TEXT_FIELDS).join(", ")}, ${Object.keys(DATE_FIELDS).join(", ")} (YYYY-MM-DD), ${Object.keys(LIST_FIELDS).join(", ")} (arrays; add:true appends): change a lead's details ("clear" empties a field)`,
     async prepare(_c, raw) {
       const d = await dealOr(raw.deal_id);
       const o: Record<string, unknown> = {};
@@ -119,7 +119,7 @@ export const SALES_ACTIONS: Record<string, SalesDef> = {
   },
 
   move_deal: {
-    doc: "move_deal: deal_id, stage (stage name or role: contacted, engaged, discovery, proposal, negotiation, won, lost, nurture, parked…), reason (needed for lost/won), revisit_on (YYYY-MM-DD, for nurture/on hold), note — move a lead to another stage",
+    doc: "move_deal: deal_id, stage (stage name or role: contacted, engaged, discovery, proposal, negotiation, won, lost, nurture, parked…), reason (needed for lost/won), revisit_on (YYYY-MM-DD, for nurture/on hold), note: move a lead to another stage",
     async prepare(_c, o) {
       const d = await dealOr(o.deal_id);
       const want = s(o.stage, 60).toLowerCase();
@@ -143,7 +143,7 @@ export const SALES_ACTIONS: Record<string, SalesDef> = {
   },
 
   log_deal_note: {
-    doc: "log_deal_note: deal_id, text, channel (note|call|meeting|whatsapp|email|linkedin|in_person|instagram; default note), direction (in|out|both), occurred_at (YYYY-MM-DD) — add something that happened to the lead's timeline",
+    doc: "log_deal_note: deal_id, text, channel (note|call|meeting|whatsapp|email|linkedin|in_person|instagram; default note), direction (in|out|both), occurred_at (YYYY-MM-DD): add something that happened to the lead's timeline",
     async prepare(_c, o) {
       const d = await dealOr(o.deal_id);
       const text = s(o.text ?? o.note ?? o.body, 4000);
@@ -167,7 +167,7 @@ export const SALES_ACTIONS: Record<string, SalesDef> = {
   },
 
   add_deal_promise: {
-    doc: "add_deal_promise: deal_id, owner (me|them), text, due (YYYY-MM-DD) — a promise you made or they made",
+    doc: "add_deal_promise: deal_id, owner (me|them), text, due (YYYY-MM-DD): a promise you made or they made",
     async prepare(_c, o) {
       const d = await dealOr(o.deal_id);
       const owner = s(o.owner, 5) === "them" ? "them" : "me";
@@ -221,7 +221,7 @@ export const SALES_ACTIONS: Record<string, SalesDef> = {
   },
 
   add_lead: {
-    doc: "add_lead: title (deal name), person (full name), company, value (\"2 lakh\"), currency, source (outbound|inbound|referral|network|…), requirements, email, phone — create a new lead",
+    doc: "add_lead: title (deal name), person (full name), company, value (\"2 lakh\"), currency, source (outbound|inbound|referral|network|…), requirements, email, phone: create a new lead",
     async prepare(_c, o) {
       const person = s(o.person, 120);
       const company = s(o.company, 160);

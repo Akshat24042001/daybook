@@ -1,5 +1,5 @@
 /**
- * Next.js instrumentation hook — runs once on every cold start.
+ * Next.js instrumentation hook, runs once on every cold start.
  * https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
  */
 export async function register() {

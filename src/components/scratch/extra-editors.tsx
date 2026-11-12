@@ -142,7 +142,7 @@ export function TableEditor({ data, onChange }: { data: TableData; onChange: (d:
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="min-w-[3rem] rounded-md bg-muted px-1.5 py-0.5 text-center font-mono text-xs">{focus ? `${colName(focus[1])}${focus[0] + 1}` : "–"}</span>
+        <span className="min-w-[3rem] rounded-md bg-muted px-1.5 py-0.5 text-center font-mono text-xs">{focus ? `${colName(focus[1])}${focus[0] + 1}` : "-"}</span>
         <span className="min-w-0 flex-1 truncate font-mono text-xs text-subtle">{focused.startsWith("=") ? focused : ""}</span>
         <button className={btn} disabled={rows.length >= TABLE_MAX_ROWS} onClick={() => onChange({ rows: [...rows, Array(cols).fill("")] })}><Plus className="h-3 w-3" /> Row</button>
         <button className={btn} disabled={rows.length <= 1} onClick={() => onChange({ rows: rows.slice(0, -1) })}><Minus className="h-3 w-3" /> Row</button>

@@ -120,7 +120,7 @@ async function registerWebhook() {
 
   if (!token || !secret) return;
   if (!base.startsWith("https://")) {
-    console.log("[bootstrap] APP_BASE_URL not https — Telegram webhook will register after deploy");
+    console.log("[bootstrap] APP_BASE_URL not https, Telegram webhook will register after deploy");
     return;
   }
 
@@ -144,7 +144,7 @@ async function registerWebhook() {
 
 export async function bootstrap() {
   if (!process.env.DATABASE_URL) {
-    console.warn("[bootstrap] DATABASE_URL not set — skipping");
+    console.warn("[bootstrap] DATABASE_URL not set, skipping");
     return;
   }
 
@@ -160,7 +160,7 @@ export async function bootstrap() {
   await registerWebhook().catch((e: Error) =>
     console.warn("[bootstrap] webhook step failed:", e.message),
   );
-  // pg_cron job is a one-time manual setup in Supabase — do NOT touch it here.
+  // pg_cron job is a one-time manual setup in Supabase, do NOT touch it here.
   // Recreating it on every cold start would break the running job.
 }
 

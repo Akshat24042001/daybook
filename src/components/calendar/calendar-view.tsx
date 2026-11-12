@@ -365,7 +365,7 @@ export function CalendarView({ data }: { data: CalendarData }) {
         <section aria-label="Performance" className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div className="rounded-xl border border-border bg-surface p-4 shadow-[var(--shadow-sm)]">
             <p className="text-[13px] font-medium text-subtle">Average score</p>
-            <p className="mt-1 font-display text-2xl tabular">{s.avgScore ?? "–"}<span className="text-sm font-normal text-subtle">{s.avgScore !== null ? " / 10" : ""}</span></p>
+            <p className="mt-1 font-display text-2xl tabular">{s.avgScore ?? "-"}<span className="text-sm font-normal text-subtle">{s.avgScore !== null ? " / 10" : ""}</span></p>
             <p className="text-xs text-subtle">{s.scoredDays} of {s.days} days scored</p>
           </div>
           <div className="rounded-xl border border-border bg-surface p-4 shadow-[var(--shadow-sm)]">
@@ -380,7 +380,7 @@ export function CalendarView({ data }: { data: CalendarData }) {
           </div>
           <div className="rounded-xl border border-border bg-surface p-4 shadow-[var(--shadow-sm)]">
             <p className="text-[13px] font-medium text-subtle">Best day</p>
-            <p className="mt-1 font-display text-2xl tabular">{s.best ? `${s.best.score}/10` : "–"}</p>
+            <p className="mt-1 font-display text-2xl tabular">{s.best ? `${s.best.score}/10` : "-"}</p>
             <p className="text-xs text-subtle">{s.best ? shortDay(s.best.date) : "score a day to see it"}</p>
           </div>
         </section>

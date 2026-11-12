@@ -1,5 +1,6 @@
 "use client";
 
+import { noDashes } from "@/lib/text/no-dashes";
 import { Check, Clock, Copy, ExternalLink, Globe, Linkedin, Loader2, Mail, MessageCircle, Phone, Plus, RefreshCw, Search, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -43,7 +44,7 @@ const KIND: Record<string, { label: string; tone: string }> = {
 /** Copies text; when the browser refuses (some Safari setups), says so plainly instead of failing silently. */
 async function copyText(text: string, toast: (m: string, k?: "ok" | "error") => void, ok = "Copied"): Promise<boolean> {
   try {
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(noDashes(text)); // what you paste to a lead never has a long dash
     toast(ok);
     return true;
   } catch {

@@ -11,7 +11,7 @@ never by created_at::date. Weeks start on Monday (date_trunc('week', d)).
 
 === READY-MADE VIEWS (prefer these; they already join and convert to local time) ===
 
-v_daily — one row per logical date that has any data
+v_daily: one row per logical date that has any data
   date, weekday ('Mon'), isodow (1=Mon..7=Sun),
   score (0-10, owner's own rating of the day, null if not rated), steps, sleep_minutes, sleep_quality (1-5), instagram_minutes (time on Instagram; daily limit 60),
   worked_min (minutes at work: office/outside/remote segments, or a manual override), worked_is_manual,
@@ -22,21 +22,21 @@ v_daily — one row per logical date that has any data
   ex_done, ex_skipped, ex_missed (exercise pings answered / skipped / ignored),
   diary_rating (AI's 0-10 read of the diary), diary_mood, diary_headline, day_ended (bool)
 
-v_task_days — one row per task per day it was on the list
+v_task_days: one row per task per day it was on the list
   entry_id (the id actions use), date, task_id, title, project (name or null), type, is_personal, status, must_do, source ('planned','auto','carried'),
   carried_from, reason (why "not today": no_time, low_energy, blocked, not_important), carry_count (times the task has
   been carried over so far), estimate_min, task_state ('active','done','dropped'), logged_min (minutes logged that day),
-  status_changed_local (local timestamp of the last status change — when a task was marked done, use this for
+  status_changed_local (local timestamp of the last status change: when a task was marked done, use this for
   time-of-day analysis)
 
-v_segments — the time timeline (state switches)
+v_segments: the time timeline (state switches)
   id, date, kind, is_work, start_local, end_local (null while running), minutes, running
-  kinds: office, outside (out on work), remote — these are WORK; commute, meal, break, exercise, personal are not.
+  kinds: office, outside (out on work), remote: these are WORK; commute, meal, break, exercise, personal are not.
 
-v_exercise — exercise pings
+v_exercise: exercise pings
   date, slot_local, hour (0-23 local), exercise (name), unit ('reps' or 'seconds'), amount, status ('done','skipped','missed')
 
-v_contacts — people and keep-in-touch
+v_contacts: people and keep-in-touch
   id, name, companies[], roles[], cities[], tags[], notes, touch_every_days, touch_snoozed_until,
   last_touch (date), touches (count), days_since_touch, overdue_days (>0 means overdue by that many days)
 
@@ -53,10 +53,10 @@ day_entries: task_id, date, must_do, status, source, note, carried_from, reason,
   status: open (not handled), done, progressed (moved forward, still open), attempted (tried, blocked), skipped (shown to
   the owner as "Not today"), dropped (abandoned), waiting (ball in someone else's court)
 time_logs: task_id, date, minutes, source ('web','telegram'), created_at
-task_remarks: task_id, body, created_at — running notes on a task
+task_remarks: task_id, body, created_at: running notes on a task
 projects: id, name, color, archived, weekly_target_min (weekly time goal in minutes), created_at
-people: id, name, relation — people named on tasks (+Name)
-work_segments: id, date, kind, start_at, end_at — raw form of v_segments
+people: id, name, relation: people named on tasks (+Name)
+work_segments: id, date, kind, start_at, end_at: raw form of v_segments
 days: date, score, steps, sleep_minutes, sleep_quality, instagram_minutes, worked_minutes_override, planned_at, closed_at (Day end tapped)
 exercise_types: id, name, default_amount (amount per set), unit ('reps' = repetitions, 'seconds' = hold or keep moving that long), active
   (the app has built-in demonstrations and form cues for 36 common bodyweight exercises by name)
@@ -68,14 +68,14 @@ reviews: period ('week','month'), start_date, end_date, headline, narrative, gra
 contacts: id, name, companies[], roles[], cities[], phones[], emails[], linkedin, notes, tags[], touch_every_days,
   touch_snoozed_until, created_at
 contact_touches: contact_id, date, kind ('call','meet','message','other'), note
-refs: id, kind ('link','note','quote'), title, url, body, source, tags[], pinned, created_at — saved references
+refs: id, kind ('link','note','quote'), title, url, body, source, tags[], pinned, created_at: saved references
 scratch_items: id, date, kind ('note','checklist','sketch','calc','table','graph','link','code','voice','file'), title,
   data (jsonb: note {text}, checklist {items[{text,done}]}, calc {lines[]}, table {rows[][]}, graph {fns[]},
   link {url,note}, code {lang,code}, voice {name,duration,transcript}, file {name,mime,size}), created_at
 tasks.rrule: repeat rule, e.g. FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR,SA (every day except Sunday), FREQ=MONTHLY;BYDAY=-1FR
   (last Friday), X-MISSED=CARRY (a missed day stays until done). Repeating tasks do not count carries unless X-MISSED=CARRY.
 settings (one row): timezone, day_boundary, working_days (isodow array), step_goal, available_hours, rot_threshold
-assistant_memory: id, fact — what you have been asked to remember (already given to you below)
+assistant_memory: id, fact: what you have been asked to remember (already given to you below)
 
 === DAYS OFF ===
 settings.working_days lists the working weekdays (ISO 1=Mon..7=Sun). A day off has no daily repeating tasks, no

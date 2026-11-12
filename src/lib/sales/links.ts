@@ -3,6 +3,7 @@
  * the draft ready. That is how sending something logs it without you typing anything into Daybook.
  * Links are signed so they work from Telegram without a login and cannot be forged.
  */
+import { noDashes } from "../text/no-dashes";
 import { createHmac, randomBytes } from "node:crypto";
 import { safeEqual } from "../clock";
 import { waDigits } from "./identity";
@@ -48,6 +49,9 @@ export type GoChannel = "whatsapp" | "email" | "linkedin" | "instagram" | "call"
 
 /** Where a channel opens, with the text ready when the app supports it. */
 export function channelUrl(channel: GoChannel, to: { phone?: string | null; email?: string | null; linkedin?: string | null; instagram?: string | null }, text = "", subject = ""): string | null {
+  // the last stop before a message leaves: never with a long dash, whoever wrote it
+  text = noDashes(text);
+  subject = noDashes(subject);
   switch (channel) {
     case "whatsapp": {
       const d = waDigits(to.phone);

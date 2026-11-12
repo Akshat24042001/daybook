@@ -1,3 +1,4 @@
+import { noDashesDeep } from "@/lib/text/no-dashes";
 import type { Metadata } from "next";
 import { Archivo, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import { cookies, headers } from "next/headers";
@@ -29,7 +30,8 @@ const money = (n: number, c: string) => {
 export default async function PublicDoc({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { slug } = await params;
   const sp = await searchParams;
-  const doc = await docBySlug(slug);
+  // what the client reads never carries a long dash, whoever wrote it
+  const doc = noDashesDeep(await docBySlug(slug));
   if (!doc) notFound();
   if (doc.kind === "link") redirect(`/l/${slug}`);
   const cfg = await salesConfig();
@@ -43,9 +45,9 @@ export default async function PublicDoc({ params, searchParams }: { params: Prom
       : "select * from sales_quote_revisions where doc_id = $1 and sent_at is not null order by rev desc limit 1",
       owner ? [doc.id, doc.current_rev] : [doc.id])
     : null;
-  const rev = doc.kind === "quote"
+  const rev = noDashesDeep(doc.kind === "quote"
     ? (wantRev ? await one<RevisionRow>(`select * from sales_quote_revisions where doc_id = $1 and rev = $2 ${sentOnly}`, [doc.id, wantRev]) : latestSent)
-    : null;
+    : null);
   if (doc.kind === "quote" && !rev) notFound();
   const h = await headers();
   let viewId: number | null = null;

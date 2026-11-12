@@ -44,7 +44,7 @@ export async function assertMustDoRoom(
   _excludeEntryId: number | null,
   _db: Db = getPool(),
 ): Promise<void> {
-  // cap removed — any number of must-dos is allowed
+  // cap removed, any number of must-dos is allowed
 }
 
 export interface AddEntryOptions {

@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   serverExternalPackages: ["pg"],
-  // instrumentation.ts runs automatically in Next.js 15 — no extra flag needed
+  // instrumentation.ts runs automatically in Next.js 15: no extra flag needed
   poweredByHeader: false,
   // scratchpad sketches are saved through a server action; the 1 MB default is tight for a busy drawing
   experimental: { serverActions: { bodySizeLimit: "2mb" } },

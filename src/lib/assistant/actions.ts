@@ -1,10 +1,10 @@
 /**
  * Changes the assistant can make, always on the owner's tap.
  *
- *  prepare  — the model proposes {type, ...}; the server checks every id against the database and writes the button
+ *  prepare: the model proposes {type, ...}; the server checks every id against the database and writes the button
  *             label itself from real records (never from the model's wording), so a button says what it will do.
- *  apply    — runs through the same service functions the app and the Telegram bot use, so every rule holds.
- *  undo     — before applying, the rows the action can touch are snapshotted; undo restores them exactly, whatever
+ *  apply:   runs through the same service functions the app and the Telegram bot use, so every rule holds.
+ *  undo:    before applying, the rows the action can touch are snapshotted; undo restores them exactly, whatever
  *             side effects the service had (closing a task, carry counts, check-back entries, neighbour segments).
  */
 import { getPool, q, tx, UserError } from "../db";
@@ -142,8 +142,8 @@ export async function prepareAction(ctx: Ctx, raw: Record<string, unknown>): Pro
       if (end && end <= start) throw new UserError("end must be after start.");
       const newKind = s(raw.kind, 20) || seg.kind;
       if (!STATE_KINDS.has(newKind) || newKind === "off") throw new UserError(`kind must be one of ${[...STATE_KINDS].filter((k) => k !== "off").join(", ")}.`);
-      const was = `${fmtHM(seg.start_at, ctx.tz)}–${seg.end_at ? fmtHM(seg.end_at, ctx.tz) : "now"}`;
-      const now = `${fmtHM(start, ctx.tz)}–${end ? fmtHM(end, ctx.tz) : "now"}`;
+      const was = `${fmtHM(seg.start_at, ctx.tz)}-${seg.end_at ? fmtHM(seg.end_at, ctx.tz) : "now"}`;
+      const now = `${fmtHM(start, ctx.tz)}-${end ? fmtHM(end, ctx.tz) : "now"}`;
       if (was === now && newKind === seg.kind) throw new UserError("That segment already has those times.");
       return {
         kind, params: { segment_id: seg.id, start: start.toISOString(), end: end ? end.toISOString() : null, kind: newKind },

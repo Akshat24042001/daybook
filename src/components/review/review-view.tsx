@@ -67,7 +67,7 @@ function Scorecard({ data }: { data: ReviewData }) {
         return (
           <div key={def.label} className="rounded-2xl border border-border bg-surface px-4 py-3 shadow-[var(--shadow-sm)]">
             <p className="text-xs font-semibold uppercase tracking-wider text-subtle">{def.label}</p>
-            <p className="tabular font-display text-2xl leading-tight">{cur === null ? "–" : def.fmt(cur)}</p>
+            <p className="tabular font-display text-2xl leading-tight">{cur === null ? "-" : def.fmt(cur)}</p>
             <div className="mt-1 flex flex-col gap-0.5">
               <Change cur={cur} ref={def.get(data.previous)} def={def} vs={`last ${unit}`} />
               <Change cur={cur} ref={def.get(data.baseline)} def={def} vs="4-avg" />
@@ -141,7 +141,7 @@ function AiReview({ data, aiEnabled, onUseDecisions }: { data: ReviewData; aiEna
         <div className="space-y-5">
           <div className="flex items-start gap-4">
             <div className={cn("flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl", ratingTone(r.grade))}>
-              <span className="tabular text-2xl font-bold leading-none">{r.grade ?? "–"}</span>
+              <span className="tabular text-2xl font-bold leading-none">{r.grade ?? "-"}</span>
               <span className="text-[9px] font-semibold uppercase opacity-80">grade</span>
             </div>
             <div className="min-w-0">
@@ -355,7 +355,7 @@ function DayStrip({ data, today }: { data: ReviewData; today: DateStr }) {
             <span className="tabular text-xs text-subtle">{fmtDateShort(d.date)}</span>
           </div>
           <div className="mt-1.5 flex items-center gap-1.5">
-            <span className="tabular text-lg font-bold leading-none" title="Your score">{d.score ?? "–"}</span>
+            <span className="tabular text-lg font-bold leading-none" title="Your score">{d.score ?? "-"}</span>
             {d.rating !== null ? <span className={cn("tabular rounded-md px-1.5 py-0.5 text-[10px] font-bold", ratingTone(d.rating))} title="AI day rating">AI {d.rating}</span> : null}
           </div>
           <p className="tabular mt-1 text-xs text-subtle">
@@ -437,7 +437,7 @@ export function ReviewView({
           href={href(noun, lastReview.start)}
           className="flex items-center gap-3 rounded-2xl border border-accent/30 bg-accent-muted/50 px-4 py-3 transition-colors hover:bg-accent-muted"
         >
-          <span className={cn("tabular rounded-lg px-2 py-1 text-sm font-bold", ratingTone(lastReview.grade))}>{lastReview.grade ?? "–"}</span>
+          <span className={cn("tabular rounded-lg px-2 py-1 text-sm font-bold", ratingTone(lastReview.grade))}>{lastReview.grade ?? "-"}</span>
           <span className="min-w-0 flex-1">
             <span className="block text-xs text-subtle">Last {noun}&apos;s review · {lastReview.label}</span>
             <span className="block truncate text-sm font-medium">{lastReview.headline}</span>

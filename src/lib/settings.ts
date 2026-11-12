@@ -22,7 +22,7 @@ export interface Ctx {
   today: DateStr;
 }
 
-// cache() deduplicates this within a single RSC render pass —
+// cache() deduplicates this within a single RSC render pass:
 // layout + every page that calls makeCtx() share one DB round-trip.
 export const getSettings = cache(async function getSettings(db: Db = getPool()): Promise<Settings> {
   const row = await one<Settings>("select * from settings where id = 1", [], db);

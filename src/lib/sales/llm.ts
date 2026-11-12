@@ -4,6 +4,7 @@
  *   2. the free OpenRouter models Daybook already uses (OPENROUTER_API_KEY).
  * A request walks the providers and models until one answers. Images are sent as data URLs.
  */
+import { noDashes, withNoDashRule } from "../text/no-dashes";
 import { openModels } from "../ai";
 
 export type Part = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
@@ -75,7 +76,7 @@ async function once(t: Target, messages: LlmMessage[], o: LlmOptions, timeoutMs:
     },
     body: JSON.stringify({
       model: t.model,
-      messages,
+      messages: withNoDashRule(messages),
       temperature: o.temperature ?? 0.3,
       max_tokens: o.maxTokens ?? 1200,
       ...(t.extra ?? {}),
@@ -89,7 +90,7 @@ async function once(t: Target, messages: LlmMessage[], o: LlmOptions, timeoutMs:
   const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
   const out = json.choices?.[0]?.message?.content?.trim() ?? "";
   if (!out) throw new Error(`${t.model}: empty answer`);
-  return out;
+  return noDashes(out); // whatever the model wrote, no long dashes reach the app
 }
 
 export async function llm(messages: LlmMessage[], o: LlmOptions = {}): Promise<{ text: string; model: string }> {
@@ -144,7 +145,7 @@ export async function llmJson<T>(system: string, user: string | Part[], o: LlmOp
   }
 }
 
+/** House style: no em or en dashes anywhere (see lib/text/no-dashes). */
 export function stripDashes(s: string): string {
-  // house style: no em or en dashes anywhere in drafts
-  return s.replace(/\s*[—–]\s*/g, ", ").replace(/,\s*,/g, ",");
+  return noDashes(s);
 }

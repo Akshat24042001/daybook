@@ -192,7 +192,7 @@ function ProjectCard({
         <div className="mt-2 flex items-center gap-3 text-xs text-subtle">
           <span className="flex items-center gap-1"><Circle className="h-3 w-3" /> {project.activeTasks} active</span>
           <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-good" /> {project.doneTasks} done</span>
-          <span className="tabular ml-auto font-semibold text-fg">{project.completionPct === null ? "–" : `${pct}%`}</span>
+          <span className="tabular ml-auto font-semibold text-fg">{project.completionPct === null ? "-" : `${pct}%`}</span>
         </div>
         <Progress className="mt-1.5 h-1.5" value={pct / 100} tone="accent" />
 

@@ -7,6 +7,7 @@
  * itself is available through Gemini's grounding, used for deep research and as the last resort here.
  * A daily cap (Sales settings) protects the free quotas.
  */
+import { NO_DASH_RULE, noDashes } from "../text/no-dashes";
 import { one, q } from "../db";
 import { salesConfig } from "./config";
 
@@ -238,13 +239,13 @@ export async function groundedResearch(prompt: string, o: { timeoutMs?: number; 
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: "POST",
         headers: { "content-type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.2, maxOutputTokens: 4096 } }),
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `${prompt}\n\n${NO_DASH_RULE}` }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.2, maxOutputTokens: 4096 } }),
         signal: AbortSignal.timeout(o.timeoutMs ?? 45_000),
       });
       if (!res.ok) throw new Error(`${model} ${res.status}: ${(await res.text()).slice(0, 160)}`);
       const g = parseGrounded(await res.json());
       const urls = await Promise.all(g.chunks.slice(0, 20).map((ch) => realUrl(ch.uri)));
-      const out: Grounded = { text: g.text, sources: g.chunks.slice(0, 20).map((ch, i) => ({ title: ch.title, url: urls[i], snippet: ch.snippet })), queries: g.queries };
+      const out: Grounded = { text: noDashes(g.text), sources: g.chunks.slice(0, 20).map((ch, i) => ({ title: ch.title, url: urls[i], snippet: ch.snippet })), queries: g.queries };
       await logSearch("google (gemini)", g.queries.join(" | ") || prompt.slice(0, 200), out.sources.length, o.label);
       return out;
     } catch (e) {

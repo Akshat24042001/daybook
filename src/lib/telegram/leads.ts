@@ -26,10 +26,10 @@ export function parseLeadCommand(text: string): { list: true } | { who: string; 
   if (!m) return null;
   const rest = (m[1] ?? "").trim();
   if (!rest) return { help: true };
-  const cut = rest.search(/[:–—]|\s-\s/);
+  const cut = rest.search(/[:\u2013\u2014]|\s-\s/);
   if (cut < 0) return { who: rest, say: null };
   const who = rest.slice(0, cut).trim();
-  const say = rest.slice(cut).replace(/^(\s-\s|[:–—])\s*/, "").trim();
+  const say = rest.slice(cut).replace(/^(\s-\s|[:\u2013\u2014])\s*/, "").trim();
   return who ? { who, say: say || null } : { help: true };
 }
 
@@ -132,9 +132,9 @@ export async function handleLeadReply(ctx: Ctx, chat: number, replyToId: number,
 }
 
 export const LEAD_HELP = `<b>Leads</b>
-/leads — open leads, most urgent first (tap one for its card)
-/lead Shah Dental — the lead's card
-/lead Shah Dental: what's happening? — ask anything about it
-/lead Shah Dental: budget 2 lakh, call on Friday — update it (tap the buttons to apply)
+/leads  open leads, most urgent first (tap one for its card)
+/lead Shah Dental  (the lead's card)
+/lead Shah Dental: what's happening?  (ask anything about it)
+/lead Shah Dental: budget 2 lakh, call on Friday  (update it; tap the buttons to apply)
 Reply to a lead card, by text or voice note, to ask or update.
 <code>lead: …</code> (no slash) with a chat, email or screenshot logs a new conversation.`;

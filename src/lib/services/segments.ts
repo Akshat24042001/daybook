@@ -162,7 +162,7 @@ async function fitToNeighbours(ctx: Ctx, input: SegmentInput, ignoreId: number |
   const hit = findOverlap(around.map(toSeg), { start: fitted.start, end: fitted.end });
   if (hit) {
     const other = around.find((r) => r.start_at.getTime() === hit.start.getTime())!;
-    const span = `${fmtHM(other.start_at, ctx.tz)}–${other.end_at ? fmtHM(other.end_at, ctx.tz) : "now"}`;
+    const span = `${fmtHM(other.start_at, ctx.tz)}-${other.end_at ? fmtHM(other.end_at, ctx.tz) : "now"}`;
     throw new UserError(
       `That overlaps ${KIND_LABEL[other.kind]} ${span}. Shorten or move that segment first, then save this one.`,
     );
