@@ -1,5 +1,6 @@
 "use client";
 
+import { prepImages } from "@/lib/client/image-prep";
 import { ArrowDownLeft, ArrowUpRight, Check, ImagePlus, Loader2, Pencil, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -35,15 +36,6 @@ const FIELDS: [string, string, "text" | "long" | "date" | "list"][] = [
 const show = (v: unknown, kind: string) => (v === null || v === undefined || v === "" ? "" : kind === "date" ? fmtDay(v) : Array.isArray(v) ? v.join(", ") : String(v));
 
 /** A data URL for a screenshot, shrunk before it goes to the AI. */
-async function toDataUrl(file: File): Promise<string> {
-  const img = await createImageBitmap(file);
-  const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
-  const c = document.createElement("canvas");
-  c.width = Math.round(img.width * scale);
-  c.height = Math.round(img.height * scale);
-  c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
-  return c.toDataURL("image/jpeg", 0.85);
-}
 
 function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
@@ -106,7 +98,7 @@ export function TeamLead({ v, voice }: { v: LeadViewData; voice: boolean }) {
   const [capturing, setCapturing] = useState(false);
   const addFiles = async (files: FileList | File[]) => {
     const list = Array.from(files).filter((f) => f.type.startsWith("image/")).slice(0, 4 - images.length);
-    const urls = await Promise.all(list.map(toDataUrl));
+    const { urls } = await prepImages(list);
     setImages((c) => [...c, ...urls].slice(0, 4));
   };
   const capture = async () => {

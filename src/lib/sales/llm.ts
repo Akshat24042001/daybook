@@ -6,6 +6,7 @@
  */
 import { noDashes, withNoDashRule } from "../text/no-dashes";
 import { openModels } from "../ai";
+import { freeModels } from "../assistant/models";
 
 export type Part = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 export interface LlmMessage {
@@ -20,6 +21,8 @@ export interface LlmOptions {
   totalMs?: number;
   /** needs a model that can read images */
   vision?: boolean;
+  /** skip Gemini (used when the caller already tried it) */
+  noGemini?: boolean;
 }
 
 const VISION_FALLBACK = [
@@ -40,9 +43,27 @@ interface Target {
   extra?: Record<string, unknown>;
 }
 
-function targets(o: LlmOptions): Target[] {
+// a model that just failed is skipped for a while, so the next request does not wait on it again
+const cool = ((globalThis as unknown as { __llmCool?: Map<string, number> }).__llmCool ??= new Map<string, number>());
+const COOL_MS = 10 * 60_000;
+const cooling = (model: string) => (cool.get(model) ?? 0) > Date.now();
+
+/** Image-reading order: families that read screenshots well first, Mistral last (it struggles with long prompts). */
+const VISION_RANK = [/gemini|gemma/i, /qwen/i, /llama-4/i, /nvidia|nemotron/i];
+const rank = (id: string) => (/mistral|pixtral/i.test(id) ? 99 : ((i) => (i < 0 ? 50 : i))(VISION_RANK.findIndex((r) => r.test(id))));
+
+/** Free models that read images: your list (AI_VISION_MODELS), else the live OpenRouter catalogue, else a fixed list. */
+export async function visionModels(): Promise<string[]> {
+  const env = (process.env.AI_VISION_MODELS ?? "").split(",").map((m) => m.trim()).filter(Boolean);
+  if (env.length) return env;
+  const live = await freeModels().then((ms) => ms.filter((m) => m.vision).map((m) => m.id)).catch(() => [] as string[]);
+  const list = [...new Set([...live, ...VISION_FALLBACK])];
+  return list.sort((a, b) => rank(a) - rank(b)).slice(0, 6);
+}
+
+async function targets(o: LlmOptions): Promise<Target[]> {
   const out: Target[] = [];
-  const gemini = process.env.GEMINI_API_KEY?.trim();
+  const gemini = o.noGemini ? "" : process.env.GEMINI_API_KEY?.trim();
   if (gemini) {
     const models = (process.env.GEMINI_MODELS ?? "gemini-2.5-flash,gemini-2.0-flash").split(",").map((m) => m.trim()).filter(Boolean);
     for (const model of models) {
@@ -51,8 +72,7 @@ function targets(o: LlmOptions): Target[] {
   }
   const or = process.env.OPENROUTER_API_KEY?.trim();
   if (or) {
-    const vision = (process.env.AI_VISION_MODELS ?? "").split(",").map((m) => m.trim()).filter(Boolean);
-    const list = o.vision ? (vision.length ? vision : VISION_FALLBACK) : openModels();
+    const list = o.vision ? await visionModels() : openModels();
     for (const model of list) {
       out.push({
         url: "https://openrouter.ai/api/v1/chat/completions",
@@ -62,7 +82,8 @@ function targets(o: LlmOptions): Target[] {
       });
     }
   }
-  return out;
+  // models that failed in the last few minutes go last instead of first
+  return [...out.filter((t) => !cooling(t.model)), ...out.filter((t) => cooling(t.model))];
 }
 
 async function once(t: Target, messages: LlmMessage[], o: LlmOptions, timeoutMs: number): Promise<string> {
@@ -94,7 +115,7 @@ async function once(t: Target, messages: LlmMessage[], o: LlmOptions, timeoutMs:
 }
 
 export async function llm(messages: LlmMessage[], o: LlmOptions = {}): Promise<{ text: string; model: string }> {
-  const list = targets(o);
+  const list = await targets(o);
   if (!list.length) throw new Error("No AI key set: add GEMINI_API_KEY or OPENROUTER_API_KEY");
   const deadline = Date.now() + (o.totalMs ?? 45_000);
   let last: Error | null = null;
@@ -105,6 +126,7 @@ export async function llm(messages: LlmMessage[], o: LlmOptions = {}): Promise<{
       return { text: await once(t, messages, o, Math.min(30_000, left)), model: t.model };
     } catch (e) {
       last = e as Error;
+      cool.set(t.model, Date.now() + COOL_MS);
       console.warn("[sales-ai] model failed:", last.message.slice(0, 140));
     }
   }

@@ -1,27 +1,18 @@
 "use client";
 
-import { Check, ImagePlus, Loader2, Send, UserPlus, X } from "lucide-react";
+import { AlertTriangle, Check, ImagePlus, Loader2, RefreshCw, Send, UserPlus, X } from "lucide-react";
 import { InfoTip } from "@/components/info-tip";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { logToDealAction, resolveCaptureAction, undoCaptureAction } from "@/app/sales-actions";
+import { logToDealAction, resolveCaptureAction, retryCaptureAction, undoCaptureAction } from "@/app/sales-actions";
+import { prepImages } from "@/lib/client/image-prep";
+import { QuickActions, ReplyDraft } from "./conversation-card";
 import { Button, Input, Select, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { VoiceButton } from "@/components/voice-button";
 import { cn } from "@/lib/cn";
 import type { CaptureResult } from "@/lib/sales/ingest";
-
-/** Shrinks a screenshot to a sensible size before it goes to the AI. */
-async function toDataUrl(file: File): Promise<string> {
-  const img = await createImageBitmap(file);
-  const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
-  const c = document.createElement("canvas");
-  c.width = Math.round(img.width * scale);
-  c.height = Math.round(img.height * scale);
-  c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
-  return c.toDataURL("image/jpeg", 0.85);
-}
 
 const when = (iso: string) =>
   new Date(iso).toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
@@ -54,6 +45,21 @@ function Filed({ r, onUndo }: { r: CaptureResult; onUndo?: () => void }) {
         </ul>
       ) : null}
       {r.next_step ? <p className="mt-1.5 text-[13px]"><span className="font-medium">Next step:</span> {r.next_step}</p> : null}
+      {r.messages?.length ? (
+        <details className="mt-1.5 text-[13px]">
+          <summary className="cursor-pointer text-accent">What I read: {r.messages.length} message{r.messages.length > 1 ? "s" : ""}</summary>
+          <ol className="mt-1 max-h-64 space-y-1 overflow-auto rounded-lg bg-surface p-2" aria-label="Messages read">
+            {r.messages.map((m, i) => (
+              <li key={i} className={cn("max-w-[85%] rounded-lg px-2 py-1", m.from === "me" ? "ml-auto bg-accent-muted" : "bg-muted")}>
+                <span className="block text-[11px] text-subtle">{m.from === "me" ? "You" : "Them"}{m.at ? ` · ${when(m.at)}` : ""}</span>
+                {m.text}
+              </li>
+            ))}
+          </ol>
+        </details>
+      ) : null}
+      {r.deal_id && r.quick_actions?.length ? <div className="mt-2"><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-subtle">Do next</p><QuickActions dealId={r.deal_id} actions={r.quick_actions} /></div> : null}
+      {r.reply_draft ? <div className="mt-2"><ReplyDraft text={r.reply_draft} /></div> : null}
       {r.suggestion ? (
         <p className="mt-1.5 text-[13px]">
           <span className="font-medium">Suggested:</span> {r.suggestion.label}{" "}
@@ -73,6 +79,8 @@ export function CaptureBox({ dealId, voiceEnabled, placeholder, compact }: { dea
   const [last, setLast] = useState<CaptureResult | null>(null);
   // the capture could not tell who it was about: ask
   const [ask, setAsk] = useState<CaptureResult | null>(null);
+  // the AI could not read or file it: the capture is kept, so it can be tried again
+  const [failed, setFailed] = useState<CaptureResult | null>(null);
   const [newName, setNewName] = useState("");
   const [over, setOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -88,7 +96,9 @@ export function CaptureBox({ dealId, voiceEnabled, placeholder, compact }: { dea
     }
     const list = all.filter((f) => f.type.startsWith("image/")).slice(0, 4 - images.length);
     if (all.some((f) => f.type.startsWith("image/")) && !list.length) toast("Up to 4 screenshots at a time.", "error");
-    const urls = await Promise.all(list.map(toDataUrl));
+    const { urls, errors } = await prepImages(list, 4 - images.length);
+    if (errors.length) toast(errors[0], "error");
+    if (urls.length > list.length) toast(`Long screenshot: cut into ${urls.length} parts so every message can be read.`);
     setImages((cur) => [...cur, ...urls].slice(0, 4));
   };
 
@@ -102,6 +112,12 @@ export function CaptureBox({ dealId, voiceEnabled, placeholder, compact }: { dea
     });
 
   const handle = (res: CaptureResult) => {
+    if (res.failed) {
+      setFailed(res);
+      setLast(null);
+      return;
+    }
+    setFailed(null);
     if (res.skipped) {
       toast(res.skipped);
       return;
@@ -224,6 +240,20 @@ export function CaptureBox({ dealId, voiceEnabled, placeholder, compact }: { dea
             </Button>
             <button type="button" className="text-xs text-subtle hover:text-fg" onClick={() => setAsk(null)}>Cancel</button>
           </div>
+        </div>
+      ) : null}
+      {failed && !pending ? (
+        <div className="mt-3 rounded-xl border border-bad/30 bg-bad/5 p-3 text-sm" role="alert" aria-label="Could not file it">
+          <p className="flex items-start gap-1.5"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-bad" /> {failed.failed}</p>
+          <div className="mt-2 flex gap-2">
+            <Button size="sm" variant="primary" disabled={pending} onClick={() => start(async () => {
+              const r = await retryCaptureAction(failed.capture_id!);
+              if (!r.ok) return toast(r.error, "error");
+              handle(r.result);
+            })}><RefreshCw className="h-3.5 w-3.5" /> Try again</Button>
+            <button type="button" className="text-xs text-subtle hover:text-fg" onClick={() => setFailed(null)}>Close</button>
+          </div>
+          <p className="mt-1.5 text-xs text-subtle">Your text and screenshots are kept: trying again does not need them pasted again.</p>
         </div>
       ) : null}
       {last && !pending ? <Filed r={last} onUndo={last.capture_id ? () => undo(last.capture_id!) : undefined} /> : null}

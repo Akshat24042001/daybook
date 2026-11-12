@@ -4,7 +4,7 @@
  * an updated "where we are", stage moves, and fresh next moves. You never fill a form.
  */
 import { createHash } from "node:crypto";
-import { one, q } from "../db";
+import { one, q, UserError } from "../db";
 import { getSettings } from "../settings";
 import { zonedInstant } from "../time";
 import { salesConfig, toUsd, type SalesConfig } from "./config";
@@ -14,7 +14,8 @@ import {
 } from "./deals";
 import { addIdentities, domainOf, ensureCompany, resolvePerson, upsertPerson, type PersonRow } from "./identity";
 import { enqueue } from "./jobs";
-import { llmJson, type Part } from "./llm";
+import { llmJson } from "./llm";
+import { readScreens, screensAsText } from "./read-screens";
 import { keepShots, shotDataUrls } from "./shots";
 import { applyEvent, moveDeal, stageByRole } from "./stages";
 
@@ -107,6 +108,15 @@ function isMe(cfg: SalesConfig, name: string): boolean {
 
 // ------------------------------------------------------------------ extraction
 
+export interface QuickAction {
+  kind: "reply" | "follow_up" | "promise" | "meeting" | "call" | "send" | "stage";
+  label: string;
+  detail?: string | null;
+  due?: string | null;
+  /** for kind "stage": the stage role to move to */
+  stage?: string | null;
+}
+
 export interface Extraction {
   kind: "conversation" | "note" | "meeting_notes" | "lead_post" | "profile" | "email" | "other";
   is_sales_related: boolean;
@@ -140,6 +150,10 @@ export interface Extraction {
   meeting_at?: string | null;
   value?: { amount?: number; currency?: string } | null;
   next_step?: string | null;
+  /** two to four things the owner can do next, each one click in the app */
+  quick_actions?: QuickAction[] | null;
+  /** a reply the owner could send now, when one is due */
+  reply_draft?: string | null;
   referrer?: { name?: string } | null;
   intermediary?: { name?: string; type?: string } | null;
 }
@@ -170,6 +184,13 @@ Read the input (a chat, transcript, screenshot, email, note or web page) and ret
  "meeting_at": ISO start time of a meeting agreed in the future, else null,
  "value": {"amount": number, "currency": "INR|USD|AED|GBP|EUR|CAD|AUD|SGD"} if a price or budget number is stated, else null (amount as a plain number: 2 lakh is 200000; leave currency out unless it is named or shown, e.g. ₹, Rs, $, and ${cfg.default_currency} is assumed),
  "next_step": the single best next action for the owner, imperative, under 15 words,
+ "quick_actions": 2 to 4 concrete things the owner should do next, most urgent first, each
+   {"kind":"reply|follow_up|promise|meeting|call|send|stage","label":"imperative, under 10 words","detail":"what exactly, one line, or null",
+    "due":"YYYY-MM-DD or null","stage":"for kind stage only: contacted|engaged|discovery|proposal|negotiation|won|lost|nurture, else null"}
+   (reply: answer their last message; follow_up: chase if they went quiet; promise: something the owner said they would do; send: share a
+   document, proposal or sample; meeting/call: book or prepare it; stage: only when the conversation clearly moved the deal),
+ "reply_draft": if they are waiting on the owner, a short reply the owner could send now, in the language and tone of the chat,
+   plain text without greetings longer than one word, else null,
  "referrer": {"name"} if someone referred this lead, else null,
  "intermediary": {"name","type":"agency|broker|consultant|partner"} if the deal runs through a middle person, else null,
  "details": {
@@ -187,12 +208,26 @@ Read the input (a chat, transcript, screenshot, email, note or web page) and ret
 }
 Use only facts in the input. Unknown fields are null. Never invent emails or phone numbers.`;
 
-export async function extract(cfg: SalesConfig, tz: string, text: string, images: string[], previous: string | null, hintLine: string): Promise<Extraction> {
-  const intro = `${hintLine}${previous ? `\nPREVIOUS STATE OF THIS DEAL:\n${previous}\n` : ""}\nINPUT:\n${text.slice(0, 14_000)}`;
-  const user: string | Part[] = images.length
-    ? [{ type: "text", text: intro }, ...images.slice(0, 4).map((url) => ({ type: "image_url" as const, image_url: { url } }))]
-    : intro;
-  return llmJson<Extraction>(EXTRACT_SYSTEM(cfg, new Date(), tz), user, { vision: images.length > 0, maxTokens: 2200, totalMs: 55_000 });
+/**
+ * Files an input in two steps when it has screenshots: an image model writes out what is on them (readScreens), then
+ * the text models, which are stronger at the long filing instructions, do the filing from that text. Pass
+ * screenText when the screenshots were already read (a retry), so they are not read again.
+ */
+export async function extract(
+  cfg: SalesConfig, tz: string, text: string, images: string[], previous: string | null, hintLine: string,
+  o: { screenText?: string | null; totalMs?: number } = {},
+): Promise<Extraction & { screen_text?: string | null }> {
+  const started = Date.now(); // reading and filing together fit in one 60-second request
+  const shots = images.slice(0, 4);
+  const screen = o.screenText ?? (shots.length ? screensAsText(await readScreens(shots, 28_000)) : null);
+  const typed = text && text !== "(see image)" ? text.slice(0, 14_000) : "";
+  const body = [
+    typed,
+    screen ? `SCREENSHOT TEXT (written out from ${shots.length || "the"} screenshot${shots.length === 1 ? "" : "s"}; ME = the owner, THEM = the other side):\n${screen.slice(0, 14_000)}` : "",
+  ].filter(Boolean).join("\n\n") || "(empty)";
+  const intro = `${hintLine}${previous ? `\nPREVIOUS STATE OF THIS DEAL:\n${previous}\n` : ""}\nINPUT:\n${body}`;
+  const ext = await llmJson<Extraction>(EXTRACT_SYSTEM(cfg, new Date(), tz), intro, { maxTokens: 2600, totalMs: o.totalMs ?? Math.max(15_000, 54_000 - (Date.now() - started)) });
+  return { ...ext, screen_text: screen };
 }
 
 // ------------------------------------------------------------------ processing
@@ -223,6 +258,28 @@ export interface CaptureResult {
   deal_title?: string | null;
   meeting_at?: string | null;
   commitment_texts?: string[];
+  /** what to do next, each one click (also kept on the deal) */
+  quick_actions?: QuickAction[];
+  reply_draft?: string | null;
+  /** the messages read from it, for the summary card */
+  messages?: { from: "me" | "them"; at?: string | null; text: string }[];
+  /** filing failed: the capture is kept so it can be tried again */
+  failed?: string;
+}
+
+const QA_KINDS = new Set(["reply", "follow_up", "promise", "meeting", "call", "send", "stage"]);
+const STAGE_ROLES = new Set(["contacted", "engaged", "discovery", "proposal", "negotiation", "won", "lost", "nurture"]);
+/** The AI's quick actions, checked: known kinds, short labels, real dates, at most four. */
+export function cleanQuickActions(list: unknown): QuickAction[] {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((a): a is QuickAction => !!a && typeof a === "object" && QA_KINDS.has((a as QuickAction).kind) && typeof (a as QuickAction).label === "string" && !!(a as QuickAction).label.trim())
+    .filter((a) => a.kind !== "stage" || STAGE_ROLES.has(String(a.stage)))
+    .map((a) => ({
+      kind: a.kind, label: a.label.trim().slice(0, 80), detail: a.detail ? String(a.detail).slice(0, 300) : null,
+      due: a.due && /^\d{4}-\d{2}-\d{2}$/.test(String(a.due)) ? String(a.due) : null, stage: a.kind === "stage" ? String(a.stage) : null,
+    }))
+    .slice(0, 4);
 }
 
 interface CaptureRow {
@@ -233,6 +290,7 @@ interface CaptureRow {
   images: string[];
   image_paths?: string[];
   hints: CaptureInput["hints"] & Record<string, unknown>;
+  screen_text?: string | null;
   status: string;
   result: CaptureResult | null;
   tg_chat: number | null;
@@ -294,7 +352,22 @@ export async function processCapture(id: number, force: { person_id?: number; de
     hints.direction ? `DIRECTION HINT: ${hints.direction}` : "",
   ].filter(Boolean).join("\n");
 
-  const ext = await extract(cfg, tz, text || "(see image)", await shotDataUrls(cap), prev, hintLine);
+  let ext: Extraction;
+  const started = Date.now(); // the whole thing has to fit in one 60-second request
+  try {
+    // the screenshots are read once; the text is kept so a retry only redoes the filing
+    const images = await shotDataUrls(cap);
+    let screen = cap.screen_text ?? null;
+    if (images.length && !screen) {
+      screen = screensAsText(await readScreens(images.slice(0, 4), 28_000));
+      await q("update sales_captures set screen_text = $2 where id = $1", [id, screen]);
+    }
+    ext = await extract(cfg, tz, text, images, prev, hintLine, { screenText: screen, totalMs: Math.max(15_000, 54_000 - (Date.now() - started)) });
+  } catch (e) {
+    const msg = e instanceof UserError ? e.message : `The AI could not file this: ${(e as Error).message.slice(0, 160)}. Try again.`;
+    await q("update sales_captures set status = 'failed', error = $2, processed_at = now() where id = $1", [id, msg]);
+    throw new UserError(msg);
+  }
   const result = await applyExtraction(cap, ext, { cfg, dealId, personId, chat, chatName, newPersonName: force.newPersonName });
   if (chat && result.deal_id) result.seen = (chat as (ChatLine & { h?: string })[]).map((l) => l.h).filter((x): x is string => !!x);
   await q("update sales_captures set status = $2, result = $3, processed_at = now(), error = null where id = $1", [
@@ -324,7 +397,10 @@ interface ApplyCtx {
 export async function applyExtraction(cap: CaptureRow, extIn: Extraction, a: ApplyCtx): Promise<CaptureResult> {
   let ext = extIn;
   const { cfg } = a;
-  const res: CaptureResult = { summary: ext.summary, next_step: ext.next_step ?? null, interactions: [], commitments: [] };
+  const res: CaptureResult = {
+    summary: ext.summary, next_step: ext.next_step ?? null, interactions: [], commitments: [],
+    messages: (ext.messages ?? []).filter((m) => m?.text).slice(-40).map((m) => ({ from: m.from === "me" ? "me" : "them", at: m.at ?? null, text: String(m.text).slice(0, 500) })),
+  };
   let dealId = a.dealId;
   let personId = a.personId;
   const others = (ext.people ?? []).filter((p) => !p.is_me && (p.name || p.email || p.phone || p.linkedin) && !(p.name && isMe(cfg, p.name)));
@@ -505,6 +581,14 @@ export async function applyExtraction(cap: CaptureRow, extIn: Extraction, a: App
       }
       if (ext.next_step) {
         patch.next_action = ext.next_step;
+      }
+      const qa = cleanQuickActions(ext.quick_actions);
+      if (qa.length || ext.reply_draft) {
+        await q("update sales_deals set conversation = $2 where id = $1", [dealId, JSON.stringify({
+          quick_actions: qa, reply_draft: ext.reply_draft ? String(ext.reply_draft).slice(0, 1500) : null, at: new Date().toISOString(), capture_id: cap.id,
+        })]);
+        res.quick_actions = qa;
+        res.reply_draft = ext.reply_draft ?? null;
       }
       if (ext.company?.country && !d.country) patch.country = ext.company.country;
       // the deal's details: only where nothing is written yet, so the AI never overwrites you

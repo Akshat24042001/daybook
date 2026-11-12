@@ -1,5 +1,6 @@
 "use server";
 
+import { doneQuickAction, summarizeDeal } from "@/lib/sales/conversation";
 import { noDashes } from "@/lib/text/no-dashes";
 import { revalidatePath } from "next/cache";
 import { one, q, UserError } from "@/lib/db";
@@ -268,8 +269,37 @@ export async function logToDealAction(dealId: number | null, text: string, o: { 
   return run<{ result: CaptureResult }>(async () => {
     if (!text.trim() && !o.images?.length) throw new UserError("Paste a chat, an email or a note first.");
     const id = await capture({ source: "web", channel: o.channel ?? null, text, images: o.images ?? [], hints: { ...(dealId ? { deal_id: dealId } : {}), ...(o.direction ? { direction: o.direction } : {}) } }, { now: true });
-    const result = await processCapture(id);
-    return { result: { ...result, capture_id: id } as CaptureResult };
+    return { result: await processOrKeep(id) };
+  }, ALL);
+}
+/** Files a capture; when the AI fails, the capture (and its screenshots) is kept and the error comes back with a retry. */
+async function processOrKeep(id: number, force?: Parameters<typeof processCapture>[1]): Promise<CaptureResult> {
+  try {
+    return { ...(await processCapture(id, force)), capture_id: id };
+  } catch (e) {
+    if (e instanceof UserError) return { failed: e.message, capture_id: id };
+    throw e;
+  }
+}
+/** Tries a failed capture again: the screenshots already read are not read again. */
+export async function retryCaptureAction(captureId: number) {
+  return run<{ result: CaptureResult }>(async () => ({ result: await processOrKeep(captureId) }), ALL);
+}
+/** Rebuilds the deal's summary and quick actions from every logged touch. */
+export async function summarizeDealAction(dealId: number) {
+  return run<{ summary: string }>(async () => ({ summary: (await summarizeDeal(dealId)).summary }), ALL);
+}
+/** Does one quick action: sets the next step, adds the promise, or just marks it done. */
+export async function quickActionAction(dealId: number, index: number, a: { kind: string; label: string; detail?: string | null; due?: string | null }, mode: "do" | "dismiss" = "do") {
+  return run(async () => {
+    if (mode === "do") {
+      const text = [a.label, a.detail].filter(Boolean).join(": ").slice(0, 300);
+      const due = a.due && /^\d{4}-\d{2}-\d{2}$/.test(a.due) ? `${a.due}T04:30:00.000Z` : null; // 10:00 IST
+      if (a.kind === "promise") await addCommitment({ deal_id: dealId, owner: "me", text, due_at: a.due ? `${a.due}T12:30:00.000Z` : null });
+      else await updateDeal(dealId, { next_action: text, ...(due ? { next_action_at: due } : {}) }, { cause: "manual" });
+      await refreshMoves(dealId);
+    }
+    await doneQuickAction(dealId, index);
   }, ALL);
 }
 /** The capture could not tell who it was about: you pick the person (or name a new one) and it is filed again. */
@@ -277,8 +307,7 @@ export async function resolveCaptureAction(captureId: number, who: { person_id?:
   return run<{ result: CaptureResult }>(async () => {
     const name = who.newPersonName?.trim().slice(0, 80);
     if (!who.person_id && !name) throw new UserError("Pick a person or type a name.");
-    const result = await processCapture(captureId, who.person_id ? { person_id: who.person_id } : { newPersonName: name });
-    return { result: { ...result, capture_id: captureId } as CaptureResult };
+    return { result: await processOrKeep(captureId, who.person_id ? { person_id: who.person_id } : { newPersonName: name }) };
   }, ALL);
 }
 export async function undoCaptureAction(id: number) {

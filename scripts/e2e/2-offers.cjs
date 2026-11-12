@@ -53,6 +53,7 @@ const { setup, check, choose } = require("./lib.cjs");
   await page.waitForTimeout(1500);
   const e = await one("select summary, active from sales_offers where id = $1", [first.id]);
   check("edit saved: summary and paused", e.summary === "Agents that answer, qualify and follow up" && e.active === false, e);
+  await offers.getByText("Paused", { exact: true }).first().waitFor({ timeout: 8000 }).catch(() => {});
   check("paused badge shown", (await offers.getByText("Paused", { exact: true }).count()) === 1);
   // un-pause again
   await offers.getByRole("button", { name: `Edit ${first.name}` }).click();

@@ -71,6 +71,8 @@ export interface FreeModel {
   description: string;
   /** in the app's default fallback list */
   recommended: boolean;
+  /** reads images */
+  vision?: boolean;
 }
 
 export interface MemoryFact {

@@ -21,6 +21,8 @@ import type { Enrichment } from "@/lib/sales/enrich";
 import type { MoveRow } from "@/lib/sales/moves";
 import type { Stage } from "@/lib/sales/stages";
 import { CaptureBox } from "./capture-box";
+import { ConversationCard } from "./conversation-card";
+import type { Conversation } from "@/lib/sales/conversation";
 import { TeamSharing, VisibleTo, type Audience } from "./team-share";
 import type { DealShare } from "@/lib/team/sharing";
 import { EnrichmentPanel } from "./enrichment-panel";
@@ -230,13 +232,24 @@ export function DealView({ d }: { d: DealPageData }) {
 
       <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
         <div className="space-y-4">
-          <Section title="Where we are">
-            {deal.summary ? <p className="whitespace-pre-line text-sm">{deal.summary}</p> : <p className="text-sm text-subtle">Log a conversation below and this fills itself.</p>}
-            <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-              {deal.objections?.length ? <div className="sm:col-span-2"><dt className="text-subtle">Objections</dt><dd>{deal.objections.join(" · ")}</dd></div> : null}
-              {deal.next_action ? <div className="sm:col-span-2"><dt className="text-subtle">Next step</dt><dd className="font-medium">{deal.next_action}{deal.next_action_at ? ` (${fmtDate(deal.next_action_at)})` : ""}</dd></div> : null}
-            </dl>
-          </Section>
+          <ConversationCard
+            dealId={deal.id}
+            summary={deal.summary}
+            timeline={d.timeline}
+            conversation={(deal as { conversation?: Conversation | null }).conversation ?? null}
+            contact={{ phone: d.people[0]?.phones?.[0] ?? null, email: d.people[0]?.emails?.[0] ?? null, name: d.people[0]?.full_name ?? null }}
+            onStage={(role) => {
+              const t = d.targets.find((x) => x.role === role);
+              if (!t) return toast(`It is not possible to move to ${role} from here.`, "error");
+              setPendingMove({ deal, to: t, requires: t.requires });
+            }}
+            extra={deal.objections?.length || deal.next_action ? (
+              <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                {deal.objections?.length ? <div className="sm:col-span-2"><dt className="text-subtle">Objections</dt><dd>{deal.objections.join(" · ")}</dd></div> : null}
+                {deal.next_action ? <div className="sm:col-span-2"><dt className="text-subtle">Next step</dt><dd className="font-medium">{deal.next_action}{deal.next_action_at ? ` (${fmtDate(deal.next_action_at)})` : ""}</dd></div> : null}
+              </dl>
+            ) : null}
+          />
 
           <ClosingRecord deal={deal} people={people} gaps={d.gaps} onComplete={() => setCompleting(true)} />
 

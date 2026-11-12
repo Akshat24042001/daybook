@@ -47,6 +47,7 @@ export function toFreeModels(data: OrModel[], recommended: string[]): FreeModel[
         structured: params.has("structured_outputs") || params.has("response_format"),
         description: (m.description ?? "").replace(/\s+/g, " ").slice(0, 400),
         recommended: rec.has(m.id),
+        vision: (m.architecture?.input_modalities ?? []).includes("image"),
       };
     })
     .sort((a, b) => Number(b.recommended) - Number(a.recommended) || b.context - a.context || a.name.localeCompare(b.name));

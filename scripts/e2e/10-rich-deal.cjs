@@ -61,7 +61,8 @@ const { setup, check, choose } = require("./lib.cjs");
   const act = await one("select channel, duration_min, outcome, subject, occurred_at from sales_interactions where deal_id = $1 and source = 'manual' order by id desc limit 1", [deal]);
   check("activity logged with type, duration, outcome", act && act.channel === "call" && act.duration_min === 25 && act.outcome === "Connected" && act.subject === "Pricing call with the owner", act);
   check("logged at the chosen time (2 days ago, 11:30 local)", act && Math.abs(new Date(act.occurred_at) - new Date(`${when.getFullYear()}-${p2(when.getMonth() + 1)}-${p2(when.getDate())}T11:30`)) < 60000, act && act.occurred_at);
-  const tl = page.locator("li", { hasText: "Pricing call with the owner" }).first();
+  // the full timeline (the summary card at the top has a short one without edit buttons)
+  const tl = page.locator("li", { hasText: "Pricing call with the owner" }).filter({ has: page.getByRole("button", { name: "Edit entry" }) }).first();
   check("timeline shows date, duration and outcome", /25 min/.test(await tl.innerText()) && /Connected/.test(await tl.innerText()));
   await tl.getByRole("button", { name: "Edit entry" }).click();
   await page.getByLabel("Summary").fill("Pricing call with the owner (both partners)");

@@ -186,6 +186,8 @@ export async function report(id: number, r: CaptureResult, chat: number | null, 
       r.shots ? `🖼 ${r.shots} screenshot${r.shots > 1 ? "s" : ""} saved on the deal` : "",
       r.filled?.length ? `🗂 Filled in: ${esc([...new Set(r.filled)].join(", ").slice(0, 400))}` : "",
       r.next_step ? `➡️ ${esc(r.next_step)}` : "",
+      r.quick_actions?.length ? `⚡ Do next:\n${r.quick_actions.map((x) => `• ${esc(x.label)}${x.due ? ` (by ${x.due})` : ""}`).join("\n")}` : "",
+      r.reply_draft ? `💬 Reply you could send:\n<code>${esc(r.reply_draft.slice(0, 700))}</code>` : "",
     ].filter(Boolean);
     text = lines.join("\n");
     if (r.suggestion) {

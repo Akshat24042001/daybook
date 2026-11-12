@@ -1,5 +1,6 @@
 "use client";
 
+import { prepImages } from "@/lib/client/image-prep";
 import { ImagePlus, Loader2, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button, Field, Input, Select, Textarea } from "@/components/ui";
@@ -9,15 +10,6 @@ import { cn } from "@/lib/cn";
 import { checkNewLead, LEAD_SOURCES, LEAD_STATUS, REFERRER_TYPES, type NewLeadInput } from "@/lib/team/new-lead";
 import { teamCall } from "./kit";
 
-async function toDataUrl(file: File): Promise<string> {
-  const img = await createImageBitmap(file);
-  const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
-  const c = document.createElement("canvas");
-  c.width = Math.round(img.width * scale);
-  c.height = Math.round(img.height * scale);
-  c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
-  return c.toDataURL("image/jpeg", 0.85);
-}
 
 function Block({ n, title, error, children }: { n: number; title: string; error?: string; children: React.ReactNode }) {
   return (
@@ -73,12 +65,12 @@ export function NewLeadForm({ services, voice }: { services: string[]; voice: bo
         <p className="text-sm text-subtle">Five things are needed. The more you add, the better the lead.</p>
       </div>
 
-      <section className="rounded-2xl border border-dashed border-border bg-surface p-4" onPaste={(e) => e.clipboardData.files.length && void Promise.all(Array.from(e.clipboardData.files).filter((x) => x.type.startsWith("image/")).slice(0, 4).map(toDataUrl)).then((u) => setImages((c) => [...c, ...u].slice(0, 4)))}>
+      <section className="rounded-2xl border border-dashed border-border bg-surface p-4" onPaste={(e) => e.clipboardData.files.length && void prepImages(Array.from(e.clipboardData.files).filter((x) => x.type.startsWith("image/"))).then(({ urls }) => setImages((c) => [...c, ...urls].slice(0, 4)))}>
         <p className="mb-1.5 flex items-center gap-1 text-[13px] font-medium"><Sparkles className="h-3.5 w-3.5 text-accent" /> Fill from a screenshot or chat (optional)</p>
         <Textarea value={paste} onChange={(e) => setPaste(e.target.value)} placeholder="Paste their message, email signature or profile, or paste a screenshot" aria-label="Paste to fill" className="min-h-[56px]" />
         <div className="mt-2 flex items-center gap-2">
           <label className="inline-flex cursor-pointer items-center gap-1 text-sm text-subtle hover:text-fg"><ImagePlus className="h-4 w-4" /> Screenshot{images.length ? ` (${images.length})` : ""}
-            <input type="file" accept="image/*" multiple hidden onChange={(e) => e.target.files && void Promise.all(Array.from(e.target.files).slice(0, 4).map(toDataUrl)).then((u) => setImages((c) => [...c, ...u].slice(0, 4)))} />
+            <input type="file" accept="image/*" multiple hidden onChange={(e) => e.target.files && void prepImages(Array.from(e.target.files)).then(({ urls }) => setImages((c) => [...c, ...urls].slice(0, 4)))} />
           </label>
           <Button size="sm" variant="outline" className="ml-auto" disabled={filling || (!paste.trim() && !images.length)} onClick={() => void prefill()}>
             {filling ? <Loader2 className="h-4 w-4 animate-spin" /> : null} {filling ? "Reading…" : "Fill the form"}

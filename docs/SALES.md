@@ -541,3 +541,30 @@ Em dashes and en dashes read as machine-written, so the app never uses them.
 - **How it cleans:** a range becomes a hyphen (10-12), a dash bullet becomes "- ", and any other dash becomes a comma.
 - **Stored text** was cleaned once by migration 045. What leads sent you is kept exactly as they wrote it.
 - **The code has none.** `tests/no-dashes.test.ts` fails if a long dash appears in any file in the repo.
+
+## Screenshots: how they are read, and what you get back
+
+**Reading.** A screenshot is read in two steps, because asking a small free image model to do the whole filing from a picture often fails (Mistral especially).
+1. An image model only writes out what is on the screen: who said what, when, and every name, number and email. Each screenshot is read separately, two at a time.
+2. The text models do the filing from that text.
+
+**Which image model.** Gemini comes first when `GEMINI_API_KEY` is set; it is free and the most reliable. Otherwise the app uses the free OpenRouter models that read images, taken from OpenRouter's live list (or `AI_VISION_MODELS`), with Mistral last. A model that fails is skipped for 10 minutes.
+
+**Long screenshots.** A long scrolling screenshot is cut into up to 4 readable slices in your browser. A HEIC photo that cannot be opened says so.
+
+**When it fails.** The capture is kept with its screenshots, the card says why, and **Try again** files it without asking you to paste it again. Text already read from the screenshots is not read a second time.
+
+**What you get back.** The result card shows:
+- the summary
+- what was read (each message, yours on the right)
+- **Do next**: two to four quick actions
+- a reply you could send (Copy, WhatsApp or email)
+
+Telegram shows the same.
+
+**Quick actions.** On the deal page, **Where we are** shows the summary of the whole conversation, the timeline, the quick actions and the reply.
+- **Make next step:** sets the deal's next step with its date.
+- **Add promise:** puts it on your promise list.
+- **Move:** opens the stage move.
+- **The cross:** hides the action.
+- **Summarize again:** rebuilds the summary and actions from every logged touch.
