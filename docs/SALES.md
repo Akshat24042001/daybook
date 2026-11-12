@@ -501,3 +501,33 @@ new leads.
 
 A lead is found by a few words of the deal name, the contact's name or the company. The chat behind it is shared with
 the web, so follow-ups keep the context for 12 hours.
+
+## Sales team logins (/team)
+
+Salespeople get their own login and see only what you give them. They sign in at `/team` on the same site.
+
+**Logins.** Sales settings > Sales team logins. You pick the name, username and password and pass them on yourself. Show login reads them back. They cannot change either; New password and Switch off sign them out at once. Deleting a login keeps their leads with you.
+
+**What they see.**
+
+| Thing | Seen by the salesperson? |
+|---|---|
+| Leads | Only leads you share (Sales team box on the deal page) and leads they add. Anything else answers "not found". |
+| Deal fields | Working fields (next step, dates, needs, budget text, timeline, city...). They can edit these. Not your summary, AI notes, priority, fit or custom fields. |
+| Value | Only when you tick "Sees the value" (always on for leads they added). |
+| Research | Only when you tick "Sees the research" (always on for leads they added; research runs on its own when they add a company or person). |
+| Updates (notes, activities, promises, screenshots, documents) | Their own, plus each one you show them with the eye button ("Only you" / "Visible to ..."). Your past updates stay hidden. You can pass one salesperson's update to another. |
+| Stage moves and field changes | Yes, without who made them or why. |
+| Other salespeople on the lead | Never. |
+| Moves | A to-do list built only from what they can see. |
+
+**Adding a lead.** Five things are required: who (company or person), one valid way to reach them, the source (a referral needs who referred and who they are to us, e.g. a team champion), what they need, and how far it has got. Everything else raises the quality score. A screenshot or pasted chat can fill the form. Up to 30 new leads a day each. Their own duplicates are refused; a likely duplicate of one of yours is flagged on your deal page ("Possible duplicate") without showing them your record.
+
+**No Telegram, no notifications** for salespeople. AI screenshot filing and the mic work in the portal.
+
+**Security.**
+- Passwords are hashed with scrypt for sign-in. An AES-256-GCM copy lets you read them back; the key comes from `CREDENTIALS_KEY`, else `AUTH_SECRET`. Set one in Vercel and keep it: if it changes, Show login says to set a new password.
+- The session cookie is AES-256-GCM encrypted, httpOnly, SameSite strict, and lasts 12 hours. It is checked against the database on every request.
+- Five wrong passwords lock the login for 15 minutes. Unknown users and wrong passwords get the same answer.
+- Everything travels over HTTPS. The portal uses only `/api/team/*`, which needs JSON and a same-origin request. Owner server actions refuse any request without your session.
+- Every update records its author in the database (`author_user`), so visibility cannot be faked from the browser.

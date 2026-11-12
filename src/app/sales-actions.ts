@@ -31,6 +31,8 @@ import { deleteOffer, saveOffer } from "@/lib/sales/offers";
 import { renameObjection, saveAnswer, suggestAnswer, syncObjections } from "@/lib/sales/objections";
 import { deleteProof, draftProof, saveProof } from "@/lib/sales/proofs";
 import { resetManualOrder, setManualOrder } from "@/lib/sales/order";
+import { createTeamUser, deleteTeamUser, revealTeamCredentials, setTeamActive, setTeamPassword, setTeamUsername } from "@/lib/team/users";
+import { setDealShare, setItemVisibility, type ItemKind } from "@/lib/team/sharing";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -584,4 +586,35 @@ export async function orderDealsAction(stageId: number, ids: number[]) {
 /** One column (or all of them) back to automatic priority order. */
 export async function resetOrderAction(stageId: number | null) {
   return run<{ reset: number }>(async () => ({ reset: await resetManualOrder(stageId) }), ["/sales/pipeline"]);
+}
+
+// ------------------------------------------------------------------ sales team logins and sharing (owner only)
+export async function createTeamLoginAction(o: { username: string; password: string; display_name: string }) {
+  return run<{ id: number }>(async () => ({ id: await createTeamUser(o) }), ["/sales/settings"]);
+}
+export async function setTeamPasswordAction(id: number, password: string) {
+  return run(() => setTeamPassword(id, password), ["/sales/settings"]);
+}
+export async function setTeamUsernameAction(id: number, username: string) {
+  return run(() => setTeamUsername(id, username), ["/sales/settings"]);
+}
+export async function setTeamActiveAction(id: number, active: boolean) {
+  return run(() => setTeamActive(id, active), ["/sales/settings"]);
+}
+export async function deleteTeamLoginAction(id: number) {
+  return run(() => deleteTeamUser(id), ["/sales/settings"]);
+}
+/** Reads a salesperson's credentials back, for the owner to pass on. Never logged. */
+export async function revealTeamLoginAction(id: number) {
+  try {
+    return { ok: true as const, ...(await revealTeamCredentials(id)) };
+  } catch (e) {
+    return { ok: false as const, error: e instanceof UserError ? e.message : "Could not read it." };
+  }
+}
+export async function setDealShareAction(dealId: number, userId: number, o: { shared: boolean; show_value?: boolean; show_research?: boolean }) {
+  return run(() => setDealShare(dealId, userId, o), ALL);
+}
+export async function setVisibilityAction(kind: ItemKind, id: number, userIds: number[]) {
+  return run<{ shared_with: number[] }>(async () => ({ shared_with: await setItemVisibility(kind, id, userIds) }), ALL);
 }

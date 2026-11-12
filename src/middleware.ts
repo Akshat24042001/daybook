@@ -2,6 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   LINK_PARAM, SESSION_COOKIE, SESSION_TTL_SEC, makeToken, sessionCookieOptions, verifyToken,
 } from "@/lib/session-token";
+import { REP_COOKIE, readRepToken } from "@/lib/team/rep-token";
+
+/** The sales team's area: its own login, pages under /team and its own API under /api/team. Nothing else. */
+const isTeamPath = (p: string) => p === "/team" || p.startsWith("/team/") || p.startsWith("/api/team/");
+const isTeamPublic = (p: string) => p === "/team/login" || p === "/api/team/login";
 
 function isPublicPath(pathname: string): boolean {
   return (
@@ -55,9 +60,30 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(dest);
   }
 
+  const owner = await verifyToken("session", req.cookies.get(SESSION_COOKIE)?.value);
+
+  // Server actions are addressed by id, not by page: one could be posted to any URL, a public one included. So
+  // every server action needs the owner's session, whatever the path. (The team area uses /api/team only.)
+  if (req.headers.has("next-action") && !owner) {
+    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
+
+  // the sales team area: a valid salesperson session (checked again against the database by every handler)
+  if (isTeamPath(pathname)) {
+    if (isTeamPublic(pathname)) return NextResponse.next();
+    if (await readRepToken(req.cookies.get(REP_COOKIE)?.value)) return NextResponse.next();
+    if (pathname.startsWith("/api/")) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    return NextResponse.redirect(new URL("/team/login", req.url));
+  }
+
   if (isPublicPath(pathname)) return NextResponse.next();
 
-  if (!(await verifyToken("session", req.cookies.get(SESSION_COOKIE)?.value))) {
+  if (!owner) {
+    // a salesperson who wanders outside their area goes back to it; nothing of the owner's app is served
+    if (await readRepToken(req.cookies.get(REP_COOKIE)?.value)) {
+      if (pathname.startsWith("/api/")) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+      return NextResponse.redirect(new URL("/team", req.url));
+    }
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }

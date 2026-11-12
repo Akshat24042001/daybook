@@ -187,7 +187,7 @@ Read the input (a chat, transcript, screenshot, email, note or web page) and ret
 }
 Use only facts in the input. Unknown fields are null. Never invent emails or phone numbers.`;
 
-async function extract(cfg: SalesConfig, tz: string, text: string, images: string[], previous: string | null, hintLine: string): Promise<Extraction> {
+export async function extract(cfg: SalesConfig, tz: string, text: string, images: string[], previous: string | null, hintLine: string): Promise<Extraction> {
   const intro = `${hintLine}${previous ? `\nPREVIOUS STATE OF THIS DEAL:\n${previous}\n` : ""}\nINPUT:\n${text.slice(0, 14_000)}`;
   const user: string | Part[] = images.length
     ? [{ type: "text", text: intro }, ...images.slice(0, 4).map((url) => ({ type: "image_url" as const, image_url: { url } }))]

@@ -15,6 +15,8 @@ import { CURRENCIES, currencyLabel, currencySymbol, money } from "./format";
 import type { Stage, Transition } from "@/lib/sales/stages";
 import type { CustomField } from "@/lib/sales/custom-fields";
 import { CustomFieldsCard, ReasonsCard } from "./settings-fields";
+import { TeamLoginsCard } from "./team-logins";
+import type { TeamUser } from "@/lib/team/users";
 import { PipelinesCard, PlaybookEditor, TaxCard, TeamCard } from "./settings-org";
 import type { Pipeline, TeamMember } from "@/lib/sales/org";
 
@@ -33,6 +35,7 @@ export interface SettingsData {
   customFields: CustomField[];
   pipelines: Pipeline[];
   team: TeamMember[];
+  teamUsers?: TeamUser[];
 }
 
 function Card({ id, title, sub, info, children }: { id?: string; title: string; sub?: string; info?: string; children: React.ReactNode }) {
@@ -265,6 +268,10 @@ export function SettingsView({ d }: { d: SettingsData }) {
 
       <Card id="team" title="Team" sub="Who handles which deal." info="Add the people you work with, so a deal can have an owner and the pipeline can be filtered by who handles what.">
         <TeamCard team={d.team} />
+      </Card>
+
+      <Card id="team-logins" title="Sales team logins" sub="Your salespeople sign in at /team." info={"- You set each username and password and pass them on; they can never change them.\n- They see only the leads you share with them and the leads they add.\n- On a shared lead they see its details, their own updates, and only the updates you choose to show them.\n- Switching a login off, or a new password, signs them out at once."}>
+        <TeamLoginsCard users={d.teamUsers ?? []} />
       </Card>
 
       <Card id="stage-playbooks" title="Stage playbooks" sub="What to ask and do at each stage." info="Shown on every deal in that stage, with a call script. Ticks are saved per deal.">

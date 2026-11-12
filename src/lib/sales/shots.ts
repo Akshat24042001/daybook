@@ -12,6 +12,9 @@ export interface Shot {
   at: string;
   summary: string | null;
   source: string;
+  author_user?: number | null;
+  author_name?: string | null;
+  shared_with?: number[];
 }
 
 const parseDataUrl = (u: string): { mime: string; data: Uint8Array } | null => {
@@ -55,13 +58,13 @@ export async function shotDataUrls(cap: { images: string[] | null; image_paths?:
 
 /** Every screenshot filed to a deal, newest first. */
 export async function dealShots(dealId: number): Promise<Shot[]> {
-  const rows = await q<{ id: number; n: number; at: string; summary: string | null; source: string }>(
+  const rows = await q<{ id: number; n: number; at: string; summary: string | null; source: string; author_user: number | null; author_name: string | null; shared_with: number[] }>(
     `select c.id, greatest(jsonb_array_length(coalesce(c.images, '[]'::jsonb)), cardinality(c.image_paths)) as n, c.created_at as at,
-            c.result->>'summary' as summary, c.source
-     from sales_captures c where c.deal_id = $1 and c.status <> 'ignored' order by c.created_at desc limit 60`,
+            c.result->>'summary' as summary, c.source, c.author_user, u.display_name as author_name, c.shared_with
+     from sales_captures c left join sales_users u on u.id = c.author_user where c.deal_id = $1 and c.status <> 'ignored' order by c.created_at desc limit 60`,
     [dealId],
   );
-  return rows.flatMap((r) => Array.from({ length: r.n }, (_, index) => ({ capture_id: r.id, index, at: r.at, summary: r.summary, source: r.source })));
+  return rows.flatMap((r) => Array.from({ length: r.n }, (_, index) => ({ capture_id: r.id, index, at: r.at, summary: r.summary, source: r.source, author_user: r.author_user, author_name: r.author_name, shared_with: r.shared_with })));
 }
 
 /** One image, for the page: a short-lived storage link, or the bytes from the database. */

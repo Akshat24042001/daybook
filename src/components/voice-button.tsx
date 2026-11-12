@@ -24,6 +24,7 @@ export function VoiceButton({
   showLabel = false,
   onStateChange,
   listenFor,
+  endpoint = "/api/voice/transcribe",
 }: {
   onText: (text: string) => void;
   enabled: boolean;
@@ -37,6 +38,8 @@ export function VoiceButton({
   onStateChange?: (state: "idle" | "recording" | "sending") => void;
   /** a window event name (e.g. "daybook:record") that toggles recording, for keyboard shortcuts */
   listenFor?: string;
+  /** where the audio goes (the sales team area has its own, behind their login) */
+  endpoint?: string;
 }) {
   const { toast } = useToast();
   const [state, setState] = useState<"idle" | "recording" | "sending">("idle");
@@ -81,7 +84,7 @@ export function VoiceButton({
         const blob = new Blob(chunks.current, { type });
         setState("sending");
         try {
-          const res = await fetch(language ? `/api/voice/transcribe?lang=${language}` : "/api/voice/transcribe", { method: "POST", headers: { "content-type": type }, body: blob });
+          const res = await fetch(language ? `${endpoint}?lang=${language}` : endpoint, { method: "POST", headers: { "content-type": type }, body: blob });
           const json = (await res.json()) as { ok: boolean; text?: string; error?: string };
           if (json.ok && json.text) onText(json.text);
           else toast(json.error ?? "Voice input failed.", "error");

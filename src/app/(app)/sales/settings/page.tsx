@@ -8,6 +8,7 @@ import { listStages, listTransitions } from "@/lib/sales/stages";
 import { SettingsView } from "@/components/sales/settings-view";
 import { listCustomFields } from "@/lib/sales/custom-fields";
 import { listPipelines, listTeam } from "@/lib/sales/org";
+import { listTeamUsers } from "@/lib/team/users";
 
 export const metadata: Metadata = { title: "Sales settings" };
 export const dynamic = "force-dynamic";
@@ -44,7 +45,7 @@ export default async function SalesSettingsPage() {
       d={{
         cfg, stages, transitions, captureToken: row.capture_token, googleSecret: row.google_secret, appsScriptUrl: row.apps_script_url,
         baseUrl: baseUrl(), env, lastGoogle: last?.t ? new Date(last.t).toISOString() : null, script, customFields: await listCustomFields(undefined, true),
-        pipelines: await listPipelines(true), team: await listTeam(true),
+        pipelines: await listPipelines(true), team: await listTeam(true), teamUsers: await listTeamUsers(),
       }}
     />
   );

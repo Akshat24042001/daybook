@@ -21,6 +21,8 @@ import type { Enrichment } from "@/lib/sales/enrich";
 import type { MoveRow } from "@/lib/sales/moves";
 import type { Stage } from "@/lib/sales/stages";
 import { CaptureBox } from "./capture-box";
+import { TeamSharing, VisibleTo, type Audience } from "./team-share";
+import type { DealShare } from "@/lib/team/sharing";
 import { EnrichmentPanel } from "./enrichment-panel";
 import { MoveCard } from "./moves-view";
 import { ActivityLogger, ClosingRecord, DealDetails, DealEditSheet, DocCategory, Journey, RecordEditSheet, StageMoveSheet, TimelineItem, type JourneyEvent, type PendingMove } from "./deal-rich";
@@ -37,13 +39,15 @@ export interface QuotePackage { offerId: number; index: number; offer: string; n
 export interface DealPageData {
   deal: DealCard;
   /** the screenshots you shared that were filed to this deal */
-  shots?: { capture_id: number; index: number; at: string; summary: string | null; source: string }[];
+  shots?: { capture_id: number; index: number; at: string; summary: string | null; source: string; author_user?: number | null; author_name?: string | null; shared_with?: number[] }[];
+  /** salespeople who have (or could have) this lead */
+  shares?: DealShare[];
   targets: (Stage & { requires: string })[];
   timeline: InteractionRow[];
   touches: { channel: string; last_at: string; last_in: string | null; count: number }[];
   commitments: CommitmentRow[];
   payments: PaymentRow[];
-  docs: { id: number; slug: string; kind: string; title: string; status: string; view_count: number; last_viewed_at: string | null; current_rev: number; total: number | null; currency: string | null; sent_at: string | null; category?: string | null; internal?: boolean }[];
+  docs: { id: number; slug: string; kind: string; title: string; status: string; shared_with?: number[]; author_user?: number | null; view_count: number; last_viewed_at: string | null; current_rev: number; total: number | null; currency: string | null; sent_at: string | null; category?: string | null; internal?: boolean }[];
   moves: MoveRow[];
   people: ({ id: number; full_name: string; title: string | null; role: string; emails: string[]; phones: string[]; linkedin: string | null; is_decision_maker: boolean | null } & Record<string, unknown>)[];
   company: ({ id: number; name: string; website: string | null; industry: string | null; country: string | null; employees: number | null; city?: string | null; region?: string | null; address?: string | null; postal_code?: string | null; phone?: string | null; email?: string | null; tax_id?: string | null } & Record<string, unknown> & { revenue_usd: number | null; revenue_is_estimate: boolean; enrichment: Enrichment; enriched_at: string | null; audit: { summary?: string; opportunities?: { title: string; problem: string; fix: string; impact: string; effort: string }[]; money_leak?: string; first_project?: string } | null }) | null;
@@ -135,6 +139,9 @@ export function DealView({ d }: { d: DealPageData }) {
       next_action_at: f.next_action_at ? new Date(f.next_action_at).toISOString() : null,
     }), "Saved");
 
+  const audience: Audience[] = (d.shares ?? []).filter((s) => s.shared && s.active).map((s) => ({ id: s.user_id, name: s.display_name }));
+  const addedBy = (d.shares ?? []).find((s) => s.added_it);
+  const dupHint = (deal as { dup_hint?: string | null }).dup_hint;
   const mine = d.commitments.filter((c) => c.owner === "me" && c.status === "open");
   const theirs = d.commitments.filter((c) => c.owner === "them" && c.status === "open");
   const net = deal.value_amount && deal.commission_value
@@ -171,6 +178,8 @@ export function DealView({ d }: { d: DealPageData }) {
           </div>
         </div>
         {deal.radar_item_id ? <SendBackToRadar dealId={deal.id} /> : null}
+        {addedBy ? <p className="mt-2 text-xs text-subtle">Added by <b className="text-fg">{addedBy.display_name}</b> (sales team)</p> : null}
+        {dupHint ? <p className="mt-2 rounded-md bg-p-butter px-3 py-2 text-xs text-p-butter-fg">Possible duplicate: {dupHint}</p> : null}
         {d.blocked ? <p className="mt-3 rounded-md bg-p-rose px-3 py-2 text-xs text-p-rose-fg">Do not contact: no outreach moves. <a href="/sales/playbook#dnc" className="font-medium underline">Manage</a></p> : null}
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-subtle">Move to:</span>
@@ -253,7 +262,7 @@ export function DealView({ d }: { d: DealPageData }) {
           <Section title={`Timeline · ${d.timeline.length}`}>
             {d.timeline.length ? (
               <ol className="space-y-2">
-                {d.timeline.map((i) => <TimelineItem key={i.id} i={i} onDelete={() => act(() => deleteInteractionAction(i.id))} />)}
+                {d.timeline.map((i) => <TimelineItem key={i.id} i={i} onDelete={() => act(() => deleteInteractionAction(i.id))} extra={<VisibleTo kind="interaction" id={i.id} sharedWith={i.shared_with ?? []} audience={audience} authorUser={i.author_user} authorName={i.author_name} />} />)}
               </ol>
             ) : <p className="text-sm text-subtle">No touches yet.</p>}
           </Section>
@@ -262,8 +271,10 @@ export function DealView({ d }: { d: DealPageData }) {
         <div className="space-y-4">
           {d.fit ? <FitCard fit={d.fit} deal={deal} /> : null}
 
+          {d.shares?.length ? <TeamSharing dealId={deal.id} shares={d.shares} /> : null}
+
           <Section title="Promises">
-            <Promises dealId={deal.id} mine={mine} theirs={theirs} onChange={() => router.refresh()} />
+            <Promises dealId={deal.id} mine={mine} theirs={theirs} audience={audience} onChange={() => router.refresh()} />
           </Section>
 
           {d.meetings.length ? (
@@ -289,6 +300,7 @@ export function DealView({ d }: { d: DealPageData }) {
                       <img src={`/api/sales/shot/${x.capture_id}/${x.index}`} alt={x.summary ?? "Screenshot"} loading="lazy" className="aspect-square w-full rounded-lg border border-border object-cover hover:border-accent" />
                       <span className="mt-0.5 block truncate text-[11px] text-subtle">{fmtDate(x.at)}{x.source === "telegram" ? " · Telegram" : ""}</span>
                     </a>
+                    {x.index === 0 ? <VisibleTo kind="capture" id={x.capture_id} sharedWith={x.shared_with ?? []} audience={audience} authorUser={x.author_user} authorName={x.author_name} /> : null}
                   </li>
                 ))}
               </ul>
@@ -315,6 +327,7 @@ export function DealView({ d }: { d: DealPageData }) {
                       <p className="mt-0.5 text-xs text-subtle">
                         {x.total ? `${money(x.total, x.currency ?? deal.currency)} · ` : ""}{x.view_count ? `opened ${x.view_count}x, last ${ago(x.last_viewed_at)}` : x.sent_at ? "not opened yet" : "draft"}
                       </p>
+                      <VisibleTo kind="doc" id={x.id} sharedWith={x.shared_with ?? []} audience={audience} authorUser={x.author_user} authorName={null} />
                       <div className={cn("mt-1.5 flex items-center gap-1", x.internal && "hidden")}>
                         <code className="truncate rounded bg-muted px-1.5 py-0.5 text-xs">{url.replace(/^https?:\/\//, "")}</code>
                         <Button size="sm" variant="ghost" className="h-6 px-1.5" onClick={() => void navigator.clipboard.writeText(url).then(() => toast("Link copied. Send it instead of an attachment."), () => toast("Your browser blocked copying. Select the text and copy it by hand.", "error"))}>
@@ -414,7 +427,7 @@ export function DealView({ d }: { d: DealPageData }) {
   );
 }
 
-function Promises({ dealId, mine, theirs, onChange }: { dealId: number; mine: CommitmentRow[]; theirs: CommitmentRow[]; onChange: () => void }) {
+function Promises({ dealId, mine, theirs, audience, onChange }: { dealId: number; mine: CommitmentRow[]; theirs: CommitmentRow[]; audience: Audience[]; onChange: () => void }) {
   const [text, setText] = useState("");
   const [owner, setOwner] = useState<"me" | "them">("me");
   const [due, setDue] = useState("");
@@ -435,6 +448,7 @@ function Promises({ dealId, mine, theirs, onChange }: { dealId: number; mine: Co
               <li key={c.id} className="flex items-start gap-2 text-sm">
                 <button type="button" aria-label="Done" onClick={() => set(c.id, "done")} className="mt-0.5 rounded border border-border p-0.5 hover:border-good hover:text-good"><Check className="h-3 w-3" /></button>
                 <span className="flex-1">{c.text}{c.due_at ? <span className={cn("ml-1 text-xs", late ? "font-semibold text-bad" : "text-subtle")}>by {new Date(c.due_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span> : null}</span>
+                <VisibleTo kind="commitment" id={c.id} sharedWith={c.shared_with ?? []} audience={audience} authorUser={c.author_user} authorName={c.author_name} />
                 <button type="button" aria-label="Drop" onClick={() => set(c.id, "dropped")} className="text-subtle/50 hover:text-bad"><X className="h-3.5 w-3.5" /></button>
               </li>
             );

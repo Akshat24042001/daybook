@@ -14,6 +14,21 @@ const g = globalThis as unknown as { __daybookPool?: pg.Pool };
 /** The undoable action the current request is running (see lib/undo.ts). Writes made inside it are journaled. */
 export const actionStore = new AsyncLocalStorage<{ id: number }>();
 
+/** The salesperson whose request is running (team area). Their writes are stamped with author_user (migration 044). */
+export const repStore = new AsyncLocalStorage<{ userId: number }>();
+
+/** The session settings a write needs: the undo action and/or the salesperson. Numbers only, never user text. */
+function writeSettings(): string | null {
+  const act = actionStore.getStore();
+  const rep = repStore.getStore();
+  if (!act && !rep) return null;
+  const parts = [
+    act ? `set_config('app.action', '${Math.trunc(Number(act.id))}', true)` : null,
+    rep ? `set_config('app.rep', '${Math.trunc(Number(rep.userId))}', true)` : null,
+  ].filter(Boolean);
+  return `begin; select ${parts.join(", ")}`;
+}
+
 /**
  * Inside an action, a write runs as its own tiny transaction that first tells the journal triggers which action it
  * belongs to. (A transaction rather than a plain session setting, so it also works behind a transaction-mode pooler.)
@@ -22,13 +37,13 @@ export const actionStore = new AsyncLocalStorage<{ id: number }>();
 function journalWrites(pool: pg.Pool): pg.Pool {
   const raw = pool.query.bind(pool) as (...a: unknown[]) => unknown;
   (pool as unknown as { query: (...a: unknown[]) => unknown }).query = (text: unknown, values?: unknown, cb?: unknown) => {
-    const act = actionStore.getStore();
-    if (!act || typeof text !== "string" || /^\s*(select|show)\b/i.test(text) || cb) return raw(text, values, cb);
+    const settings = writeSettings();
+    if (!settings || typeof text !== "string" || /^\s*(select|show)\b/i.test(text) || cb) return raw(text, values, cb);
     return (async () => {
       const client = await pool.connect();
       try {
-        // begin and the action tag in one round trip (the id is our own integer, never user input)
-        await client.query(`begin; select set_config('app.action', '${Math.trunc(Number(act.id))}', true)`);
+        // begin and the tags in one round trip (the ids are our own integers, never user input)
+        await client.query(settings);
         const res = await client.query(text, values as unknown[]);
         await client.query("commit");
         return res;
@@ -121,9 +136,8 @@ export async function one<T = Record<string, unknown>>(
 export async function tx<T>(fn: (db: pg.PoolClient) => Promise<T>): Promise<T> {
   const client = await getPool().connect();
   try {
-    await client.query("begin");
-    const act = actionStore.getStore();
-    if (act) await client.query("select set_config('app.action', $1, true)", [String(act.id)]);
+    const settings = writeSettings();
+    await client.query(settings ?? "begin");
     const out = await fn(client);
     await client.query("commit");
     return out;

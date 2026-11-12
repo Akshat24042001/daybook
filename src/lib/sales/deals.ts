@@ -417,16 +417,21 @@ export interface InteractionRow {
   /** the capture it came from, and how many screenshots that capture kept */
   capture_id?: number | null;
   shots?: number;
+  /** the salesperson who logged it (null: you or automatic); who of them may see it */
+  author_user?: number | null;
+  author_name?: string | null;
+  shared_with?: number[];
 }
 
 export async function timeline(dealId: number, limit = 200): Promise<InteractionRow[]> {
   return q<InteractionRow>(
     `select i.id, i.deal_id, i.person_id, p.full_name as person_name, i.channel, i.direction, i.occurred_at, i.subject, i.body, i.summary, i.source, i.confidence,
-            i.outcome, i.duration_min, i.edited_at, i.capture_id,
+            i.outcome, i.duration_min, i.edited_at, i.capture_id, i.author_user, i.shared_with, au.display_name as author_name,
             -- a capture that made two entries (their messages and yours) shows its screenshots once, on the first
             case when c.id is null or i.id <> (select min(x.id) from sales_interactions x where x.capture_id = c.id) then 0
                  else greatest(jsonb_array_length(coalesce(c.images, '[]'::jsonb)), cardinality(c.image_paths)) end::int as shots
      from sales_interactions i left join sales_people p on p.id = i.person_id left join sales_captures c on c.id = i.capture_id
+     left join sales_users au on au.id = i.author_user
      where i.deal_id = $1 order by i.occurred_at desc limit $2`,
     [dealId, limit],
   );
@@ -537,6 +542,10 @@ export interface CommitmentRow {
   due_at: string | null;
   status: string;
   created_at: string;
+  /** the salesperson who made it (null: you); who of them may see it */
+  author_user?: number | null;
+  author_name?: string | null;
+  shared_with?: number[];
 }
 
 export async function addCommitment(c: { deal_id: number | null; person_id?: number | null; owner: "me" | "them"; text: string; due_at?: string | null; interaction_id?: number | null }): Promise<number | null> {
@@ -559,7 +568,11 @@ export async function setCommitment(id: number, status: "open" | "done" | "dropp
 }
 
 export async function commitments(dealId: number): Promise<CommitmentRow[]> {
-  return q<CommitmentRow>("select * from sales_commitments where deal_id = $1 order by status = 'open' desc, due_at nulls last, created_at desc", [dealId]);
+  return q<CommitmentRow>(
+    `select k.*, u.display_name as author_name from sales_commitments k left join sales_users u on u.id = k.author_user
+     where k.deal_id = $1 order by k.status = 'open' desc, k.due_at nulls last, k.created_at desc`,
+    [dealId],
+  );
 }
 
 // ------------------------------------------------------------------ payments

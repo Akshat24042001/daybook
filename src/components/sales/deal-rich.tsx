@@ -535,7 +535,7 @@ export function ActivityLogger({ dealId, people }: { dealId: number; people: Per
 
 // ---------------------------------------------------------------- a timeline entry you can correct
 
-export function TimelineItem({ i, onDelete }: { i: InteractionRow; onDelete: () => void }) {
+export function TimelineItem({ i, onDelete, extra }: { i: InteractionRow; onDelete: () => void; extra?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState(false);
   const Dir = i.direction === "in" ? ArrowDownLeft : i.direction === "out" ? ArrowUpRight : Users;
@@ -551,6 +551,7 @@ export function TimelineItem({ i, onDelete }: { i: InteractionRow; onDelete: () 
             {i.person_name ? <span>· {i.person_name}</span> : null}
             {i.edited_at ? <span title={`Edited ${fmtWhen(i.edited_at)}`}>· edited</span> : null}
           </p>
+          {extra ? <div className="float-right">{extra}</div> : null}
           <p className="text-sm">{i.summary || i.subject || (i.body ?? "").slice(0, 200)}</p>
           {i.outcome ? <Chip className="mt-1">{i.outcome}</Chip> : null}
           {i.body && (i.summary || i.body.length > 200) ? (

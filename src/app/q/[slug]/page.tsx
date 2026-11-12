@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Archivo, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { REP_COOKIE, readRepToken } from "@/lib/team/rep-token";
 import { notFound, redirect } from "next/navigation";
 import { one } from "@/lib/db";
 import { salesConfig } from "@/lib/sales/config";
@@ -48,7 +49,9 @@ export default async function PublicDoc({ params, searchParams }: { params: Prom
   if (doc.kind === "quote" && !rev) notFound();
   const h = await headers();
   let viewId: number | null = null;
-  if (!owner) {
+  // you, or one of your salespeople, opening it is not the client reading it
+  const teamMember = !!(await readRepToken((await cookies()).get(REP_COOKIE)?.value));
+  if (!owner && !teamMember) {
     viewId = await recordView(doc, {
       ua: h.get("user-agent") ?? "", visitor: visitorId(h), country: h.get("x-vercel-ip-country"),
       city: decodeURIComponent(h.get("x-vercel-ip-city") ?? "") || null, rev: rev?.rev ?? null,
