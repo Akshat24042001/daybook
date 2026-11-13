@@ -75,6 +75,7 @@ describe("groundedResearch end to end (Gemini answer simulated)", () => {
     const { groundedResearch } = await import("@/lib/sales/search");
     const old = process.env.GEMINI_API_KEY;
     process.env.GEMINI_API_KEY = "test-key";
+    vi.stubEnv("GEMINI_SEARCH_MODELS", "gemini-2.5-flash"); // the live model list is tested in secrets-and-models
     const calls: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
       calls.push(String(url));
@@ -96,6 +97,7 @@ describe("groundedResearch end to end (Gemini answer simulated)", () => {
       expect(calls[0]).toContain("gemini-2.5-flash:generateContent");
     } finally {
       vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
       if (old === undefined) delete process.env.GEMINI_API_KEY;
       else process.env.GEMINI_API_KEY = old;
     }

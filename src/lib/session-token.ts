@@ -55,7 +55,11 @@ export async function verifyToken(kind: TokenKind, token: string | null | undefi
   if (dot <= 0) return false;
   const exp = Number(token.slice(0, dot));
   if (!Number.isInteger(exp) || exp * 1000 < nowMs) return false;
-  return sameString(token.slice(dot + 1), await sign(kind, exp, key));
+  if (sameString(token.slice(dot + 1), await sign(kind, exp, key))) return true;
+  // Telegram "open" links sent before AUTH_SECRET was set (they last two weeks) keep working; sessions do not
+  const pw = process.env.ADMIN_PASSWORD?.trim();
+  if (kind === "link" && process.env.AUTH_SECRET?.trim() && pw) return sameString(token.slice(dot + 1), await sign(kind, exp, `daybook-auth-v1:${pw}`));
+  return false;
 }
 
 export const sessionCookieOptions = {

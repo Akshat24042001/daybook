@@ -21,7 +21,10 @@ export function sign(value: string): string {
 }
 
 export function verify(value: string, sig: string | null | undefined): boolean {
-  return safeEqual(sign(value), sig ?? "");
+  if (safeEqual(sign(value), sig ?? "")) return true;
+  // links sent before AUTH_SECRET was set were signed with CRON_SECRET: they keep working
+  const old = process.env.AUTH_SECRET?.trim() ? process.env.CRON_SECRET?.trim() : null;
+  return !!old && safeEqual(createHmac("sha256", old).update(value).digest("base64url").slice(0, 22), sig ?? "");
 }
 
 export function baseUrl(): string {

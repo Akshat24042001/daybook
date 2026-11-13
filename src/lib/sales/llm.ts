@@ -7,6 +7,7 @@
 import { noDashes, withNoDashRule } from "../text/no-dashes";
 import { openModels } from "../ai";
 import { freeModels } from "../assistant/models";
+import { geminiModels } from "./gemini-models";
 
 export type Part = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 export interface LlmMessage {
@@ -41,6 +42,8 @@ interface Target {
   key: string;
   model: string;
   extra?: Record<string, unknown>;
+  /** spends part of max_tokens on thinking */
+  thinks?: boolean;
 }
 
 // a model that just failed is skipped for a while, so the next request does not wait on it again
@@ -65,9 +68,9 @@ async function targets(o: LlmOptions): Promise<Target[]> {
   const out: Target[] = [];
   const gemini = o.noGemini ? "" : process.env.GEMINI_API_KEY?.trim();
   if (gemini) {
-    const models = (process.env.GEMINI_MODELS ?? "gemini-2.5-flash,gemini-2.0-flash").split(",").map((m) => m.trim()).filter(Boolean);
-    for (const model of models) {
-      out.push({ url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", key: gemini, model });
+    for (const model of await geminiModels()) {
+      // newer Gemini models think first: keep it short, and leave room for the thinking in the token allowance
+      out.push({ url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", key: gemini, model, ...(/gemini-(1|2\.0)/.test(model) ? {} : { extra: { reasoning_effort: "low" }, thinks: true }) });
     }
   }
   const or = process.env.OPENROUTER_API_KEY?.trim();
@@ -99,7 +102,7 @@ async function once(t: Target, messages: LlmMessage[], o: LlmOptions, timeoutMs:
       model: t.model,
       messages: withNoDashRule(messages),
       temperature: o.temperature ?? 0.3,
-      max_tokens: o.maxTokens ?? 1200,
+      max_tokens: (o.maxTokens ?? 1200) + (t.thinks ? 2048 : 0),
       ...(t.extra ?? {}),
     }),
     signal: AbortSignal.timeout(timeoutMs),

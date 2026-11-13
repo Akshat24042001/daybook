@@ -328,7 +328,7 @@ New, all free or free tier:
 | `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` | Hiring signals per country | developer.adzuna.com |
 | `OMNIDIM_API_KEY`, `OMNIDIM_AGENT_ID`, `OWNER_PHONE` | Emergency calls to you (`OWNER_PHONE` like `+919664911105`) | omnidim.io |
 | `JINA_API_KEY` | Optional: more reads of JavaScript-heavy websites | jina.ai |
-| `GEMINI_MODELS`, `AI_VISION_MODELS` | Optional model overrides | |
+| `GEMINI_MODELS`, `GEMINI_SEARCH_MODELS`, `AI_VISION_MODELS` | Optional model overrides. Leave unset: Gemini models come from Google's live list for your key (stable Flash, newest first, then Flash-Lite) and image models from OpenRouter's live free list | |
 
 Without any search key the radar still runs on its keyless sources (Reddit, HN, RSS, Google News, job APIs) and a
 DuckDuckGo fallback, but search-based sources and research will be thin.
@@ -526,7 +526,7 @@ Salespeople get their own login and see only what you give them. They sign in at
 **No Telegram, no notifications** for salespeople. AI screenshot filing and the mic work in the portal.
 
 **Security.**
-- Passwords are hashed with scrypt for sign-in. An AES-256-GCM copy lets you read them back; the key comes from `CREDENTIALS_KEY`, else `AUTH_SECRET`. Set one in Vercel and keep it: if it changes, Show login says to set a new password.
+- Passwords are hashed with scrypt for sign-in. An AES-256-GCM copy lets you read them back; the key comes from `CREDENTIALS_KEY`, else `AUTH_SECRET`. Set one in Vercel and keep it. Passwords saved before `AUTH_SECRET` was added still open (the old key is still tried for reading); go links and Telegram open links sent before it keep working too.
 - The session cookie is AES-256-GCM encrypted, httpOnly, SameSite strict, and lasts 12 hours. It is checked against the database on every request.
 - Five wrong passwords lock the login for 15 minutes. Unknown users and wrong passwords get the same answer.
 - Everything travels over HTTPS. The portal uses only `/api/team/*`, which needs JSON and a same-origin request. Owner server actions refuse any request without your session.

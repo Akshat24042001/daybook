@@ -39,16 +39,29 @@ export function encryptSecret(plain: string): string {
   return `gcm1$${iv.toString("base64")}$${c.getAuthTag().toString("base64")}$${ct.toString("base64")}`;
 }
 
-export function decryptSecret(stored: string): string | null {
-  try {
-    const [v, iv, tag, ct] = stored.split("$");
-    if (v !== "gcm1") return null;
-    const d = createDecipheriv("aes-256-gcm", encKey(), Buffer.from(iv, "base64"));
-    d.setAuthTag(Buffer.from(tag, "base64"));
-    return Buffer.concat([d.update(Buffer.from(ct, "base64")), d.final()]).toString("utf8");
-  } catch {
-    return null;
+/** Keys a stored password may be locked with: today's, then the one used before AUTH_SECRET was set. */
+function decKeys(): Buffer[] {
+  const keys = [encKey()];
+  const pw = process.env.ADMIN_PASSWORD?.trim();
+  if (!process.env.CREDENTIALS_KEY?.trim() && process.env.AUTH_SECRET?.trim() && pw) {
+    keys.push(createHash("sha256").update(`daybook-team-credentials-v1:daybook-auth-v1:${pw}`).digest());
   }
+  return keys;
+}
+
+export function decryptSecret(stored: string): string | null {
+  const [v, iv, tag, ct] = stored.split("$");
+  if (v !== "gcm1" || !iv || !tag || !ct) return null;
+  for (const k of decKeys()) {
+    try {
+      const d = createDecipheriv("aes-256-gcm", k, Buffer.from(iv, "base64"));
+      d.setAuthTag(Buffer.from(tag, "base64"));
+      return Buffer.concat([d.update(Buffer.from(ct, "base64")), d.final()]).toString("utf8");
+    } catch {
+      // wrong key: try the next
+    }
+  }
+  return null;
 }
 
 /** Rules for what the owner types: usernames are simple and unique; passwords long enough to resist guessing. */

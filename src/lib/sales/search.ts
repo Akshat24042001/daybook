@@ -7,6 +7,7 @@
  * itself is available through Gemini's grounding, used for deep research and as the last resort here.
  * A daily cap (Sales settings) protects the free quotas.
  */
+import { geminiModels } from "./gemini-models";
 import { NO_DASH_RULE, noDashes } from "../text/no-dashes";
 import { one, q } from "../db";
 import { salesConfig } from "./config";
@@ -231,7 +232,7 @@ export function geminiSearchReady(): boolean {
 export async function groundedResearch(prompt: string, o: { timeoutMs?: number; label?: string } = {}): Promise<Grounded> {
   const key = process.env.GEMINI_API_KEY?.trim();
   if (!key) throw new Error("No GEMINI_API_KEY: Google search through Gemini is off");
-  const models = (process.env.GEMINI_SEARCH_MODELS ?? "gemini-2.5-flash,gemini-2.0-flash").split(",").map((m) => m.trim()).filter(Boolean);
+  const models = await geminiModels("GEMINI_SEARCH_MODELS");
   let last: Error | null = null;
   for (const model of models) {
     try {
@@ -239,7 +240,7 @@ export async function groundedResearch(prompt: string, o: { timeoutMs?: number; 
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: "POST",
         headers: { "content-type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `${prompt}\n\n${NO_DASH_RULE}` }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.2, maxOutputTokens: 4096 } }),
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `${prompt}\n\n${NO_DASH_RULE}` }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.2, maxOutputTokens: 8192 } }),
         signal: AbortSignal.timeout(o.timeoutMs ?? 45_000),
       });
       if (!res.ok) throw new Error(`${model} ${res.status}: ${(await res.text()).slice(0, 160)}`);
