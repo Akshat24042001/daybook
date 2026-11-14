@@ -311,8 +311,8 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
           {it.trip ? <TripBadge trip={it.trip} today={today} /> : null}
           {it.lead_kind === "prospect" ? <span className="rounded-md bg-p-lilac px-1.5 py-0.5 text-p-lilac-fg">Local business we found for you: nobody posted this</span> : null}
         </p>
-        <div className="mt-1.5 flex items-start justify-between gap-3">
-          <h2 className="font-display text-xl leading-snug">{it.title}</h2>
+        <div className="mt-1.5 flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+          <h2 className="min-w-0 flex-1 basis-64 font-display text-xl leading-snug">{it.title}</h2>
           <SalesChat focus={{ radar_item_id: it.id }} title={`Ask about: ${it.title.slice(0, 60)}`} voiceEnabled={voiceEnabled} label="Ask about this lead" />
         </div>
         <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-subtle">
@@ -377,8 +377,25 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
         {it.trip || it.lead_kind === "prospect" || it.meeting_at ? <div className="mt-2 border-t border-border pt-2"><BookMeeting itemId={it.id} trip={it.trip ?? null} today={today} booked={it.meeting_at ?? null} /></div> : null}
       </header>
 
+      {/* who */}
+      <Section icon={Search} title="Who posted it">
+        <PosterLine p={it.poster} />
+        {!it.poster?.name && !it.poster?.username && it.author ? <p className="text-xs">{it.author}</p> : null}
+        {!it.known && !it.deal_id ? <WhoPanel itemId={it.id} identity={it.identity} paid={paid} platform={where?.name ?? null} /> : null}
+      </Section>
+
+      {it.links?.length ? <div className="rounded-xl border border-border bg-surface p-3"><QuickLinks groups={it.links} fold={3} /></div> : null}
+
       {it.prep && !move ? <ReadyPack itemId={it.id} prep={it.prep} draft={it.ready_draft ?? null} subject={it.ready_subject ?? null} channel={it.ready_channel ?? null} /> : null}
       {move ? <MoveCard m={move} googleReady={googleReady} onGone={() => onDrop(it.id)} /> : null}
+
+      {/* the post itself, then what needs doing */}
+      {it.body ? (
+        <Section icon={ChevronDown} title={it.lead_kind === "prospect" ? "What we found about them" : it.lead_kind === "news" ? "The news, word for word" : "Their post, word for word"}>
+          <p className={cn("whitespace-pre-line text-sm text-subtle", !full && "line-clamp-[8]")}>{it.body}</p>
+          {it.body.length > 500 ? <button type="button" className="mt-1 text-xs text-accent" onClick={() => setFull((x) => !x)}>{full ? "Show less" : "Show the whole post"}</button> : null}
+        </Section>
+      ) : null}
 
       {/* what they need */}
       <Section icon={Target} title="What they need" tone="accent">
@@ -421,22 +438,6 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
           ) : null}
           {brief?.watch_out ? <Section icon={TriangleAlert} title="Watch out" tone="warn"><p className="text-sm">{brief.watch_out}</p></Section> : null}
         </div>
-      ) : null}
-
-      {/* who */}
-      <Section icon={Search} title="Who posted it">
-        <PosterLine p={it.poster} />
-        {!it.poster?.name && !it.poster?.username && it.author ? <p className="text-xs">{it.author}</p> : null}
-        {!it.known && !it.deal_id ? <WhoPanel itemId={it.id} identity={it.identity} paid={paid} platform={where?.name ?? null} /> : null}
-      </Section>
-
-      {it.links?.length ? <div className="rounded-xl border border-border bg-surface p-3"><QuickLinks groups={it.links} fold={3} /></div> : null}
-
-      {it.body ? (
-        <Section icon={ChevronDown} title="Their post, word for word">
-          <p className={cn("whitespace-pre-line text-sm text-subtle", !full && "line-clamp-[8]")}>{it.body}</p>
-          {it.body.length > 500 ? <button type="button" className="mt-1 text-xs text-accent" onClick={() => setFull((x) => !x)}>{full ? "Show less" : "Show the whole post"}</button> : null}
-        </Section>
       ) : null}
 
       {research ? <ResearchSheet open onOpenChange={setResearch} radarItemId={it.id} companyId={it.company_id ?? undefined} title={it.title.slice(0, 60)} /> : null}

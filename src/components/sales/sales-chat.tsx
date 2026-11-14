@@ -118,7 +118,7 @@ export function SalesChat({ focus, title, voiceEnabled, label = "Chat" }: { focu
   const starters = "deal_id" in focus ? STARTERS.deal : "radar_item_id" in focus ? STARTERS.radar : STARTERS.sales;
   return (
     <>
-      <Button size="sm" variant="outline" onClick={() => setOpen(true)} aria-label={label}>
+      <Button size="sm" variant="outline" className="shrink-0 whitespace-nowrap" onClick={() => setOpen(true)} aria-label={label}>
         <MessageCircle className="h-4 w-4" /> {label}
       </Button>
       <Sheet open={open} onOpenChange={setOpen} title={title} description="Ask anything or say what changed. Changes wait for your tap." wide>
