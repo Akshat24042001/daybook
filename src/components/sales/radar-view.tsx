@@ -19,6 +19,7 @@ import { MoveCard } from "./moves-view";
 import { HuntsPanel } from "./hunts-view";
 import { PlanPanel } from "./plan-panel";
 import { ResearchSheet } from "./research-sheet";
+import { PosterLine, WhoPanel, dayHeader, whenLabel, type Poster, type WhoIdentity } from "./radar-who";
 import type { RadarPlan } from "@/lib/sales/radar-plan";
 import type { HuntView } from "@/lib/sales/hunts";
 
@@ -29,13 +30,20 @@ export interface RadarItem {
   known?: { deal_id: number | null; deal_title: string | null; stage: string | null; category: string | null; lost_reason: string | null; why: string } | null;
   blocked?: string | null;
   links?: LinkGroup[];
+  poster?: Poster | null;
+  identity?: WhoIdentity | null;
 }
+
+/** Marketplaces where replying costs bids, credits or connects. */
+const PAID = new Set(["upwork", "freelancer", "pph", "guru"]);
+const isPaid = (url: string | null) => PAID.has(platformOf(url)?.key ?? "") || /fiverr\.com|truelancer\.com|workana\.com/.test(url ?? "");
+const canReachDirectly = (it: RadarItem) => !!(it.identity && (it.identity.emails.length || it.identity.phones.length || it.identity.linkedin));
 export interface SourceRow {
   id: number; key: string; name: string; kind: string; category: string; enabled: boolean; interval_hours: number; note: string | null;
   last_run_at: string | null; last_ok_at: string | null; last_error: string | null; items_found: number; items_qualified: number; deals_created: number;
 }
 
-function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) {
+function ItemCard({ it, googleReady, tz }: { it: RadarItem; googleReady: boolean; tz: string }) {
   const [move, setMove] = useState<MoveRow | null>(null);
   const [busy, start] = useTransition();
   const [gone, setGone] = useState(false);
@@ -45,6 +53,9 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
   if (gone) return null;
   const f = it.fit ?? {};
   const where = platformOf(it.url);
+  const paid = isPaid(it.url);
+  const at = it.posted_at ?? it.found_at;
+  const fresh = Date.now() - new Date(at).getTime() < 24 * 3_600_000;
   const act = (fn: () => Promise<{ ok: boolean; error?: string }>, hide = true) => start(async () => {
     const r = await fn();
     if (!r.ok) return toast((r as { error: string }).error, "error");
@@ -58,11 +69,18 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
           {it.score ?? "?"}
         </span>
         <div className="min-w-0 flex-1">
+          <p className="mb-0.5 flex flex-wrap items-center gap-1.5 text-xs" aria-label="When">
+            {fresh ? <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent-fg">New</span> : null}
+            <time dateTime={new Date(at).toISOString()} className="font-semibold text-fg">{it.posted_at ? "Posted" : "Found"} {whenLabel(at, tz)}</time>
+            <span className="text-subtle">({ago(at)})</span>
+            {it.posted_at && Math.abs(new Date(it.found_at).getTime() - new Date(it.posted_at).getTime()) > 6 * 3_600_000 ? <span className="text-subtle">· found {ago(it.found_at)}</span> : null}
+          </p>
           <p className="text-sm font-semibold leading-snug">{it.title}</p>
           <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-subtle">
-            {it.hunt ? <span className="font-medium text-p-teal-fg">🔎 {it.hunt}</span> : null}<span>{it.source ?? "manual"}</span>{it.category ? <span>{it.category}</span> : null}<span>found {ago(it.found_at)}</span>
-            {it.posted_at ? <span>posted {ago(it.posted_at)}</span> : null}{f.country ? <span>{f.country}</span> : null}{f.industry ? <span>{f.industry}</span> : null}
+            {it.hunt ? <span className="font-medium text-p-teal-fg">🔎 {it.hunt}</span> : null}<span>{it.source ?? "manual"}</span>{it.category ? <span>{it.category}</span> : null}
+            {f.country ? <span>{f.country}</span> : null}{f.industry ? <span>{f.industry}</span> : null}
           </p>
+          <PosterLine p={it.poster} />
           {it.blocked ? <p className="mt-1.5 rounded-md bg-p-rose px-2 py-1 text-xs text-p-rose-fg">{it.blocked}</p> : null}
           {it.known ? (
             <p className="mt-1.5 rounded-md bg-p-sky px-2 py-1 text-xs text-p-sky-fg">
@@ -71,12 +89,13 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
               {it.known.deal_id && (it.known.category === "open" || it.known.category === "parked") ? ". Making it a lead adds it to that deal." : it.known.category === "won" ? ". An existing client: making it a lead starts a new deal (repeat business)." : null}
             </p>
           ) : null}
-          {where ? (
+          {where && !paid ? (
             <p className="mt-1 text-xs">
               <span className="rounded-full bg-muted px-2 py-0.5 font-medium">{where.replyable ? `Reply on ${where.name}` : where.key === "email_alert" ? "From an alert email" : "Signal, nobody asked you"}</span>{" "}
               <span className="text-subtle">{where.replyable ? "Answer them where they posted." : "Find the decision maker first, then reach out."}</span>
             </p>
           ) : null}
+          {!it.known && !it.deal_id ? <WhoPanel itemId={it.id} identity={it.identity} paid={paid} platform={where?.name ?? null} /> : null}
           {f.why ? <p className="mt-1 text-xs">{f.why}</p> : null}
           {f.angle ? <p className="mt-1 text-xs text-accent">💡 {f.angle}</p> : null}
           {f.money_leak ? <p className="mt-1 rounded-lg bg-p-butter px-2 py-1 text-xs text-p-butter-fg">{f.money_leak}</p> : null}
@@ -92,11 +111,11 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
           {it.researched_at ? <CheckCircle2 className="h-3.5 w-3.5 text-good" /> : it.company_id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
           {it.researched_at ? "Research" : it.company_id ? "Researching…" : "Research"}
         </Button>
-        {!move ? <Button size="sm" variant="primary" disabled={busy} onClick={() => start(async () => {
+        {!move && !(paid && !canReachDirectly(it)) ? <Button size="sm" variant="primary" disabled={busy} onClick={() => start(async () => {
           const r = await radarDraftAction(it.id);
           if (!r.ok) return toast(r.error, "error");
           setMove(r.move);
-        })}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} {where?.replyable ? `Draft reply for ${where.name}` : "Draft first message"}</Button> : null}
+        })}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} {paid ? "Draft a direct message" : where?.replyable ? `Draft reply for ${where.name}` : "Draft first message"}</Button> : null}
         {it.deal_id ? <Button size="sm" variant="outline" onClick={() => router.push(`/sales/deal/${it.deal_id}`)}>Open deal</Button> : (
           <Button size="sm" variant="outline" disabled={busy} onClick={() => start(async () => {
             const r = await radarToDealAction(it.id);
@@ -128,6 +147,8 @@ function ItemCard({ it, googleReady }: { it: RadarItem; googleReady: boolean }) 
 export function RadarView({ items, sources, googleReady, focus, searchProviders, hunts, plan, searchCap, tz }: { items: RadarItem[]; sources: SourceRow[]; googleReady: boolean; focus: { country: string; industry: string }; searchProviders: string[]; hunts: HuntView[]; plan: RadarPlan; searchCap: number; tz: string }) {
   const [tab, setTab] = useState<"qualified" | "new" | "rejected" | "hunts" | "plan" | "sources">("qualified");
   const [showHidden, setShowHidden] = useState(false);
+  const [sort, setSort] = useState<"newest" | "best">("newest");
+  const [only, setOnly] = useState<"all" | "direct" | "free" | "paid">("all");
   const [busy, start] = useTransition();
   const [add, setAdd] = useState(false);
   const [paste, setPaste] = useState({ title: "", body: "", url: "" });
@@ -136,7 +157,19 @@ export function RadarView({ items, sources, googleReady, focus, searchProviders,
   const router = useRouter();
   const hiddenCount = items.filter((i) => i.hidden).length;
   const visible = showHidden ? items : items.filter((i) => !i.hidden);
-  const list = visible.filter((i) => (tab === "qualified" ? i.status === "qualified" : tab === "new" ? i.status === "new" : ["rejected", "skipped"].includes(i.status)));
+  const when = (i: RadarItem) => new Date(i.posted_at ?? i.found_at).getTime();
+  const list = visible
+    .filter((i) => (tab === "qualified" ? i.status === "qualified" : tab === "new" ? i.status === "new" : ["rejected", "skipped"].includes(i.status)))
+    .filter((i) => (only === "direct" ? canReachDirectly(i) : only === "paid" ? isPaid(i.url) : only === "free" ? !isPaid(i.url) : true))
+    .sort((a, b) => (sort === "newest" ? when(b) - when(a) : (b.score ?? -1) - (a.score ?? -1) || when(b) - when(a)));
+  // newest first: grouped under Today, Yesterday, then the date
+  const groups: [string, RadarItem[]][] = [];
+  for (const it of list) {
+    const h = sort === "newest" ? dayHeader(it.posted_at ?? it.found_at, tz) : "";
+    const last = groups[groups.length - 1];
+    if (last && last[0] === h) last[1].push(it);
+    else groups.push([h, [it]]);
+  }
   const counts = { qualified: visible.filter((i) => i.status === "qualified").length, new: visible.filter((i) => i.status === "new").length, rejected: visible.filter((i) => ["rejected", "skipped"].includes(i.status)).length };
   const broken = sources.filter((s) => s.enabled && s.last_error).length;
 
@@ -169,6 +202,16 @@ export function RadarView({ items, sources, googleReady, focus, searchProviders,
       </div>
       {["qualified", "new", "rejected"].includes(tab) ? (
         <div className="flex flex-wrap items-center gap-3 text-xs text-subtle">
+          <span className="inline-flex overflow-hidden rounded-md border border-border" role="group" aria-label="Order">
+            {([["newest", "Newest first"], ["best", "Best match"]] as const).map(([k, l]) => (
+              <button key={k} type="button" onClick={() => setSort(k)} aria-pressed={sort === k} className={cn("px-2.5 py-1", sort === k ? "bg-accent-muted font-medium text-accent" : "hover:bg-muted")}>{l}</button>
+            ))}
+          </span>
+          <span className="inline-flex overflow-hidden rounded-md border border-border" role="group" aria-label="Show">
+            {([["all", "All"], ["direct", "Contact found"], ["free", "Free to reply"], ["paid", "Paid sites"]] as const).map(([k, l]) => (
+              <button key={k} type="button" onClick={() => setOnly(k)} aria-pressed={only === k} className={cn("px-2.5 py-1", only === k ? "bg-accent-muted font-medium text-accent" : "hover:bg-muted")}>{l}</button>
+            ))}
+          </span>
           <label className="flex items-center gap-1.5"><input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> Show hidden leads ({hiddenCount})</label>
           {list.some((i) => !i.hidden) ? (
             <button type="button" className="rounded-md border border-border px-2.5 py-1 hover:bg-muted" disabled={busy} onClick={() => start(async () => {
@@ -193,7 +236,16 @@ export function RadarView({ items, sources, googleReady, focus, searchProviders,
       ) : tab === "hunts" ? (
         <HuntsPanel hunts={hunts} searchCap={searchCap} providers={searchProviders} tz={tz} />
       ) : tab !== "sources" ? (
-        list.length ? <ul className="grid gap-3 lg:grid-cols-2">{list.map((it) => <ItemCard key={it.id} it={it} googleReady={googleReady} />)}</ul>
+        list.length ? (
+          <div className="space-y-5">
+            {groups.map(([h, its]) => (
+              <section key={h || "all"} aria-label={h || "Leads"}>
+                {h ? <h2 className="mb-2 flex items-baseline gap-2 text-sm font-semibold">{h}<span className="text-xs font-normal text-subtle">{its.length} lead{its.length === 1 ? "" : "s"}</span></h2> : null}
+                <ul className="grid gap-3 lg:grid-cols-2">{its.map((it) => <ItemCard key={it.id} it={it} googleReady={googleReady} tz={tz} />)}</ul>
+              </section>
+            ))}
+          </div>
+        )
           : <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-subtle">Nothing here yet. The radar runs every 15 minutes; the morning digest always brings at least one opportunity.</p>
       ) : (
         <div className="space-y-3">

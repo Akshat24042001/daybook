@@ -568,3 +568,32 @@ Telegram shows the same.
 - **Move:** opens the stage move.
 - **The cross:** hides the action.
 - **Summarize again:** rebuilds the summary and actions from every logged touch.
+
+## Radar: dates, who posted it, and who is behind it
+
+**Dates.** Each lead shows when it was posted, in your time zone ("Posted Today, 11:52 am (1h ago)"), with a **New** badge for the last 24 hours. The list is newest first, grouped under Today, Yesterday and then the date. **Best match** sorts by score instead.
+
+**Filters.**
+- **Contact found:** leads where an email, phone or LinkedIn of the business behind it was found.
+- **Free to reply:** leaves out sites that charge to reply.
+- **Paid sites:** Freelancer.com, Upwork, PeoplePerHour, Guru, Fiverr, Truelancer and Workana.
+
+**Who posted it.** Freelancer.com leads carry the client's public profile: the name Freelancer shows (usually first name and last initial), username, city, country, and projects completed. Other sources show the author where they give one.
+
+**Who is behind it.** On a paid site the card says replying there needs paid bids, and offers **Find them directly** instead of a bid draft. It:
+1. reads the post for any website, email or phone it gives away
+2. reads that website's home, contact and about pages
+3. searches the web for the post's own words (the same need is often posted elsewhere under the business's name), the client's username, the company and the poster's name with their city
+4. asks Google through Gemini the same question
+5. has the AI name the business, the decision maker and the contacts the business publishes
+
+**What it keeps.**
+- Every name and website must appear in what was read.
+- Every email and phone number must literally appear there. It never guesses an email pattern.
+- Each finding is marked Sure, Likely or A guess, with where it was found.
+
+**Limits.**
+- It looks only for businesses. A private person's personal job is marked as such, and it stops.
+- Many marketplace posts give nothing away; those come back "could not tie a business to this post".
+
+When it finds the business, the full company research runs on its own (decision makers, every contact). **Draft a direct message** then writes to them directly, and **Make it a lead** carries the person, email and phone into the deal. Strong leads (score 70+) are searched automatically in the background.

@@ -413,10 +413,16 @@ export interface MoveRow {
 
 export { targetInput } from "./reply-targets";
 
+// a radar lead with no deal yet: the contact details found for the business behind it (only when nothing is on a deal)
+const RADAR_CONTACT = `coalesce(p.phones, case when d.id is null then array(select jsonb_array_elements_text(coalesce(r.identity->'phones', '[]'::jsonb))) end) as phones,
+            coalesce(p.emails, case when d.id is null then array(select jsonb_array_elements_text(coalesce(r.identity->'emails', '[]'::jsonb))) end) as emails,
+            coalesce(p.linkedin, case when d.id is null then r.identity->>'linkedin' end) as linkedin,`;
+
 export async function listMoves(o: { horizonHours?: number; dealId?: number; limit?: number } = {}): Promise<MoveRow[]> {
   return q<MoveRow>(
-    `select m.*, d.title as deal_title, p.full_name as person_name, c.name as company_name, s.name as stage_name,
-            p.id as person_id, p.phones, p.emails, p.linkedin, p.instagram, r.url as radar_url, r.fit as radar_fit, rs.category as radar_category, d.source_detail as deal_source_url, c.website as company_website
+    `select m.*, d.title as deal_title, coalesce(p.full_name, r.identity->>'person') as person_name, coalesce(c.name, r.identity->>'company') as company_name, s.name as stage_name,
+            p.id as person_id, ${RADAR_CONTACT} p.instagram, r.url as radar_url, r.fit as radar_fit, rs.category as radar_category, d.source_detail as deal_source_url,
+            coalesce(c.website, r.identity->>'website') as company_website
      from sales_moves m
      left join sales_deals d on d.id = m.deal_id
      left join sales_stages s on s.id = d.stage_id
@@ -433,8 +439,9 @@ export async function listMoves(o: { horizonHours?: number; dealId?: number; lim
 
 export async function getMove(id: number): Promise<MoveRow | null> {
   return (await q<MoveRow>(
-    `select m.*, d.title as deal_title, p.full_name as person_name, c.name as company_name, s.name as stage_name,
-            p.id as person_id, p.phones, p.emails, p.linkedin, p.instagram, r.url as radar_url, r.fit as radar_fit, rs.category as radar_category, d.source_detail as deal_source_url, c.website as company_website
+    `select m.*, d.title as deal_title, coalesce(p.full_name, r.identity->>'person') as person_name, coalesce(c.name, r.identity->>'company') as company_name, s.name as stage_name,
+            p.id as person_id, ${RADAR_CONTACT} p.instagram, r.url as radar_url, r.fit as radar_fit, rs.category as radar_category, d.source_detail as deal_source_url,
+            coalesce(c.website, r.identity->>'website') as company_website
      from sales_moves m left join sales_deals d on d.id = m.deal_id left join sales_stages s on s.id = d.stage_id
      left join sales_people p on p.id = case when d.talk_via_intermediary and d.intermediary_id is not null then d.intermediary_id else d.person_id end
      left join sales_companies c on c.id = d.company_id left join sales_radar_items r on r.id = coalesce(m.radar_item_id, d.radar_item_id)
@@ -504,7 +511,8 @@ export async function draftForMove(id: number, channelOverride?: string): Promis
   } else if (m.radar_item_id) {
     const r = await one<{ title: string; body: string | null; url: string | null; angle: string | null; author: string | null; fit: { country?: string } | null }>("select title, body, url, angle, author, fit from sales_radar_items where id = $1", [m.radar_item_id]);
     const signal = m.radar_category && ["hiring", "funding", "review", "launch"].includes(m.radar_category);
-    context = `${signal ? `SIGNAL (${m.radar_category}): nobody asked us directly. This is a first touch to the company's decision maker, whose name we do not know.\n` : `THEY POSTED THIS${r?.author ? ` (as ${r.author})` : ""}:\n`}TITLE: ${r?.title}\n${(r?.body ?? "").slice(0, 3000)}\nURL: ${r?.url ?? ""}\nANGLE IDEA: ${r?.angle ?? ""}`;
+    const direct = !!(m.emails?.length || m.phones?.length);
+    context = `${direct ? `DIRECT: we found the business behind this post and are writing to them directly${m.company_name ? ` (${m.company_name})` : ""}, not on the site where it was posted. Mention the need they posted, never bids or platforms.\n` : ""}${signal ? `SIGNAL (${m.radar_category}): nobody asked us directly. This is a first touch to the company's decision maker, whose name we do not know.\n` : `THEY POSTED THIS${r?.author ? ` (as ${r.author})` : ""}:\n`}TITLE: ${r?.title}\n${(r?.body ?? "").slice(0, 3000)}\nURL: ${r?.url ?? ""}\nANGLE IDEA: ${r?.angle ?? ""}`;
     toCountry = r?.fit?.country ?? null;
   }
   const step = m.kind === "follow_up" ? m.title.match(/Follow-up (\d+)/)?.[1] : null;

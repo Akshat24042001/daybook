@@ -18,7 +18,8 @@ import { llm } from "./llm";
 import { draftForMove, refreshMoves } from "./moves";
 import { ownerChat, push } from "./notify";
 import { reportHunt, runHunt, scheduleHunts } from "./hunts";
-import { deepStage, personStage, personSynthStage, researchRadarItem, searchStage, siteStage, startResearch, synthStage } from "./research";
+import { deepStage, personStage, personSynthStage, searchStage, siteStage, startResearch, synthStage } from "./research";
+import { researchLeadFully } from "./behind-post";
 import { dailyDigest, hunt, qualifyPending, runRadar } from "./radar";
 import { weeklyReview, reviewMessage, reviewInsights } from "./review";
 import { syncObjections } from "./objections";
@@ -74,7 +75,8 @@ export const HANDLERS: Record<string, Handler> = {
     await personStage(Number(p.runId));
   },
   async radar_research(p) {
-    await researchRadarItem(Number(p.id), {}, "auto");
+    // a post that names no business (most marketplace posts): find who is behind it first, then research them
+    await researchLeadFully(Number(p.id), "auto", 30_000); // a background job shares the minute with others
   },
   async audit_website(p) {
     await auditCompany(Number(p.id));

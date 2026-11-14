@@ -40,6 +40,52 @@ export interface RawItem {
   body: string;
   author?: string | null;
   posted_at?: string | Date | null;
+  /** who posted it, as the platform shows them publicly */
+  poster?: Poster | null;
+}
+
+export interface Poster {
+  name?: string | null;
+  username?: string | null;
+  city?: string | null;
+  country?: string | null;
+  profile_url?: string | null;
+  joined?: string | null;
+  /** jobs or projects they have posted or paid for before, when the platform says */
+  history?: string | null;
+}
+
+/** Freelancer.com's project list, with the public profile of each client. Pure, for tests. */
+export function freelancerProjects(j: {
+  result?: {
+    projects?: { id: number; title: string; seo_url: string; owner_id?: number; preview_description?: string; description?: string; time_submitted: number; budget?: { minimum?: number; maximum?: number }; currency?: { code?: string } }[];
+    users?: Record<string, { username?: string; public_name?: string; display_name?: string; registration_date?: number; location?: { city?: string; country?: { name?: string } }; employer_reputation?: { entire_history?: { reviews?: number; complete?: number } } }>;
+  };
+}): RawItem[] {
+  const users = j.result?.users ?? {};
+  return (j.result?.projects ?? []).map((p) => {
+    const u = p.owner_id != null ? users[String(p.owner_id)] : undefined;
+    const rep = u?.employer_reputation?.entire_history;
+    const poster: Poster | null = u
+      ? {
+          name: u.public_name || u.display_name || null,
+          username: u.username ?? null,
+          city: u.location?.city || null,
+          country: u.location?.country?.name || null,
+          profile_url: u.username ? `https://www.freelancer.com/u/${u.username}` : null,
+          joined: u.registration_date ? new Date(u.registration_date * 1000).toISOString().slice(0, 10) : null,
+          history: rep && (rep.complete || rep.reviews) ? `${rep.complete ?? 0} projects completed, ${rep.reviews ?? 0} reviews` : null,
+        }
+      : null;
+    return {
+      title: `${p.title}${p.budget?.maximum ? ` (${p.currency?.code ?? ""} ${p.budget.minimum ?? 0} to ${p.budget.maximum})` : ""}`,
+      url: `https://www.freelancer.com/projects/${p.seo_url}`,
+      body: (p.description ?? p.preview_description ?? "").slice(0, 2500),
+      posted_at: new Date(p.time_submitted * 1000),
+      author: poster?.name ?? poster?.username ?? null,
+      poster,
+    };
+  });
 }
 
 /** Keeps the database catalogue in step with the code. Your on/off switches and stats are never touched. */
@@ -193,13 +239,11 @@ async function fetchApi(api: string, c: Record<string, unknown>, focus: { countr
       return j.jobs.filter((x) => DEV_RE.test(x.title)).map((x) => ({ title: `${x.title} at ${x.companyName}`, url: x.applicationLink, body: strip(x.excerpt ?? "").slice(0, 2000), author: x.companyName, posted_at: new Date(x.pubDate * 1000) }));
     }
     case "freelancer": {
-      const j = await getJson<{ result: { projects: { id: number; title: string; seo_url: string; preview_description?: string; description?: string; time_submitted: number; budget?: { minimum?: number; maximum?: number }; currency?: { code?: string } }[] } }>(
-        `https://www.freelancer.com/api/projects/0.1/projects/active/?query=${encodeURIComponent(String(c.q ?? "AI automation"))}&limit=30&full_description=true&compact=true`,
-      );
-      return j.result.projects.map((p) => ({
-        title: `${p.title}${p.budget?.maximum ? ` (${p.currency?.code ?? ""} ${p.budget.minimum ?? 0} to ${p.budget.maximum})` : ""}`,
-        url: `https://www.freelancer.com/projects/${p.seo_url}`, body: (p.description ?? p.preview_description ?? "").slice(0, 2500), posted_at: new Date(p.time_submitted * 1000),
-      }));
+      // the client's public profile (name as Freelancer shows it, username, city, country, past projects) comes with it
+      return freelancerProjects(await getJson(
+        `https://www.freelancer.com/api/projects/0.1/projects/active/?query=${encodeURIComponent(String(c.q ?? "AI automation"))}&limit=30&full_description=true&compact=true` +
+        "&user_details=true&user_display_info=true&user_location_details=true&user_country_details=true&user_employer_reputation=true",
+      ));
     }
     case "adzuna": {
       const id = process.env.ADZUNA_APP_ID;
@@ -227,9 +271,10 @@ export async function storeItems(sourceId: number | null, items: RawItem[], o: {
     if (posted && !Number.isNaN(posted.getTime()) && posted.getTime() < weekAgo) continue;
     const key = it.url ? urlHash(it.url) : urlHash(`${it.title}|${it.body.slice(0, 200)}`);
     const row = await one<{ id: number }>(
-      `insert into sales_radar_items (source_id, url, url_hash, title, body, author, posted_at, hunt_id, hunt_run_id) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      `insert into sales_radar_items (source_id, url, url_hash, title, body, author, posted_at, hunt_id, hunt_run_id, poster) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
        on conflict (url_hash) do nothing returning id`,
-      [sourceId, it.url, key, it.title.slice(0, 400), it.body?.slice(0, 6000) ?? null, it.author ?? null, posted && !Number.isNaN(posted.getTime()) ? posted : null, o.huntId ?? null, o.runId ?? null],
+      [sourceId, it.url, key, it.title.slice(0, 400), it.body?.slice(0, 6000) ?? null, it.author ?? null, posted && !Number.isNaN(posted.getTime()) ? posted : null, o.huntId ?? null, o.runId ?? null,
+        it.poster ? JSON.stringify(it.poster) : it.author ? JSON.stringify({ name: it.author }) : null],
     );
     if (row) added += 1;
   }
@@ -403,7 +448,8 @@ export async function alertItem(id: number): Promise<void> {
 
 /** Turns a radar item into a company, a person (when named) and a New deal with a first-touch move. */
 export async function radarToDeal(id: number): Promise<number> {
-  const it = await one<{ id: number; title: string; body: string | null; url: string | null; author: string | null; fit: Verdict | null; deal_id: number | null; source_id: number | null }>("select * from sales_radar_items where id = $1", [id]);
+  const it = await one<{ id: number; title: string; body: string | null; url: string | null; author: string | null; fit: Verdict | null; deal_id: number | null; source_id: number | null;
+    identity: { company?: string | null; website?: string | null; person?: string | null; title?: string | null; emails?: string[]; phones?: string[]; linkedin?: string | null; confidence?: string | null } | null }>("select * from sales_radar_items where id = $1", [id]);
   if (!it) throw new Error("radar item missing");
   if (it.deal_id) return it.deal_id;
   const f = it.fit ?? ({} as Verdict);
@@ -421,11 +467,17 @@ export async function radarToDeal(id: number): Promise<number> {
     await enqueue("refresh_moves", { deal_id: known.deal_id }, { dedupeKey: `refresh_moves:${known.deal_id}` });
     return known.deal_id;
   }
-  const companyId = f.company || f.website ? await ensureCompany(f.company ?? null, { website: f.website ?? null, country: f.country ?? null, industry: f.industry ?? null }) : null;
-  const personName = f.contact || it.author;
-  const personId = personName ? await upsertPerson({ name: personName, company_id: companyId, country: f.country ?? null }) : null;
+  // the business found behind the post (when sure enough) fills what the post did not say
+  const who = it.identity && it.identity.confidence !== "low" ? it.identity : null;
+  const coName = f.company ?? who?.company ?? null;
+  const coSite = f.website ?? who?.website ?? null;
+  const companyId = coName || coSite ? await ensureCompany(coName, { website: coSite, country: f.country ?? null, industry: f.industry ?? null }) : null;
+  const personName = who?.person || f.contact || it.author;
+  const personId = personName
+    ? await upsertPerson({ name: personName, company_id: companyId, country: f.country ?? null, title: who?.person ? who.title ?? null : null, email: who?.emails?.[0] ?? null, phone: who?.phones?.[0] ?? null, linkedin: who?.linkedin ?? null })
+    : null;
   const dealId = await createDeal({
-    title: f.company ? `${f.company}: ${it.title.slice(0, 60)}` : it.title.slice(0, 90),
+    title: coName ? `${coName}: ${it.title.slice(0, 60)}` : it.title.slice(0, 90),
     company_id: companyId,
     person_id: personId,
     source: known?.category === "won" ? "repeat" : "radar",
@@ -440,7 +492,7 @@ export async function radarToDeal(id: number): Promise<number> {
   if (it.source_id) await q("update sales_radar_sources set deals_created = deals_created + 1 where id = $1", [it.source_id]);
   if (companyId) {
     await enqueue("enrich_company", { id: companyId }, { dedupeKey: `enrich_company:${companyId}` });
-    if (f.website) await enqueue("audit_website", { id: companyId }, { dedupeKey: `audit:${companyId}` });
+    if (coSite) await enqueue("audit_website", { id: companyId }, { dedupeKey: `audit:${companyId}` });
   }
   if (personId) await enqueue("enrich_person", { id: personId }, { dedupeKey: `enrich_person:${personId}` });
   await enqueue("refresh_moves", { deal_id: dealId }, { dedupeKey: `refresh_moves:${dealId}` });

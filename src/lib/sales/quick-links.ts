@@ -218,8 +218,8 @@ const COMPANY_SQL = `select id, name, website, null as address, enrichment, enri
 /** Quick links for many radar leads at once (one round of queries, for the radar page). */
 export async function radarQuickLinks(ids: number[]): Promise<Record<number, LinkGroup[]>> {
   if (!ids.length) return {};
-  const items = await q<{ id: number; url: string | null; author: string | null; title: string; body: string | null; company_id: number | null; person_id: number | null }>(
-    "select id, url, author, title, body, company_id, person_id from sales_radar_items where id = any($1)",
+  const items = await q<{ id: number; url: string | null; author: string | null; title: string; body: string | null; company_id: number | null; person_id: number | null; who: string | null }>(
+    "select id, url, author, title, body, company_id, person_id, coalesce(identity->>'company', identity->>'website', identity->>'person') as who from sales_radar_items where id = any($1)",
     [ids],
   );
   const companyIds = [...new Set(items.map((i) => i.company_id).filter((x): x is number => !!x))];
@@ -245,8 +245,9 @@ export async function radarQuickLinks(ids: number[]): Promise<Record<number, Lin
     if (co) {
       groups.push(companyGroup(co));
       for (const person of people.filter((x) => x.company_id === co.id && x.id !== it.person_id).slice(0, 4)) groups.push(personGroup(person));
-    } else {
-      groups.push({ title: "The company", note: "This lead does not name a company yet. Tap Research and type the company or website if you know it.", links: [] });
+    } else if (!it.who) {
+      // when the business behind it was found, the card shows it above; otherwise say how to find it
+      groups.push({ title: "The company", note: "This lead does not name a company. Tap Find them directly to look for the business behind it, or Research to type it in.", links: [] });
     }
     out[it.id] = dedupe(groups);
   }

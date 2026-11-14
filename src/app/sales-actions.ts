@@ -1,5 +1,6 @@
 "use server";
 
+import { behindThenResearch, researchLeadFully, type Identity } from "@/lib/sales/behind-post";
 import { doneQuickAction, summarizeDeal } from "@/lib/sales/conversation";
 import { noDashes } from "@/lib/text/no-dashes";
 import { revalidatePath } from "next/cache";
@@ -406,7 +407,13 @@ export async function enrichAction(kind: "company" | "person" | "audit", id: num
 
 /** Research the company (and contact) behind a radar lead. Pass a name or website when the lead does not say. */
 export async function researchLeadAction(itemId: number, override?: { company?: string; website?: string }) {
-  return run<{ runId: number }>(async () => ({ runId: await researchRadarItem(itemId, override ?? {}, "manual") }), ["/sales/radar"]);
+  return run<{ runId: number | null }>(async () => ({
+    runId: override?.company || override?.website ? await researchRadarItem(itemId, override, "manual") : await researchLeadFully(itemId, "manual"),
+  }), ["/sales/radar"]);
+}
+/** Finds the business behind a post (and then researches it): who posted it, who decides, how to reach them directly. */
+export async function findBehindAction(itemId: number) {
+  return run<{ identity: Identity }>(async () => ({ identity: await behindThenResearch(itemId, "manual") }), ["/sales/radar"]);
 }
 /** Everything known about a lead's company and people, plus the live progress of any research. Safe to poll. */
 export async function researchViewAction(a: { radarItemId?: number; companyId?: number }): Promise<{ ok: true; view: ResearchView } | { ok: false; error: string }> {
