@@ -20,6 +20,8 @@ import { llmConfigured, llmJson } from "./llm";
 import { push } from "./notify";
 import { qualifyPending, runRadar, storeItems } from "./radar";
 import { searchConfigured, webSearch } from "./search";
+import { calendarDate } from "../time";
+import { cityNews, endFinishedTargets, findProspects, isExcluded, placeOf, tripMeetings, tripPhase, type TripMeeting } from "./targets";
 
 export const SIGNALS = ["requirement", "hiring", "funding", "review", "tender", "launch"] as const;
 
@@ -36,6 +38,21 @@ export interface HuntRow extends Schedule {
   queries_per_run: number;
   min_score: number | null;
   notify: boolean;
+  /** 'trip': you will be in a city on set dates; leads there get a message that asks to meet */
+  kind: "standing" | "trip";
+  cities: string[];
+  /** words that drop an item before it is scored */
+  exclude: string[];
+  /** only runs between these dates (either may be empty); a trip stops on its last day */
+  starts_on: string | null;
+  ends_on: string | null;
+  trip_from: string | null;
+  trip_to: string | null;
+  /** drafts ask for an in-person meeting during the trip */
+  meet: boolean;
+  /** also finds local businesses that fit the offers, not only posts */
+  prospects: boolean;
+  ended_at?: string | null;
   next_run_at: string | null;
   last_run_at: string | null;
 }
@@ -56,11 +73,14 @@ export interface HuntRun {
 export interface HuntView extends HuntRow {
   /** the last 7 days */
   week: { found: number; qualified: number; hot: number; converted: number };
+  /** everything it found, not only the last 7 days: for trips, where the whole run matters */
+  total: { found: number; qualified: number; ready: number; contacted: number; meetings: number };
+  meetings: TripMeeting[];
   last_run: HuntRun | null;
   searches_per_day: number;
 }
 
-export type HuntInput = Partial<Omit<HuntRow, "id" | "next_run_at" | "last_run_at">>;
+export type HuntInput = Partial<Omit<HuntRow, "id" | "next_run_at" | "last_run_at" | "ended_at">>;
 
 const DEFAULTS: Partial<HuntRow> = {
   schedule: "at", at_time: "09:00", days: [1, 2, 3, 4, 5, 6, 7], every_hours: 1, window_from: 0, window_to: 24,
@@ -94,10 +114,30 @@ export function validateHunt(input: HuntInput, base?: HuntRow): Omit<HuntRow, "i
   if (min !== null && !(min >= 0 && min <= 100)) throw new UserError("Minimum score: 0 to 100.");
   const signals = clean(m.signals, 10, 20).filter((s) => (SIGNALS as readonly string[]).includes(s));
   if (!signals.length) throw new UserError("Pick at least one kind of signal to look for.");
+  const day = (x: unknown, label: string) => {
+    if (x === null || x === undefined || x === "") return null;
+    const v = String(x).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(Date.parse(v))) throw new UserError(`${label} must be a date.`);
+    return v;
+  };
+  const kind = m.kind === "trip" ? "trip" : "standing";
+  const cities = clean(m.cities, 10, 80);
+  const tripFrom = kind === "trip" ? day(m.trip_from, "The first day of the trip") : null;
+  const tripTo = kind === "trip" ? day(m.trip_to, "The last day of the trip") : null;
+  if (kind === "trip") {
+    if (!cities.length) throw new UserError("Say which city the trip is to.");
+    if (!tripFrom || !tripTo) throw new UserError("Give the trip's first and last day.");
+    if (tripTo < tripFrom) throw new UserError("The trip must end on or after the day it starts.");
+  }
+  const startsOn = day(m.starts_on, "Start date");
+  const endsOn = day(m.ends_on, "End date") ?? (kind === "trip" ? tripTo : null);
+  if (startsOn && endsOn && endsOn < startsOn) throw new UserError("The end date must be on or after the start date.");
   return {
     name, enabled: m.enabled !== false, brief, keywords, countries: clean(m.countries, 20), industries: clean(m.industries, 20), signals,
     sweep_sources: m.sweep_sources !== false, queries_per_run: queries, min_score: min, notify: m.notify !== false,
     schedule, every_hours: every, at_time: m.at_time, days, window_from: from, window_to: to,
+    kind, cities, exclude: clean(m.exclude, 30, 80), starts_on: startsOn, ends_on: endsOn, trip_from: tripFrom, trip_to: tripTo,
+    meet: kind === "trip" ? m.meet !== false : !!m.meet, prospects: !!m.prospects && cities.length > 0,
   };
 }
 
@@ -105,17 +145,18 @@ async function tz(): Promise<string> {
   return (await getSettings()).timezone;
 }
 
-const COLS = "name, enabled, brief, keywords, countries, industries, signals, sweep_sources, queries_per_run, min_score, notify, schedule, every_hours, at_time, days, window_from, window_to";
+const COLS = "name, enabled, brief, keywords, countries, industries, signals, sweep_sources, queries_per_run, min_score, notify, schedule, every_hours, at_time, days, window_from, window_to, kind, cities, exclude, starts_on, ends_on, trip_from, trip_to, meet, prospects";
 
 export async function saveHunt(input: HuntInput, id?: number): Promise<number> {
   const base = id ? await one<HuntRow>("select * from sales_hunts where id = $1", [id]) : null;
   if (id && !base) throw new UserError("That hunt no longer exists.");
   const h = validateHunt(input, base ?? undefined);
   const next = h.enabled ? nextRunAfter(h, new Date(), await tz()) : null;
-  const vals = [h.name, h.enabled, h.brief, h.keywords, h.countries, h.industries, h.signals, h.sweep_sources, h.queries_per_run, h.min_score, h.notify, h.schedule, h.every_hours, h.at_time, h.days, h.window_from, h.window_to, next];
+  const vals = [h.name, h.enabled, h.brief, h.keywords, h.countries, h.industries, h.signals, h.sweep_sources, h.queries_per_run, h.min_score, h.notify, h.schedule, h.every_hours, h.at_time, h.days, h.window_from, h.window_to,
+    h.kind, h.cities, h.exclude, h.starts_on, h.ends_on, h.trip_from, h.trip_to, h.meet, h.prospects, next];
   if (base) {
     await q(
-      `update sales_hunts set ${COLS.split(", ").map((c, i) => `${c} = $${i + 2}`).join(", ")}, next_run_at = $${vals.length + 1} where id = $1`,
+      `update sales_hunts set ${COLS.split(", ").map((c, i) => `${c} = $${i + 2}`).join(", ")}, next_run_at = $${vals.length + 1}, ended_at = null where id = $1`,
       [base.id, ...vals],
     );
     return base.id;
@@ -151,9 +192,24 @@ export async function listHunts(): Promise<HuntView[]> {
     ),
     q<HuntRun>("select distinct on (hunt_id) * from sales_hunt_runs order by hunt_id, started_at desc"),
   ]);
+  const totals = await q<{ hunt_id: number; found: number; qualified: number; ready: number; contacted: number; meetings: number }>(
+    `select r.hunt_id, count(*)::int as found,
+            count(*) filter (where r.status in ('qualified','contacted','converted'))::int as qualified,
+            count(*) filter (where r.prep->>'stage' = 'ready' and r.deal_id is null and r.status = 'qualified')::int as ready,
+            count(*) filter (where r.deal_id is not null or r.status in ('contacted','converted'))::int as contacted,
+            (select count(*)::int from sales_meetings m join sales_radar_items x on x.id = m.radar_item_id where x.hunt_id = r.hunt_id and not m.cancelled) as meetings
+     from sales_radar_items r where r.hunt_id = any($1::int[]) group by r.hunt_id`,
+    [rows.map((h) => h.id)],
+  );
+  const meetings = new Map<number, TripMeeting[]>();
+  for (const h of rows.filter((x) => x.kind === "trip")) meetings.set(h.id, await tripMeetings(h.id));
   return rows.map((h) => ({
     ...h,
+    starts_on: h.starts_on ? String(h.starts_on).slice(0, 10) : null, ends_on: h.ends_on ? String(h.ends_on).slice(0, 10) : null,
+    trip_from: h.trip_from ? String(h.trip_from).slice(0, 10) : null, trip_to: h.trip_to ? String(h.trip_to).slice(0, 10) : null,
     week: stats.find((s) => s.hunt_id === h.id) ?? { found: 0, qualified: 0, hot: 0, converted: 0 },
+    total: totals.find((s) => s.hunt_id === h.id) ?? { found: 0, qualified: 0, ready: 0, contacted: 0, meetings: 0 },
+    meetings: meetings.get(h.id) ?? [],
     last_run: runs.find((r) => r.hunt_id === h.id) ?? null,
     searches_per_day: searchesPerDay(h, h.queries_per_run, h.keywords.length),
   }));
@@ -174,9 +230,15 @@ export async function runHuntNow(id: number): Promise<void> {
 
 /** Called every minute: queues the hunts that are due and moves each to its next slot. Returns how many were queued. */
 export async function scheduleHunts(now = new Date()): Promise<number> {
-  const due = await q<HuntRow>("select * from sales_hunts where enabled and (next_run_at is null or next_run_at <= $1)", [now]);
-  let queued = 0;
   const zone = await tz();
+  const today = calendarDate(now, zone);
+  // a trip or dated target past its last day stops on its own
+  await endFinishedTargets(today);
+  const due = await q<HuntRow>(
+    "select * from sales_hunts where enabled and (next_run_at is null or next_run_at <= $1) and (starts_on is null or starts_on <= $2::date)",
+    [now, today],
+  );
+  let queued = 0;
   for (const h of due) {
     const next = nextRunAfter(h, now, zone);
     // claim the slot first: two ticks racing must not both queue the run
@@ -203,8 +265,9 @@ const SIGNAL_HINT: Record<string, string> = {
 };
 
 /** Fallback when no AI is available, or it fails: a sensible spread across signals, countries and industries. */
-export function templateQueries(h: Pick<HuntRow, "signals" | "keywords" | "countries" | "industries">, focus: { country: string; industry: string }, n: number, salt = 0): string[] {
-  const countries = h.countries.length ? h.countries : [focus.country];
+export function templateQueries(h: Pick<HuntRow, "signals" | "keywords" | "countries" | "industries"> & { cities?: string[] }, focus: { country: string; industry: string }, n: number, salt = 0): string[] {
+  // a city target searches the city (it says more than the country); otherwise the countries, else this week's
+  const countries = h.cities?.length ? h.cities : h.countries.length ? h.countries : [focus.country];
   const industries = h.industries.length ? h.industries : [focus.industry];
   const year = new Date().getUTCFullYear();
   const out: string[] = [];
@@ -259,6 +322,9 @@ Return {"queries": ["...", ...]}.`,
           `SIGNALS TO COVER: ${h.signals.map((s) => `${s} = ${SIGNAL_HINT[s]}`).join(" | ")}`,
           `COUNTRIES: ${(h.countries.length ? h.countries : [focus.country]).join(", ")}`,
           `INDUSTRIES: ${(h.industries.length ? h.industries : [focus.industry]).join(", ")}`,
+          h.cities.length ? `CITIES: ${h.cities.join(", ")}. Every query must name one of these cities: leads elsewhere are useless. Use local wording and local sites too (for India: site:linkedin.com/posts, local news, "${h.cities[0]}" with the business type).` : "",
+          h.exclude.length ? `NEVER TARGET: ${h.exclude.join(", ")}` : "",
+          h.kind === "trip" && h.trip_from ? `CONTEXT: the owner visits ${placeOf(h)} from ${h.trip_from} to ${h.trip_to} and wants businesses there to meet in person. Favour local businesses with a visible need over remote gigs.` : "",
           good.length ? `LEADS THE OWNER KEPT (find more like these):\n- ${good.join("\n- ")}` : "",
           bad.length ? `LEADS THE OWNER REJECTED (avoid this kind):\n- ${bad.join("\n- ")}` : "",
           past.length ? `QUERIES ALREADY USED (do not repeat):\n- ${past.slice(0, 30).join("\n- ")}` : "",
@@ -289,6 +355,7 @@ export async function runHunt(id: number, trigger = "schedule", budgetMs = 45_00
     const plan = await planQueries(h, budgetMs / 3);
     await q("update sales_hunt_runs set queries = $2 where id = $1", [runId, plan.queries]);
     const tag = `[hunt: ${h.name}] `;
+    const keep = <T extends { title: string; body: string }>(xs: T[]) => (h.exclude.length ? xs.filter((x) => !isExcluded(h.exclude, `${x.title}\n${x.body}`)) : xs);
     // three at a time: fast enough for the time budget, gentle enough for free search tiers
     for (let i = 0; i < plan.queries.length; i += 3) {
       if (Date.now() - started > budgetMs - 8_000) break;
@@ -296,8 +363,25 @@ export async function runHunt(id: number, trigger = "schedule", budgetMs = 45_00
       for (const r of results) {
         searched += 1;
         if (r.status !== "fulfilled") continue;
-        found += await storeHunted(h.id, runId, r.value.map((x) => ({ title: x.title, url: x.url, body: `${tag}${x.snippet}`, posted_at: x.date ?? null })));
+        found += await storeHunted(h.id, runId, keep(r.value.map((x) => ({ title: x.title, url: x.url, body: `${tag}${x.snippet}`, posted_at: x.date ?? null }))));
       }
+    }
+    // a place: local news (free) and local businesses that fit the offers, each one named in a search result
+    if (h.cities.length && Date.now() - started < budgetMs - 10_000) {
+      const news = await cityNews(h).catch(() => []);
+      found += await storeHunted(h.id, runId, keep(news.map((x) => ({ title: x.title, url: x.url, body: `${tag}${x.body}`, posted_at: x.date }))), "news");
+    }
+    if (h.prospects && h.cities.length && Date.now() - started < budgetMs - 20_000) {
+      const runs = (await one<{ n: number }>("select count(*)::int as n from sales_hunt_runs where hunt_id = $1", [h.id]))?.n ?? 0;
+      const list = await findProspects(h, runs, budgetMs - (Date.now() - started) - 6_000).catch((e) => { console.warn("[hunt] prospects:", (e as Error).message); return []; });
+      searched += list.length ? 3 : 0;
+      found += await storeHunted(h.id, runId, keep(list.map((p) => ({
+        title: `${p.company}, ${h.cities.find((c) => `${p.evidence}`.toLowerCase().includes(c.toLowerCase())) ?? h.cities[0]}${p.industry ? ` (${p.industry})` : ""}`,
+        url: p.website ?? p.evidence_url,
+        key: `prospect:${h.id}:${p.company.toLowerCase().replace(/[^a-z0-9]/g, "")}`,
+        body: `${tag}Local business found for this target${p.website ? `. Website: ${p.website}` : ""}.\nWhy it could fit: ${p.why}\nWhere it was found: ${p.evidence} (${p.evidence_url})`,
+        poster: { name: p.company, city: h.cities[0], country: h.countries[0] ?? null, profile_url: p.website },
+      }))), "prospect");
     }
     if (h.sweep_sources && Date.now() - started < budgetMs - 15_000) {
       const sweep = await runRadar(Math.max(8_000, budgetMs - (Date.now() - started) - 5_000), { force: true, categories: h.signals });
@@ -316,15 +400,15 @@ export async function runHunt(id: number, trigger = "schedule", budgetMs = 45_00
   return { runId, found, searched };
 }
 
-/** storeItems that also tags each new item with the hunt and the run that found it. */
-async function storeHunted(huntId: number, runId: number, items: Parameters<typeof storeItems>[1]): Promise<number> {
-  return storeItems(null, items, { huntId, runId });
+/** storeItems that also tags each new item with the hunt and the run that found it, and what kind of lead it is. */
+async function storeHunted(huntId: number, runId: number, items: Parameters<typeof storeItems>[1], kind: "post" | "prospect" | "news" = "post"): Promise<number> {
+  return storeItems(null, items, { huntId, runId, kind });
 }
 
 /** Scores what the run found, then tells you about it (once). */
 export async function reportHunt(runId: number): Promise<void> {
-  const run = await one<HuntRun & { name: string; notify: boolean }>(
-    "select r.*, h.name, h.notify from sales_hunt_runs r join sales_hunts h on h.id = r.hunt_id where r.id = $1", [runId],
+  const run = await one<HuntRun & { name: string; notify: boolean; kind: HuntRow["kind"]; trip_from: string | null; trip_to: string | null }>(
+    "select r.*, h.name, h.notify, h.kind, h.trip_from, h.trip_to from sales_hunt_runs r join sales_hunts h on h.id = r.hunt_id where r.id = $1", [runId],
   );
   if (!run) return;
   await qualifyPending(30_000);
@@ -334,7 +418,8 @@ export async function reportHunt(runId: number): Promise<void> {
   );
   if (!run.notify || !items.length) return;
   const lines = items.slice(0, 3).map((t, i) => `${i + 1}. <b>${t.score ?? "?"}</b> ${esc(t.title.slice(0, 110))}`);
-  await push(`🔎 <b>${esc(run.name)}</b> found ${items.length}${items.length === 5 ? "+" : ""} qualified lead${items.length === 1 ? "" : "s"}\n${lines.join("\n")}`, {
+  const trip = tripPhase(run, calendarDate(new Date(), await tz()));
+  await push(`🔎 <b>${esc(run.name)}</b>${trip.label ? ` (${esc(trip.label.toLowerCase())})` : ""} found ${items.length}${items.length === 5 ? "+" : ""} qualified lead${items.length === 1 ? "" : "s"}\n${lines.join("\n")}`, {
     inline_keyboard: [[{ text: "Open radar", url: `${baseUrl()}/sales/radar` }]],
   });
 }

@@ -25,6 +25,7 @@ import { contactsOf, dedupeKey, hoursSince, isPaid, isReady, priority } from "@/
 import { ReadyPack } from "./radar-ready";
 import { SalesChat } from "./sales-chat";
 import { Ago } from "@/components/sales/ago";
+import { BookMeeting, TripBadge } from "./radar-trip";
 
 // ------------------------------------------------------------------ ranking lives in lib/sales/radar-rank (pure, tested)
 
@@ -33,7 +34,11 @@ type Only = "all" | "ready" | "unread" | "direct" | "free" | "paid";
 
 // ------------------------------------------------------------------ the board
 
-export function RadarBoard({ items, googleReady, tz, emptyText, voiceEnabled = false }: { items: RadarItem[]; googleReady: boolean; tz: string; emptyText: string; voiceEnabled?: boolean }) {
+export function RadarBoard({ items, googleReady, tz, emptyText, voiceEnabled = false, targets = [], target = null, onTarget }: {
+  items: RadarItem[]; googleReady: boolean; tz: string; emptyText: string; voiceEnabled?: boolean;
+  /** your targets and trips, to show only the leads one of them found */
+  targets?: { id: number; name: string; trip: boolean }[]; target?: number | null; onTarget?: (id: number | null) => void;
+}) {
   const [sort, setSort] = useState<Sort>("first");
   const [only, setOnly] = useState<Only>("all");
   const [showHidden, setShowHidden] = useState(false);
@@ -48,7 +53,7 @@ export function RadarBoard({ items, googleReady, tz, emptyText, voiceEnabled = f
   const [now] = useState(() => Date.now());
 
   const rows = useMemo(() => {
-    const live = items.filter((i) => !gone.has(i.id) && (showHidden || !i.hidden)).map((i) => (seen.has(i.id) && !i.seen_at ? { ...i, seen_at: new Date().toISOString() } : i));
+    const live = items.filter((i) => !gone.has(i.id) && (showHidden || !i.hidden) && (target == null || i.hunt_id === target)).map((i) => (seen.has(i.id) && !i.seen_at ? { ...i, seen_at: new Date().toISOString() } : i));
     // one row per requirement; the best copy wins, the others are counted
     const groups = new Map<string, RadarItem[]>();
     for (const i of live) groups.set(dedupeKey(i), [...(groups.get(dedupeKey(i)) ?? []), i]);
@@ -62,7 +67,7 @@ export function RadarBoard({ items, googleReady, tz, emptyText, voiceEnabled = f
     });
     const t = (i: RadarItem) => new Date(i.posted_at ?? i.found_at).getTime();
     return filtered.sort((a, b) => (sort === "first" ? b.p.value - a.p.value : sort === "newest" ? t(b.it) - t(a.it) : (b.it.score ?? -1) - (a.it.score ?? -1)) || t(b.it) - t(a.it));
-  }, [items, gone, showHidden, seen, only, sort, now]);
+  }, [items, gone, showHidden, seen, only, sort, now, target]);
 
   const unread = rows.filter((r) => !r.it.seen_at).length;
   // leads being prepared in the background: look again every half minute until they are ready
@@ -127,6 +132,14 @@ export function RadarBoard({ items, googleReady, tz, emptyText, voiceEnabled = f
     <div className="flex flex-wrap items-center gap-2 text-xs">
       <Seg label="Order" value={sort} onChange={setSort} options={[["first", "Do first"], ["newest", "Newest"], ["best", "Best match"]]} />
       <Seg label="Show" value={only} onChange={setOnly} options={[["all", "All"], ["ready", `Ready${ready ? ` · ${ready}` : ""}`], ["unread", `Unread${unread ? ` · ${unread}` : ""}`], ["direct", "Contact found"], ["free", "Free to reply"], ["paid", "Paid sites"]]} />
+      {targets.length ? (
+        <label className="flex items-center gap-1.5 text-subtle">Target
+          <select aria-label="Target" value={target ?? ""} onChange={(e) => onTarget?.(e.target.value ? Number(e.target.value) : null)} className="h-7 rounded-md border border-border bg-surface px-1.5 text-xs text-fg">
+            <option value="">All leads</option>
+            {targets.map((t) => <option key={t.id} value={t.id}>{t.trip ? "Trip: " : ""}{t.name} ({items.filter((i) => i.hunt_id === t.id && !i.hidden).length})</option>)}
+          </select>
+        </label>
+      ) : null}
       <label className="flex items-center gap-1.5 text-subtle"><input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> Hidden ({hiddenCount})</label>
       {rows.length ? (
         <button type="button" className="rounded-md px-2 py-1 text-subtle hover:bg-muted" disabled={busy} onClick={() => start(async () => {
@@ -211,6 +224,8 @@ function Row({ it, rank, also, reasons, first, active, tz, now, onOpen }: { it: 
           <p className={cn("mt-0.5 line-clamp-2 text-[13px] leading-snug", unread ? "font-semibold" : "font-medium")}>{it.title}</p>
           {need ? <p className="mt-0.5 line-clamp-1 text-xs text-subtle">{need}</p> : null}
           <p className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+            {it.trip ? <Tag tone="warn"><MapPin className="h-2.5 w-2.5" /> {it.trip.city} trip</Tag> : null}
+            {it.lead_kind === "prospect" ? <Tag>local business</Tag> : it.lead_kind === "news" ? <Tag>local news</Tag> : null}
             {isReady(it) ? <Tag tone="good"><CheckCircle2 className="h-2.5 w-2.5" /> Ready</Tag> : it.prep && now - new Date(it.prep.started_at).getTime() < 30 * 60_000 ? <Tag><Loader2 className="h-2.5 w-2.5 animate-spin" /> Preparing</Tag> : null}
             {c.emails.length ? <Tag tone="good"><Mail className="h-2.5 w-2.5" /> email</Tag> : null}
             {c.phones.length ? <Tag tone="good"><Phone className="h-2.5 w-2.5" /> phone</Tag> : null}
@@ -257,6 +272,7 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
   const c = contactsOf(it);
   const direct = c.emails.length + c.phones.length > 0 || !!c.linkedin;
   const at = it.posted_at ?? it.found_at;
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: tz });
 
   // the plain-language brief is made the first time you open a lead, then kept
   useEffect(() => {
@@ -292,6 +308,8 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
           <span className={cn("rounded-md px-1.5 py-0.5 font-semibold tabular", (it.score ?? 0) >= 80 ? "bg-p-mint text-p-mint-fg" : "bg-p-sky text-p-sky-fg")}>Fit {it.score ?? "?"}</span>
           <span className="inline-flex items-center gap-1 font-semibold"><Clock className="h-3.5 w-3.5 text-subtle" />{it.posted_at ? "Posted" : "Found"} {whenLabel(at, tz)}</span>
           <span className="text-subtle">(<Ago d={at} />)</span>
+          {it.trip ? <TripBadge trip={it.trip} today={today} /> : null}
+          {it.lead_kind === "prospect" ? <span className="rounded-md bg-p-lilac px-1.5 py-0.5 text-p-lilac-fg">Local business we found for you: nobody posted this</span> : null}
         </p>
         <div className="mt-1.5 flex items-start justify-between gap-3">
           <h2 className="font-display text-xl leading-snug">{it.title}</h2>
@@ -325,7 +343,7 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
             </span>
           ))}
           {c.linkedin ? <a href={c.linkedin} target="_blank" rel="noreferrer" className="act"><Linkedin className="h-3.5 w-3.5" /> LinkedIn</a> : null}
-          {it.url?.startsWith("http") ? <a href={it.url} target="_blank" rel="noreferrer" className="act">Open the post <ArrowUpRight className="h-3.5 w-3.5" /></a> : null}
+          {it.url?.startsWith("http") ? <a href={it.url} target="_blank" rel="noreferrer" className="act">{it.lead_kind === "prospect" ? "Open their website" : it.lead_kind === "news" ? "Open the news" : "Open the post"} <ArrowUpRight className="h-3.5 w-3.5" /></a> : null}
           {opener ? <button type="button" className="act" onClick={() => copy(opener, "Opening line")}><Copy className="h-3.5 w-3.5" /> Copy opener</button> : null}
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5 border-t border-border pt-2">
@@ -356,6 +374,7 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
             ) : null}
           </span>
         </div>
+        {it.trip || it.lead_kind === "prospect" || it.meeting_at ? <div className="mt-2 border-t border-border pt-2"><BookMeeting itemId={it.id} trip={it.trip ?? null} today={today} booked={it.meeting_at ?? null} /></div> : null}
       </header>
 
       {it.prep && !move ? <ReadyPack itemId={it.id} prep={it.prep} draft={it.ready_draft ?? null} subject={it.ready_subject ?? null} channel={it.ready_channel ?? null} /> : null}

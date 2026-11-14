@@ -16,6 +16,9 @@ import { listOffers, notBought, type Offer } from "./offers";
 import { proofBlock, proofFor } from "./proofs";
 import { applyEvent } from "./stages";
 import { draftMessage } from "./voice";
+import { tripDraftLines, tripFor } from "./targets";
+import { calendarDate } from "../time";
+import { getSettings } from "../settings";
 import { draftChannel, isHandle, targetInput } from "./reply-targets";
 
 export type MoveKind =
@@ -421,7 +424,7 @@ const RADAR_CONTACT = `coalesce(p.phones, case when d.id is null then array(sele
 export async function listMoves(o: { horizonHours?: number; dealId?: number; limit?: number } = {}): Promise<MoveRow[]> {
   return q<MoveRow>(
     `select m.*, d.title as deal_title, coalesce(p.full_name, r.identity->>'person') as person_name, coalesce(c.name, r.identity->>'company') as company_name, s.name as stage_name,
-            p.id as person_id, ${RADAR_CONTACT} p.instagram, r.url as radar_url, r.fit as radar_fit, rs.category as radar_category, d.source_detail as deal_source_url,
+            p.id as person_id, ${RADAR_CONTACT} p.instagram, r.url as radar_url, r.fit as radar_fit, case r.lead_kind when 'prospect' then 'prospect' when 'news' then 'launch' else rs.category end as radar_category, d.source_detail as deal_source_url,
             coalesce(c.website, r.identity->>'website') as company_website
      from sales_moves m
      left join sales_deals d on d.id = m.deal_id
@@ -440,7 +443,7 @@ export async function listMoves(o: { horizonHours?: number; dealId?: number; lim
 export async function getMove(id: number): Promise<MoveRow | null> {
   return (await q<MoveRow>(
     `select m.*, d.title as deal_title, coalesce(p.full_name, r.identity->>'person') as person_name, coalesce(c.name, r.identity->>'company') as company_name, s.name as stage_name,
-            p.id as person_id, ${RADAR_CONTACT} p.instagram, r.url as radar_url, r.fit as radar_fit, rs.category as radar_category, d.source_detail as deal_source_url,
+            p.id as person_id, ${RADAR_CONTACT} p.instagram, r.url as radar_url, r.fit as radar_fit, case r.lead_kind when 'prospect' then 'prospect' when 'news' then 'launch' else rs.category end as radar_category, d.source_detail as deal_source_url,
             coalesce(c.website, r.identity->>'website') as company_website
      from sales_moves m left join sales_deals d on d.id = m.deal_id left join sales_stages s on s.id = d.stage_id
      left join sales_people p on p.id = case when d.talk_via_intermediary and d.intermediary_id is not null then d.intermediary_id else d.person_id end
@@ -510,10 +513,19 @@ export async function draftForMove(id: number, channelOverride?: string): Promis
     toCountry = (await one<{ country: string | null }>("select country from sales_deals where id = $1", [m.deal_id]))?.country ?? null;
   } else if (m.radar_item_id) {
     const r = await one<{ title: string; body: string | null; url: string | null; angle: string | null; author: string | null; fit: { country?: string } | null }>("select title, body, url, angle, author, fit from sales_radar_items where id = $1", [m.radar_item_id]);
-    const signal = m.radar_category && ["hiring", "funding", "review", "launch"].includes(m.radar_category);
+    const signal = m.radar_category && ["hiring", "funding", "review", "launch", "prospect"].includes(m.radar_category);
     const direct = !!(m.emails?.length || m.phones?.length);
-    context = `${direct ? `DIRECT: we found the business behind this post and are writing to them directly${m.company_name ? ` (${m.company_name})` : ""}, not on the site where it was posted. Mention the need they posted, never bids or platforms.\n` : ""}${signal ? `SIGNAL (${m.radar_category}): nobody asked us directly. This is a first touch to the company's decision maker, whose name we do not know.\n` : `THEY POSTED THIS${r?.author ? ` (as ${r.author})` : ""}:\n`}TITLE: ${r?.title}\n${(r?.body ?? "").slice(0, 3000)}\nURL: ${r?.url ?? ""}\nANGLE IDEA: ${r?.angle ?? ""}`;
+    context = `${direct ? `DIRECT: we found the business behind this post and are writing to them directly${m.company_name ? ` (${m.company_name})` : ""}, not on the site where it was posted. Mention the need they posted, never bids or platforms.\n` : ""}${m.radar_category === "prospect" ? "PROSPECT: a local business we found ourselves; nobody asked us. This is a first touch: one specific, honest observation about their kind of business and one easy question. Never pretend they posted anything.\n" : signal ? `SIGNAL (${m.radar_category}): nobody asked us directly. This is a first touch to the company's decision maker, whose name we do not know.\n` : `THEY POSTED THIS${r?.author ? ` (as ${r.author})` : ""}:\n`}TITLE: ${r?.title}\n${(r?.body ?? "").slice(0, 3000)}\nURL: ${r?.url ?? ""}\nANGLE IDEA: ${r?.angle ?? ""}`;
     toCountry = r?.fit?.country ?? null;
+  }
+  // a lead from a trip: ask to meet while you are in their city, with two concrete options
+  if (["radar", "first_touch", "follow_up", "next_action"].includes(m.kind)) {
+    const itemId = m.radar_item_id ?? (m.deal_id ? (await one<{ radar_item_id: number | null }>("select radar_item_id from sales_deals where id = $1", [m.deal_id]))?.radar_item_id ?? null : null);
+    const trip = itemId ? await tripFor(itemId) : null;
+    if (trip) {
+      const cfg = await salesConfig();
+      context = `${tripDraftLines(trip, calendarDate(new Date(), (await getSettings()).timezone), cfg.owner.name)}${context}`;
+    }
   }
   const step = m.kind === "follow_up" ? m.title.match(/Follow-up (\d+)/)?.[1] : null;
   const draft = await draftMessage({

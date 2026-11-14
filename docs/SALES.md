@@ -679,3 +679,38 @@ After a 429 Reddit is rested for at least 10 minutes. At most 4 subreddits are r
 - **Named companies hiring** (approach them for the work): YC startups (HN jobs), The Muse, Working Nomads, Jobspresso, Remotive RSS, We Work Remotely devops.
 - **Tenders:** World Bank (software, digital), UN (UNGM), EU (TED), India (GeM, CPPP), RFPs for AI and automation, and "seeking a technology partner" news.
 - **Platforms with no feed, via search:** Twine, Workana, Truelancer, Malt, Indie Hackers, Quora, Craigslist gigs, Facebook groups. These use the daily search allowance, then the free engines.
+
+## Targets and trips
+
+Radar > **Targets & trips** is where you tell the radar what to go after. Type one line, for example
+"I'm in Udaipur from 29 Nov to 2 Dec. Hotels, resorts and wedding planners", and press **Set it up**. The AI turns it
+into a form (city, country, dates, industries, what to skip) that you check before saving; without an AI key a simple
+reader picks out the city and the dates. You can also start from **A trip**, **A city** or **An industry or anything
+else**, or ask the assistant in the chat or on Telegram ("I'm travelling to Udaipur in 15 days for 4 days").
+
+What a target can hold:
+
+- **Cities, countries, industries**: every search names them, and scoring marks down anything clearly elsewhere.
+- **Skip anything that mentions**: whole words; matching items are dropped before scoring.
+- **Start on / Stop after**: an ongoing target can run only between two dates. Past its last day it switches itself
+  off and shows as finished; editing it brings it back.
+- **Find local businesses**: for a place, it also looks for businesses there that fit your offers. Each one must be
+  named in a search result (Google through Gemini when the key is set, plus the web search); a website is kept only
+  when it appears in the results, and directories are never taken for the business's own site. These are marked
+  "local business" and nobody posted them, so the message is a first touch, never "about your post".
+- **Local news**: a place also reads Google News for openings, launches and expansions there (free, no search credits).
+
+A **trip** is a target with the days you will be there. It starts searching as soon as you save it (every 8 hours
+from 07:00 to 23:00 by default), stops by itself after the last day, and:
+
+- every lead it finds is prepared like any other (need, business, decision maker, contacts, draft);
+- the draft asks for a short in-person meeting during your visit with two concrete times on working days (the
+  arrival day and Sundays are avoided), and says a call works too;
+- the card counts down ("In 15 days · 29 Nov to 2 Dec · Udaipur") and shows found, good fit, ready to send,
+  contacted and meetings, with a **day by day** plan of the trip;
+- **See its leads** shows only that trip's leads on the board (the Target menu does the same), each tagged with the
+  trip, and **Book a meeting in Udaipur** on a lead makes it a deal and puts the meeting on the plan, at the time you
+  pick in your timezone. Booking the same lead on the same day again moves the meeting instead of doubling it.
+
+Search cost: a trip makes about 12 web searches a day plus 3 for local businesses per run; the card shows the estimate.
+Searches past your paid daily cap use the free engines.

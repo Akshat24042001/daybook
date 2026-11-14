@@ -248,4 +248,35 @@ export const SALES_ACTIONS: Record<string, SalesDef> = {
       return `Created (deal_id ${id}).`;
     },
   },
+
+  add_target: {
+    doc: "add_target: text (the owner's own words, e.g. \"I'm travelling to Udaipur in 15 days for 4 days, hotels and wedding planners\" or \"Dubai real estate brokers\"): a radar target or trip that searches for leads on its own. A trip finds local businesses and its messages ask to meet in person during the visit; it stops after the last day",
+    async prepare(_c, o) {
+      const text = s(o.text, 1500);
+      if (!text) throw new UserError("add_target needs the owner's words: a place, dates, an industry, anything to target.");
+      const { parseTarget } = await import("../sales/targets");
+      const { by: _by, ...t } = await parseTarget(text);
+      const trip = t.kind === "trip";
+      const params = {
+        ...t, sweep_sources: !trip,
+        ...(trip ? { schedule: "interval", every_hours: 8, window_from: 7, window_to: 23, signals: t.signals ?? ["requirement", "hiring", "launch", "review"] } : {}),
+      };
+      const { validateHunt } = await import("../sales/hunts");
+      validateHunt(params as Parameters<typeof validateHunt>[0]);
+      const where = (t.cities ?? []).join(", ") || (t.countries ?? []).join(", ");
+      return {
+        params,
+        label: `＋ ${trip ? "Trip" : "Target"}: ${t.name}`,
+        detail: [where, trip && t.trip_from && t.trip_to ? `${t.trip_from} to ${t.trip_to}` : null, (t.industries ?? []).slice(0, 4).join(", ") || null].filter(Boolean).join(" · ") || null,
+      };
+    },
+    scopes: () => [],
+    async run(_c, p, undo) {
+      const { runHuntNow, saveHunt } = await import("../sales/hunts");
+      const id = await saveHunt(p as Parameters<typeof saveHunt>[0]);
+      undo.created.push({ table: "sales_hunts", id });
+      await runHuntNow(id).catch(() => {});
+      return `Started (target ${id}). The first search runs within a minute; leads appear on the Radar under its name.`;
+    },
+  },
 };

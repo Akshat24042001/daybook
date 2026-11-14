@@ -35,6 +35,11 @@ export interface RadarItem {
   ready_draft?: string | null;
   ready_subject?: string | null;
   ready_channel?: string | null;
+  hunt_id?: number | null;
+  /** post: someone wrote it; prospect: a local business found for a target; news: local news about a business */
+  lead_kind?: "post" | "prospect" | "news" | null;
+  trip?: { city: string; from: string; to: string } | null;
+  meeting_at?: string | null;
 }
 
 export interface SourceRow {
@@ -44,6 +49,8 @@ export interface SourceRow {
 
 export function RadarView({ items, sources, googleReady, focus, searchProviders, hunts, plan, searchCap, tz, voiceEnabled = false }: { items: RadarItem[]; sources: SourceRow[]; googleReady: boolean; focus: { country: string; industry: string }; searchProviders: string[]; hunts: HuntView[]; plan: RadarPlan; searchCap: number; tz: string; voiceEnabled?: boolean }) {
   const [tab, setTab] = useState<"qualified" | "new" | "rejected" | "hunts" | "plan" | "sources">("qualified");
+  // the leads of one target or trip ("See its leads" on a target card picks it)
+  const [target, setTarget] = useState<number | null>(null);
   const [busy, start] = useTransition();
   const [add, setAdd] = useState(false);
   const [paste, setPaste] = useState({ title: "", body: "", url: "" });
@@ -77,16 +84,17 @@ export function RadarView({ items, sources, googleReady, focus, searchProviders,
         </div>
       </div>
       <div className="flex flex-wrap gap-1.5">
-        {([["qualified", `Qualified · ${counts.qualified}`], ["new", `Scoring · ${counts.new}`], ["rejected", `Below the bar · ${counts.rejected}`], ["hunts", `Hunts · ${hunts.filter((h) => h.enabled).length} on`], ["plan", "Plan & platforms"], ["sources", `Sources${broken ? ` · ${broken} failing` : ""}`]] as const).map(([k, l]) => (
+        {([["qualified", `Qualified · ${counts.qualified}`], ["new", `Scoring · ${counts.new}`], ["rejected", `Below the bar · ${counts.rejected}`], ["hunts", `Targets & trips · ${hunts.filter((h) => h.enabled).length} on`], ["plan", "Plan & platforms"], ["sources", `Sources${broken ? ` · ${broken} failing` : ""}`]] as const).map(([k, l]) => (
           <button key={k} type="button" onClick={() => setTab(k)} className={cn("rounded-md border px-3 py-1 text-xs", tab === k ? "border-accent bg-accent-muted text-accent" : "border-border text-subtle")}>{l}</button>
         ))}
       </div>
       {tab === "plan" ? (
         <PlanPanel plan={plan} />
       ) : tab === "hunts" ? (
-        <HuntsPanel hunts={hunts} searchCap={searchCap} providers={searchProviders} tz={tz} />
+        <HuntsPanel hunts={hunts} searchCap={searchCap} providers={searchProviders} tz={tz} onShowLeads={(id) => { setTarget(id); setTab("qualified"); }} />
       ) : tab !== "sources" ? (
-        <RadarBoard key={tab} items={tabItems} googleReady={googleReady} tz={tz} voiceEnabled={voiceEnabled} emptyText="Nothing here yet. The radar runs every 15 minutes; the morning digest always brings at least one opportunity." />
+        <RadarBoard key={tab} items={tabItems} googleReady={googleReady} tz={tz} voiceEnabled={voiceEnabled}
+          targets={hunts.map((h) => ({ id: h.id, name: h.name, trip: h.kind === "trip" }))} target={target} onTarget={setTarget} emptyText="Nothing here yet. The radar runs every 15 minutes; the morning digest always brings at least one opportunity." />
       ) : (
         <div className="space-y-3">
           <div className="overflow-x-auto rounded-2xl border border-border">

@@ -197,4 +197,22 @@ export const TOOLS: Tool[] = [
       return { queued: true };
     },
   },
+  {
+    name: "sales_add_target",
+    description: "Add a radar target or trip from one plain line, e.g. \"I'm in Udaipur from 29 Nov to 2 Dec, hotels and wedding planners\" or \"Dubai real estate brokers, ongoing\". It starts searching within a minute. A trip stops after its last day and its messages ask to meet in person.",
+    readOnly: false,
+    inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"], additionalProperties: false },
+    async run(a) {
+      const { parseTarget } = await import("../sales/targets");
+      const { saveHunt } = await import("../sales/hunts");
+      const t = await parseTarget(String(a.text ?? ""));
+      const trip = t.kind === "trip";
+      const id = await saveHunt({
+        ...t, sweep_sources: !trip,
+        ...(trip ? { schedule: "interval", every_hours: 8, window_from: 7, window_to: 23, signals: t.signals ?? ["requirement", "hiring", "launch", "review"] } : {}),
+      });
+      await runHuntNow(id);
+      return { id, name: t.name, kind: t.kind, cities: t.cities, industries: t.industries, trip_from: t.trip_from, trip_to: t.trip_to, understood_by: t.by };
+    },
+  },
 ];

@@ -18,11 +18,14 @@ export default async function RadarPage() {
   await seedHunts();
   const [items, sources, cfg, google, hunts, plan] = await Promise.all([
     q<RadarItem>(
-      `select r.id, r.title, r.body, r.url, r.score, r.status, r.found_at, r.posted_at, r.deal_id, r.fit, r.hidden, r.company_id, r.known, r.blocked, r.poster, r.identity, r.brief, r.seen_at, r.author, r.prep, mv.draft as ready_draft, mv.draft_subject as ready_subject, mv.channel as ready_channel, co.enriched_at as researched_at, s.name as source, s.category, h.name as hunt
+      `select r.id, r.title, r.body, r.url, r.score, r.status, r.found_at, r.posted_at, r.deal_id, r.fit, r.hidden, r.company_id, r.known, r.blocked, r.poster, r.identity, r.brief, r.seen_at, r.author, r.prep, mv.draft as ready_draft, mv.draft_subject as ready_subject, mv.channel as ready_channel, co.enriched_at as researched_at, s.name as source, s.category, h.name as hunt, r.hunt_id, r.lead_kind,
+              case when h.kind = 'trip' then json_build_object('city', h.cities[1], 'from', to_char(h.trip_from, 'YYYY-MM-DD'), 'to', to_char(h.trip_to, 'YYYY-MM-DD')) end as trip,
+              (select to_char(m.starts_at at time zone $1, 'YYYY-MM-DD HH24:MI') from sales_meetings m where m.radar_item_id = r.id and not m.cancelled order by m.starts_at desc limit 1) as meeting_at
        from sales_radar_items r left join sales_radar_sources s on s.id = r.source_id left join sales_hunts h on h.id = r.hunt_id left join sales_companies co on co.id = r.company_id
        left join sales_moves mv on mv.dedupe_key = 'radar:' || r.id and mv.status = 'open'
        where (r.found_at > now() - interval '10 days' or r.sent_back_at > now() - interval '10 days') and r.status in ('qualified','new','rejected','skipped')
        order by coalesce(r.posted_at, r.found_at) desc limit 300`,
+      [(await getSettings()).timezone],
     ),
     q<SourceRow>("select * from sales_radar_sources order by enabled desc, category, name"),
     salesConfig(),

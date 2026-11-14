@@ -77,7 +77,7 @@ const TABLES = new Set(ORDER);
 const CREATED_TABLES = new Set([
   "tasks", "diary_entries", "scratch_items", "contact_touches", "task_remarks", "time_logs", "projects", "people",
   "contacts", "refs", "exercise_types", "exercise_logs", "work_segments",
-  "sales_deals", "sales_commitments", "sales_interactions",
+  "sales_deals", "sales_commitments", "sales_interactions", "sales_hunts",
 ]);
 
 export const taskScopes = (taskId: number): Scope[] => [

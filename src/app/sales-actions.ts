@@ -478,6 +478,24 @@ export async function runHuntAction(id: number) {
 export async function huntRunsAction(id: number) {
   return run<{ runs: HuntRun[] }>(async () => ({ runs: await recentRuns(id) }), []);
 }
+/** One line ("Udaipur, 29 Nov to 2 Dec, hotels") into a target form you can check before saving. Saves nothing. */
+export async function parseTargetAction(text: string) {
+  return run<{ target: HuntInput & { by: "ai" | "rules" } }>(async () => {
+    const { parseTarget } = await import("@/lib/sales/targets");
+    return { target: await parseTarget(text) };
+  }, []);
+}
+export async function bookLeadMeetingAction(itemId: number, date: string, time: string, place?: string | null) {
+  return run<{ deal_id: number; meeting_id: number }>(async () => {
+    const { bookLeadMeeting } = await import("@/lib/sales/targets");
+    return bookLeadMeeting(itemId, date, time, { place: place ?? null });
+  }, ["/sales/radar", "/sales"]);
+}
+export async function cancelLeadMeetingAction(meetingId: number) {
+  return run(async () => {
+    await q("update sales_meetings set cancelled = true where id = $1 and radar_item_id is not null", [meetingId]);
+  }, ["/sales/radar"]);
+}
 
 export async function toggleSourceAction(id: number, enabled: boolean) {
   return run(async () => {

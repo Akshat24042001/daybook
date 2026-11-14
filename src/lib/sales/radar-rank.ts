@@ -13,6 +13,8 @@ export interface RankItem {
   posted_at: string | null;
   found_at: string;
   seen_at?: string | null;
+  lead_kind?: string | null;
+  trip?: { from: string } | null;
   fit: { urgency?: string } | null;
   identity?: { status: string; emails: string[]; phones: string[]; linkedin?: string | null; person?: string | null } | null;
   prep?: { stage: string } | null;
@@ -55,8 +57,11 @@ export function priority(it: RankItem, now = Date.now()): { value: number; reaso
   const paid = isPaid(it.url);
   const reasons: string[] = [];
   let v = (it.score ?? 50) * fresh;
-  if (h < 6) reasons.push("Posted in the last 6 hours");
-  else if (h < 24) reasons.push("Posted today");
+  // a local business we found was not posted by anyone: its time is when we found it
+  const what = it.lead_kind === "prospect" ? "Found" : "Posted";
+  if (h < 6) reasons.push(`${what} in the last 6 hours`);
+  else if (h < 24) reasons.push(`${what} today`);
+  if (it.trip) { v += 3; reasons.push("For your trip: reach them before you go"); }
   if ((it.score ?? 0) >= 80) reasons.push(`Strong fit (${it.score})`);
   if (direct) { v += 12; reasons.push("You can reach them directly"); }
   else if (paid) { v -= 8; }

@@ -43,6 +43,8 @@ export interface RawItem {
   posted_at?: string | Date | null;
   /** who posted it, as the platform shows them publicly */
   poster?: Poster | null;
+  /** what makes it the same item next time, when the link alone does not (several businesses found on one page) */
+  key?: string;
 }
 
 export interface Poster {
@@ -292,19 +294,19 @@ async function fetchApi(api: string, c: Record<string, unknown>, focus: { countr
 
 const urlHash = (s: string) => createHash("sha1").update(s.toLowerCase().replace(/[?#].*$/, "").replace(/\/+$/, "")).digest("hex");
 
-export async function storeItems(sourceId: number | null, items: RawItem[], o: { huntId?: number; runId?: number } = {}): Promise<number> {
+export async function storeItems(sourceId: number | null, items: RawItem[], o: { huntId?: number; runId?: number; kind?: "post" | "prospect" | "news" } = {}): Promise<number> {
   let added = 0;
   const weekAgo = Date.now() - 7 * 86_400_000;
   for (const it of items) {
     if (!it.title) continue;
     const posted = it.posted_at ? new Date(it.posted_at) : null;
     if (posted && !Number.isNaN(posted.getTime()) && posted.getTime() < weekAgo) continue;
-    const key = it.url ? urlHash(it.url) : urlHash(`${it.title}|${it.body.slice(0, 200)}`);
+    const key = it.key ? urlHash(it.key) : it.url ? urlHash(it.url) : urlHash(`${it.title}|${it.body.slice(0, 200)}`);
     const row = await one<{ id: number }>(
-      `insert into sales_radar_items (source_id, url, url_hash, title, body, author, posted_at, hunt_id, hunt_run_id, poster) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      `insert into sales_radar_items (source_id, url, url_hash, title, body, author, posted_at, hunt_id, hunt_run_id, poster, lead_kind) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        on conflict (url_hash) do nothing returning id`,
       [sourceId, it.url, key, it.title.slice(0, 400), it.body?.slice(0, 6000) ?? null, it.author ?? null, posted && !Number.isNaN(posted.getTime()) ? posted : null, o.huntId ?? null, o.runId ?? null,
-        it.poster ? JSON.stringify(it.poster) : it.author ? JSON.stringify({ name: it.author }) : null],
+        it.poster ? JSON.stringify(it.poster) : it.author ? JSON.stringify({ name: it.author }) : null, o.kind ?? "post"],
     );
     if (row) added += 1;
   }
@@ -378,6 +380,10 @@ Each item has a CATEGORY that changes how to score it:
 - funding / launch: fresh money or a new venture that will need systems now. Score by fit and reachability.
 - review: public complaints that show a broken process (no replies, missed calls, lost orders). Score by how directly an offer fixes it.
 - tender: a public RFP; score by fit and whether a small agency can bid.
+- prospect: a local business found for one of the owner's targets; nobody asked. Score by how clearly the offers would help this kind of business
+  (enquiries, bookings, WhatsApp, follow-ups, reviews, operations), whether it is an independent business someone local decides for (not a chain's branch),
+  and whether it is really in the target place. 55 to 80 for a clear fit; above 80 only with public evidence of a problem the offers fix. buyer is "signal".
+- launch (also local news): a business opening, launching or expanding. Score the fit and whether it is a business you could approach.
 Return a JSON array, one object per item: {"i": item number, "score": 0-100, "buyer": "direct_client|agency|job_full_time|signal|candidate|spam|other",
 "country", "industry", "company" (exactly as written in the post, else null), "contact" (a person's name exactly as written, else null),
 "website" (only if it appears in the post, else null), "services": [matching offers, short],
@@ -412,14 +418,18 @@ export async function qualifyPending(budgetMs = 45_000): Promise<number> {
   const deadline = Date.now() + budgetMs;
   let done = 0;
   while (Date.now() < deadline - 15_000) {
-    const batch = await q<{ id: number; title: string; body: string | null; url: string | null; category: string; source: string; posted_at: string | null; hunt_brief: string | null; hunt_min: number | null; hunt_notify: boolean | null }>(
-      `select r.id, r.title, r.body, r.url, coalesce(s.category, 'requirement') as category, coalesce(s.name, h.name, 'manual') as source, r.posted_at,
-              h.brief as hunt_brief, h.min_score as hunt_min, h.notify as hunt_notify
+    const batch = await q<{ id: number; title: string; body: string | null; url: string | null; category: string; source: string; posted_at: string | null; hunt_brief: string | null; hunt_min: number | null; hunt_notify: boolean | null; hunt_place: string | null; trip: string | null }>(
+      `select r.id, r.title, r.body, r.url,
+              case r.lead_kind when 'prospect' then 'prospect' when 'news' then 'launch' else coalesce(s.category, 'requirement') end as category,
+              coalesce(s.name, h.name, 'manual') as source, r.posted_at,
+              h.brief as hunt_brief, h.min_score as hunt_min, h.notify as hunt_notify,
+              nullif(array_to_string(h.cities || h.countries, ', '), '') as hunt_place,
+              case when h.kind = 'trip' then to_char(h.trip_from, 'YYYY-MM-DD') || ' to ' || to_char(h.trip_to, 'YYYY-MM-DD') end as trip
        from sales_radar_items r left join sales_radar_sources s on s.id = r.source_id left join sales_hunts h on h.id = r.hunt_id
        where r.status = 'new' and r.score is null order by r.found_at desc limit 8`,
     );
     if (!batch.length) break;
-    const text = batch.map((b, i) => `#${i + 1} CATEGORY: ${b.category} | SOURCE: ${b.source}${b.posted_at ? ` | POSTED: ${new Date(b.posted_at).toISOString().slice(0, 10)}` : ""}${b.hunt_brief ? `\nWHAT THE OWNER ASKED THIS HUNT TO FIND: ${b.hunt_brief.slice(0, 500)} (score higher when the item matches this; lower when it clearly does not)` : ""}\nTITLE: ${b.title}\nURL: ${b.url ?? ""}\n${(b.body ?? "").slice(0, 1200)}`).join("\n\n");
+    const text = batch.map((b, i) => `#${i + 1} CATEGORY: ${b.category} | SOURCE: ${b.source}${b.posted_at ? ` | POSTED: ${new Date(b.posted_at).toISOString().slice(0, 10)}` : ""}${b.hunt_brief ? `\nWHAT THE OWNER ASKED THIS HUNT TO FIND: ${b.hunt_brief.slice(0, 500)} (score higher when the item matches this; lower when it clearly does not)` : ""}${b.hunt_place ? `\nTARGET PLACE: ${b.hunt_place}${b.trip ? ` (the owner is there ${b.trip} and wants to meet businesses in person)` : ""}. An item clearly outside this place scores under 35, unless it is remote work they would happily do from anywhere.` : ""}\nTITLE: ${b.title}\nURL: ${b.url ?? ""}\n${(b.body ?? "").slice(0, 1200)}`).join("\n\n");
     let verdicts: Verdict[] = [];
     try {
       const out = await llmJson<Verdict[] | { items: Verdict[] }>(qualifySystem(cfg, focus), text, { maxTokens: 2500, totalMs: Math.max(20_000, deadline - Date.now() - 5_000) });
