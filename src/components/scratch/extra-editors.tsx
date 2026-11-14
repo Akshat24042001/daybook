@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { CODE_LANGS, TABLE_MAX_COLS, TABLE_MAX_ROWS, type ChecklistData, type CodeData, type LinkData, type TableData } from "@/lib/scratch";
 import { colName, evaluateSheet, showCell } from "@/lib/sheet";
 import { useToast } from "../toast";
+import { Select } from "../ui";
 
 const box = "rounded-xl border border-border bg-surface outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20";
 const newId = () => Math.random().toString(36).slice(2, 10);
@@ -245,9 +246,9 @@ export function CodeEditor({ data, onChange, autoFocus }: { data: CodeData; onCh
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <select value={data.lang} onChange={(e) => onChange({ ...data, lang: e.target.value })} className={cn(box, "h-8 px-2 text-xs")} aria-label="Language">
+        <Select value={data.lang} onChange={(e) => onChange({ ...data, lang: e.target.value })} className="h-8 w-auto min-w-[8rem] text-xs" aria-label="Language">
           {CODE_LANGS.map((l) => <option key={l} value={l}>{l}</option>)}
-        </select>
+        </Select>
         <span className="flex-1" />
         <button
           onClick={() => navigator.clipboard?.writeText(data.code).then(() => toast("Copied."), () => undefined)}

@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import {
   addBlockAction, radarBriefAction, radarDraftAction, radarHideAction, radarSeenAction, radarStatusAction, radarToDealAction,
 } from "@/app/sales-actions";
-import { Button, Sheet } from "@/components/ui";
+import { Button, Select, Sheet } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import type { MoveRow } from "@/lib/sales/moves";
@@ -134,10 +134,10 @@ export function RadarBoard({ items, googleReady, tz, emptyText, voiceEnabled = f
       <Seg label="Show" value={only} onChange={setOnly} options={[["all", "All"], ["ready", `Ready${ready ? ` · ${ready}` : ""}`], ["unread", `Unread${unread ? ` · ${unread}` : ""}`], ["direct", "Contact found"], ["free", "Free to reply"], ["paid", "Paid sites"]]} />
       {targets.length ? (
         <label className="flex items-center gap-1.5 text-subtle">Target
-          <select aria-label="Target" value={target ?? ""} onChange={(e) => onTarget?.(e.target.value ? Number(e.target.value) : null)} className="h-7 rounded-md border border-border bg-surface px-1.5 text-xs text-fg">
+          <Select aria-label="Target" value={target == null ? "" : String(target)} onChange={(e) => onTarget?.(e.target.value ? Number(e.target.value) : null)} className="h-7 w-auto min-w-[10rem] rounded-md px-2 pr-8 text-xs shadow-none">
             <option value="">All leads</option>
             {targets.map((t) => <option key={t.id} value={t.id}>{t.trip ? "Trip: " : ""}{t.name} ({items.filter((i) => i.hunt_id === t.id && !i.hidden).length})</option>)}
-          </select>
+          </Select>
         </label>
       ) : null}
       <label className="flex items-center gap-1.5 text-subtle"><input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> Hidden ({hiddenCount})</label>

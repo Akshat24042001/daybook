@@ -304,7 +304,14 @@ export function SettingsView({ d }: { d: SettingsData }) {
   );
 }
 
-const REQ_LABEL: Record<string, string> = { none: "free", reason: "reason", date: "date", quote: "quote" };
+const REQ_LABEL: Record<string, string> = { none: "Free", reason: "Reason", date: "Date", quote: "Quote" };
+/** each cell's look says what the move needs at a glance */
+const REQ_TONE: Record<string, string> = {
+  none: "border-transparent bg-p-mint text-p-mint-fg",
+  reason: "border-transparent bg-p-butter text-p-butter-fg",
+  date: "border-transparent bg-p-sky text-p-sky-fg",
+  quote: "border-transparent bg-p-lilac text-p-lilac-fg",
+};
 
 function StageEditor({ stages, transitions }: { stages: Stage[]; transitions: Transition[] }) {
   const [rows, setRows] = useState(stages);
@@ -350,20 +357,20 @@ function StageEditor({ stages, transitions }: { stages: Stage[]; transitions: Tr
       })}><Plus className="h-3.5 w-3.5" /> Add a stage</Button>
 
       <h3 className="mt-5 text-sm font-semibold">Allowed moves</h3>
-      <p className="mb-2 flex items-center gap-1 text-xs text-subtle">Row = from, column = to. <InfoTip label="Reading the grid">Each cell is blank (not allowed), free, or what the move needs.</InfoTip></p>
+      <p className="mb-2 flex items-center gap-1 text-xs text-subtle">Row = from, column = to. <InfoTip label="Reading the grid">Each cell says whether a deal may move from that row's stage to that column's stage: No (not allowed), Free (no questions), or what you must give when moving it (a Reason, a Date, or a sent Quote).</InfoTip></p>
       <div className="overflow-x-auto">
         <table className="text-xs">
-          <thead><tr><th className="sticky left-0 bg-surface p-1 text-left">from \ to</th>{stages.map((s) => <th key={s.id} className="p-1 align-bottom"><div className="w-16 truncate text-left" title={s.name}>{s.name}</div></th>)}</tr></thead>
+          <thead><tr><th className="sticky left-0 z-10 whitespace-nowrap bg-surface p-1 pr-3 text-left">from \ to</th>{stages.map((s) => <th key={s.id} className="p-1 align-bottom"><div className="w-[88px] truncate text-left" title={s.name}>{s.name}</div></th>)}</tr></thead>
           <tbody>
             {stages.map((f) => (
               <tr key={f.id} className="border-t border-border">
-                <td className="sticky left-0 bg-surface p-1 pr-2 font-medium">{f.name}</td>
+                <td className="sticky left-0 z-10 whitespace-nowrap bg-surface p-1 pr-3 font-medium">{f.name}</td>
                 {stages.map((t) => {
                   const v = edge(f.id, t.id);
                   return (
                     <td key={t.id} className="p-0.5">
-                      {f.id === t.id ? <span className="block w-16 text-center text-subtle">·</span> : (
-                        <select
+                      {f.id === t.id ? <span className="block w-[88px] text-center text-subtle">·</span> : (
+                        <Select
                           value={v ?? ""}
                           onChange={(e) => start(async () => {
                             const val = e.target.value;
@@ -371,12 +378,12 @@ function StageEditor({ stages, transitions }: { stages: Stage[]; transitions: Tr
                             if (!r.ok) toast(r.error, "error");
                             router.refresh();
                           })}
-                          className={cn("h-6 w-16 rounded border border-border bg-bg text-[10px]", v && "border-accent/50 text-accent")}
+                          className={cn("h-7 w-[88px] rounded-lg px-2 pr-7 text-[11px] shadow-none", v ? REQ_TONE[v] : "border-dashed bg-transparent font-normal text-subtle")}
                           aria-label={`${f.name} to ${t.name}`}
                         >
-                          <option value="" />
+                          <option value="">No</option>
                           {Object.entries(REQ_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-                        </select>
+                        </Select>
                       )}
                     </td>
                   );

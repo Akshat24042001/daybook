@@ -11,7 +11,7 @@ import { HUE, type Hue } from "@/lib/hue";
 import { fmtDuration } from "@/lib/time";
 import type { TaskListRow, TaskLogRow } from "@/lib/services/tasks";
 import { useToast } from "../toast";
-import { Button, Chip, Input } from "../ui";
+import { Button, Chip, Input, Select } from "../ui";
 
 type Tab = "all" | "active" | "done" | "dropped" | "waiting" | "log";
 
@@ -117,10 +117,10 @@ export function TasksView({ tasks, log }: { tasks: TaskListRow[]; log: TaskLogRo
           <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tasks" className="pl-9" aria-label="Search tasks" />
         </div>
         {projects.length ? (
-          <select value={project} onChange={(e) => setProject(e.target.value)} aria-label="Filter by project" className="h-10 rounded-xl border border-border bg-surface px-3 text-sm">
+          <Select value={project} onChange={(e) => setProject(e.target.value)} aria-label="Filter by project" className="h-10 w-auto min-w-[10rem]">
             <option value="">All projects</option>
             {projects.map((p) => <option key={p}>{p}</option>)}
-          </select>
+          </Select>
         ) : null}
       </div>
 

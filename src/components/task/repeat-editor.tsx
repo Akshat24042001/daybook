@@ -3,6 +3,7 @@
 import { CalendarX2, Pause, Plus, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
+import { Select } from "@/components/ui";
 import {
   defaultRepeat, describeRepeat, formatRepeat, nextOccurrences, parseRepeat, repeatProblem, WEEKDAY_NAME, WEEKDAYS,
   type Freq, type Repeat, type Weekday,
@@ -153,12 +154,12 @@ export function RepeatEditor({
           </div>
           {r.nth ? (
             <div className="flex flex-wrap items-center gap-2 text-sm">
-              <select value={r.nth} onChange={(e) => update({ nth: Number(e.target.value) })} className={input} aria-label="Which week">
+              <Select value={r.nth} onChange={(e) => update({ nth: Number(e.target.value) })} className={cn(input, "w-auto min-w-[7rem]")} aria-label="Which week">
                 {NTHS.map(([n, l]) => <option key={n} value={n}>{l}</option>)}
-              </select>
-              <select value={r.nthDay ?? "MO"} onChange={(e) => update({ nthDay: e.target.value as Weekday })} className={input} aria-label="Weekday">
+              </Select>
+              <Select value={r.nthDay ?? "MO"} onChange={(e) => update({ nthDay: e.target.value as Weekday })} className={cn(input, "w-auto min-w-[7rem]")} aria-label="Weekday">
                 {WEEKDAYS.map((w) => <option key={w} value={w}>{WEEKDAY_NAME[w]}</option>)}
-              </select>
+              </Select>
               <span className="text-subtle">of the month</span>
             </div>
           ) : (
@@ -186,17 +187,17 @@ export function RepeatEditor({
       {r.freq === "yearly" ? (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-subtle">On</span>
-          <select
+          <Select
             value={r.monthDays[0] ?? 1}
             onChange={(e) => update({ monthDays: [Number(e.target.value)] })}
-            className={input}
+            className={cn(input, "w-auto min-w-[6rem]")}
             aria-label="Day"
           >
             {[...Array.from({ length: 31 }, (_, i) => i + 1), -1].map((d) => <option key={d} value={d}>{d === -1 ? "last day" : d}</option>)}
-          </select>
-          <select value={r.month ?? 1} onChange={(e) => update({ month: Number(e.target.value) })} className={input} aria-label="Month">
+          </Select>
+          <Select value={r.month ?? 1} onChange={(e) => update({ month: Number(e.target.value) })} className={cn(input, "w-auto min-w-[7rem]")} aria-label="Month">
             {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-          </select>
+          </Select>
         </div>
       ) : null}
 
