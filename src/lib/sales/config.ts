@@ -19,6 +19,8 @@ export interface SalesConfig {
     timezone_note: string;
     /** your Calendly / Cal.com link; drafts offer it whenever the next step is a call */
     booking_url: string;
+    /** groups you belong to (JITO, YPO, a rotary club...): a trip looks for their events first */
+    communities: string[];
   };
   offers: string[];
   /** extra voice rules on top of the built-in style guide */
@@ -107,6 +109,7 @@ export const DEFAULT_CONFIG: SalesConfig = {
     signature: "Akshat\nAivaura | aivaura.com",
     timezone_note: "India (IST)",
     booking_url: "",
+    communities: ["JITO (Jain International Trade Organisation)"],
   },
   offers: [
     "AI agents and AI automation for operations, sales and support",

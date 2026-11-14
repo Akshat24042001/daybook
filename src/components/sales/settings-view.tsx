@@ -56,7 +56,7 @@ export function SettingsView({ d }: { d: SettingsData }) {
   const router = useRouter();
   const [busy, start] = useTransition();
   const c = d.cfg;
-  const [owner, setOwner] = useState({ ...c.owner, aliases: c.owner.aliases.join(", "), emails: c.owner.emails.join(", "), phones: c.owner.phones.join(", ") });
+  const [owner, setOwner] = useState({ ...c.owner, aliases: c.owner.aliases.join(", "), emails: c.owner.emails.join(", "), phones: c.owner.phones.join(", "), communities: (c.owner.communities ?? []).join(", ") });
   const [voice, setVoice] = useState(c.voice_rules);
   const [countries, setCountries] = useState(c.countries.join("\n"));
   const [industries, setIndustries] = useState(c.industries.join("\n"));
@@ -174,6 +174,7 @@ export function SettingsView({ d }: { d: SettingsData }) {
           <Field label="Website"><Input value={owner.website} onChange={(e) => setOwner({ ...owner, website: e.target.value })} /></Field>
           <Field label="Title"><Input value={owner.title} onChange={(e) => setOwner({ ...owner, title: e.target.value })} /></Field>
           <Field label="Email signature"><Textarea value={owner.signature} onChange={(e) => setOwner({ ...owner, signature: e.target.value })} className="min-h-[60px]" /></Field>
+          <div className="sm:col-span-2"><Field label="Communities you belong to" hint="Comma separated, e.g. JITO, YPO, Rotary. When you add a trip, their events in and around that city come first."><Input value={owner.communities} onChange={(e) => setOwner({ ...owner, communities: e.target.value })} placeholder="JITO (Jain International Trade Organisation)" /></Field></div>
           <div className="sm:col-span-2"><Field label="Your booking link" hint="Calendly, Cal.com or similar. Drafts offer it whenever the next step is a call, so nobody has to go back and forth on times."><Input value={owner.booking_url ?? ""} onChange={(e) => setOwner({ ...owner, booking_url: e.target.value.trim() })} placeholder="https://cal.com/you/30min" /></Field></div>
           <div className="sm:col-span-2">
             <p className="mb-1.5 text-[13px] font-medium">What you sell</p>
@@ -183,7 +184,7 @@ export function SettingsView({ d }: { d: SettingsData }) {
           </div>
           <div className="sm:col-span-2"><Field label="Extra voice rules" hint={'e.g. "Use Haan ji with Indian clients", "never say kindly"'}><Textarea value={voice} onChange={(e) => setVoice(e.target.value)} className="min-h-[60px]" /></Field></div>
         </div>
-        <div className="mt-3 flex justify-end"><Button variant="primary" disabled={busy} onClick={() => save({ owner: { ...owner, aliases: csv(owner.aliases), emails: csv(owner.emails), phones: csv(owner.phones) }, voice_rules: voice })}>Save</Button></div>
+        <div className="mt-3 flex justify-end"><Button variant="primary" disabled={busy} onClick={() => save({ owner: { ...owner, aliases: csv(owner.aliases), emails: csv(owner.emails), phones: csv(owner.phones), communities: csv(owner.communities) }, voice_rules: voice })}>Save</Button></div>
       </Card>
 
       <Card id="targeting" title="Radar targeting" sub="Where the radar looks for leads." info="One country per week, one industry per day.\n- Adaptive gives more turns to the ones that bring results (Radar > Plan shows why).\n- The digest always brings at least the daily minimum, and keeps hunting until it does.">

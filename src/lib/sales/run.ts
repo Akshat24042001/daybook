@@ -100,6 +100,10 @@ export const HANDLERS: Record<string, Handler> = {
   async hunt_run(p) {
     await runHunt(Number(p.id), String(p.trigger ?? "schedule"), 45_000);
   },
+  async trip_events(p) {
+    const { findTripEvents } = await import("./targets");
+    await findTripEvents(Number(p.id), 45_000);
+  },
   async hunt_report(p) {
     await reportHunt(Number(p.runId));
   },

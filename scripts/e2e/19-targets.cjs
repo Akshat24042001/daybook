@@ -21,7 +21,7 @@ const { setup, check } = require("./lib.cjs");
   const sheet = page.getByRole("dialog");
   await sheet.getByText("Here is what I understood").waitFor();
   check("the line becomes a trip form to check", (await sheet.getByRole("button", { name: "A trip", pressed: true }).count()) === 1
-    && (await sheet.getByLabel("City").inputValue()) === "Udaipur" && (await sheet.getByLabel("First day").inputValue()) === from.iso && (await sheet.getByLabel("Last day").inputValue()) === to.iso);
+    && (await sheet.getByLabel("City", { exact: true }).inputValue()) === "Udaipur" && (await sheet.getByLabel("First day").inputValue()) === from.iso && (await sheet.getByLabel("Last day").inputValue()) === to.iso);
   check("a trip asks to meet and finds local businesses by default", await sheet.getByLabel(/ask to meet in person/i).isChecked() && await sheet.getByLabel(/find local businesses/i).isChecked());
   await sheet.getByRole("button", { name: "Start the trip search" }).click();
   const card = page.getByRole("listitem", { name: "Udaipur trip" });
@@ -62,6 +62,29 @@ const { setup, check } = require("./lib.cjs");
   const planText = await plan.innerText();
   check("the trip plan shows it on its day", /1 meeting[\s\S]*11:30[\s\S]*Meet E2E Lake Haveli in Udaipur/.test(planText), planText.slice(0, 200));
   { const cardText = await page.getByRole("listitem", { name: "Udaipur trip" }).innerText(); check("the card counts the meeting", /1\s*Meetings/.test(cardText), cardText.split("\n").slice(0, 16).join(" | ")); }
+
+  // events around the trip: yours first, unconfirmed dates flagged, I'll go puts them on the plan
+  await db.query(`insert into sales_trip_events (hunt_id, key, title, kind, starts_on, ends_on, venue, city, organizer, url, why, community, date_confirmed) values
+    ($1, 'a', 'E2E JITO Udaipur Business Connect', 'community', $2, $2, 'Hotel Lakend', 'Udaipur', 'JITO Udaipur', 'https://e2e.trip/jito', 'Jain business owners from Udaipur', 'JITO', true),
+    ($1, 'b', 'E2E Udaipur Startup Summit', 'startup', $3, $3, null, 'Udaipur', null, 'https://e2e.trip/summit', 'Founders and investors', null, false),
+    ($1, 'c', 'E2E Rajasthan AI Conclave', 'tech', null, null, null, 'Jaipur', null, 'https://e2e.trip/ai', null, null, false)`, [hunt.id, day(20).iso, day(16).iso]);
+  await go("/sales/radar");
+  await page.getByRole("button", { name: /Targets & trips/ }).click();
+  const evs = page.getByRole("listitem", { name: "Udaipur trip" }).getByRole("region", { name: "Events around your trip" });
+  await evs.waitFor();
+  const et = await evs.innerText();
+  check("events list: your community first, with when relative to the trip", /^[\s\S]*JITO[\s\S]*2 days after you leave[\s\S]*E2E JITO Udaipur Business Connect[\s\S]*E2E Udaipur Startup Summit/.test(et), et.slice(0, 300));
+  check("a date the page did not show clearly is flagged, a missing one says so", /check the date/.test(et) && /Date not shown: open the page/.test(et));
+  check("each event links to the page it came from", (await evs.getByRole("link", { name: /E2E JITO Udaipur Business Connect/ }).getAttribute("href")) === "https://e2e.trip/jito");
+  await evs.getByRole("listitem").filter({ hasText: "E2E JITO Udaipur Business Connect" }).getByRole("button", { name: "I'll go" }).click();
+  await evs.getByRole("button", { name: "Going" }).waitFor();
+  const plan2 = await page.getByRole("listitem", { name: "Udaipur trip" }).getByRole("list", { name: "Trip plan" }).innerText();
+  check("an event after the trip stretches the plan, marked outside the trip", /1 event · outside the trip: stay longer\?[\s\S]*E2E JITO Udaipur Business Connect/.test(plan2), plan2.slice(-300));
+  await evs.getByRole("button", { name: "Skip E2E Rajasthan AI Conclave" }).click();
+  await evs.getByRole("button", { name: "Show 1 skipped" }).waitFor();
+  check("skipping hides it, and it can come back", !(await evs.innerText()).includes("E2E Rajasthan AI Conclave"));
+  const st = await one("select status from sales_trip_events where hunt_id = $1 and key = 'a'", [hunt.id]);
+  check("I'll go is saved", st.status === "going");
 
   // an ongoing target with a city and words to skip, on a phone
   await page.setViewportSize({ width: 390, height: 844 });

@@ -11,7 +11,7 @@ import { cn } from "@/lib/cn";
 import { describeSchedule, searchesPerDay, type Schedule } from "@/lib/sales/hunt-schedule";
 import type { HuntInput, HuntRun, HuntView } from "@/lib/sales/hunts";
 import { fmtRange } from "@/lib/time";
-import { TripPlan, tripLabel } from "./radar-trip";
+import { TripEvents, TripPlan, tripLabel } from "./radar-trip";
 import { ago } from "./util";
 import { Ago } from "@/components/sales/ago";
 
@@ -36,6 +36,7 @@ type Draft = {
   name: string; brief: string; keywords: string; countries: string; industries: string; signals: string[]; sweep_sources: boolean;
   queries_per_run: number; min_score: string; notify: boolean; enabled: boolean;
   kind: "standing" | "trip"; cities: string; exclude: string; starts_on: string; ends_on: string; trip_from: string; trip_to: string; meet: boolean; prospects: boolean;
+  region: string; events: boolean;
 } & Schedule;
 
 const blank = (): Draft => ({
@@ -43,6 +44,7 @@ const blank = (): Draft => ({
   queries_per_run: 6, min_score: "", notify: true, enabled: true,
   schedule: "at", every_hours: 1, at_time: "09:00", days: [1, 2, 3, 4, 5, 6, 7], window_from: 0, window_to: 24,
   kind: "standing", cities: "", exclude: "", starts_on: "", ends_on: "", trip_from: "", trip_to: "", meet: false, prospects: false,
+  region: "", events: true,
 });
 /** A trip searches twice a day from now until it ends, finds local businesses and asks them to meet. */
 const tripDefaults = (d: Draft): Draft => ({
@@ -54,13 +56,14 @@ const fromHunt = (h: HuntView): Draft => ({
   sweep_sources: h.sweep_sources, queries_per_run: h.queries_per_run, min_score: h.min_score === null ? "" : String(h.min_score), notify: h.notify, enabled: h.enabled,
   schedule: h.schedule, every_hours: h.every_hours, at_time: h.at_time, days: h.days, window_from: h.window_from, window_to: h.window_to,
   kind: h.kind, cities: h.cities.join(", "), exclude: h.exclude.join(", "), starts_on: h.starts_on ?? "", ends_on: h.ends_on ?? "", trip_from: h.trip_from ?? "", trip_to: h.trip_to ?? "", meet: h.meet, prospects: h.prospects,
+  region: h.region ?? "", events: h.events,
 });
 /** What the one-line box understood, as a form to check. */
 const fromParsed = (p: HuntInput): Draft => {
   const base = p.kind === "trip" ? tripDefaults(blank()) : { ...blank(), prospects: !!p.prospects };
   return {
     ...base, name: p.name ?? "", brief: p.brief ?? "", cities: (p.cities ?? []).join(", "), countries: (p.countries ?? []).join(", "), industries: (p.industries ?? []).join(", "),
-    keywords: (p.keywords ?? []).join(", "), exclude: (p.exclude ?? []).join(", "), trip_from: p.trip_from ?? "", trip_to: p.trip_to ?? "",
+    keywords: (p.keywords ?? []).join(", "), exclude: (p.exclude ?? []).join(", "), trip_from: p.trip_from ?? "", trip_to: p.trip_to ?? "", region: p.region ?? "",
     meet: p.kind === "trip" ? true : !!p.meet, signals: p.signals?.length ? p.signals : base.signals,
   };
 };
@@ -88,7 +91,10 @@ function HuntForm({ draft, setDraft, cap, providers }: { draft: Draft; setDraft:
             <Field label="First day"><Input type="date" value={draft.trip_from} onChange={(e) => set("trip_from", e.target.value)} /></Field>
             <Field label="Last day"><Input type="date" value={draft.trip_to} min={draft.trip_from || undefined} onChange={(e) => set("trip_to", e.target.value)} /></Field>
           </div>
+          <Field label="State or region" hint="For events and leads nearby"><Input value={draft.region} onChange={(e) => set("region", e.target.value)} placeholder="Rajasthan" /></Field>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.meet} onChange={(e) => set("meet", e.target.checked)} /> Messages ask to meet in person while I am there (with two concrete times)</label>
+          <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={draft.events} onChange={(e) => set("events", e.target.checked)} />
+            <span>Find events around my dates <span className="block text-xs text-subtle">Your communities (Sales settings), business meets, talks, startup and industry events in and near the city, from 5 days before to 5 days after.</span></span></label>
           <p className="text-xs text-subtle">It starts searching now and stops by itself after the last day.</p>
         </div>
       ) : null}
@@ -223,6 +229,7 @@ export function HuntsPanel({ hunts, searchCap, providers, tz, onShowLeads }: { h
       schedule: d.schedule, every_hours: d.every_hours, at_time: d.at_time, days: d.days, window_from: d.window_from, window_to: d.window_to,
       kind: d.kind, cities: list(d.cities), exclude: list(d.exclude), starts_on: d.starts_on || null, ends_on: d.kind === "trip" ? null : d.ends_on || null,
       trip_from: d.trip_from || null, trip_to: d.trip_to || null, meet: d.meet, prospects: d.prospects,
+      region: d.region.trim() || null, events: d.events,
     }, editing.id);
     if (!r.ok) return toast(r.error, "error");
     toast(editing.id ? "Saved" : d.kind === "trip" ? "Trip added. The first search runs within a minute." : "Target added. The first search runs within a minute.");
@@ -260,7 +267,7 @@ export function HuntsPanel({ hunts, searchCap, providers, tz, onShowLeads }: { h
               <div className="min-w-0 flex-1">
                 <p className="font-semibold leading-snug">{h.name}</p>
                 {isTrip ? <p className="text-xs font-semibold text-p-butter-fg" suppressHydrationWarning>{tripLabel({ city: h.cities[0] ?? h.name, from: h.trip_from!, to: h.trip_to! }, today, { short: true })}</p> : null}
-                {place && !isTrip ? <p className="flex items-center gap-1 text-xs text-subtle"><MapPin className="h-3 w-3" />{place}</p> : null}
+                {!isTrip ? <p className="text-xs font-medium text-subtle">Ongoing target{place ? <span className="ml-1 inline-flex items-center gap-1 font-normal"><MapPin className="h-3 w-3" />{place}</span> : null}</p> : null}
                 {h.ended_at ? <p className="text-xs text-subtle">Finished: it stopped after {h.ends_on ?? h.trip_to}.</p> : null}
                 <p className="text-xs font-medium text-p-lilac-fg">{describeSchedule(h)}{!isTrip && (h.starts_on || h.ends_on) ? ` · ${h.starts_on && h.ends_on ? fmtRange(h.starts_on, h.ends_on) : h.starts_on ? `from ${h.starts_on}` : `until ${h.ends_on}`}` : ""}</p>
                 {h.brief ? <p className="mt-1 line-clamp-2 text-xs text-subtle">{h.brief}</p> : null}
@@ -277,15 +284,17 @@ export function HuntsPanel({ hunts, searchCap, providers, tz, onShowLeads }: { h
             </div>
             {isTrip ? (
               <details className="mt-2" open={h.enabled}>
-                <summary className="cursor-pointer text-xs font-medium">Day by day ({h.meetings.length} meeting{h.meetings.length === 1 ? "" : "s"} booked)</summary>
-                <TripPlan from={h.trip_from!} to={h.trip_to!} meetings={h.meetings} tz={tz} />
+                <summary className="cursor-pointer text-xs font-medium">Day by day ({h.meetings.length} meeting{h.meetings.length === 1 ? "" : "s"} booked{h.events_list.filter((e) => e.status === "going").length ? `, ${h.events_list.filter((e) => e.status === "going").length} event${h.events_list.filter((e) => e.status === "going").length === 1 ? "" : "s"}` : ""})</summary>
+                <TripPlan from={h.trip_from!} to={h.trip_to!} meetings={h.meetings} tz={tz} events={h.events_list} />
               </details>
             ) : null}
+            {isTrip && h.events ? <TripEvents huntId={h.id} events={h.events_list} from={h.trip_from!} to={h.trip_to!} checkedAt={h.events_checked_at ?? null} /> : null}
             <p className="mt-2 text-xs text-subtle">
               {h.last_run ? <>Last run <Ago d={h.last_run.started_at} /> · <span className={h.last_run.status === "error" ? "text-bad" : ""}>{h.last_run.status === "running" ? "running now" : `${h.last_run.found} new`}</span></> : "Never run"}
               {h.enabled && h.next_run_at ? <> · next {new Date(h.next_run_at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: tz })}</> : null}
               {" · "}≈{h.searches_per_day} searches a day
             </p>
+            {h.enabled && h.searches_per_day > searchCap ? <p className="mt-1 rounded-lg bg-p-butter px-2 py-1 text-xs text-p-butter-fg">This uses more searches a day than your paid daily limit ({searchCap}), so every target falls back to the weaker free search. Run it less often (Edit, When it runs).</p> : null}
             {h.last_run?.error ? <p className="mt-1 text-xs text-bad">{h.last_run.error}</p> : null}
             <div className="mt-3 flex flex-wrap gap-1.5">
               <Button size="sm" variant="primary" disabled={busy} onClick={() => start(async () => {

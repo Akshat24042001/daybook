@@ -491,6 +491,18 @@ export async function bookLeadMeetingAction(itemId: number, date: string, time: 
     return bookLeadMeeting(itemId, date, time, { place: place ?? null });
   }, ["/sales/radar", "/sales"]);
 }
+export async function tripEventStatusAction(id: number, status: "new" | "going" | "skipped") {
+  return run(async () => {
+    const { setTripEventStatus } = await import("@/lib/sales/targets");
+    await setTripEventStatus(id, status);
+  }, ["/sales/radar"]);
+}
+export async function findTripEventsAction(huntId: number) {
+  return run(async () => {
+    const { queueTripEvents } = await import("@/lib/sales/targets");
+    await queueTripEvents(huntId, true);
+  }, ["/sales/radar"]);
+}
 export async function cancelLeadMeetingAction(meetingId: number) {
   return run(async () => {
     await q("update sales_meetings set cancelled = true where id = $1 and radar_item_id is not null", [meetingId]);

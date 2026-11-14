@@ -714,3 +714,23 @@ from 07:00 to 23:00 by default), stops by itself after the last day, and:
 
 Search cost: a trip makes about 12 web searches a day plus 3 for local businesses per run; the card shows the estimate.
 Searches past your paid daily cap use the free engines.
+
+### Events around a trip
+
+A trip also looks for events worth your time in and near the city (the same state or about 150 km), from 5 days before
+you arrive to 5 days after you leave: your communities first (Sales > Settings > **Communities you belong to**, JITO by
+default), then business and entrepreneur meets, startup and tech meetups, talks by known speakers, and industry
+conferences and expos. It searches once a day in its own job (web search plus Google through Gemini) and Telegram tells
+you about new ones.
+
+Nothing is invented: an event is kept only when a search result names it, its link is that page, and a date counts only
+when the page shows it. A date the page does not show clearly is marked **check the date**, and one it does not show at
+all says **Date not shown**. Events already over, or outside the window, are dropped.
+
+On the trip card, **Events around your trip** lists them with when each is relative to your trip ("2 days after you
+leave"). **I'll go** puts it on the day-by-day plan (the plan stretches to cover an event just before or after the trip,
+marked "outside the trip: stay longer?"); the cross skips it. **Look again** searches now. Each trip has a **State or
+region** field and a **Find events around my dates** switch.
+
+Cards also say what they are: a trip shows its countdown, anything else says **Ongoing target**. A target that would use
+more searches a day than your paid daily limit says so, because it pushes every target onto the weaker free search.

@@ -21,7 +21,7 @@ import { push } from "./notify";
 import { qualifyPending, runRadar, storeItems } from "./radar";
 import { searchConfigured, webSearch } from "./search";
 import { calendarDate } from "../time";
-import { cityNews, endFinishedTargets, findProspects, isExcluded, placeOf, tripMeetings, tripPhase, type TripMeeting } from "./targets";
+import { cityNews, endFinishedTargets, findProspects, isExcluded, placeOf, queueTripEvents, tripEvents, tripMeetings, tripPhase, type TripEvent, type TripMeeting } from "./targets";
 
 export const SIGNALS = ["requirement", "hiring", "funding", "review", "tender", "launch"] as const;
 
@@ -52,6 +52,11 @@ export interface HuntRow extends Schedule {
   meet: boolean;
   /** also finds local businesses that fit the offers, not only posts */
   prospects: boolean;
+  /** the state or province around the cities, for events and searches nearby */
+  region: string | null;
+  /** a trip also looks for events around its dates (your communities first) */
+  events: boolean;
+  events_checked_at?: string | null;
   ended_at?: string | null;
   next_run_at: string | null;
   last_run_at: string | null;
@@ -76,11 +81,12 @@ export interface HuntView extends HuntRow {
   /** everything it found, not only the last 7 days: for trips, where the whole run matters */
   total: { found: number; qualified: number; ready: number; contacted: number; meetings: number };
   meetings: TripMeeting[];
+  events_list: TripEvent[];
   last_run: HuntRun | null;
   searches_per_day: number;
 }
 
-export type HuntInput = Partial<Omit<HuntRow, "id" | "next_run_at" | "last_run_at" | "ended_at">>;
+export type HuntInput = Partial<Omit<HuntRow, "id" | "next_run_at" | "last_run_at" | "ended_at" | "events_checked_at">>;
 
 const DEFAULTS: Partial<HuntRow> = {
   schedule: "at", at_time: "09:00", days: [1, 2, 3, 4, 5, 6, 7], every_hours: 1, window_from: 0, window_to: 24,
@@ -138,6 +144,7 @@ export function validateHunt(input: HuntInput, base?: HuntRow): Omit<HuntRow, "i
     schedule, every_hours: every, at_time: m.at_time, days, window_from: from, window_to: to,
     kind, cities, exclude: clean(m.exclude, 30, 80), starts_on: startsOn, ends_on: endsOn, trip_from: tripFrom, trip_to: tripTo,
     meet: kind === "trip" ? m.meet !== false : !!m.meet, prospects: !!m.prospects && cities.length > 0,
+    region: m.region ? String(m.region).trim().slice(0, 80) || null : null, events: m.events !== false,
   };
 }
 
@@ -145,7 +152,7 @@ async function tz(): Promise<string> {
   return (await getSettings()).timezone;
 }
 
-const COLS = "name, enabled, brief, keywords, countries, industries, signals, sweep_sources, queries_per_run, min_score, notify, schedule, every_hours, at_time, days, window_from, window_to, kind, cities, exclude, starts_on, ends_on, trip_from, trip_to, meet, prospects";
+const COLS = "name, enabled, brief, keywords, countries, industries, signals, sweep_sources, queries_per_run, min_score, notify, schedule, every_hours, at_time, days, window_from, window_to, kind, cities, exclude, starts_on, ends_on, trip_from, trip_to, meet, prospects, region, events";
 
 export async function saveHunt(input: HuntInput, id?: number): Promise<number> {
   const base = id ? await one<HuntRow>("select * from sales_hunts where id = $1", [id]) : null;
@@ -153,10 +160,10 @@ export async function saveHunt(input: HuntInput, id?: number): Promise<number> {
   const h = validateHunt(input, base ?? undefined);
   const next = h.enabled ? nextRunAfter(h, new Date(), await tz()) : null;
   const vals = [h.name, h.enabled, h.brief, h.keywords, h.countries, h.industries, h.signals, h.sweep_sources, h.queries_per_run, h.min_score, h.notify, h.schedule, h.every_hours, h.at_time, h.days, h.window_from, h.window_to,
-    h.kind, h.cities, h.exclude, h.starts_on, h.ends_on, h.trip_from, h.trip_to, h.meet, h.prospects, next];
+    h.kind, h.cities, h.exclude, h.starts_on, h.ends_on, h.trip_from, h.trip_to, h.meet, h.prospects, h.region, h.events, next];
   if (base) {
     await q(
-      `update sales_hunts set ${COLS.split(", ").map((c, i) => `${c} = $${i + 2}`).join(", ")}, next_run_at = $${vals.length + 1}, ended_at = null where id = $1`,
+      `update sales_hunts set ${COLS.split(", ").map((c, i) => `${c} = $${i + 2}`).join(", ")}, next_run_at = $${vals.length + 1}, ended_at = null, events_checked_at = null where id = $1`,
       [base.id, ...vals],
     );
     return base.id;
@@ -202,7 +209,11 @@ export async function listHunts(): Promise<HuntView[]> {
     [rows.map((h) => h.id)],
   );
   const meetings = new Map<number, TripMeeting[]>();
-  for (const h of rows.filter((x) => x.kind === "trip")) meetings.set(h.id, await tripMeetings(h.id));
+  const events = new Map<number, TripEvent[]>();
+  for (const h of rows.filter((x) => x.kind === "trip")) {
+    meetings.set(h.id, await tripMeetings(h.id));
+    events.set(h.id, await tripEvents(h.id));
+  }
   return rows.map((h) => ({
     ...h,
     starts_on: h.starts_on ? String(h.starts_on).slice(0, 10) : null, ends_on: h.ends_on ? String(h.ends_on).slice(0, 10) : null,
@@ -210,6 +221,7 @@ export async function listHunts(): Promise<HuntView[]> {
     week: stats.find((s) => s.hunt_id === h.id) ?? { found: 0, qualified: 0, hot: 0, converted: 0 },
     total: totals.find((s) => s.hunt_id === h.id) ?? { found: 0, qualified: 0, ready: 0, contacted: 0, meetings: 0 },
     meetings: meetings.get(h.id) ?? [],
+    events_list: events.get(h.id) ?? [],
     last_run: runs.find((r) => r.hunt_id === h.id) ?? null,
     searches_per_day: searchesPerDay(h, h.queries_per_run, h.keywords.length),
   }));
@@ -354,6 +366,8 @@ export async function runHunt(id: number, trigger = "schedule", budgetMs = 45_00
   try {
     const plan = await planQueries(h, budgetMs / 3);
     await q("update sales_hunt_runs set queries = $2 where id = $1", [runId, plan.queries]);
+    // a trip looks for events around its dates once a day, in its own job
+    if (h.kind === "trip") await queueTripEvents(h.id).catch(() => {});
     const tag = `[hunt: ${h.name}] `;
     const keep = <T extends { title: string; body: string }>(xs: T[]) => (h.exclude.length ? xs.filter((x) => !isExcluded(h.exclude, `${x.title}\n${x.body}`)) : xs);
     // three at a time: fast enough for the time budget, gentle enough for free search tiers
