@@ -1,5 +1,6 @@
 "use server";
 
+import { markRadarSeen, radarBrief, type RadarBrief } from "@/lib/sales/radar-brief";
 import { behindThenResearch, researchLeadFully, type Identity } from "@/lib/sales/behind-post";
 import { doneQuickAction, summarizeDeal } from "@/lib/sales/conversation";
 import { noDashes } from "@/lib/text/no-dashes";
@@ -410,6 +411,14 @@ export async function researchLeadAction(itemId: number, override?: { company?: 
   return run<{ runId: number | null }>(async () => ({
     runId: override?.company || override?.website ? await researchRadarItem(itemId, override, "manual") : await researchLeadFully(itemId, "manual"),
   }), ["/sales/radar"]);
+}
+/** The lead in plain words (what they need, how you can help, what to ask); made once, then kept. */
+export async function radarBriefAction(itemId: number, force = false) {
+  return run<{ brief: RadarBrief }>(async () => ({ brief: await radarBrief(itemId, force) }), []);
+}
+/** You opened these leads: they stop showing as unread. */
+export async function radarSeenAction(ids: number[]) {
+  return run(async () => { await markRadarSeen(ids.filter((x) => Number.isInteger(x)).slice(0, 300)); }, []);
 }
 /** Finds the business behind a post (and then researches it): who posted it, who decides, how to reach them directly. */
 export async function findBehindAction(itemId: number) {

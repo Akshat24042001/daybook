@@ -39,17 +39,23 @@ const { setup, check } = require("./lib.cjs");
   check("single first name refused with a message", (await page.getByText(/single first name is too vague/).count()) > 0);
 
   // 2. radar page: known badge, blocked lead gone from Qualified, "Never contact" on another
+  // the radar is a list on the left and the selected lead on the right: pick a lead, then act on it
+  const pick = async (text) => {
+    await page.getByRole("option", { name: new RegExp(text) }).first().click();
+    await page.waitForTimeout(300);
+    return page.getByRole("article", { name: "Selected lead" }).first();
+  };
   await go("/sales/radar");
-  const card1 = page.locator("li", { hasText: "Echo Systems is hiring three data entry clerks" });
+  const card1 = await pick("Echo Systems is hiring three data entry clerks");
   check("radar shows 'You already know them' with the deal link", (await card1.getByText(/You already know them \(same website domain\)/).count()) === 1 && (await card1.locator(`a[href="/sales/deal/${deal}"]`).count()) === 1);
   check("radar says making it a lead adds to that deal", (await card1.getByText(/adds it to that deal/).count()) === 1);
-  check("blocked lead not in the Qualified list", (await page.locator("li", { hasText: "Foxtrot Labs needs a booking bot" }).count()) === 0);
+  check("blocked lead not in the Qualified list", (await page.getByRole("option", { name: /Foxtrot Labs needs a booking bot/ }).count()) === 0);
   await go("/sales"); // the Moves page rebuilds the move list, as the background tick does
   await go("/sales/radar");
   const moves = await all("select title, why from sales_moves where status = 'open' and radar_item_id in ($1,$2)", [await id("e2e-1"), await id("e2e-2")]);
   check("known lead's move says so; blocked lead has no move", moves.length === 1 && moves[0].title.startsWith("Known contact:"), moves);
 
-  const card3 = page.locator("li", { hasText: "Golf Corp wants a CRM cleanup" });
+  const card3 = await pick("Golf Corp wants a CRM cleanup");
   await card3.getByRole("button", { name: "Never contact" }).click();
   await page.waitForTimeout(1500);
   const r3 = await one("select status, blocked from sales_radar_items where url_hash = 'e2e-3'");
@@ -59,7 +65,7 @@ const { setup, check } = require("./lib.cjs");
   // 3. making the known lead a lead adds it to the existing deal
   await go("/sales/radar");
   const before = (await one("select count(*)::int as n from sales_deals")).n;
-  await page.locator("li", { hasText: "Echo Systems is hiring three data entry clerks" }).getByRole("button", { name: "Make it a lead" }).click();
+  await (await pick("Echo Systems is hiring three data entry clerks")).getByRole("button", { name: "Make it a lead" }).click();
   await page.waitForURL(new RegExp(`/sales/deal/${deal}$`), { timeout: 15000 });
   check("went to the existing deal", page.url().endsWith(`/sales/deal/${deal}`));
   check("no duplicate deal created", (await one("select count(*)::int as n from sales_deals")).n === before);

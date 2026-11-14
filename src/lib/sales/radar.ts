@@ -344,7 +344,8 @@ Each item has a CATEGORY that changes how to score it:
 Return a JSON array, one object per item: {"i": item number, "score": 0-100, "buyer": "direct_client|agency|job_full_time|signal|candidate|spam|other",
 "country", "industry", "company" (exactly as written in the post, else null), "contact" (a person's name exactly as written, else null),
 "website" (only if it appears in the post, else null), "services": [matching offers, short],
-"budget" (if stated), "urgency": "high|medium|low", "why": one line on the fit, "angle": the specific value-first opener idea in one line,
+"budget" (if stated), "urgency": "high|medium|low", "why": one line on the fit,
+"need": what they want in one plain sentence a non-technical person understands, "help": one line on how the offers solve it, "angle": the specific value-first opener idea in one line,
 "money_leak": for signals, one honest line estimating what the problem costs them per year with the assumption stated, else null}.
 Be strict and honest. Never inflate a score to fill a quota.`;
 }

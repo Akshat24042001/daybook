@@ -267,3 +267,16 @@ input::-webkit-datetime-edit-ampm-field:focus {
   color: hsl(var(--fg));
   border-radius: 4px;
 }
+
+@layer components {
+  /* one-click actions on a lead: email, call, WhatsApp, open the post */
+  .act {
+    @apply inline-flex items-center gap-1 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[13px] font-medium text-fg transition-colors hover:border-accent hover:text-accent;
+  }
+  .act-primary {
+    @apply border-accent bg-accent text-accent-fg hover:text-accent-fg hover:opacity-90;
+  }
+  .kbd {
+    @apply rounded border border-border bg-muted px-1 font-mono text-[10px] text-fg;
+  }
+}

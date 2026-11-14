@@ -25,7 +25,7 @@ function png(w, h) {
       { kind: "promise", label: "Share two case studies", detail: null, due: "2026-11-18", stage: null },
       { kind: "call", label: "Call to walk through pricing", detail: null, due: null, stage: null },
     ], reply_draft: "Hi Ravi, for 3 branches it is around 2 lakh. Full proposal by Friday.", at: new Date().toISOString() })]);
-  await db.query("insert into sales_interactions (deal_id, channel, direction, body, summary, source, occurred_at) values ($1,'whatsapp','in','What would it cost for 3 branches?','Asked the price for 3 branches','manual', now() - interval '1 hour')", [deal.id]);
+  await db.query("insert into sales_interactions (deal_id, channel, direction, body, summary, source, occurred_at) values ($1,'whatsapp','in','What would it cost for 3 branches?','Asked the price for 3 branches','manual', now())", [deal.id]);
 
   await go(`/sales/deal/${deal.id}`);
   const card = page.getByRole("region", { name: "Conversation" });

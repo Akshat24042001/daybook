@@ -597,3 +597,33 @@ Telegram shows the same.
 - Many marketplace posts give nothing away; those come back "could not tie a business to this post".
 
 When it finds the business, the full company research runs on its own (decision makers, every contact). **Draft a direct message** then writes to them directly, and **Make it a lead** carries the person, email and phone into the deal. Strong leads (score 70+) are searched automatically in the background.
+
+## Radar board: what to do first, and what they need
+
+On a computer the radar is two panes: the list on the left, the selected lead on the right. On a phone, tapping a lead opens it in a sheet.
+
+**Do first** (the default order) ranks by:
+- how fresh it is (the first replies win most work)
+- the fit score
+- whether you can reach them directly (a found email, phone or LinkedIn lifts it)
+- whether they need it soon
+
+Paid sites with no contact go lower, and leads you have opened drop slightly. The top three carry #1 to #3, and each lead says why it ranks where it does. **Newest** and **Best match** are the other orders.
+
+**Unread.** A blue dot marks leads you have not opened yet; opening one marks it read. **Unread** shows only those.
+
+**Duplicates.** The same requirement found twice (two sources, or posted twice with a different budget) shows once, marked "+1 more source". Skip, Hide and Not relevant apply to every copy.
+
+**The selected lead**, top to bottom:
+- **Header:** rank, fit, when it was posted, where and why it ranks there.
+- **Reach them:** one click each. **Email** opens your mail with a subject, "Hi <first name>," and an opening line. **Call**, **WhatsApp** (with the opening line), **LinkedIn**, **Open the post** and **Copy opener**. Contacts come from the business found behind the post and from anything written in the post.
+- **Work it:** draft a message (a direct one when you can reach them), make it a lead, research, skip, hide, not relevant, never contact.
+- **What they need:** their requirement in one or two plain sentences, the deliverables, budget, timing and size.
+- **How you can help:** concrete steps tied to your offers, which offers fit, and the line to open with.
+- **Ask them:** questions to ask before quoting. **Watch out** shows when something makes it a poor fit.
+- **Who posted it:** their public profile and Find them directly.
+- **Quick links**, and **their post, word for word**.
+
+The plain-language part is written by the AI the first time you open a lead, then kept. New leads also get a one-line need and how-to-help when they are scored.
+
+**Keys:** j / k (or the arrows) move, o opens the post, d drafts, s skips, h hides.
