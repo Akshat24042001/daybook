@@ -14,6 +14,7 @@ import { PlanPanel } from "./plan-panel";
 import { RadarBoard } from "./radar-board";
 import type { Poster, WhoIdentity } from "./radar-who";
 import type { RadarBrief } from "@/lib/sales/radar-brief";
+import type { Prep } from "@/lib/sales/radar-prep";
 import type { RadarPlan } from "@/lib/sales/radar-plan";
 import type { HuntView } from "@/lib/sales/hunts";
 
@@ -29,6 +30,10 @@ export interface RadarItem {
   brief?: RadarBrief | null;
   seen_at?: string | null;
   author?: string | null;
+  prep?: Prep | null;
+  ready_draft?: string | null;
+  ready_subject?: string | null;
+  ready_channel?: string | null;
 }
 
 export interface SourceRow {

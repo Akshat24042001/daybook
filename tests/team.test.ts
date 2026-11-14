@@ -82,7 +82,8 @@ describe("signing in", () => {
     expect(r.token).not.toContain("riya");
     expect((await currentRep(r.token)).id).toBe(riya.id);
     // tampering with any character breaks it
-    const t = r.token.slice(0, -3) + (r.token.endsWith("A") ? "B" : "A") + r.token.slice(-2);
+    const c = r.token.at(-3)!;
+    const t = r.token.slice(0, -3) + (c === "A" ? "B" : "A") + r.token.slice(-2); // always a different character
     await expect(currentRep(t)).rejects.toThrow();
     await expect(currentRep("garbage")).rejects.toThrow();
     await expect(currentRep(null)).rejects.toThrow();

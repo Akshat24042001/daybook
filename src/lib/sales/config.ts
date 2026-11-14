@@ -45,8 +45,11 @@ export interface SalesConfig {
     alert_score: number;
     search_daily_cap: number;
     enrich_queries: number;
-    /** qualified radar leads at or above this score are researched automatically (company, contacts, people); 101 turns it off */
+    /** qualified radar leads at or above this score are prepared automatically (requirement, business behind it, company,
+     * decision maker, contacts, draft); 0 = every qualified lead, 101 turns it off */
     auto_research_score: number;
+    /** at most this many leads prepared a day (protects the free search and AI quotas) */
+    auto_prep_daily: number;
     /** adaptive: countries and industries that bring results get more turns; rotate: the old even rotation */
     targeting: "adaptive" | "rotate";
     /** share of turns (percent) given to the least-tested country or industry when adaptive */
@@ -128,7 +131,7 @@ export const DEFAULT_CONFIG: SalesConfig = {
   reengage_days: 7,
   reply_within_hours: 3,
   ghost_revisit_days: 60,
-  radar: { min_score: 60, daily_min: 1, digest_hour: 9, alert_score: 85, search_daily_cap: 25, enrich_queries: 5, auto_research_score: 70, targeting: "adaptive", explore_pct: 20 },
+  radar: { min_score: 60, daily_min: 1, digest_hour: 9, alert_score: 85, search_daily_cap: 25, enrich_queries: 5, auto_research_score: 0, auto_prep_daily: 40, targeting: "adaptive", explore_pct: 20 },
   targets: { monthly_revenue: 0, weekly_conversations: 15, daily_outreach: 5 },
   post_sale: { checkin_days: [30, 90], upsell_after_days: 45, retainer: true },
   brief_hour: 9,

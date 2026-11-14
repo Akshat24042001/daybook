@@ -15,7 +15,12 @@ export interface RankItem {
   seen_at?: string | null;
   fit: { urgency?: string } | null;
   identity?: { status: string; emails: string[]; phones: string[]; linkedin?: string | null; person?: string | null } | null;
+  prep?: { stage: string } | null;
+  ready_draft?: string | null;
 }
+
+/** Prepared on its own: the requirement, the business, the people and a draft are done. */
+export const isReady = (it: RankItem) => it.prep?.stage === "ready";
 
 
 const PAID = new Set(["upwork", "freelancer", "pph", "guru"]);
@@ -57,6 +62,7 @@ export function priority(it: RankItem, now = Date.now()): { value: number; reaso
   else if (paid) { v -= 8; }
   else if (platformOf(it.url)?.replyable) { v += 4; reasons.push(`Free to reply on ${platformOf(it.url)!.name}`); }
   if (it.fit?.urgency === "high") { v += 6; reasons.push("They need it soon"); }
+  if (isReady(it) && it.ready_draft) { v += 5; reasons.push("Ready: message written"); }
   if (it.seen_at) v -= 3;
   return { value: Math.round(v), reasons };
 }

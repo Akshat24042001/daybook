@@ -17,8 +17,9 @@ export default async function RadarPage() {
   await seedHunts();
   const [items, sources, cfg, google, hunts, plan] = await Promise.all([
     q<RadarItem>(
-      `select r.id, r.title, r.body, r.url, r.score, r.status, r.found_at, r.posted_at, r.deal_id, r.fit, r.hidden, r.company_id, r.known, r.blocked, r.poster, r.identity, r.brief, r.seen_at, r.author, co.enriched_at as researched_at, s.name as source, s.category, h.name as hunt
+      `select r.id, r.title, r.body, r.url, r.score, r.status, r.found_at, r.posted_at, r.deal_id, r.fit, r.hidden, r.company_id, r.known, r.blocked, r.poster, r.identity, r.brief, r.seen_at, r.author, r.prep, mv.draft as ready_draft, mv.draft_subject as ready_subject, mv.channel as ready_channel, co.enriched_at as researched_at, s.name as source, s.category, h.name as hunt
        from sales_radar_items r left join sales_radar_sources s on s.id = r.source_id left join sales_hunts h on h.id = r.hunt_id left join sales_companies co on co.id = r.company_id
+       left join sales_moves mv on mv.dedupe_key = 'radar:' || r.id and mv.status = 'open'
        where (r.found_at > now() - interval '10 days' or r.sent_back_at > now() - interval '10 days') and r.status in ('qualified','new','rejected','skipped')
        order by coalesce(r.posted_at, r.found_at) desc limit 300`,
     ),

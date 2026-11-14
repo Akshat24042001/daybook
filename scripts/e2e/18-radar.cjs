@@ -70,6 +70,34 @@ const { setup, check } = require("./lib.cjs");
   await page.getByRole("button", { name: /^Unread/ }).click();
   check("unread view leaves out what you opened", !(await rows()).some((x) => x.includes("Inventory app")));
 
+  // a lead prepared on its own: Ready badge and filter, checklist, decision maker, company, insights, the message
+  const readyId = (await add("https://www.freelancer.com/projects/e2e-ready", "E2E: Booking bot for a clinic group", 0.5, { score: 75 })).id;
+  const pack = {
+    company: { name: "Shah Dental Clinics", website: "https://shahdental.in", summary: "Three dental clinics in Pune.", what_they_do: "Dental care and implants", size: "20-50", location: "Pune, India", revenue: null, budget: "INR 1 to 3 lakh", founded: "2014" },
+    decision_maker: { name: "Dr Ravi Shah", title: "Founder", email: "ravi@shahdental.in", phone: "+91 98200 11111", linkedin: null, why: "Posted the requirement" },
+    others: [{ name: "Meera Iyer", title: "Operations", email: null, linkedin: null }],
+    contacts: { emails: ["ravi@shahdental.in", "contact@shahdental.in"], phones: ["+91 98200 11111"], whatsapp: null, contact_page: "https://shahdental.in/contact", linkedin: null },
+    insights: [{ label: "Their likely pain", text: "Missed calls at peak hours" }, { label: "Best first offer", text: "WhatsApp booking pilot in one branch" }],
+  };
+  const steps = { brief: { ok: true, note: "Requirement understood", at: new Date().toISOString() }, behind: { ok: true, note: "Found Dr Ravi Shah at Shah Dental Clinics", at: new Date().toISOString() }, pack: { ok: true, note: "Decision maker: Dr Ravi Shah", at: new Date().toISOString() }, draft: { ok: true, note: "Draft ready for email", at: new Date().toISOString() } };
+  await db.query("update sales_radar_items set prep = $2, identity = $3 where id = $1", [readyId, JSON.stringify({ stage: "ready", started_at: new Date().toISOString(), ready_at: new Date().toISOString(), steps, pack }),
+    JSON.stringify({ status: "found", company: "Shah Dental Clinics", person: "Dr Ravi Shah", emails: ["ravi@shahdental.in"], phones: ["+91 98200 11111"], evidence: [], note: "n", checked_at: new Date().toISOString(), confidence: "high" })]);
+  await db.query("insert into sales_moves (radar_item_id, kind, title, why, created_by, dedupe_key, draft, ai_draft, draft_subject, channel) values ($1, 'radar', 'x', 'x', 'auto', $2, $3, $3, $4, 'email')",
+    [readyId, `radar:${readyId}`, "Hi Ravi, saw you want WhatsApp booking for your three clinics. We can pilot it in one branch in two weeks.", "WhatsApp booking for your clinics"]);
+  await go("/sales/radar");
+  await page.getByRole("button", { name: /^Ready/ }).click();
+  const readyRows = await rows();
+  check("Ready filter shows the prepared lead with its badge", readyRows.length === 1 && /Ready/.test(readyRows[0]));
+  await list.getByRole("option").filter({ hasText: "Booking bot for a clinic group" }).click();
+  const packEl = page.getByRole("region", { name: "Ready lead" });
+  const pk = await packEl.innerText();
+  check("ready card: checklist all done", /Ready for you[\s\S]*Requirement understood[\s\S]*Business behind the post[\s\S]*Decision maker and contacts[\s\S]*Draft written/i.test(pk));
+  check("ready card: decision maker, company, insights", /Dr Ravi Shah[\s\S]*Founder/.test(pk) && /Shah Dental Clinics[\s\S]*Pune, India · 20-50 · since 2014/.test(pk) && pk.includes("WhatsApp booking pilot in one branch") && pk.includes("Meera Iyer"));
+  const mail = await packEl.getByRole("link", { name: /Email it to ravi@shahdental.in/ }).getAttribute("href");
+  check("ready message: one click to email it, subject and body filled", decodeURIComponent(mail).includes("subject=WhatsApp booking for your clinics") && decodeURIComponent(mail).includes("pilot it in one branch"));
+  check("ready message: WhatsApp it", (await packEl.getByRole("link", { name: "WhatsApp it" }).getAttribute("href")).startsWith("https://wa.me/919820011111?text="));
+  await page.getByRole("button", { name: "All", exact: true }).click();
+
   // phone width: the list, and a sheet for the lead
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "All", exact: true }).click();

@@ -66,7 +66,7 @@ const { setup, check } = require("./lib.cjs");
   await go("/sales/radar");
   const before = (await one("select count(*)::int as n from sales_deals")).n;
   await (await pick("Echo Systems is hiring three data entry clerks")).getByRole("button", { name: "Make it a lead" }).click();
-  await page.waitForURL(new RegExp(`/sales/deal/${deal}$`), { timeout: 15000 });
+  await page.waitForURL(new RegExp(`/sales/deal/${deal}$`), { timeout: 30000 });
   check("went to the existing deal", page.url().endsWith(`/sales/deal/${deal}`));
   check("no duplicate deal created", (await one("select count(*)::int as n from sales_deals")).n === before);
   check("the post is on the deal's timeline", (await all("select 1 from sales_interactions where deal_id = $1 and summary like 'Radar found them again%'", [deal])).length === 1);

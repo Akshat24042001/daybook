@@ -20,6 +20,7 @@ import { ownerChat, push } from "./notify";
 import { reportHunt, runHunt, scheduleHunts } from "./hunts";
 import { deepStage, personStage, personSynthStage, searchStage, siteStage, startResearch, synthStage } from "./research";
 import { researchLeadFully } from "./behind-post";
+import { radarPrepStep, scheduleRadarPrep, type PrepStep } from "./radar-prep";
 import { dailyDigest, hunt, qualifyPending, runRadar } from "./radar";
 import { weeklyReview, reviewMessage, reviewInsights } from "./review";
 import { syncObjections } from "./objections";
@@ -73,6 +74,9 @@ export const HANDLERS: Record<string, Handler> = {
   },
   async research_person(p) {
     await personStage(Number(p.runId));
+  },
+  async radar_prep(p) {
+    await radarPrepStep(Number(p.id), String(p.step) as PrepStep);
   },
   async radar_research(p) {
     // a post that names no business (most marketplace posts): find who is behind it first, then research them
@@ -192,6 +196,8 @@ export async function runSalesTick(now: Date = new Date()): Promise<string> {
   if (Date.now() - (await lastDone("refresh_moves")) > 10 * 60_000) await enqueue("refresh_moves", {}, { dedupeKey: "refresh_moves:all" });
   if (Date.now() - (await lastDone("radar_run")) > 15 * 60_000) await enqueue("radar_run", {}, { dedupeKey: "radar_run" });
   await scheduleHunts(now).catch((e) => console.warn("[sales] hunts:", (e as Error).message));
+  // qualified leads are made ready on their own: requirement, business behind it, company, decision maker, contacts, draft
+  await scheduleRadarPrep().catch((e) => console.warn("[sales] radar prep:", (e as Error).message));
   // anything captured but never queued (a crash mid-request)
   await q(
     `insert into sales_jobs (kind, payload, dedupe_key) select 'process_capture', jsonb_build_object('id', c.id), 'capture:' || c.id

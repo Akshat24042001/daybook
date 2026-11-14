@@ -161,7 +161,12 @@ export function replyTargets(t: TargetInput): Target[] {
 /** The channel a draft should be written for: the place it will actually be sent. */
 export function draftChannel(t: TargetInput): string {
   const platform = platformOf(t.source_url);
-  if (platform?.replyable && (t.radar_only || (!t.phones?.length && !t.emails?.length && !t.linkedin))) return platform.key;
+  const direct = !!(t.phones?.length || t.emails?.length || t.linkedin);
+  // a free place to reply (Reddit, HN, LinkedIn post): answer where they posted. A paid marketplace (bids, credits):
+  // write to them directly once their contact is known, a first email before a WhatsApp to someone who does not know you
+  const paid = !!platform && ["upwork", "freelancer", "pph", "guru"].includes(platform.key);
+  if (platform?.replyable && (!direct || (t.radar_only && !paid))) return platform.key;
+  if (t.radar_only && paid && t.emails?.length) return "email";
   if (t.phones?.some((x) => waDigitsPure(x))) return "whatsapp";
   if (t.emails?.length) return "email";
   if (t.linkedin) return "linkedin";

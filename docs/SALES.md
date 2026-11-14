@@ -627,3 +627,30 @@ Paid sites with no contact go lower, and leads you have opened drop slightly. Th
 The plain-language part is written by the AI the first time you open a lead, then kept. New leads also get a one-line need and how-to-help when they are scored.
 
 **Keys:** j / k (or the arrows) move, o opens the post, d drafts, s skips, h hides.
+
+## Leads prepared on their own
+
+Every qualified radar lead is made ready without you asking. Each minute the background tick picks the newest qualified leads not yet prepared and runs four short steps:
+
+1. **Requirement:** what they need, in plain words, with how you can help and questions to ask.
+2. **Business behind it:** the business that posted it. When the post names it, that is used; otherwise the "who is behind it" search runs. The full company research starts on that business.
+3. **Decision maker and contacts:** once the research is done (it waits up to about 10 minutes), this pulls together:
+   - the decision maker (someone the research marked as deciding, else the person behind the post, else the CEO or founder named) with their email, phone and LinkedIn
+   - the company's public emails, phones and contact page
+   - what the company does, its size, place, founding year, revenue range and a realistic budget
+   - insights: likely pain, where you can help, best first offer, who to approach, recent news, growth signals, what the problem costs them, tools they use, what customers say, watch-outs
+4. **Draft:** a message written for the best way to reach them. On a paid marketplace with a contact found, it is a direct email, not a bid.
+
+**On the radar**, a prepared lead shows **Ready** in the list (and **Preparing** while it runs), and the **Ready** filter shows only those. The lead's pane opens with **Ready for you**:
+- the checklist (each step says what stopped it, if anything)
+- the decision maker and company cards with one-click contacts
+- the insights
+- the message with **Email it**, **WhatsApp it**, **Copy**, and **Rewrite and log it**
+
+Ready leads with a message rank a little higher in Do first.
+
+**Limits.**
+- Leads from the last 4 days, newest first, at most 40 a day (Sales settings > Radar > "Prepare at most this many a day"), to protect the free search and AI quotas.
+- "Prepare leads automatically from score": 0 prepares every qualified lead (the default), a number sets a higher bar, and 101 turns it off.
+- A lead you skip, reject or make into a deal stops being prepared.
+- The same rules as the manual search: businesses only, contacts only when they were seen in what was read, nothing invented.

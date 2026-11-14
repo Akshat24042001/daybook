@@ -21,12 +21,13 @@ import { PosterLine, WhoPanel, whenLabel } from "./radar-who";
 import { ResearchSheet } from "./research-sheet";
 import type { RadarItem } from "./radar-view";
 import { ago } from "./util";
-import { contactsOf, dedupeKey, hoursSince, isPaid, priority } from "@/lib/sales/radar-rank";
+import { contactsOf, dedupeKey, hoursSince, isPaid, isReady, priority } from "@/lib/sales/radar-rank";
+import { ReadyPack } from "./radar-ready";
 
 // ------------------------------------------------------------------ ranking lives in lib/sales/radar-rank (pure, tested)
 
 type Sort = "first" | "newest" | "best";
-type Only = "all" | "unread" | "direct" | "free" | "paid";
+type Only = "all" | "ready" | "unread" | "direct" | "free" | "paid";
 
 // ------------------------------------------------------------------ the board
 
@@ -55,13 +56,21 @@ export function RadarBoard({ items, googleReady, tz, emptyText }: { items: Radar
     });
     const filtered = out.filter(({ it }) => {
       const c = contactsOf(it);
-      return only === "unread" ? !it.seen_at : only === "direct" ? c.emails.length + c.phones.length > 0 || !!c.linkedin : only === "paid" ? isPaid(it.url) : only === "free" ? !isPaid(it.url) : true;
+      return only === "ready" ? isReady(it) : only === "unread" ? !it.seen_at : only === "direct" ? c.emails.length + c.phones.length > 0 || !!c.linkedin : only === "paid" ? isPaid(it.url) : only === "free" ? !isPaid(it.url) : true;
     });
     const t = (i: RadarItem) => new Date(i.posted_at ?? i.found_at).getTime();
     return filtered.sort((a, b) => (sort === "first" ? b.p.value - a.p.value : sort === "newest" ? t(b.it) - t(a.it) : (b.it.score ?? -1) - (a.it.score ?? -1)) || t(b.it) - t(a.it));
   }, [items, gone, showHidden, seen, only, sort, now]);
 
   const unread = rows.filter((r) => !r.it.seen_at).length;
+  // leads being prepared in the background: look again every half minute until they are ready
+  const preparing = rows.some((r) => r.it.prep && !isReady(r.it) && now - new Date(r.it.prep.started_at).getTime() < 30 * 60_000);
+  useEffect(() => {
+    if (!preparing) return;
+    const t = setInterval(() => router.refresh(), 30_000);
+    return () => clearInterval(t);
+  }, [preparing, router]);
+  const ready = rows.filter((r) => isReady(r.it)).length;
   const current = rows.find((r) => r.it.id === sel) ?? null;
 
   // open the first lead on wide screens so the right pane is never empty
@@ -115,7 +124,7 @@ export function RadarBoard({ items, googleReady, tz, emptyText }: { items: Radar
   const toolbar = (
     <div className="flex flex-wrap items-center gap-2 text-xs">
       <Seg label="Order" value={sort} onChange={setSort} options={[["first", "Do first"], ["newest", "Newest"], ["best", "Best match"]]} />
-      <Seg label="Show" value={only} onChange={setOnly} options={[["all", "All"], ["unread", `Unread${unread ? ` · ${unread}` : ""}`], ["direct", "Contact found"], ["free", "Free to reply"], ["paid", "Paid sites"]]} />
+      <Seg label="Show" value={only} onChange={setOnly} options={[["all", "All"], ["ready", `Ready${ready ? ` · ${ready}` : ""}`], ["unread", `Unread${unread ? ` · ${unread}` : ""}`], ["direct", "Contact found"], ["free", "Free to reply"], ["paid", "Paid sites"]]} />
       <label className="flex items-center gap-1.5 text-subtle"><input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> Hidden ({hiddenCount})</label>
       {rows.length ? (
         <button type="button" className="rounded-md px-2 py-1 text-subtle hover:bg-muted" disabled={busy} onClick={() => start(async () => {
@@ -200,6 +209,7 @@ function Row({ it, rank, also, reasons, first, active, tz, now, onOpen }: { it: 
           <p className={cn("mt-0.5 line-clamp-2 text-[13px] leading-snug", unread ? "font-semibold" : "font-medium")}>{it.title}</p>
           {need ? <p className="mt-0.5 line-clamp-1 text-xs text-subtle">{need}</p> : null}
           <p className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+            {isReady(it) ? <Tag tone="good"><CheckCircle2 className="h-2.5 w-2.5" /> Ready</Tag> : it.prep && now - new Date(it.prep.started_at).getTime() < 30 * 60_000 ? <Tag><Loader2 className="h-2.5 w-2.5 animate-spin" /> Preparing</Tag> : null}
             {c.emails.length ? <Tag tone="good"><Mail className="h-2.5 w-2.5" /> email</Tag> : null}
             {c.phones.length ? <Tag tone="good"><Phone className="h-2.5 w-2.5" /> phone</Tag> : null}
             {c.linkedin ? <Tag tone="good"><Linkedin className="h-2.5 w-2.5" /> LinkedIn</Tag> : null}
@@ -319,7 +329,7 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop }:
               const r = await radarDraftAction(it.id);
               if (!r.ok) return toast(r.error, "error");
               setMove(r.move);
-            })}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} {direct ? "Draft a direct message" : where?.replyable ? `Draft reply for ${where.name}` : "Draft first message"}</Button>
+            })}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} {direct && (paid || !where?.replyable) ? "Draft a direct message" : where?.replyable ? `Draft reply for ${where.name}` : "Draft first message"}</Button>
           ) : null}
           {it.deal_id ? <Button size="sm" variant="outline" onClick={() => router.push(`/sales/deal/${it.deal_id}`)}>Open deal</Button> : (
             <Button size="sm" variant="outline" disabled={busy} onClick={() => start(async () => {
@@ -343,6 +353,7 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop }:
         </div>
       </header>
 
+      {it.prep && !move ? <ReadyPack itemId={it.id} prep={it.prep} draft={it.ready_draft ?? null} subject={it.ready_subject ?? null} channel={it.ready_channel ?? null} /> : null}
       {move ? <MoveCard m={move} googleReady={googleReady} onGone={() => onDrop(it.id)} /> : null}
 
       {/* what they need */}

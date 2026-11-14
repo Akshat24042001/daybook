@@ -230,9 +230,11 @@ describe("researching a radar lead", () => {
     expect((await one<{ company_id: number | null }>("select company_id from sales_radar_items where id = $1", [id]))!.company_id).not.toBeNull();
   });
 
-  it("researches a strong lead on its own as soon as it is scored", async () => {
+  it("prepares a qualified lead on its own once it is scored (requirement, business, research, draft)", async () => {
     await q("insert into sales_radar_items (url_hash, title, body, url) values ('z1', 'Acme Freight needs a WhatsApp order bot', 'We are a freight company', 'https://reddit.com/r/x/9')");
     await qualifyPending(30_000);
-    expect(await jobs()).toContain("radar_research");
+    const { scheduleRadarPrep } = await import("@/lib/sales/radar-prep");
+    expect(await scheduleRadarPrep()).toBe(1);
+    expect(await jobs()).toContain("radar_prep");
   });
 });
