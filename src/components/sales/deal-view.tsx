@@ -35,6 +35,7 @@ import type { Fit } from "@/lib/sales/fit-calc";
 import type { DealItem } from "@/lib/sales/items-calc";
 import type { StagePlay } from "@/lib/sales/playbook-stages";
 import { ago, ChannelIcon, CHANNEL_LABEL, CURRENCIES, currencyLabel, currencySymbol, fmtDate, Label, money, Priority } from "./util";
+import { Ago } from "@/components/sales/ago";
 
 export interface QuotePackage { offerId: number; index: number; offer: string; name: string; currency: string; total: number; items: number; timeline: string; fits: boolean }
 
@@ -217,7 +218,7 @@ export function DealView({ d }: { d: DealPageData }) {
             <span className="text-xs text-subtle">Last touch:</span>
             {d.touches.map((t) => (
               <span key={t.channel} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs" title={`${t.count} touches${t.last_in ? `, they last wrote ${ago(t.last_in)}` : ""}`}>
-                <ChannelIcon channel={t.channel} className="h-3 w-3" /> {CHANNEL_LABEL[t.channel] ?? t.channel} {ago(t.last_at)}
+                <ChannelIcon channel={t.channel} className="h-3 w-3" /> {CHANNEL_LABEL[t.channel] ?? t.channel} <Ago d={t.last_at} />
               </span>
             ))}
           </div>
@@ -337,7 +338,7 @@ export function DealView({ d }: { d: DealPageData }) {
                         </span>
                         <Chip className={cn(x.status === "accepted" && "bg-p-mint text-p-mint-fg", x.status === "viewed" && "bg-p-sky text-p-sky-fg", x.status === "changes" && "bg-p-butter text-p-butter-fg")}>{x.status}</Chip>
                       </div>
-                      <p className="mt-0.5 text-xs text-subtle">
+                      <p suppressHydrationWarning className="mt-0.5 text-xs text-subtle">
                         {x.total ? `${money(x.total, x.currency ?? deal.currency)} · ` : ""}{x.view_count ? `opened ${x.view_count}x, last ${ago(x.last_viewed_at)}` : x.sent_at ? "not opened yet" : "draft"}
                       </p>
                       <VisibleTo kind="doc" id={x.id} sharedWith={x.shared_with ?? []} audience={audience} authorUser={x.author_user} authorName={null} />

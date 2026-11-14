@@ -11,6 +11,7 @@ import { cn } from "@/lib/cn";
 import { describeSchedule, searchesPerDay, type Schedule } from "@/lib/sales/hunt-schedule";
 import type { HuntRun, HuntView } from "@/lib/sales/hunts";
 import { ago } from "./util";
+import { Ago } from "@/components/sales/ago";
 
 const SIGNALS: [string, string, string][] = [
   ["requirement", "Asking for help", "Posts and threads where someone needs something built"],
@@ -136,7 +137,7 @@ function RunLog({ id }: { id: number }) {
           {runs.length === 0 ? <li className="text-subtle">No runs yet.</li> : runs.map((r) => (
             <li key={r.id} className="rounded-lg bg-muted px-2 py-1.5">
               <span className={cn("font-medium", r.status === "error" ? "text-bad" : r.status === "running" ? "text-accent" : "text-good")}>{r.status}</span>
-              {" · "}{ago(r.started_at)}{" · "}{r.trigger}{" · "}{r.searched} searches, {r.found} new
+              {" · "}<Ago d={r.started_at} />{" · "}{r.trigger}{" · "}{r.searched} searches, {r.found} new
               {r.error ? <span className="block text-bad">{r.error}</span> : null}
               {r.queries.length ? <details className="mt-0.5"><summary className="cursor-pointer text-subtle">Queries</summary><ul className="mt-0.5 list-disc pl-4 text-subtle">{r.queries.map((x, i) => <li key={i}>{x}</li>)}</ul></details> : null}
             </li>
@@ -192,7 +193,7 @@ export function HuntsPanel({ hunts, searchCap, providers, tz }: { hunts: HuntVie
               ))}
             </div>
             <p className="mt-2 text-xs text-subtle">
-              {h.last_run ? <>Last run {ago(h.last_run.started_at)} · <span className={h.last_run.status === "error" ? "text-bad" : ""}>{h.last_run.status === "running" ? "running now" : `${h.last_run.found} new`}</span></> : "Never run"}
+              {h.last_run ? <>Last run <Ago d={h.last_run.started_at} /> · <span className={h.last_run.status === "error" ? "text-bad" : ""}>{h.last_run.status === "running" ? "running now" : `${h.last_run.found} new`}</span></> : "Never run"}
               {h.enabled && h.next_run_at ? <> · next {new Date(h.next_run_at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: tz })}</> : null}
               {" · "}≈{h.searches_per_day} searches a day
             </p>

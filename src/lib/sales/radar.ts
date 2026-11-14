@@ -4,6 +4,7 @@
  * searches for this week's country and today's industry, and if even that comes up short it says so honestly and shows
  * the best of what it found.
  */
+import { feedWithRelay, jsonWithRelay, plainSourceError, readDiscourse, readSubreddit } from "./radar-fetch";
 import { authorProfile, textContacts } from "./quick-links";
 import { createHash } from "node:crypto";
 import { one, q, tx, UserError } from "../db";
@@ -135,8 +136,10 @@ async function redditAuth(): Promise<string | null> {
 
 async function getJson<T>(url: string, headers: Record<string, string> = {}): Promise<T> {
   const res = await fetch(url, { headers: { "user-agent": UA, accept: "application/json", ...headers }, signal: AbortSignal.timeout(15_000) });
-  if (!res.ok) throw new Error(`${new URL(url).hostname} ${res.status}`);
-  return (await res.json()) as T;
+  if (res.ok) return (await res.json()) as T;
+  // blocked from a cloud server: one more try through the relay
+  if ([403, 429, 451].includes(res.status)) return jsonWithRelay<T>(url, headers);
+  throw new Error(`${new URL(url).hostname} ${res.status}`);
 }
 
 const DEV_RE = /\b(ai|a\.i\.|automation|automate|developer|engineer|app|software|full.?stack|react|node|python|n8n|zapier|make\.com|chatbot|agent|llm|gpt|vision|website|web|mobile|ios|android|flutter|integration|crm|data entry|support|operations|backend|frontend|saas|mvp)\b/i;
@@ -153,6 +156,7 @@ export function describeSource(s: Pick<SourceRow, "kind" | "config">, focus: { c
     case "search": return `Web search: “${fill(String(c.q), focus)}”`;
     case "json": return `Job API: ${String(c.api)}${c.q ? ` for “${fill(String(c.q), focus)}”` : ""}`;
     case "email": return "Alert emails from your Gmail";
+    case "discourse": return `Forum ${String(c.base).replace(/^https?:\/\//, "")}: ${(Array.isArray(c.q) ? c.q : [c.q]).join(", ")}`;
     default: return s.kind;
   }
 }
@@ -161,22 +165,15 @@ async function fetchSource(s: SourceRow, focus: { country: string; industry: str
   const c = s.config;
   switch (s.kind) {
     case "reddit": {
-      const sub = String(c.sub);
-      const query = c.q ? fill(String(c.q), focus) : null;
-      const token = await redditAuth();
-      let items: RawItem[];
-      if (token) {
-        const path = query ? `/r/${sub}/search?q=${encodeURIComponent(query)}&restrict_sr=1&sort=new&t=week&limit=25` : `/r/${sub}/new?limit=25`;
-        const j = await getJson<{ data: { children: { data: { title: string; selftext: string; permalink: string; author: string; created_utc: number; link_flair_text?: string } }[] } }>(
-          `https://oauth.reddit.com${path}`, { authorization: `Bearer ${token}`, "user-agent": "daybook-radar/1.0" },
-        );
-        items = j.data.children.map(({ data: p }) => ({ title: `${p.link_flair_text ? `[${p.link_flair_text}] ` : ""}${p.title}`, url: `https://www.reddit.com${p.permalink}`, body: p.selftext.slice(0, 3000), author: `u/${p.author}`, posted_at: new Date(p.created_utc * 1000) }));
-      } else {
-        const url = query ? `https://www.reddit.com/r/${sub}/search.rss?q=${encodeURIComponent(query)}&restrict_sr=1&sort=new&t=week` : `https://www.reddit.com/r/${sub}/new.rss`;
-        items = (await fetchFeed(url)).map((x) => ({ title: x.title, url: x.url, body: x.body, author: x.author, posted_at: x.date }));
-      }
+      // Reddit blocks cloud servers: the first route that works (API, JSON, RSS, PullPush archive, relay)
+      const r = await readSubreddit(String(c.sub), c.q ? fill(String(c.q), focus) : null, await redditAuth());
       // people offering their services are not leads
-      return items.filter((i) => !/\[\s*for\s*hire\s*\]|\bfor hire\b|\[offer\]/i.test(i.title));
+      return r.items.filter((i) => !/\[\s*for\s*hire\s*\]|\bfor hire\b|\[offer\]/i.test(i.title));
+    }
+    case "discourse": {
+      // a tool's community forum (n8n, Make, Bubble...): people post paid work there and you can reply for free
+      const qs = (Array.isArray(c.q) ? c.q : [c.q]).filter(Boolean).map((x) => fill(String(x), focus));
+      return (await readDiscourse(String(c.base), qs)).filter((i) => !/\b(for hire|available for work|i am a freelancer|my portfolio)\b/i.test(i.title));
     }
     case "hn": {
       const since = Math.floor(Date.now() / 1000) - 3 * 86_400;
@@ -196,7 +193,7 @@ async function fetchSource(s: SourceRow, focus: { country: string; industry: str
         .map((k) => ({ title: strip(k.text!).slice(0, 120), url: `https://news.ycombinator.com/item?id=${k.id}`, body: strip(k.text!).slice(0, 3000), author: k.author, posted_at: k.created_at }));
     }
     case "rss":
-      return (await fetchFeed(fill(String(c.url), focus))).map((x) => ({ title: x.title, url: x.url, body: x.body, author: x.author, posted_at: x.date }));
+      return (await feedWithRelay(fill(String(c.url), focus))).map((x) => ({ title: x.title, url: x.url, body: x.body, author: x.author, posted_at: x.date }));
     case "gnews": {
       const ed = GNEWS_ED[focus.country] ?? GNEWS_ED["United States"];
       const url = `https://news.google.com/rss/search?q=${encodeURIComponent(`${fill(String(c.q), focus)} when:3d`)}&${ed}`;
@@ -237,6 +234,39 @@ async function fetchApi(api: string, c: Record<string, unknown>, focus: { countr
     case "himalayas": {
       const j = await getJson<{ jobs: { title: string; companyName: string; applicationLink: string; excerpt: string; pubDate: number }[] }>("https://himalayas.app/jobs/api?limit=60");
       return j.jobs.filter((x) => DEV_RE.test(x.title)).map((x) => ({ title: `${x.title} at ${x.companyName}`, url: x.applicationLink, body: strip(x.excerpt ?? "").slice(0, 2000), author: x.companyName, posted_at: new Date(x.pubDate * 1000) }));
+    }
+    case "themuse": {
+      // companies hiring developers: a named company you can approach for the work instead
+      const j = await getJson<{ results?: { name: string; company?: { name?: string }; locations?: { name: string }[]; refs?: { landing_page?: string }; publication_date?: string; contents?: string }[] }>(
+        `https://www.themuse.com/api/public/jobs?category=${encodeURIComponent(String(c.category ?? "Software Engineering"))}&page=0&descending=true`);
+      return (j.results ?? []).filter((x) => x.refs?.landing_page).map((x) => ({
+        title: `${x.name} at ${x.company?.name ?? "?"}${x.locations?.length ? ` (${x.locations.map((l) => l.name).slice(0, 2).join(", ")})` : ""}`,
+        url: x.refs!.landing_page!, body: strip(x.contents ?? "").slice(0, 2500), author: x.company?.name ?? null, posted_at: x.publication_date ?? null,
+      }));
+    }
+    case "workingnomads": {
+      const j = await getJson<{ url: string; title: string; description?: string; company_name?: string; category_name?: string; location?: string; pub_date?: string }[]>("https://www.workingnomads.com/api/exposed_jobs/");
+      return (Array.isArray(j) ? j : []).filter((x) => DEV_RE.test(`${x.title} ${x.category_name ?? ""}`)).slice(0, 40).map((x) => ({
+        title: `${x.title} at ${x.company_name ?? "?"}${x.location ? ` (${x.location})` : ""}`, url: x.url, body: strip(x.description ?? "").slice(0, 2500), author: x.company_name ?? null, posted_at: x.pub_date ?? null,
+      }));
+    }
+    case "hn_jobs": {
+      // YC startups hiring: "Acme (YC W24) is hiring ..." names the company outright
+      const since = Math.floor(Date.now() / 1000) - 5 * 86_400;
+      const j = await getJson<{ hits: { objectID: string; title?: string; url?: string; story_text?: string; created_at: string }[] }>(
+        `https://hn.algolia.com/api/v1/search_by_date?tags=job&numericFilters=created_at_i>${since}&hitsPerPage=40`);
+      return j.hits.filter((h) => h.title).map((h) => ({ title: h.title!.slice(0, 200), url: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`, body: strip(h.story_text ?? "").slice(0, 2500), author: h.title!.match(/^(.+?)\s*\(YC/)?.[1] ?? null, posted_at: h.created_at }));
+    }
+    case "worldbank": {
+      // public tenders funded by the World Bank: a buyer, a country and a deadline
+      const j = await getJson<{ procnotices?: Record<string, string | undefined>[] }>(
+        `https://search.worldbank.org/api/v2/procnotices?format=json&qterm=${encodeURIComponent(String(c.q ?? "software"))}&rows=25&srt=noticedate&order=desc`);
+      return (j.procnotices ?? []).filter((x) => x.id && (x.bid_description || x.project_name)).map((x) => ({
+        title: `${x.bid_description ?? x.project_name}${x.project_ctry_name ? ` (${x.project_ctry_name})` : ""}`.slice(0, 300),
+        url: `https://projects.worldbank.org/en/projects-operations/procurement-detail/${x.id}`,
+        body: [x.project_name, x.notice_type, x.procurement_method_name, x.contact_organization, x.submission_deadline_date ? `Deadline ${x.submission_deadline_date}` : ""].filter(Boolean).join(". ").slice(0, 2000),
+        author: x.contact_organization ?? x.borrower ?? null, posted_at: x.noticedate ?? x.submission_date ?? null,
+      }));
     }
     case "freelancer": {
       // the client's public profile (name as Freelancer shows it, username, city, country, past projects) comes with it
@@ -296,15 +326,22 @@ export async function runRadar(budgetMs = 40_000, opts: { force?: boolean; categ
   const deadline = Date.now() + budgetMs;
   let ran = 0;
   let added = 0;
+  let reddit = 0;
   for (const s of due) {
     if (Date.now() > deadline - 8_000) break;
+    // Reddit rate-limits hard: a few subreddits per run, spaced out; the rest wait for the next run
+    if (s.kind === "reddit") {
+      if (reddit >= 4) continue;
+      if (reddit) await new Promise((r) => setTimeout(r, 1500));
+      reddit += 1;
+    }
     await q("update sales_radar_sources set last_run_at = now() where id = $1", [s.id]);
     try {
       const items = await fetchSource(s, focus);
       added += await storeItems(s.id, items);
       await q("update sales_radar_sources set last_ok_at = now(), last_error = null where id = $1", [s.id]);
     } catch (e) {
-      await q("update sales_radar_sources set last_error = $2 where id = $1", [s.id, (e as Error).message.slice(0, 300)]);
+      await q("update sales_radar_sources set last_error = $2 where id = $1", [s.id, plainSourceError((e as Error).message).slice(0, 400)]);
     }
     ran += 1;
   }

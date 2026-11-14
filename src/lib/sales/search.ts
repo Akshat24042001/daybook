@@ -385,7 +385,11 @@ export async function fetchPage(url: string, o: { maxChars?: number; reader?: bo
 export async function fetchFeed(url: string): Promise<{ title: string; url: string; body: string; date: string | null; author: string | null }[]> {
   const res = await fetch(url, { headers: { "user-agent": UA, accept: "application/rss+xml,application/atom+xml,text/xml" }, signal: AbortSignal.timeout(15_000) });
   if (!res.ok) throw new Error(`feed ${res.status}`);
-  const xml = await res.text();
+  return parseFeed(await res.text());
+}
+
+/** RSS or Atom items. Pure. */
+export function parseFeed(xml: string): { title: string; url: string; body: string; date: string | null; author: string | null }[] {
   const items = xml.split(/<item[\s>]|<entry[\s>]/i).slice(1);
   const tag = (s: string, t: string) => {
     const m = s.match(new RegExp(`<${t}[^>]*>([\\s\\S]*?)</${t}>`, "i"));

@@ -98,6 +98,19 @@ const { setup, check } = require("./lib.cjs");
   check("ready message: WhatsApp it", (await packEl.getByRole("link", { name: "WhatsApp it" }).getAttribute("href")).startsWith("https://wa.me/919820011111?text="));
   await page.getByRole("button", { name: "All", exact: true }).click();
 
+  // chat about the lead, and other businesses it could be
+  await list.getByRole("option").filter({ hasText: "Booking bot for a clinic group" }).click();
+  await page.getByRole("button", { name: "Ask about this lead" }).click();
+  const chat = page.getByRole("dialog");
+  await chat.getByRole("button", { name: "What exactly do they need, in two lines?" }).waitFor({ timeout: 8000 });
+  check("lead chat opens with questions about the lead", await chat.getByRole("button", { name: "Who are they and how do I reach them?" }).isVisible());
+  await page.keyboard.press("Escape");
+  await db.query("update sales_radar_items set identity = jsonb_set(identity, '{candidates}', $2) where id = $1", [readyId, JSON.stringify([{ company: "Smile Care Pune", website: "https://smilecarepune.com", location: "Baner, Pune", person: "Dr Neha Joshi", why: "Also three clinics in Pune", confidence: "medium", evidence_url: null }])]);
+  await go("/sales/radar");
+  await list.getByRole("option").filter({ hasText: "Booking bot for a clinic group" }).click();
+  const alt = page.getByRole("region", { name: "Other possible businesses" }).or(page.getByLabel("Other possible businesses"));
+  check("other possible businesses listed, each can be researched", /Smile Care Pune[\s\S]*Baner, Pune[\s\S]*Likely[\s\S]*Dr Neha Joshi/.test(await alt.first().innerText()) && (await alt.first().getByRole("button", { name: "Research this one" }).count()) === 1);
+
   // phone width: the list, and a sheet for the lead
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "All", exact: true }).click();

@@ -3,13 +3,15 @@
 import { Building2, Globe, Linkedin, Loader2, Mail, MapPin, Phone, UserRound, UserSearch } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useTransition } from "react";
-import { findBehindAction } from "@/app/sales-actions";
+import { findBehindAction, researchLeadAction } from "@/app/sales-actions";
 import { Button } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 
 export interface Poster { name?: string | null; username?: string | null; city?: string | null; country?: string | null; profile_url?: string | null; joined?: string | null; history?: string | null }
+export interface WhoCandidate { company: string; website: string | null; location: string | null; person: string | null; why: string; confidence: "high" | "medium" | "low"; evidence_url: string | null }
 export interface WhoIdentity {
+  candidates?: WhoCandidate[];
   status: "found" | "partial" | "not_found" | "private" | "running" | "error";
   company?: string | null; website?: string | null; person?: string | null; title?: string | null; linkedin?: string | null;
   emails: string[]; phones: string[]; confidence?: "high" | "medium" | "low" | null;
@@ -105,6 +107,27 @@ export function WhoPanel({ itemId, identity, paid, platform }: { itemId: number;
             </>
           ) : null}
           <p className="text-subtle">{id.note}</p>
+          {id.candidates?.length ? (
+            <div className="rounded-lg border border-border bg-surface p-2" aria-label="Other possible businesses">
+              <p className="mb-1 font-semibold">{hasAny ? "Could also be" : "Possible businesses"} ({id.candidates.length})</p>
+              <ul className="space-y-1.5">
+                {id.candidates.map((c) => (
+                  <li key={c.company} className="flex flex-wrap items-start gap-x-2 gap-y-0.5">
+                    <span className="font-medium">{c.company}</span>
+                    {c.location ? <span className="text-subtle">{c.location}</span> : null}
+                    <span className={cn("rounded px-1 text-[10px] font-medium", c.confidence === "high" ? "bg-p-mint text-p-mint-fg" : c.confidence === "medium" ? "bg-p-sky text-p-sky-fg" : "bg-muted text-subtle")}>{c.confidence === "high" ? "Sure" : c.confidence === "medium" ? "Likely" : "A guess"}</span>
+                    {c.person ? <span className="text-subtle">{c.person}</span> : null}
+                    <span className="w-full text-subtle">{c.why}{c.evidence_url ? <> · <a href={c.evidence_url} target="_blank" rel="noreferrer" className="text-accent hover:underline">source</a></> : null}{c.website ? <> · <a href={c.website} target="_blank" rel="noreferrer" className="text-accent hover:underline">{c.website.replace(/^https?:\/\/(www\.)?/, "")}</a></> : null}</span>
+                    <button type="button" className="text-accent hover:underline" onClick={() => start(async () => {
+                      const r = await researchLeadAction(itemId, { company: c.company, website: c.website ?? undefined });
+                      toast(r.ok ? `Researching ${c.company}: the profile fills in over a few minutes` : r.error, r.ok ? "ok" : "error");
+                      router.refresh();
+                    })}>Research this one</button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           {id.evidence.length ? (
             <details>
               <summary className="cursor-pointer text-accent">Where this was found ({id.evidence.length})</summary>

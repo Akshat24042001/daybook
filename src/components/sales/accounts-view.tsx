@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import type { Enrichment } from "@/lib/sales/enrich";
 import { EnrichmentPanel } from "./enrichment-panel";
 import { ago, money } from "./util";
+import { Ago } from "@/components/sales/ago";
 
 export interface CompanyRow { id: number; name: string; website: string | null; industry: string | null; country: string | null; employees: number | null; revenue_usd: number | null; revenue_is_estimate: boolean; listed: boolean | null; enrichment: Enrichment; enriched_at: string | null; notes: string | null; deals: { id: number; title: string; stage: string }[] }
 export interface PersonRow { id: number; full_name: string; title: string | null; company_name: string | null; emails: string[]; phones: string[]; linkedin: string | null; instagram: string | null; city: string | null; country: string | null; relationship: string; is_decision_maker: boolean | null; enrichment: Enrichment; enriched_at: string | null; notes: string | null; last_touch: string | null; deals: { id: number; title: string; stage: string }[] }
@@ -59,7 +60,7 @@ export function AccountsView({ companies, people, companyFields, personFields, c
                   <td className="p-2 text-xs text-subtle">{[p.phones[0], p.emails[0]].filter(Boolean).join(" · ")}</td>
                   <td className="p-2"><Chip>{p.relationship}</Chip></td>
                   <td className="p-2 text-xs">{p.deals.map((d) => d.stage).join(", ")}</td>
-                  <td className="p-2 text-xs text-subtle">{p.last_touch ? ago(p.last_touch) : ""}</td>
+                  <td className="p-2 text-xs text-subtle">{p.last_touch ? <Ago d={p.last_touch} /> : ""}</td>
                 </tr>
               ))}
             </tbody>

@@ -10,6 +10,8 @@ import { money } from "@/components/sales/format";
 export interface ChatFocus {
   area?: "sales";
   deal_id?: number;
+  /** a radar lead that is not a deal yet */
+  radar_item_id?: number;
 }
 
 export function cleanFocus(v: unknown): ChatFocus | null {
@@ -17,6 +19,8 @@ export function cleanFocus(v: unknown): ChatFocus | null {
   const o = v as Record<string, unknown>;
   const id = Number(o.deal_id);
   if (Number.isInteger(id) && id > 0) return { deal_id: id };
+  const rid = Number(o.radar_item_id);
+  if (Number.isInteger(rid) && rid > 0) return { radar_item_id: rid };
   return o.area === "sales" ? { area: "sales" } : null;
 }
 
@@ -64,9 +68,50 @@ export async function dealBrief(dealId: number): Promise<string | null> {
   return out.join("\n");
 }
 
+/** A radar lead, everything known about it: the post, who posted it, the business behind it, the research, the draft. */
+export async function radarLeadBrief(itemId: number): Promise<string | null> {
+  const it = await one<Record<string, unknown> & { company_id: number | null }>(
+    `select r.*, s.name as source_name from sales_radar_items r left join sales_radar_sources s on s.id = r.source_id where r.id = $1`, [itemId]);
+  if (!it) return null;
+  const [co, people, move] = await Promise.all([
+    it.company_id ? one<{ name: string; website: string | null; enrichment: Record<string, { v: unknown }> | null }>("select name, website, enrichment from sales_companies where id = $1", [it.company_id]) : null,
+    it.company_id ? q<{ full_name: string; title: string | null; emails: string[]; phones: string[]; linkedin: string | null; is_decision_maker: boolean | null }>(
+      "select full_name, title, emails, phones, linkedin, is_decision_maker from sales_people where company_id = $1 order by (is_decision_maker is true) desc limit 6", [it.company_id]) : [],
+    one<{ draft: string | null; draft_subject: string | null; channel: string | null }>("select draft, draft_subject, channel from sales_moves where dedupe_key = $1", [`radar:${itemId}`]),
+  ]);
+  const j = (v: unknown) => (v ? JSON.stringify(v).slice(0, 2500) : "");
+  const facts = co?.enrichment
+    ? Object.entries(co.enrichment).filter(([, f]) => f && f.v !== null && f.v !== "").map(([k, f]) => `${k.replace(/_/g, " ")}: ${String(f.v).slice(0, 300)}`).join("\n")
+    : "";
+  return [
+    `RADAR LEAD radar_item_id=${itemId} (not a deal yet${it.deal_id ? `; now deal_id=${it.deal_id}` : ""}): ${it.title}`,
+    line("Posted", it.posted_at ? new Date(String(it.posted_at)).toISOString().slice(0, 16).replace("T", " ") : "unknown"),
+    line("Found on", `${it.source_name ?? "manual"} ${it.url ?? ""}`),
+    line("Fit score", it.score),
+    `THEIR POST:\n${String(it.body ?? "").slice(0, 4000)}`,
+    it.poster ? `WHO POSTED IT (platform profile): ${j(it.poster)}` : "",
+    it.fit ? `SCORER'S NOTES: ${j(it.fit)}` : "",
+    it.brief ? `PLAIN-LANGUAGE BRIEF: ${j(it.brief)}` : "",
+    it.identity ? `BUSINESS BEHIND THE POST (only what the evidence showed): ${j(it.identity)}` : "",
+    co ? `COMPANY RESEARCHED: ${co.name}${co.website ? ` (${co.website})` : ""}\n${facts.slice(0, 6000)}` : "",
+    people.length ? `PEOPLE FOUND: ${people.map((p) => `${p.full_name}${p.title ? `, ${p.title}` : ""}${p.is_decision_maker ? " (decision maker)" : ""}${p.emails.length ? `, ${p.emails.join("/")}` : ""}${p.phones.length ? `, ${p.phones.join("/")}` : ""}${p.linkedin ? `, ${p.linkedin}` : ""}`).join("; ")}` : "",
+    it.prep ? `PREPARATION: ${j((it.prep as { steps?: unknown }).steps)}` : "",
+    move?.draft ? `MESSAGE ALREADY DRAFTED (${move.channel ?? ""}): ${move.draft_subject ? `${move.draft_subject}\n` : ""}${move.draft}` : "",
+  ].filter(Boolean).join("\n");
+}
+
 /** The text added to the assistant's context for a focused chat. */
 export async function focusContext(f: ChatFocus | null): Promise<string> {
   if (!f) return "";
+  if (f.radar_item_id) {
+    const brief = await radarLeadBrief(f.radar_item_id);
+    if (!brief) return "";
+    return `FOCUS: this chat is about ONE RADAR LEAD (a posted requirement, not a deal yet). "This lead", "they", "the client" and "it" mean it.
+Answer from this record in 2 to 5 short lines, plainly, so the owner does not have to read the post. Say where a fact comes from (their post, their profile, the research).
+If the record does not say, answer "not known" and say what would find out; never guess names, emails, numbers or budgets.
+When asked for a message, write it ready to send, short, specific to their post. To make it a deal, tell the owner to press Make it a lead.
+${brief}`;
+  }
   if (f.deal_id) {
     const brief = await dealBrief(f.deal_id);
     if (!brief) return "";

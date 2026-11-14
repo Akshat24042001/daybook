@@ -9,6 +9,7 @@ import { Button, Chip, Field, Input, Select, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import type { DocRow, PaymentStep, QuoteItem, RevisionRow } from "@/lib/sales/docs";
 import { ago, CURRENCIES, currencyLabel, currencySymbol, fmtDate, money } from "./util";
+import { Ago } from "@/components/sales/ago";
 
 export interface ViewRow { id: number; rev: number | null; viewed_at: string; country: string | null; city: string | null; device: string | null; seconds: number; visitor: string | null }
 
@@ -66,7 +67,7 @@ export function DocEditor({ doc, revs, views, url, dealTitle }: { doc: DocRow; r
           <div className="space-y-3 rounded-2xl border border-border bg-surface p-4">
             {locked ? (
               <div className="rounded-xl border border-warn/40 bg-warn-muted p-3 text-sm text-warn">
-                v{cur.rev} was sent {ago(cur.sent_at)} and is locked so the client's history stays honest. Make a new revision to change it.
+                v{cur.rev} was sent <Ago d={cur.sent_at} /> and is locked so the client's history stays honest. Make a new revision to change it.
                 <div className="mt-2 flex gap-2">
                   <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="What changes (e.g. reduced scope, 10% off)" className="h-9 text-sm" />
                   <Button size="sm" variant="primary" disabled={busy} onClick={() => act(() => newRevisionAction(doc.id, note), "New revision ready to edit")}><Plus className="h-3.5 w-3.5" /> New revision</Button>
@@ -127,11 +128,11 @@ export function DocEditor({ doc, revs, views, url, dealTitle }: { doc: DocRow; r
                 {revs.map((v) => (
                   <li key={v.id} className="flex items-center justify-between gap-2">
                     <a href={`${url}?rev=${v.rev}`} target="_blank" rel="noreferrer" className="hover:text-accent">v{v.rev} · {money(v.total, v.currency)}{v.change_note ? <span className="text-xs text-subtle"> · {v.change_note}</span> : null}</a>
-                    <span className="text-xs text-subtle">{v.sent_at ? `sent ${ago(v.sent_at)}` : "draft"}</span>
+                    <span suppressHydrationWarning className="text-xs text-subtle">{v.sent_at ? `sent ${ago(v.sent_at)}` : "draft"}</span>
                   </li>
                 ))}
               </ul>
-              {doc.accepted_at ? <p className="mt-2 rounded-lg bg-good-muted px-2 py-1 text-xs text-good">Accepted by {doc.accepted_by} {ago(doc.accepted_at)}</p> : null}
+              {doc.accepted_at ? <p className="mt-2 rounded-lg bg-good-muted px-2 py-1 text-xs text-good">Accepted by {doc.accepted_by} <Ago d={doc.accepted_at} /></p> : null}
               {doc.client_note ? <p className="mt-2 rounded-lg bg-warn-muted px-2 py-1 text-xs text-warn">Change request: {doc.client_note}</p> : null}
             </section>
           </div>

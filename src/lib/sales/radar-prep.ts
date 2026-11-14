@@ -225,6 +225,7 @@ async function mergeIntoIdentity(id: number, pack: Pack): Promise<void> {
     confidence: cur?.confidence ?? "medium",
     evidence: cur?.evidence ?? [],
     note: cur?.note ?? "From the company research.",
+    candidates: cur?.candidates ?? [],
     checked_at: new Date().toISOString(),
   };
   await q("update sales_radar_items set identity = $2 where id = $1", [id, JSON.stringify(next)]);

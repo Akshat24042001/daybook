@@ -13,7 +13,7 @@
  *   email       { domains }          alert emails in your Gmail (sent by the Apps Script), e.g. Upwork or tender alerts
  */
 
-export type SourceKind = "reddit" | "hn" | "hn_freelancer" | "rss" | "gnews" | "json" | "search" | "email";
+export type SourceKind = "reddit" | "hn" | "hn_freelancer" | "rss" | "gnews" | "json" | "search" | "email" | "discourse";
 export type SourceCategory = "requirement" | "hiring" | "funding" | "review" | "tender" | "launch" | "content";
 
 export interface CatalogSource {
@@ -47,6 +47,13 @@ const email = (key: string, name: string, domains: string[], category: SourceCat
 const search = (key: string, name: string, q: string, category: SourceCategory, interval = 24, enabled = true): CatalogSource => ({
   key: `search_${key}`, name, kind: "search", category, config: { q }, interval_hours: interval, enabled,
 });
+
+/** A tool's community forum (Discourse): people post paid work for n8n, Make, Bubble and the like, and anyone can reply. */
+const forum = (key: string, name: string, base: string, q: string[], interval = 6): CatalogSource => ({
+  key: `forum_${key}`, name: `${name} community: paid work`, kind: "discourse", category: "requirement", config: { base, q }, interval_hours: interval,
+  note: "Free to reply: answer on the forum or message the poster there.",
+});
+const HIRE_Q = ["hiring", "looking for developer", "paid project", "looking for freelancer"];
 
 const rss = (key: string, name: string, url: string, category: SourceCategory, interval = 6): CatalogSource => ({
   key: `rss_${key}`, name, kind: "rss", category, config: { url }, interval_hours: interval,
@@ -83,6 +90,29 @@ export const CATALOG: CatalogSource[] = [
   reddit("EntrepreneurRideAlong", "(developer OR automate OR \"build\" OR outsource)"),
   reddit("microsaas", "(\"looking for a developer\" OR outsource OR \"build\")"),
   reddit("dubai", "(developer OR app OR website OR software OR automation)", false),
+  reddit("WebDeveloperJobs", "(hiring OR \"looking for\" OR paid OR budget)"),
+  reddit("AiAutomations", "(hire OR hiring OR paid OR \"looking for\" OR budget)"),
+  reddit("SideProject", "(\"looking for a developer\" OR \"need a developer\" OR hire OR paid)"),
+  reddit("cofounder", "(\"technical cofounder\" OR developer OR \"build the mvp\" OR paid)"),
+  reddit("indianstartups", "(\"need a developer\" OR \"looking for\" OR agency OR outsource OR app)"),
+  reddit("smallbusinessuk", "(website OR app OR automate OR software OR \"looking for\")"),
+  reddit("PropertyManagement", "(software OR automate OR app OR system OR \"too much time\")"),
+  reddit("agency", "(\"white label\" OR outsource OR subcontract OR \"looking for a dev\")"),
+  reddit("msp", "(\"looking for\" developer OR automation OR outsource OR \"white label\")"),
+  reddit("Bubbleio", "(hire OR hiring OR paid OR \"looking for\")"),
+  reddit("FlutterDev", "(hire OR hiring OR paid OR freelance OR \"looking for\")"),
+
+  // ---------------------------------------------------------------- tool communities: people asking for paid help, free to reply
+  forum("n8n", "n8n", "https://community.n8n.io", HIRE_Q),
+  forum("make", "Make", "https://community.make.com", HIRE_Q),
+  forum("bubble", "Bubble", "https://forum.bubble.io", HIRE_Q),
+  forum("flutterflow", "FlutterFlow", "https://community.flutterflow.io", HIRE_Q),
+  forum("glide", "Glide", "https://community.glideapps.com", HIRE_Q, 12),
+  forum("weweb", "WeWeb", "https://community.weweb.io", HIRE_Q, 12),
+  forum("retool", "Retool", "https://community.retool.com", HIRE_Q, 12),
+  forum("uipath", "UiPath", "https://forum.uipath.com", ["freelance", "hiring", "paid project"], 12),
+  forum("webflow", "Webflow", "https://discourse.webflow.com", ["hiring", "looking for webflow developer", "paid"], 12),
+  forum("openai", "OpenAI developers", "https://community.openai.com", ["hiring", "looking for developer", "paid project"], 12),
 
   // ---------------------------------------------------------------- posted requirements: Hacker News
   { key: "hn_freelancer", name: "HN: Seeking freelancer thread", kind: "hn_freelancer", category: "requirement", config: {}, interval_hours: 12 },
@@ -95,11 +125,20 @@ export const CATALOG: CatalogSource[] = [
   { key: "json_arbeitnow", name: "Arbeitnow (EU tech roles)", kind: "json", category: "hiring", config: { api: "arbeitnow" }, interval_hours: 12 },
   { key: "json_jobicy", name: "Jobicy (remote dev)", kind: "json", category: "requirement", config: { api: "jobicy" }, interval_hours: 12 },
   { key: "json_himalayas", name: "Himalayas (remote jobs)", kind: "json", category: "hiring", config: { api: "himalayas" }, interval_hours: 12 },
+  { key: "json_hn_jobs", name: "YC startups hiring (HN jobs)", kind: "json", category: "hiring", config: { api: "hn_jobs" }, interval_hours: 12, note: "Named companies: approach them for the work instead of the job." },
+  { key: "json_themuse", name: "The Muse: companies hiring developers", kind: "json", category: "hiring", config: { api: "themuse", category: "Software Engineering" }, interval_hours: 12 },
+  { key: "json_themuse_data", name: "The Muse: companies hiring data / IT", kind: "json", category: "hiring", config: { api: "themuse", category: "Data and Analytics" }, interval_hours: 24 },
+  { key: "json_workingnomads", name: "Working Nomads (remote dev roles)", kind: "json", category: "hiring", config: { api: "workingnomads" }, interval_hours: 12 },
+  { key: "json_worldbank_sw", name: "World Bank tenders: software", kind: "json", category: "tender", config: { api: "worldbank", q: "software development" }, interval_hours: 24 },
+  { key: "json_worldbank_ai", name: "World Bank tenders: digital / AI", kind: "json", category: "tender", config: { api: "worldbank", q: "digital platform" }, interval_hours: 24 },
   { key: "json_freelancer", name: "Freelancer.com projects", kind: "json", category: "requirement", config: { api: "freelancer", q: "AI automation chatbot app development" }, interval_hours: 4 },
   { key: "json_adzuna_ops", name: "Adzuna: manual ops roles ({country})", kind: "json", category: "hiring", config: { api: "adzuna", q: "data entry" }, interval_hours: 24, note: "Needs ADZUNA_APP_ID and ADZUNA_APP_KEY (free)." },
   { key: "json_adzuna_support", name: "Adzuna: support roles ({country})", kind: "json", category: "hiring", config: { api: "adzuna", q: "customer support executive" }, interval_hours: 24, note: "Needs ADZUNA_APP_ID and ADZUNA_APP_KEY (free)." },
   rss("wwr_programming", "We Work Remotely: programming", "https://weworkremotely.com/categories/remote-programming-jobs.rss", "requirement"),
   rss("wwr_fullstack", "We Work Remotely: full stack", "https://weworkremotely.com/categories/remote-full-stack-programming-jobs.rss", "requirement"),
+  rss("wwr_devops", "We Work Remotely: devops / sysadmin", "https://weworkremotely.com/categories/remote-devops-sysadmin-jobs.rss", "hiring", 12),
+  rss("jobspresso", "Jobspresso (remote dev roles)", "https://jobspresso.co/feed/?post_type=job_listing", "hiring", 12),
+  rss("remotive_rss", "Remotive: software dev (RSS)", "https://remotive.com/remote-jobs/feed/software-dev", "hiring", 12),
 
   // ---------------------------------------------------------------- posted requirements: platforms with no feed, via search
   search("upwork_ai", "Upwork: AI automation jobs", "site:upwork.com/freelance-jobs (\"AI agent\" OR \"AI automation\" OR n8n OR \"voice agent\")", "requirement", 12),
@@ -107,10 +146,22 @@ export const CATALOG: CatalogSource[] = [
   search("freelancer_ai", "Freelancer.com: AI projects", "site:freelancer.com/projects (\"AI agent\" OR chatbot OR automation OR \"computer vision\")", "requirement", 24),
   search("pph", "PeoplePerHour: automation jobs", "site:peopleperhour.com/freelance-jobs (automation OR AI OR app OR software)", "requirement", 24),
   search("guru", "Guru: software jobs", "site:guru.com/work (automation OR AI OR \"mobile app\" OR software)", "requirement", 48),
+  search("twine", "Twine: projects (free to pitch)", "site:twine.net/projects (developer OR app OR website OR automation OR AI)", "requirement", 24),
+  search("workana", "Workana: projects", "site:workana.com/job (app OR software OR automation OR AI OR website)", "requirement", 48),
+  search("truelancer", "Truelancer: projects", "site:truelancer.com/freelance-project (app OR software OR automation OR AI)", "requirement", 48),
+  search("malt", "Malt: projects", "site:malt.com (\"looking for\" OR \"mission\") (developer OR automation OR AI)", "requirement", 72),
+  search("indiehackers", "Indie Hackers: looking for a developer", "site:indiehackers.com (\"looking for a developer\" OR \"looking for a technical\" OR \"need a developer\")", "requirement", 48),
+  search("quora_dev", "Quora: who can build this", "site:quora.com (\"looking for a developer\" OR \"looking for an agency\" OR \"need someone to build\") {year}", "requirement", 72),
+  search("craigslist_gigs", "Craigslist: computer gigs", "site:craigslist.org (cpg OR \"computer gigs\") (app OR website OR automation OR developer)", "requirement", 48),
+  search("fb_groups_dev", "Facebook groups: looking for a developer", "site:facebook.com/groups (\"looking for a developer\" OR \"need an app developer\" OR \"recommend an agency\") {country}", "requirement", 48),
   search("contra", "Contra: opportunities", "site:contra.com/opportunity (AI OR automation OR app OR developer)", "requirement", 48),
   search("li_posts_dev", "LinkedIn posts: looking for a developer", "site:linkedin.com/posts (\"looking for a developer\" OR \"looking for an agency\" OR \"need a developer\") {country}", "requirement", 12),
   search("li_posts_ai", "LinkedIn posts: need AI / automation", "site:linkedin.com/posts (\"looking for\" OR \"need\") (\"AI automation\" OR \"AI agent\" OR \"automate\") {country}", "requirement", 12),
   search("x_posts_dev", "X posts: looking for a developer", "site:x.com (\"looking for a developer\" OR \"need a developer\" OR \"looking for an AI agency\")", "requirement", 24),
+  search("rfp_ai", "RFPs: AI and automation", "(\"request for proposal\" OR RFP OR \"expression of interest\") (\"artificial intelligence\" OR chatbot OR automation) {country} {year}", "tender", 48),
+  search("ungm", "UN tenders: software / IT", "site:ungm.org (software OR \"information technology\" OR digital OR AI) {year}", "tender", 72),
+  search("ted_eu", "EU tenders (TED): software", "site:ted.europa.eu (software OR \"artificial intelligence\" OR \"mobile application\") {year}", "tender", 72),
+  search("gem_india", "India GeM / CPPP: software", "(site:gem.gov.in OR site:eprocure.gov.in) (software OR \"mobile app\" OR AI) {year}", "tender", 72),
   search("rfp_software", "RFPs: software development", "(\"request for proposal\" OR RFP) (\"software development\" OR \"mobile app\" OR \"AI\") {country} {year}", "tender", 24),
   search("need_website_industry", "Need a website/app: {industry}", "(\"looking for\" OR \"need\") (website OR app OR software OR automation) {industry} business {country}", "requirement", 24),
   search("cv_industry", "Computer vision need: {industry}", "(\"computer vision\" OR \"camera AI\" OR \"video analytics\") (pilot OR vendor OR \"looking for\") {industry} {country}", "requirement", 48),
@@ -151,6 +202,8 @@ export const CATALOG: CatalogSource[] = [
   rss("krasia", "KrASIA (Asia)", "https://kr-asia.com/feed", "funding", 12),
   rss("pandaily", "Pandaily (China)", "https://pandaily.com/feed/", "funding", 24),
   gnews("gcc_funding", "GCC startup funding", "startup raises funding (UAE OR Saudi OR Qatar OR Bahrain)", "funding", 12),
+  gnews("tech_partner", "Seeking a technology partner ({country})", "\"technology partner\" OR \"seeks vendor\" OR \"invites bids\" software {country}", "tender", 24),
+  gnews("digital_push_industry", "Going digital: {industry} in {country}", "{industry} launches app OR \"digital transformation\" OR automation {country}", "funding", 24),
 
   // ---------------------------------------------------------------- bad review mining (pain you can show them)
   search("rev_no_response", "Reviews: no response ({industry})", "site:trustpilot.com {industry} (\"no response\" OR \"never replied\" OR \"never called back\") {country}", "review", 48),

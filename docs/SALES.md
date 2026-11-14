@@ -654,3 +654,28 @@ Ready leads with a message rank a little higher in Do first.
 - "Prepare leads automatically from score": 0 prepares every qualified lead (the default), a number sets a higher bar, and 101 turns it off.
 - A lead you skip, reject or make into a deal stops being prepared.
 - The same rules as the manual search: businesses only, contacts only when they were seen in what was read, nothing invented.
+
+## Ask about a lead, possible businesses, and more sources
+
+**Ask about this lead.** Every radar lead has an **Ask about this lead** button: a chat that already knows the post, who posted it, the business behind it and its research, the people found, the plain-language brief and the drafted message. Ask anything ("What exactly do they need?", "Who are they and how do I reach them?", "Is it worth my time?", "Write a short reply") and it answers in a few lines, saying where each fact comes from. When the record does not say, it answers "not known" instead of guessing. Typing and the mic both work.
+
+**Possible businesses.** When the evidence points to more than one business, the lead lists up to three others under "Could also be" (or "Possible businesses"). Each has its place, Sure, Likely or A guess, the person named, why it fits, and its source. **Research this one** runs the full company research on it.
+- A candidate is kept only when the evidence names it, a website only when that domain appears, a person only when written there.
+- A business in another country, or one whose details contradict the post, is not a match.
+- The searches now also combine the post's own words and the business type with the poster's city and country.
+
+**Reddit from a cloud server.** Reddit refuses most requests from cloud servers (403) and rate-limits the rest (429). Each subreddit is now read through the first route that works:
+1. Reddit's API (if REDDIT_CLIENT_ID/SECRET are ever set)
+2. Reddit's JSON with the identifying user agent Reddit asks for
+3. old.reddit RSS
+4. the PullPush archive (free, works from servers; posts can lag a little)
+5. the Jina reader as a relay (your JINA_API_KEY)
+
+After a 429 Reddit is rested for at least 10 minutes. At most 4 subreddits are read per run, 1.5 seconds apart. Any other feed or API that answers 403 or 429 gets one more try through the relay. The Sources tab now says in plain words why a source failed.
+
+**New sources:**
+- **Tool community forums, free to reply:** n8n, Make, Bubble, FlutterFlow, Glide, WeWeb, Retool, UiPath, Webflow and OpenAI developers. People post paid work there.
+- **More subreddits:** WebDeveloperJobs, AiAutomations, SideProject, cofounder, indianstartups, smallbusinessuk, PropertyManagement, agency, msp, Bubbleio, FlutterDev.
+- **Named companies hiring** (approach them for the work): YC startups (HN jobs), The Muse, Working Nomads, Jobspresso, Remotive RSS, We Work Remotely devops.
+- **Tenders:** World Bank (software, digital), UN (UNGM), EU (TED), India (GeM, CPPP), RFPs for AI and automation, and "seeking a technology partner" news.
+- **Platforms with no feed, via search:** Twine, Workana, Truelancer, Malt, Indie Hackers, Quora, Craigslist gigs, Facebook groups. These use the daily search allowance, then the free engines.

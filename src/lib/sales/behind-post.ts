@@ -30,6 +30,18 @@ export interface Identity {
   evidence: { url: string; says: string }[];
   note: string;
   checked_at: string;
+  /** other businesses that could be behind it, when the evidence points to more than one; each grounded the same way */
+  candidates?: Candidate[];
+}
+
+export interface Candidate {
+  company: string;
+  website: string | null;
+  location: string | null;
+  person: string | null;
+  why: string;
+  confidence: "high" | "medium" | "low";
+  evidence_url: string | null;
 }
 
 /** Marketplaces where answering costs credits, bids or connects. */
@@ -77,7 +89,11 @@ export function behindQueries(item: { title: string }, c: Clues, fit: { company?
   const name = c.poster?.name?.replace(/\.$/, "");
   if (name && /\s/.test(name)) out.push(`"${name}" ${where} ${fit?.industry ?? ""} founder OR owner OR director`.replace(/\s+/g, " ").trim());
   for (const h of c.handles) out.push(`"@${h}"`);
-  return [...new Set(out)].slice(0, 5);
+  // the place and the kind of business: the same need is often on the company's own site, a local listing or LinkedIn
+  const words = item.title.replace(/\([^)]*\)/g, " ").replace(/\b(need|needed|looking|for|a|an|the|to|and|with|our|my|build|developer|expert|urgent|project)\b/gi, " ").replace(/\s+/g, " ").trim();
+  if (where && words) out.push(`${words} ${where}`);
+  if (where && fit?.industry) out.push(`${fit.industry} company ${where} hiring OR "looking for" developer OR automation`);
+  return [...new Set(out)].slice(0, 7);
 }
 
 const SYSTEM = `You find the business behind a posted requirement so a small agency can contact the decision maker directly.
@@ -93,8 +109,14 @@ You get the post, the poster's public profile, and EVIDENCE (search results and 
  "phones": business phone numbers that appear in the evidence, [],
  "confidence": "high" (the evidence clearly ties this business to this post: same details, same site, same name and place) | "medium" (likely) | "low" (a guess),
  "evidence": [{"url": a URL from the evidence, "says": "what it shows, one line"}],
- "note": "one or two plain lines: what you found and how sure you are, or why nothing could be tied to the post"
+ "note": "one or two plain lines: what you found and how sure you are, or why nothing could be tied to the post",
+ "candidates": when more than one business could be behind it, up to 3 OTHER possibilities (not the main one), each
+   {"company": name exactly as the evidence writes it, "website": a domain in the evidence or null, "location": city and country,
+    "person": a named owner or decision maker in the evidence or null, "why": "what ties it to this post, one line",
+    "confidence": "high|medium|low", "evidence_url": a URL from the evidence or null}
 }
+Match the poster's city and country, the industry, the size and the exact details of the post: a business in another
+country, or one whose details contradict the post, is not a match.
 Rules: only businesses. If the post is a private person's personal job, kind "private" and every other field null or empty.
 Never guess an email or phone pattern. Never use details of a different business with a similar name.
 If nothing in the evidence ties a business to this post, say so with confidence "low" and nulls.`;
@@ -173,7 +195,7 @@ async function investigate(
 
 /** Keeps only what the evidence shows: names and sites it mentions, emails and phones it literally contains. Pure. */
 export function groundIdentity(
-  out: { company?: string | null; website?: string | null; person?: string | null; title?: string | null; linkedin?: string | null; emails?: string[]; phones?: string[]; confidence?: string; evidence?: { url: string; says: string }[]; note?: string },
+  out: { company?: string | null; website?: string | null; person?: string | null; title?: string | null; linkedin?: string | null; emails?: string[]; phones?: string[]; confidence?: string; evidence?: { url: string; says: string }[]; note?: string; candidates?: unknown },
   hay: string,
 ): Identity {
   const low = hay.toLowerCase();
@@ -196,7 +218,32 @@ export function groundIdentity(
     evidence: (out.evidence ?? []).filter((e) => e?.url && (low.includes(String(e.url).toLowerCase()) || /gemini/i.test(String(e.url)))).slice(0, 6).map((e) => ({ url: String(e.url), says: String(e.says ?? "").slice(0, 200) })),
     note: String(out.note ?? "").slice(0, 400) || (found ? "Business identified from the evidence." : "Nothing in the evidence ties a business to this post."),
     checked_at: new Date().toISOString(),
+    candidates: groundCandidates(out.candidates, hay, company),
   };
+}
+
+/** Other possible businesses, each kept only when the evidence names it; never the main one twice. Pure. */
+export function groundCandidates(list: unknown, hay: string, main: string | null): Candidate[] {
+  if (!Array.isArray(list)) return [];
+  const low = hay.toLowerCase();
+  const out: Candidate[] = [];
+  for (const raw of list.slice(0, 5)) {
+    const c = (raw ?? {}) as Record<string, unknown>;
+    const company = typeof c.company === "string" ? c.company.trim() : "";
+    if (company.length < 2 || !low.includes(company.toLowerCase()) || company.toLowerCase() === main?.toLowerCase()) continue;
+    if (out.some((x) => x.company.toLowerCase() === company.toLowerCase())) continue; // the same business twice
+    const dom = typeof c.website === "string" && c.website ? domainOf(/^https?:/i.test(c.website) ? c.website : `https://${c.website}`) : null;
+    const person = typeof c.person === "string" && c.person.trim().length >= 3 && low.includes(c.person.trim().toLowerCase()) ? c.person.trim() : null;
+    const url = typeof c.evidence_url === "string" && low.includes(c.evidence_url.toLowerCase()) ? c.evidence_url : null;
+    out.push({
+      company, website: dom && !PLATFORM.test(dom) && low.includes(dom) ? `https://${dom}` : null,
+      location: typeof c.location === "string" ? c.location.slice(0, 80) : null, person,
+      why: typeof c.why === "string" ? c.why.slice(0, 200) : "", confidence: (["high", "medium", "low"].includes(String(c.confidence)) ? c.confidence : "low") as Candidate["confidence"],
+      evidence_url: url,
+    });
+    if (out.length >= 3) break;
+  }
+  return out;
 }
 
 /** For a lead whose business was found: the company research follows with it (decision makers, every contact). */

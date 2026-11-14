@@ -9,6 +9,7 @@ import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import type { Enrichment } from "@/lib/sales/enrich";
 import { ago } from "./util";
+import { Ago } from "@/components/sales/ago";
 
 export function EnrichmentPanel({ kind, id, data, groups, enrichedAt, title }: {
   kind: "company" | "person"; id: number; data: Enrichment; groups: { group: string; fields: [string, string][] }[]; enrichedAt: string | null; title: string;
@@ -47,7 +48,7 @@ export function EnrichmentPanel({ kind, id, data, groups, enrichedAt, title }: {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="font-display text-base">{title}</h3>
-          <p className="text-xs text-subtle">{enrichedAt ? `${filled} facts · researched ${ago(enrichedAt)}` : "Not researched yet"} · public sources only; "est." means estimated</p>
+          <p suppressHydrationWarning className="text-xs text-subtle">{enrichedAt ? `${filled} facts · researched ${ago(enrichedAt)}` : "Not researched yet"} · public sources only; "est." means estimated</p>
         </div>
         <div className="flex gap-2">
           {filled ? <Button size="sm" variant="ghost" onClick={() => setShowEmpty((s) => !s)}>{showEmpty ? "Hide empty" : "Show empty"}</Button> : null}

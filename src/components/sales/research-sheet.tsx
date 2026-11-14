@@ -10,6 +10,7 @@ import type { Enrichment } from "@/lib/sales/research-fields";
 import type { ResearchView } from "@/lib/sales/research";
 import { EnrichmentPanel } from "./enrichment-panel";
 import { ago } from "./util";
+import { Ago } from "@/components/sales/ago";
 
 const STEPS: [string, string][] = [["site", "Their website"], ["search", "The web"], ["synth", "The profile"], ["done", "Done"]];
 const val = (e: Enrichment | undefined, k: string): string => {
@@ -151,7 +152,7 @@ export function ResearchSheet({ open, onOpenChange, radarItemId, companyId, titl
                     return (
                       <li key={p.id} className="rounded-xl bg-surface/80 p-3 text-fg">
                         <p className="flex flex-wrap items-center gap-x-2 text-sm font-semibold"><UserRound className="h-4 w-4" /> {p.full_name}{p.is_decision_maker ? <span className="rounded-md bg-good px-2 py-0.5 text-[10px] font-semibold text-good-on">decision maker</span> : null}</p>
-                        <p className="text-xs text-subtle">{p.title ?? val(pe, "current_title") ?? "Role unknown"}{p.enriched_at ? ` · researched ${ago(p.enriched_at)}` : " · not researched yet"}</p>
+                        <p suppressHydrationWarning className="text-xs text-subtle">{p.title ?? val(pe, "current_title") ?? "Role unknown"}{p.enriched_at ? ` · researched ${ago(p.enriched_at)}` : " · not researched yet"}</p>
                         <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs">
                           {found ? <a href={`mailto:${found}`} className="inline-flex items-center gap-1 hover:underline"><Mail className="h-3 w-3" /> {found}</a> : guess ? <span className="inline-flex items-center gap-1" title={val(pe, "email_pattern_basis")}><Mail className="h-3 w-3" /> {guess} <span className="rounded bg-warn-muted px-1 text-[10px] text-warn">guess, unverified</span></span> : null}
                           {p.linkedin ? <a href={p.linkedin} target="_blank" rel="noreferrer" className="hover:underline">LinkedIn ↗</a> : null}
@@ -196,7 +197,7 @@ export function ResearchSheet({ open, onOpenChange, radarItemId, companyId, titl
             <summary className="cursor-pointer text-sm font-semibold">What the researcher did</summary>
             <ul className="mt-2 space-y-2 text-xs">
               {view.runs.map((r) => (
-                <li key={r.id}><b>{r.subject === "company" ? "Company" : "Person"} research</b> · {r.status} · {ago(r.started_at)}<ul className="mt-0.5 text-subtle">{r.log.map((l, i) => <li key={i}>· {l}</li>)}</ul></li>
+                <li key={r.id}><b>{r.subject === "company" ? "Company" : "Person"} research</b> · {r.status} · <Ago d={r.started_at} /><ul className="mt-0.5 text-subtle">{r.log.map((l, i) => <li key={i}>· {l}</li>)}</ul></li>
               ))}
             </ul>
           </details>
@@ -205,7 +206,7 @@ export function ResearchSheet({ open, onOpenChange, radarItemId, companyId, titl
         {co ? (
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
             <Button variant="outline" disabled={busy || !!active} onClick={start}>{busy || active ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Research again</Button>
-            {companyRun?.finished_at ? <span className="flex items-center gap-1 text-xs text-subtle"><CheckCircle2 className="h-3.5 w-3.5 text-good" /> Last finished {ago(companyRun.finished_at)}</span> : null}
+            {companyRun?.finished_at ? <span className="flex items-center gap-1 text-xs text-subtle"><CheckCircle2 className="h-3.5 w-3.5 text-good" /> Last finished <Ago d={companyRun.finished_at} /></span> : null}
             {radarItemId ? (
               <details className="ml-auto text-xs"><summary className="cursor-pointer text-subtle">Wrong company?</summary>
                 <div className="mt-2 flex flex-wrap gap-2">

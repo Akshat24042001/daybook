@@ -8,6 +8,7 @@ import { describeSchedule } from "@/lib/sales/hunt-schedule";
 import { CATEGORY_HELP } from "@/lib/sales/radar-help";
 import type { RadarPlan } from "@/lib/sales/radar-plan";
 import { ago } from "./util";
+import { Ago } from "@/components/sales/ago";
 
 function Section({ title, hint, info, tone = "teal", children }: { title: string; hint?: string; info?: string; tone?: "teal" | "lilac" | "peach" | "sky" | "mint"; children: React.ReactNode }) {
   const bar = { teal: "bg-teal-fill", lilac: "bg-lilac-fill", peach: "bg-peach-fill", sky: "bg-accent", mint: "bg-good" }[tone];
@@ -141,7 +142,7 @@ export function PlanPanel({ plan }: { plan: RadarPlan }) {
             <li key={x.id} className="py-2 text-xs">
               <p className="flex flex-wrap items-baseline gap-x-2"><b className={cn("text-sm", !x.enabled && "text-subtle")}>{x.name}</b><span className="rounded-md bg-muted px-1.5 py-0.5 text-subtle">{x.category}</span>{!x.enabled ? <span className="text-subtle">off</span> : null}</p>
               <p className="break-words text-subtle">{x.target}</p>
-              <p className="text-subtle">
+              <p suppressHydrationWarning className="text-subtle">
                 {x.kind === "email" ? "Runs when an email arrives" : `Every ${x.interval_hours}h · last ${x.last_run_at ? ago(x.last_run_at) : "never"}${x.next_run_at ? ` · next ${when(x.next_run_at, plan.timezone)}` : ""}`}
                 {" · "}{x.items_found} found, {x.items_qualified} qualified
               </p>
@@ -160,7 +161,7 @@ export function PlanPanel({ plan }: { plan: RadarPlan }) {
                 <Search className="mt-0.5 h-3.5 w-3.5 shrink-0 text-subtle" />
                 <span className="min-w-0 flex-1">
                   <span className="break-words font-medium">{r.query}</span>
-                  <span className="block text-subtle">{r.provider} · {ago(r.at)} · {r.error ? <span className="text-bad">{r.error}</span> : `${r.hits} result${r.hits === 1 ? "" : "s"}`}{r.label ? ` · ${r.label}` : ""}</span>
+                  <span className="block text-subtle">{r.provider} · <Ago d={r.at} /> · {r.error ? <span className="text-bad">{r.error}</span> : `${r.hits} result${r.hits === 1 ? "" : "s"}`}{r.label ? ` · ${r.label}` : ""}</span>
                 </span>
               </li>
             ))}

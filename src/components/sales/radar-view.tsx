@@ -17,6 +17,7 @@ import type { RadarBrief } from "@/lib/sales/radar-brief";
 import type { Prep } from "@/lib/sales/radar-prep";
 import type { RadarPlan } from "@/lib/sales/radar-plan";
 import type { HuntView } from "@/lib/sales/hunts";
+import { Ago } from "@/components/sales/ago";
 
 export interface RadarItem {
   id: number; title: string; body: string | null; url: string | null; score: number | null; status: string; found_at: string; posted_at: string | null;
@@ -41,7 +42,7 @@ export interface SourceRow {
   last_run_at: string | null; last_ok_at: string | null; last_error: string | null; items_found: number; items_qualified: number; deals_created: number;
 }
 
-export function RadarView({ items, sources, googleReady, focus, searchProviders, hunts, plan, searchCap, tz }: { items: RadarItem[]; sources: SourceRow[]; googleReady: boolean; focus: { country: string; industry: string }; searchProviders: string[]; hunts: HuntView[]; plan: RadarPlan; searchCap: number; tz: string }) {
+export function RadarView({ items, sources, googleReady, focus, searchProviders, hunts, plan, searchCap, tz, voiceEnabled = false }: { items: RadarItem[]; sources: SourceRow[]; googleReady: boolean; focus: { country: string; industry: string }; searchProviders: string[]; hunts: HuntView[]; plan: RadarPlan; searchCap: number; tz: string; voiceEnabled?: boolean }) {
   const [tab, setTab] = useState<"qualified" | "new" | "rejected" | "hunts" | "plan" | "sources">("qualified");
   const [busy, start] = useTransition();
   const [add, setAdd] = useState(false);
@@ -85,7 +86,7 @@ export function RadarView({ items, sources, googleReady, focus, searchProviders,
       ) : tab === "hunts" ? (
         <HuntsPanel hunts={hunts} searchCap={searchCap} providers={searchProviders} tz={tz} />
       ) : tab !== "sources" ? (
-        <RadarBoard key={tab} items={tabItems} googleReady={googleReady} tz={tz} emptyText="Nothing here yet. The radar runs every 15 minutes; the morning digest always brings at least one opportunity." />
+        <RadarBoard key={tab} items={tabItems} googleReady={googleReady} tz={tz} voiceEnabled={voiceEnabled} emptyText="Nothing here yet. The radar runs every 15 minutes; the morning digest always brings at least one opportunity." />
       ) : (
         <div className="space-y-3">
           <div className="overflow-x-auto rounded-2xl border border-border">
@@ -98,7 +99,7 @@ export function RadarView({ items, sources, googleReady, focus, searchProviders,
                     <td className="p-2"><p className="font-medium">{s.name}</p>{s.note ? <p className="text-subtle">{s.note}</p> : null}{s.last_error ? <p className="text-bad">{s.last_error.slice(0, 120)}</p> : null}</td>
                     <td className="p-2">{s.category}<br /><span className="text-subtle">{s.kind}</span></td>
                     <td className="p-2">{s.kind === "email" ? "on arrival" : `${s.interval_hours}h`}</td>
-                    <td className="p-2">{s.kind === "email" ? "" : ago(s.last_run_at)}</td>
+                    <td className="p-2">{s.kind === "email" ? "" : <Ago d={s.last_run_at} />}</td>
                     <td className="p-2 text-right tabular">{s.items_found}</td><td className="p-2 text-right tabular">{s.items_qualified}</td><td className="p-2 text-right tabular">{s.deals_created}</td>
                   </tr>
                 ))}

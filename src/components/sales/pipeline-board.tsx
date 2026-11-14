@@ -21,6 +21,7 @@ import { cn } from "@/lib/cn";
 import type { DealCard } from "@/lib/sales/deals";
 import type { Stage, Transition } from "@/lib/sales/stages";
 import { ago, ChannelIcon, money, Priority, PriorityLegend } from "./util";
+import { Ago } from "@/components/sales/ago";
 
 // the move sheet (closing checklists, reasons) lives with the deal components; re-exported for older imports
 export { StageMoveSheet, type PendingMove } from "./deal-rich";
@@ -67,7 +68,7 @@ function CardBody({ d, s }: { d: DealCard; s: Stage | undefined }) {
       {d.person_name ? <p className="truncate text-xs text-subtle">{d.person_name}{d.company_name && d.company_name !== d.title ? ` · ${d.company_name}` : ""}</p> : null}
       <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-subtle">
         {d.value_amount ? <span className="font-medium text-fg">{money(d.value_amount, d.currency)}</span> : null}
-        {d.last_channel ? <span className="inline-flex items-center gap-1"><ChannelIcon channel={d.last_channel} className="h-3 w-3" />{ago(d.last_touch_at)}</span> : <span>no touch yet</span>}
+        {d.last_channel ? <span className="inline-flex items-center gap-1"><ChannelIcon channel={d.last_channel} className="h-3 w-3" /><Ago d={d.last_touch_at} /></span> : <span>no touch yet</span>}
         <span className={cn(stuck && "font-semibold text-bad")}>{days}d here</span>
         {d.open_moves ? <span className="text-accent">{d.open_moves} move{d.open_moves > 1 ? "s" : ""}</span> : null}
       </div>

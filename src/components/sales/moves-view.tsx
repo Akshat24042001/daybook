@@ -14,6 +14,7 @@ import { cn } from "@/lib/cn";
 import type { MoveRow } from "@/lib/sales/moves";
 import { platformOf, replyTargets, targetInput, type Target } from "@/lib/sales/reply-targets";
 import { ago } from "./util";
+import { Ago } from "@/components/sales/ago";
 
 // red = act now, yellow = needs attention, green = money and good news, blue = a new action to start, grey = housekeeping
 const KIND: Record<string, { label: string; tone: string }> = {
@@ -118,7 +119,7 @@ export function MoveCard({ m, googleReady, onGone }: { m: MoveRow; googleReady: 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className={cn("rounded-md px-2 py-0.5 text-xs font-semibold", k.tone)}>{k.label}</span>
-            <span className="text-xs text-subtle">due {ago(move.due_at)}</span>
+            <span className="text-xs text-subtle">due <Ago d={move.due_at} /></span>
             {move.stage_name ? <Chip className="text-[10px]">{move.stage_name}</Chip> : null}
           </div>
           <p className="mt-1 text-sm font-semibold leading-snug">{move.title}</p>

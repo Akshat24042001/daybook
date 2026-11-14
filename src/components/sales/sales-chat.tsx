@@ -11,11 +11,12 @@ import { Button, Sheet, Textarea } from "@/components/ui";
 import { VoiceButton } from "@/components/voice-button";
 import type { MessageView, StreamEvent } from "@/lib/assistant/types";
 
-type Focus = { area: "sales" } | { deal_id: number };
+type Focus = { area: "sales" } | { deal_id: number } | { radar_item_id: number };
 
 const STARTERS = {
   sales: ["Who needs me most today?", "Which deals are stuck, and why?", "What did I win and lose this month?", "Add a lead: Riya Shah, Glowyug, 2 lakh website"],
   deal: ["What's the latest with them, and what should I do next?", "Write my next message to them", "Budget is 2 lakh, next step: call on Friday", "Move it to proposal"],
+  radar: ["What exactly do they need, in two lines?", "Who are they and how do I reach them?", "Is it worth my time? Budget and red flags", "Write a short reply I can send now"],
 };
 
 /**
@@ -24,7 +25,7 @@ const STARTERS = {
  * each can be undone. Type or speak.
  */
 export function SalesChat({ focus, title, voiceEnabled, label = "Chat" }: { focus: Focus; title: string; voiceEnabled: boolean; label?: string }) {
-  const key = "deal_id" in focus ? `sales-chat:deal:${focus.deal_id}` : "sales-chat:sales";
+  const key = "deal_id" in focus ? `sales-chat:deal:${focus.deal_id}` : "radar_item_id" in focus ? `sales-chat:radar:${focus.radar_item_id}` : "sales-chat:sales";
   const [open, setOpen] = useState(false);
   const [chatId, setChatId] = useState<number | null>(null);
   const [messages, setMessages] = useState<MessageView[]>([]);
@@ -114,7 +115,7 @@ export function SalesChat({ focus, title, voiceEnabled, label = "Chat" }: { focu
     }
   };
 
-  const starters = "deal_id" in focus ? STARTERS.deal : STARTERS.sales;
+  const starters = "deal_id" in focus ? STARTERS.deal : "radar_item_id" in focus ? STARTERS.radar : STARTERS.sales;
   return (
     <>
       <Button size="sm" variant="outline" onClick={() => setOpen(true)} aria-label={label}>

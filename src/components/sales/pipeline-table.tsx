@@ -12,6 +12,7 @@ import type { DealCard } from "@/lib/sales/deals";
 import { DEAL_TYPES, qualification, SOURCES as SOURCES_LIST, type FieldDef } from "@/lib/sales/fields";
 import type { Stage } from "@/lib/sales/stages";
 import { ago, money, Priority } from "./util";
+import { Ago } from "@/components/sales/ago";
 
 const D = 86_400_000;
 const fmtDay = (v: unknown) => (v ? new Date(String(v).length <= 10 ? `${String(v).slice(0, 10)}T12:00:00` : String(v)).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "");
@@ -46,7 +47,7 @@ function columnsFor(stages: Stage[], customDefs: FieldDef[], team: Named[] = [],
     { key: "value", label: "Value", right: true, render: (d) => (d.value_amount ? money(Number(d.value_amount), d.currency) : ""), sort: (d) => Number(d.value_usd ?? 0) },
     { key: "probability", label: "Win chance", right: true, render: (d) => `${d.probability ?? d.stage_probability}%`, sort: (d) => d.probability ?? d.stage_probability },
     { key: "next", label: "Next step", render: (d) => (d.next_action ? <span>{d.next_action}{d.next_action_at ? <span className="block text-subtle">{fmtDay(d.next_action_at)}</span> : null}</span> : <span className="text-warn">none</span>), sort: (d) => (d.next_action_at ? +new Date(d.next_action_at) : Number.MAX_SAFE_INTEGER) },
-    { key: "touch", label: "Last touch", render: (d) => (d.last_touch_at ? ago(d.last_touch_at) : "never"), sort: (d) => (d.last_touch_at ? +new Date(d.last_touch_at) : 0) },
+    { key: "touch", label: "Last touch", render: (d) => (d.last_touch_at ? <Ago d={d.last_touch_at} /> : "never"), sort: (d) => (d.last_touch_at ? +new Date(d.last_touch_at) : 0) },
     { key: "in_stage", label: "Days in stage", right: true, render: (d) => Math.floor((Date.now() - +new Date(d.stage_changed_at)) / D), sort: (d) => +new Date(d.stage_changed_at) * -1 },
     { key: "expected_close", label: "Expected close", render: (d) => fmtDay(d.expected_close), sort: (d) => (d.expected_close ? +new Date(d.expected_close) : Number.MAX_SAFE_INTEGER) },
     { key: "deal_type", label: "Type", render: (d) => DEAL_TYPES.find(([k]) => k === d.deal_type)?.[1] ?? "", sort: (d) => d.deal_type ?? "" },

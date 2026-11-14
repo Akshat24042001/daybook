@@ -23,6 +23,8 @@ import type { RadarItem } from "./radar-view";
 import { ago } from "./util";
 import { contactsOf, dedupeKey, hoursSince, isPaid, isReady, priority } from "@/lib/sales/radar-rank";
 import { ReadyPack } from "./radar-ready";
+import { SalesChat } from "./sales-chat";
+import { Ago } from "@/components/sales/ago";
 
 // ------------------------------------------------------------------ ranking lives in lib/sales/radar-rank (pure, tested)
 
@@ -31,7 +33,7 @@ type Only = "all" | "ready" | "unread" | "direct" | "free" | "paid";
 
 // ------------------------------------------------------------------ the board
 
-export function RadarBoard({ items, googleReady, tz, emptyText }: { items: RadarItem[]; googleReady: boolean; tz: string; emptyText: string }) {
+export function RadarBoard({ items, googleReady, tz, emptyText, voiceEnabled = false }: { items: RadarItem[]; googleReady: boolean; tz: string; emptyText: string; voiceEnabled?: boolean }) {
   const [sort, setSort] = useState<Sort>("first");
   const [only, setOnly] = useState<Only>("all");
   const [showHidden, setShowHidden] = useState(false);
@@ -144,7 +146,7 @@ export function RadarBoard({ items, googleReady, tz, emptyText }: { items: Radar
     return <div className="space-y-3">{toolbar}<p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-subtle">{only === "all" ? emptyText : "Nothing in this view. Try All."}</p></div>;
   }
 
-  const detail = current ? <Detail key={current.it.id} it={current.it} ids={current.ids} rank={rows.indexOf(current) + 1} also={current.also} reasons={current.p.reasons} sort={sort} googleReady={googleReady} tz={tz} onDrop={drop} /> : null;
+  const detail = current ? <Detail key={current.it.id} it={current.it} ids={current.ids} rank={rows.indexOf(current) + 1} also={current.also} reasons={current.p.reasons} sort={sort} googleReady={googleReady} tz={tz} onDrop={drop} voiceEnabled={voiceEnabled} /> : null;
 
   return (
     <div className="space-y-3">
@@ -202,7 +204,7 @@ function Row({ it, rank, also, reasons, first, active, tz, now, onOpen }: { it: 
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 text-[11px]">
             {unread ? <span className="h-2 w-2 shrink-0 rounded-full bg-accent" aria-label="Unread" /> : null}
-            <span className={cn("tabular", h < 24 ? "font-semibold text-fg" : "text-subtle")}>{h < 24 ? ago(it.posted_at ?? it.found_at) : whenLabel(it.posted_at ?? it.found_at, tz).replace(/, \d.*$/, "")}</span>
+            <span suppressHydrationWarning className={cn("tabular", h < 24 ? "font-semibold text-fg" : "text-subtle")}>{h < 24 ? ago(it.posted_at ?? it.found_at) : whenLabel(it.posted_at ?? it.found_at, tz).replace(/, \d.*$/, "")}</span>
             <span className="text-subtle">· {where?.key === "page" ? it.source ?? where.name : where?.name ?? it.source ?? "manual"}</span>
             {it.fit?.country ? <span className="truncate text-subtle">· {it.fit.country}</span> : null}
           </p>
@@ -240,7 +242,7 @@ function Section({ icon: Icon, title, children, tone }: { icon: typeof Target; t
   );
 }
 
-function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop }: { it: RadarItem; ids: number[]; rank: number; also: number; reasons: string[]; sort: Sort; googleReady: boolean; tz: string; onDrop: (id: number) => void }) {
+function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, voiceEnabled }: { it: RadarItem; ids: number[]; rank: number; also: number; reasons: string[]; sort: Sort; googleReady: boolean; tz: string; onDrop: (id: number) => void; voiceEnabled: boolean }) {
   const [brief, setBrief] = useState<RadarBrief | null>(it.brief ?? null);
   const [briefErr, setBriefErr] = useState<string | null>(null);
   const [move, setMove] = useState<MoveRow | null>(null);
@@ -289,9 +291,12 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop }:
           {sort === "first" ? <span className="rounded-md bg-accent px-1.5 py-0.5 font-bold text-accent-fg">#{rank} to do</span> : null}
           <span className={cn("rounded-md px-1.5 py-0.5 font-semibold tabular", (it.score ?? 0) >= 80 ? "bg-p-mint text-p-mint-fg" : "bg-p-sky text-p-sky-fg")}>Fit {it.score ?? "?"}</span>
           <span className="inline-flex items-center gap-1 font-semibold"><Clock className="h-3.5 w-3.5 text-subtle" />{it.posted_at ? "Posted" : "Found"} {whenLabel(at, tz)}</span>
-          <span className="text-subtle">({ago(at)})</span>
+          <span className="text-subtle">(<Ago d={at} />)</span>
         </p>
-        <h2 className="mt-1.5 font-display text-xl leading-snug">{it.title}</h2>
+        <div className="mt-1.5 flex items-start justify-between gap-3">
+          <h2 className="font-display text-xl leading-snug">{it.title}</h2>
+          <SalesChat focus={{ radar_item_id: it.id }} title={`Ask about: ${it.title.slice(0, 60)}`} voiceEnabled={voiceEnabled} label="Ask about this lead" />
+        </div>
         <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-subtle">
           <span>{where?.name ?? it.source ?? "manual"}{it.source && where?.key !== "page" ? ` · ${it.source}` : ""}</span>
           {f.country ? <span className="inline-flex items-center gap-0.5"><MapPin className="h-3 w-3" />{f.country}</span> : null}

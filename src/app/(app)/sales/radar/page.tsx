@@ -9,6 +9,7 @@ import { listHunts, seedHunts } from "@/lib/sales/hunts";
 import { searchConfigured } from "@/lib/sales/search";
 import { RadarView, type RadarItem, type SourceRow } from "@/components/sales/radar-view";
 import { radarQuickLinks } from "@/lib/sales/quick-links";
+import { voiceConfigured } from "@/lib/deepgram";
 
 export const metadata: Metadata = { title: "Radar" };
 export const dynamic = "force-dynamic";
@@ -31,5 +32,5 @@ export default async function RadarPage() {
   ]);
   const links = await radarQuickLinks(items.map((i) => i.id));
   for (const it of items) it.links = links[it.id] ?? [];
-  return <RadarView items={items} sources={sources} googleReady={google} focus={await currentFocus(cfg)} searchProviders={searchConfigured()} hunts={hunts} plan={plan} searchCap={cfg.radar.search_daily_cap} tz={(await getSettings()).timezone} />;
+  return <RadarView items={items} sources={sources} googleReady={google} focus={await currentFocus(cfg)} searchProviders={searchConfigured()} hunts={hunts} plan={plan} searchCap={cfg.radar.search_daily_cap} tz={(await getSettings()).timezone} voiceEnabled={voiceConfigured()} />;
 }
