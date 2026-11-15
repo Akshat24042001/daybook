@@ -490,7 +490,7 @@ export async function alertItem(id: number): Promise<void> {
   for (const w of written.filter((l) => (l.kind === "website" || l.kind === "whatsapp") && l.href.startsWith("https://")).slice(0, 2)) links.push({ text: `${w.kind === "whatsapp" ? "🟢 WhatsApp" : `🌐 ${w.label.slice(0, 24)}`}`, url: w.href });
   const linkRows = [];
   for (let i = 0; i < links.length; i += 2) linkRows.push(links.slice(i, i + 2));
-  await push(text, { inline_keyboard: [row, ...linkRows, [{ text: "📇 All links and research", url: `${baseUrl()}/sales/radar` }]] });
+  await push(text, { inline_keyboard: [row, ...linkRows, [{ text: "📋 Full details to forward", callback_data: `zs:rf:${id}` }, { text: "📇 Open radar", url: `${baseUrl()}/sales/radar` }]] });
 }
 
 /** Turns a radar item into a company, a person (when named) and a New deal with a first-touch move. */

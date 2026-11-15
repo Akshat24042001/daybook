@@ -26,6 +26,7 @@ import { ReadyPack } from "./radar-ready";
 import { SalesChat } from "./sales-chat";
 import { Ago } from "@/components/sales/ago";
 import { BookMeeting, TripBadge } from "./radar-trip";
+import { ShareLead } from "./radar-share";
 
 // ------------------------------------------------------------------ ranking lives in lib/sales/radar-rank (pure, tested)
 
@@ -313,7 +314,10 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
         </p>
         <div className="mt-1.5 flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
           <h2 className="min-w-0 flex-1 basis-64 font-display text-xl leading-snug">{it.title}</h2>
-          <SalesChat focus={{ radar_item_id: it.id }} title={`Ask about: ${it.title.slice(0, 60)}`} voiceEnabled={voiceEnabled} label="Ask about this lead" />
+          <span className="flex shrink-0 gap-1.5">
+            <ShareLead itemId={it.id} title={it.title} />
+            <SalesChat focus={{ radar_item_id: it.id }} title={`Ask about: ${it.title.slice(0, 60)}`} voiceEnabled={voiceEnabled} label="Ask about this lead" />
+          </span>
         </div>
         <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-subtle">
           <span>{where?.name ?? it.source ?? "manual"}{it.source && where?.key !== "page" ? ` · ${it.source}` : ""}</span>

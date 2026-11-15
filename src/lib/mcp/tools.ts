@@ -198,6 +198,34 @@ export const TOOLS: Tool[] = [
     },
   },
   {
+    name: "sales_radar_leads",
+    description: "Newest good leads the radar found (qualified, not yet a deal): id, title, fit score, when, where, the business and contacts found, and whether a message is ready. Use an id with sales_radar_lead for everything about one.",
+    readOnly: true,
+    inputSchema: { type: "object", properties: { limit: { type: "integer" } }, additionalProperties: false },
+    async run(a) {
+      const n = Math.max(1, Math.min(50, Number(a.limit) || 15));
+      return q(
+        `select r.id, r.title, r.score, coalesce(r.posted_at, r.found_at) as at, r.url, coalesce(s.name, h.name) as source, r.lead_kind as kind,
+                r.identity->>'company' as company, r.identity->'emails' as emails, r.identity->'phones' as phones, r.prep->>'stage' = 'ready' as ready
+         from sales_radar_items r left join sales_radar_sources s on s.id = r.source_id left join sales_hunts h on h.id = r.hunt_id
+         where r.status = 'qualified' and not r.hidden and r.deal_id is null order by coalesce(r.posted_at, r.found_at) desc limit $1`,
+        [n],
+      );
+    },
+  },
+  {
+    name: "sales_radar_lead",
+    description: "Everything the radar knows about one lead, to verify, research further and advise on: the post, who posted it, the business behind it and other possible businesses, the decision maker and every contact, the company research with sources, people found, the plain-words need and how to help, the drafted message, trip and meetings. Returns readable text and the same as data.",
+    readOnly: true,
+    inputSchema: { type: "object", properties: { id: { type: "integer" } }, required: ["id"], additionalProperties: false },
+    async run(a) {
+      if (!Number.isInteger(a.id)) throw new UserError("id must be an integer (from sales_radar_leads).");
+      const { leadDossier, dossierText } = await import("../sales/lead-share");
+      const d = await leadDossier(a.id as number);
+      return { text: dossierText(d), data: d };
+    },
+  },
+  {
     name: "sales_add_target",
     description: "Add a radar target or trip from one plain line, e.g. \"I'm in Udaipur from 29 Nov to 2 Dec, hotels and wedding planners\" or \"Dubai real estate brokers, ongoing\". It starts searching within a minute. A trip stops after its last day and its messages ask to meet in person.",
     readOnly: false,

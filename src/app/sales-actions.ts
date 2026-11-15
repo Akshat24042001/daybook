@@ -491,6 +491,19 @@ export async function bookLeadMeetingAction(itemId: number, date: string, time: 
     return bookLeadMeeting(itemId, date, time, { place: place ?? null });
   }, ["/sales/radar", "/sales"]);
 }
+/** Everything about a radar lead, written four ways (full, WhatsApp, for Claude, data), to copy or send. */
+export async function leadShareAction(itemId: number) {
+  return run<{ share: import("@/lib/sales/lead-share").LeadShare }>(async () => {
+    const { leadShare } = await import("@/lib/sales/lead-share");
+    return { share: await leadShare(itemId) };
+  }, []);
+}
+export async function leadToTelegramAction(itemId: number) {
+  return run<{ parts: number }>(async () => {
+    const { sendLeadToTelegram } = await import("@/lib/sales/lead-share");
+    return { parts: await sendLeadToTelegram(itemId) };
+  }, []);
+}
 export async function tripEventStatusAction(id: number, status: "new" | "going" | "skipped") {
   return run(async () => {
     const { setTripEventStatus } = await import("@/lib/sales/targets");

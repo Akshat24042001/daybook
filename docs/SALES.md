@@ -734,3 +734,27 @@ region** field and a **Find events around my dates** switch.
 
 Cards also say what they are: a trip shows its countdown, anything else says **Ongoing target**. A target that would use
 more searches a day than your paid daily limit says so, because it pushes every target onto the weaker free search.
+
+## Share a lead
+
+Every radar lead has a **Share** button next to **Ask about this lead**. It gathers everything known about the lead in
+one go: the post, who posted it, the business behind it and other possible businesses, the decision maker and every
+contact (from the post, the research and the people found, each once), the company research with its source links
+(estimates say so), the people found, what they need and how you can help, the questions to ask, the drafted message,
+the trip and meetings, and the links. Pick a version:
+
+- **Full details**: every section, for notes, email or a teammate.
+- **WhatsApp**: the essentials in WhatsApp formatting, short enough to send.
+- **For Claude**: the full lead with instructions to separate verified from guessed, research the business and the
+  decision maker further, say whether it is worth pursuing, suggest how to reach them and write a first message, never
+  inventing contacts or facts.
+- **Data**: the same facts as JSON.
+
+Then **Copy**, **Send on WhatsApp** (pick the chat in WhatsApp), **Ask Claude about it** (opens claude.ai with it, or
+copies it to paste when it is too long for a link), **Email it** (the first part; email links are short), **Send to my
+Telegram** (in parts, to forward anywhere), **Download** (.md or .json), or **Share to another app** on a phone.
+
+On Telegram, hot-lead alerts have a **Full details to forward** button that sends the same full lead.
+
+Claude connector: `sales_radar_leads` lists the newest good leads, and `sales_radar_lead` returns everything about one,
+so Claude can read a lead directly by its number.

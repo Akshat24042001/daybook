@@ -470,6 +470,14 @@ export async function salesCallback(chat: number, mid: number | undefined, parts
     case "rs":
       await setRadarStatus(id, "skipped");
       return "Skipped";
+    case "rf": {
+      // the whole lead as messages you can forward anywhere (or paste into Claude)
+      later(async () => {
+        const { sendLeadToTelegram } = await import("./lead-share");
+        await sendLeadToTelegram(id).catch(async (e) => { await sendMessage(chat, `⚠️ ${esc((e as Error).message.slice(0, 200))}`); });
+      });
+      return "Sending the full lead";
+    }
     case "nl":
       await deleteDeal(id);
       await q("delete from sales_people p where not exists (select 1 from sales_deals d where d.person_id = p.id) and not exists (select 1 from sales_interactions i where i.person_id = p.id) and p.created_at > now() - interval '2 days'");
