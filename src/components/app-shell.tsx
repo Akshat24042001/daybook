@@ -3,7 +3,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   BarChart3, BookMarked, BookOpen, Bot, Briefcase, CalendarCheck, ClipboardList, FolderOpen, HeartPulse, KanbanSquare, LayoutGrid, Monitor, Moon, PenLine, Radar, Settings, Sun, Target,
-  History, Search, Users, X, Building2, ListChecks, Undo2, CalendarDays, LogOut, LineChart, Library,
+  History, Search, Trash2, Users, X, Building2, ListChecks, Undo2, CalendarDays, LogOut, LineChart, Library,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -92,6 +92,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/contacts", label: "Contacts", Icon: Users },
       { href: "/refs", label: "References", Icon: BookMarked },
       { href: "/history", label: "History", Icon: Undo2 },
+      { href: "/deleted", label: "Deleted", Icon: Trash2 },
     ],
   },
 ];
@@ -112,6 +113,7 @@ const MOBILE_MORE: NavItem[] = [
   { href: "/diary", label: "Diary", Icon: BookOpen },
   { href: "/tasks", label: "All tasks", Icon: ListChecks },
   { href: "/history", label: "History", Icon: Undo2 },
+  { href: "/deleted", label: "Deleted", Icon: Trash2 },
   { href: "/assistant", label: "Assistant", Icon: Bot },
   { href: "/scratch", label: "Scratchpad", Icon: PenLine },
   { href: "/unfinished", label: "Unfinished", Icon: History },

@@ -146,7 +146,7 @@ export function DocEditor({ doc, revs, views, url, dealTitle }: { doc: DocRow; r
             ) : <p className="text-sm">Forwards to <a href={doc.target_url ?? "#"} target="_blank" rel="noreferrer" className="text-accent">{doc.target_url}</a></p>}
             {doc.kind === "file" ? <p className="text-xs text-subtle">File: {doc.file_name}</p> : null}
             <div className="flex justify-between">
-              <Button variant="danger" size="sm" onClick={() => confirm("Delete this document? The link stops working.") && act(async () => {
+              <Button variant="danger" size="sm" onClick={() => confirm("Delete this document? The link stops working until you restore it from Deleted.") && act(async () => {
                 const res = await deleteDocAction(doc.id);
                 if (res.ok) router.push("/sales/docs");
                 return res;

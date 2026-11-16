@@ -466,7 +466,7 @@ export function DealView({ d }: { d: DealPageData }) {
       ) : null}
 
       <DealEditSheet deal={deal} people={people} customDefs={d.customDefs} open={edit} onOpenChange={setEdit} focusGroup={editGroup} choices={d.choices}
-        footer={<Button variant="danger" size="sm" onClick={() => confirm("Delete this deal and its whole history?") && act(async () => {
+        footer={<Button variant="danger" size="sm" onClick={() => confirm("Delete this deal with its whole history? You can restore it any time from Deleted.") && act(async () => {
           const r = await deleteDealAction(deal.id);
           if (r.ok) router.push("/sales/pipeline");
           return r;

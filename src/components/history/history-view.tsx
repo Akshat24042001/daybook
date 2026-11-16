@@ -2,6 +2,7 @@
 import { InfoTip } from "@/components/info-tip";
 
 import { ChevronDown, Redo2, Undo2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { changeDetailsAction, undoChangeAction } from "@/app/undo-actions";
@@ -14,7 +15,7 @@ import { fmtZoned } from "@/lib/display-tz";
 type Rows = Extract<Awaited<ReturnType<typeof changeDetailsAction>>, { ok: true }>["rows"];
 
 const SOURCE: Record<string, string> = { web: "App", telegram: "Telegram", claude: "Claude", undo: "Undo" };
-const OP = { I: "Added", U: "Changed", D: "Removed" } as const;
+const OP = { I: "Added", U: "Changed", D: "Deleted" } as const;
 
 function when(iso: string): string {
   return fmtZoned(iso, { hour: "numeric", minute: "2-digit" });
@@ -99,7 +100,7 @@ export function HistoryView({ actions }: { actions: ActionItem[] }) {
         <p className="text-xs font-semibold uppercase tracking-wider text-p-lilac-fg">History</p>
         <h1 className="font-display text-2xl sm:text-3xl leading-tight">Everything you changed</h1>
         <p className="mt-1 flex items-center gap-1 text-sm text-subtle">
-          Kept for 30 days. Undo puts anything back.
+          Kept for 30 days. Undo puts anything back. Deleted things are also kept for good in <Link href="/deleted" className="text-accent hover:underline">Deleted</Link>.
           <InfoTip label="About history">{"- Every change from the app, Telegram and Claude is kept for 30 days.\n- Undo puts it back; Redo changes your mind again.\n- On a computer, Ctrl+Z (⌘Z on a Mac) undoes the last one.\n- If a newer change touched the same thing, undo that first."}</InfoTip>
         </p>
       </header>

@@ -9,13 +9,20 @@ pg.types.setTypeParser(20, (v: string) => parseInt(v, 10));
 
 export type Db = Pick<pg.Pool, "query">;
 
-const g = globalThis as unknown as { __daybookPool?: pg.Pool };
+const g = globalThis as unknown as {
+  __daybookPool?: pg.Pool;
+  __daybookActionStore?: AsyncLocalStorage<{ id: number }>;
+  __daybookRepStore?: AsyncLocalStorage<{ userId: number }>;
+};
 
+// One of each per process. Next.js can load this file more than once (pages, server actions and jobs are separate
+// bundles) while the pool is shared on globalThis: a second copy of these stores would be invisible to the pool, and
+// writes made under it (a deleted deal, say) would silently skip History and Undo.
 /** The undoable action the current request is running (see lib/undo.ts). Writes made inside it are journaled. */
-export const actionStore = new AsyncLocalStorage<{ id: number }>();
+export const actionStore = (g.__daybookActionStore ??= new AsyncLocalStorage<{ id: number }>());
 
 /** The salesperson whose request is running (team area). Their writes are stamped with author_user (migration 044). */
-export const repStore = new AsyncLocalStorage<{ userId: number }>();
+export const repStore = (g.__daybookRepStore ??= new AsyncLocalStorage<{ userId: number }>());
 
 /** The session settings a write needs: the undo action and/or the salesperson. Numbers only, never user text. */
 function writeSettings(): string | null {

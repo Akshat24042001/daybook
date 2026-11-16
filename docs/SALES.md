@@ -532,6 +532,20 @@ Salespeople get their own login and see only what you give them. They sign in at
 - Everything travels over HTTPS. The portal uses only `/api/team/*`, which needs JSON and a same-origin request. Owner server actions refuse any request without your session.
 - Every update records its author in the database (`author_user`), so visibility cannot be faked from the browser.
 
+## Nothing is ever deleted for good (Deleted)
+
+Every delete on the platform keeps a full copy first: a lead, a task, a note, a contact, a document, a chat, a
+scratchpad file, whatever deleted it (a button, the chat, Telegram, Claude, a job, or a cascade from its parent). A
+trigger on every data table does this (migration 052), so a new table gets it automatically when its migration calls
+`journal_install()`. Stored files (screenshots, scratchpad uploads) are kept too.
+
+- **Deleted** (menu, next to History) lists every deletion, newest first, with what went with it ("with 4 linked
+  items"). Search by name. **Restore** puts it back exactly as it was, with the same ids, so links work again. If it
+  belonged to something that is also deleted, it says to restore that first.
+- "Include automatic clean-ups" also shows rows removed by the system and by Undo.
+- Copies are kept for good (History of changes keeps 30 days). A restore is a change in History, so it can be undone.
+- In the chat: "restore the Udaipur clinic lead" proposes the restore.
+
 ## No long dashes, anywhere
 
 Em dashes and en dashes read as machine-written, so the app never uses them.

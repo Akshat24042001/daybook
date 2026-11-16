@@ -56,8 +56,14 @@ const NOUN: Record<string, string> = {
   sales_radar_items: "radar lead", sales_radar_sources: "radar source", sales_hunts: "hunt", sales_hunt_runs: "hunt run",
   sales_commitments: "promise", sales_stages: "stage", sales_transitions: "stage rule", sales_meetings: "meeting",
   sales_deal_people: "deal contact", sales_identities: "identity", sales_deal_events: "deal event",
+  assistant_chats: "chat", assistant_messages: "chat message", assistant_memory: "memory", sales_captures: "capture",
+  sales_calls: "call", sales_deal_items: "line item", sales_trip_events: "trip event", sales_offers: "offer", sales_proofs: "proof",
+  sales_objections: "objection", sales_blocklist: "do-not-contact entry", sales_users: "team login", sales_team: "team member",
+  sales_pipelines: "pipeline", sales_custom_fields: "custom field", sales_deal_access: "deal access", sales_focus: "focus",
+  sales_research_runs: "research run", sales_deal_objections: "deal objection",
 };
-const noun = (t: string) => NOUN[t] ?? t.replace(/^sales_/, "").replace(/_/g, " ");
+export const nounFor = (t: string): string => NOUN[t] ?? t.replace(/^sales_/, "").replace(/_/g, " ");
+const noun = nounFor;
 const plural = (n: number, w: string) => `${n} ${n === 1 ? w : w.endsWith("y") ? `${w.slice(0, -1)}ies` : `${w}s`}`;
 const STATUS_WORD: Record<string, string> = { done: "done", progressed: "progressed", attempted: "attempted", skipped: "skipped", dropped: "dropped", waiting: "waiting", open: "open again" };
 const FIELD_WORD: Record<string, string> = { sleep_minutes: "sleep", sleep_quality: "sleep quality", steps: "steps", score: "the day's score", instagram_minutes: "Instagram time", worked_minutes_override: "worked hours" };
@@ -208,6 +214,8 @@ async function restoreRow(db: { query: (sql: string, params?: unknown[]) => Prom
   } else if (r.op === "D" && r.old) {
     const cols = Object.keys(r.old).map(ident).join(", ");
     await db.query(`insert into ${t} (${cols}) select ${cols} from jsonb_populate_record(null::${t}, $1::jsonb) on conflict do nothing`, [JSON.stringify(r.old)]);
+    // the copy kept in Deleted is back in place
+    await db.query("update deleted_rows set restored_at = now() where tbl = $1 and pk = $2::jsonb and restored_at is null", [r.tbl, JSON.stringify(r.pk)]);
   }
 }
 

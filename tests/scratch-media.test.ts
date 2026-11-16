@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import { closePool, q } from "@/lib/db";
+import { closePool, one, q } from "@/lib/db";
 import { fileView, normalizeData, type FileData } from "@/lib/scratch";
 import { copyItem, createItem, deleteItem, finishUpload, mediaUrls, startUpload, sweepAbandonedUploads, updateItem } from "@/lib/services/scratch";
 import { searchAll } from "@/lib/services/search";
@@ -89,7 +89,7 @@ describe("files in the scratchpad", () => {
     expect(edited.data).toMatchObject({ path: (row.data as FileData).path, name: "memo.webm", transcript: "Call Rahul about the pilot" });
   });
 
-  it("copies the file with the item, and deletes a file only when no item uses it", async () => {
+  it("copies the file with the item, and keeps the file when the item is deleted (it can be restored)", async () => {
     const { row } = await startUpload("2026-09-28", "file", { name: "plan.pdf", mime: "application/pdf", size: 100 });
     const path = (row.data as FileData).path;
     put(path, 100, "application/pdf");
@@ -99,16 +99,17 @@ describe("files in the scratchpad", () => {
     expect(copyPath).not.toBe(path);
     expect(mem.has(copyPath)).toBe(true);
     await deleteItem(row.id);
-    expect(mem.has(path)).toBe(false);
+    expect(mem.has(path)).toBe(true);
     expect(mem.has(copyPath)).toBe(true);
   });
 
-  it("cleans up uploads abandoned for a day", async () => {
+  it("clears uploads abandoned for a day from the list, keeping whatever landed", async () => {
     const { row } = await startUpload("2026-09-28", "file", { name: "half.mov", mime: "video/mp4", size: 100 });
     put((row.data as FileData).path);
     await q("update scratch_items set created_at = now() - interval '2 days' where id = $1", [row.id]);
     expect(await sweepAbandonedUploads()).toBe(1);
-    expect(mem.size).toBe(0);
+    expect(await one("select 1 from scratch_items where id = $1", [row.id])).toBeNull();
+    expect(mem.size).toBe(1);
   });
 
   it("search finds file names, transcripts, checklist items and links", async () => {

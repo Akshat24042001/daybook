@@ -238,7 +238,7 @@ function ConfirmDelete({
       <div className="relative w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-xl space-y-4">
         <h2 className="text-base font-semibold">Delete contact?</h2>
         <p className="text-sm text-subtle">
-          <span className="font-medium text-fg">{name}</span> will be permanently removed. This cannot be undone.
+          <span className="font-medium text-fg">{name}</span> will be deleted. You can restore them any time from Deleted.
         </p>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={onCancel} disabled={pending}>Cancel</Button>

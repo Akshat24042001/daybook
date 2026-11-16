@@ -109,13 +109,8 @@ export async function updateItem(id: number, patch: { title?: unknown; data?: un
 
 export async function deleteItem(id: number, db: Db = getPool()): Promise<void> {
   await ensureTables(db);
-  const row = await one<ScratchRow>("delete from scratch_items where id = $1 returning *", [id], db);
-  const path = row && isFile(row.kind) ? (row.data as FileData).path : "";
-  // the stored file goes too, unless a copy on another day still points at it
-  if (path && storageConfigured()) {
-    const still = await one("select 1 from scratch_items where data->>'path' = $1", [path], db);
-    if (!still) await fileStore().remove([path]).catch((e) => console.error("[scratch] file delete failed:", (e as Error).message));
-  }
+  // the stored file is kept: a deleted item can be restored from Deleted, and its file must still be there
+  await q("delete from scratch_items where id = $1", [id], db);
 }
 
 /** Copies an item (from any day) onto `date`, e.g. to carry yesterday's working into today. */
@@ -206,7 +201,6 @@ export async function sweepAbandonedUploads(db: Db = getPool()): Promise<number>
     [],
     db,
   );
-  const paths = rows.map((r) => (r.data as FileData).path).filter(Boolean);
-  if (paths.length && storageConfigured()) await fileStore().remove(paths).catch(() => undefined);
+  // any part of the file that landed is kept too: the item is in Deleted and can be put back
   return rows.length;
 }

@@ -222,7 +222,7 @@ function BulkBar({ ids, stages, team, pipelines, onDone }: { ids: number[]; stag
         <Input type={what === "expected_close" ? "date" : "text"} value={value} onChange={(e) => setValue(e.target.value)} aria-label="New value" className="h-8 w-44 text-xs" placeholder={what === "add_tags" ? "hot, Q1" : ""} />
       )) : null}
       <Button size="sm" variant="primary" disabled={busy || !what} onClick={apply}>Apply</Button>
-      <Button size="sm" variant="ghost" className="text-bad" disabled={busy} onClick={() => confirm(`Delete ${ids.length} deal${ids.length === 1 ? "" : "s"} and their whole history?`) && run({ delete: true }, "Deleted")}><Trash2 className="h-3.5 w-3.5" /> Delete</Button>
+      <Button size="sm" variant="ghost" className="text-bad" disabled={busy} onClick={() => confirm(`Delete ${ids.length} deal${ids.length === 1 ? "" : "s"} with their whole history? You can restore them any time from Deleted.`) && run({ delete: true }, "Deleted")}><Trash2 className="h-3.5 w-3.5" /> Delete</Button>
       <Button size="sm" variant="ghost" onClick={onDone}>Clear</Button>
     </div>
   );

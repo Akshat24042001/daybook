@@ -361,7 +361,7 @@ export function TaskForm({
                   size="sm"
                   disabled={pending}
                   onClick={() => {
-                    if (!window.confirm("Delete this task and all of its history and logged time? You can undo this from History.")) return;
+                    if (!window.confirm("Delete this task and all of its history and logged time? You can restore it any time from Deleted.")) return;
                     start(async () => {
                       const r = await deleteTaskAction(f.id);
                       if (!r.ok) return setError(r.error);

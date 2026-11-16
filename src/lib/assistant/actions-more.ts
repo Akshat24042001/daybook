@@ -27,6 +27,7 @@ import { deleteTouch, setTouchInterval, snoozeTouch } from "../services/keep-in-
 import { createRef, deleteRef, updateRef, type Ref } from "../services/refs";
 import { deleteEntry as deleteDiaryEntry, summarizeDay, updateEntry as updateDiaryEntry } from "../services/diary";
 import { createItem, deleteItem, updateItem } from "../services/scratch";
+import { listDeleted, restoreDeleted } from "../bin";
 import { createSegment, deleteSegment, KIND_LABEL, type StateKind } from "../services/segments";
 import type { SegmentKind } from "../hours";
 import { generateReview, getReview, periodBounds, setIntentions, type ReviewPeriod } from "../services/review";
@@ -697,16 +698,33 @@ export const MORE: Record<string, Def> = {
   },
 
   delete_scratch: {
-    doc: "delete_scratch: item_id: delete a scratchpad item (an uploaded file or voice memo cannot be brought back by undo)",
+    doc: "delete_scratch: item_id: delete a scratchpad item (it can be restored from Deleted, file included)",
     async prepare(_c, o) {
       const it = await rowOr<{ id: number; kind: string; title: string | null }>("scratch_items", int(o.item_id), "scratchpad item");
       const media = it.kind === "file" || it.kind === "voice";
-      return { params: { item_id: it.id }, label: `🗑 Delete scratchpad ${it.kind}: ${it.title || "untitled"}`, detail: media ? "the file is deleted for good" : null };
+      return { params: { item_id: it.id }, label: `🗑 Delete scratchpad ${it.kind}: ${it.title || "untitled"}`, detail: media ? "the file is kept and can be restored from Deleted" : null };
     },
     scopes: (_c, p) => [rowScope("scratch_items", p.item_id as number)],
     async run(_c, p) {
       await deleteItem(p.item_id as number);
       return "Deleted.";
+    },
+  },
+
+  restore_deleted: {
+    doc: "restore_deleted: name (words from what was deleted: a lead, task, note, contact...): put back the latest deletion that matches, with everything that went with it",
+    async prepare(_c, o) {
+      const name = s(o.name, 120);
+      if (!name) throw new UserError("Say what to restore.");
+      const g = (await listDeleted({ search: name, limit: 5 })).find((x) => !x.restored);
+      if (!g) throw new UserError(`Nothing deleted matches “${name}”.`);
+      const what = `${g.noun}${g.names[0] ? ` “${g.names[0]}”` : ""}${g.count > 1 ? ` and ${g.count - 1} more` : ""}`;
+      return { params: { grp: g.grp }, label: `♻️ Restore ${what}`, detail: g.linked ? `with ${g.linked} linked item${g.linked === 1 ? "" : "s"}` : null };
+    },
+    scopes: () => [],
+    async run(_c, p) {
+      const r = await restoreDeleted(p.grp as string, "claude");
+      return `${r.label}.`;
     },
   },
 
