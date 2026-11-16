@@ -14,7 +14,7 @@ async function setup(viewport = { width: 1440, height: 1000 }) {
   const db = new Client({ connectionString: "postgres://postgres:postgres@127.0.0.1:54329/daybook_ui" });
   await db.connect();
   const browser = await chromium.launch();
-  const ctx = await browser.newContext({ viewport });
+  const ctx = await browser.newContext({ viewport, timezoneId: "Asia/Kolkata" });
   await ctx.request.post(U + "/api/auth/login", { data: { password: "pw" } });
   const page = await ctx.newPage();
   const errors = [];

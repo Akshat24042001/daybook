@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import type { ActionItem } from "@/lib/undo";
 import { useToast } from "../toast";
 import { Button } from "../ui";
+import { fmtZoned } from "@/lib/display-tz";
 
 type Rows = Extract<Awaited<ReturnType<typeof changeDetailsAction>>, { ok: true }>["rows"];
 
@@ -16,15 +17,14 @@ const SOURCE: Record<string, string> = { web: "App", telegram: "Telegram", claud
 const OP = { I: "Added", U: "Changed", D: "Removed" } as const;
 
 function when(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return fmtZoned(iso, { hour: "numeric", minute: "2-digit" });
 }
 function dayLabel(iso: string): string {
-  const d = new Date(iso);
-  const today = new Date();
-  const y = new Date(today.getTime() - 86_400_000);
-  if (d.toDateString() === today.toDateString()) return "Today";
-  if (d.toDateString() === y.toDateString()) return "Yesterday";
-  return d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
+  const key = (x: string | number | Date) => fmtZoned(x, { year: "numeric", month: "2-digit", day: "2-digit" });
+  const k = key(iso);
+  if (k === key(Date.now())) return "Today";
+  if (k === key(Date.now() - 86_400_000)) return "Yesterday";
+  return fmtZoned(iso, { weekday: "long", day: "numeric", month: "short" });
 }
 const show = (v: unknown) => (v === null || v === undefined ? "nothing" : typeof v === "string" ? (v.length > 60 ? `${v.slice(0, 60)}…` : v) : String(v));
 

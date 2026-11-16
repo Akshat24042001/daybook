@@ -9,6 +9,7 @@ import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import type { QuickAction } from "@/lib/sales/ingest";
 import { noDashes } from "@/lib/text/no-dashes";
+import { fmtZoned } from "@/lib/display-tz";
 
 const KIND_LABEL: Record<QuickAction["kind"], string> = {
   reply: "Reply", follow_up: "Follow up", promise: "Your promise", meeting: "Meeting", call: "Call", send: "Send", stage: "Stage",
@@ -117,7 +118,7 @@ export function ConversationCard({ dealId, summary, timeline, conversation, cont
 
       {conversation?.autopilot?.items?.length ? (
         <div className="mt-3 rounded-xl border border-good/30 bg-p-mint/40 p-2.5 text-xs" aria-label="Done for you">
-          <p className="font-semibold text-p-mint-fg">Done for you <span className="font-normal text-subtle" suppressHydrationWarning>· {new Date(conversation.autopilot.at).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span></p>
+          <p className="font-semibold text-p-mint-fg">Done for you <span className="font-normal text-subtle" suppressHydrationWarning>· {fmtZoned(conversation.autopilot.at, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span></p>
           <ul className="mt-1 space-y-0.5">
             {conversation.autopilot.items.map((x, i) => (
               <li key={i} className="flex gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-good" />{x.href ? <a href={x.href} className="underline">{x.label}</a> : x.label}</li>

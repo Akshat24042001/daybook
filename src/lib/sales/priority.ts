@@ -12,6 +12,7 @@
  */
 import { money } from "@/components/sales/format";
 import { q } from "../db";
+import { fmtZoned } from "../display-tz";
 
 export interface PriorityRow {
   id: number;
@@ -67,7 +68,7 @@ export function scoreDeal(r: PriorityRow, now = Date.now()): { score: number; wh
   }
   if (r.meeting_soon) {
     const pts = Math.min(6, 15 - intent);
-    parts.push({ pts, why: `Meeting ${new Date(r.meeting_soon).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}` });
+    parts.push({ pts, why: `Meeting ${fmtZoned(r.meeting_soon, { weekday: "short", day: "numeric", month: "short" })}` });
   }
   const v = r.value_usd ? Math.min(15, Math.log10(Number(r.value_usd) + 1) * 3.4) : 4;
   parts.push({ pts: v, why: r.value_usd ? `${r.value_amount ? money(Number(r.value_amount), r.currency ?? "INR") : money(Number(r.value_usd), "USD")} deal` : "Value unknown" });

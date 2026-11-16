@@ -18,6 +18,7 @@ import { VoiceButton } from "../voice-button";
 import { Blocks } from "./blocks";
 import { Markdown } from "./markdown";
 import { QuickBar } from "./quick-bar";
+import { fmtZoned } from "@/lib/display-tz";
 
 const SUGGESTIONS: { group: string; items: string[] }[] = [
   { group: "Today", items: ["How is my day going so far?", "What is still pending today, most important first?"] },
@@ -37,7 +38,7 @@ function timeAgo(iso: string): string {
   if (s < 3600) return `${Math.floor(s / 60)}m`;
   if (s < 86400) return `${Math.floor(s / 3600)}h`;
   if (s < 86400 * 7) return `${Math.floor(s / 86400)}d`;
-  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  return fmtZoned(iso, { day: "numeric", month: "short" });
 }
 
 // ---------------------------------------------------------------- queries disclosure

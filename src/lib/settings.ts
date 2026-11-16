@@ -8,6 +8,7 @@ import {
   parseHM,
 } from "./time";
 import type { Settings } from "./types";
+import { setDisplayTz } from "./display-tz";
 
 /**
  * Request context: "now" plus settings, resolved once so every service uses the
@@ -31,6 +32,7 @@ export const getSettings = cache(async function getSettings(db: Db = getPool()):
 });
 
 export function buildCtx(s: Settings, now: Date): Ctx {
+  setDisplayTz(s.timezone);
   const boundaryMin = parseHM(s.day_boundary);
   return {
     now,

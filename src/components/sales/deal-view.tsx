@@ -37,6 +37,7 @@ import type { StagePlay } from "@/lib/sales/playbook-stages";
 import { Fold } from "./fold";
 import { ago, ChannelIcon, CHANNEL_LABEL, CURRENCIES, currencyLabel, currencySymbol, fmtDate, Label, money, Priority } from "./util";
 import { Ago } from "@/components/sales/ago";
+import { fmtZoned, fromZonedInput, toZonedInput } from "@/lib/display-tz";
 
 export interface QuotePackage { offerId: number; index: number; offer: string; name: string; currency: string; total: number; items: number; timeline: string; fits: boolean }
 
@@ -122,7 +123,7 @@ export function DealView({ d }: { d: DealPageData }) {
   const [f, setF] = useState({
     title: deal.title, value_amount: deal.value_amount ?? "", currency: deal.currency, expected_close: deal.expected_close ? String(deal.expected_close).slice(0, 10) : "",
     summary: deal.summary ?? "", requirements: deal.requirements ?? "", budget: deal.budget ?? "", timeline: deal.timeline ?? "", next_action: deal.next_action ?? "",
-    next_action_at: deal.next_action_at ? new Date(deal.next_action_at).toISOString().slice(0, 16) : "", country: deal.country ?? "", probability: deal.probability ?? "",
+    next_action_at: deal.next_action_at ? toZonedInput(deal.next_action_at) : "", country: deal.country ?? "", probability: deal.probability ?? "",
     commission_type: deal.commission_type ?? "", commission_value: deal.commission_value ?? "", source: deal.source, talk_via_intermediary: deal.talk_via_intermediary,
   });
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setF((c) => ({ ...c, [k]: e.target.value }));
@@ -142,7 +143,7 @@ export function DealView({ d }: { d: DealPageData }) {
       commission_value: f.commission_value === "" ? null : Number(f.commission_value),
       commission_type: f.commission_type || null,
       expected_close: f.expected_close || null,
-      next_action_at: f.next_action_at ? new Date(f.next_action_at).toISOString() : null,
+      next_action_at: fromZonedInput(f.next_action_at),
     }), "Saved");
 
   const audience: Audience[] = (d.shares ?? []).filter((s) => s.shared && s.active).map((s) => ({ id: s.user_id, name: s.display_name }));
@@ -506,7 +507,7 @@ function Promises({ dealId, mine, theirs, audience, onChange }: { dealId: number
             return (
               <li key={c.id} className="flex items-start gap-2 text-sm">
                 <button type="button" aria-label="Done" onClick={() => set(c.id, "done")} className="mt-0.5 rounded border border-border p-0.5 hover:border-good hover:text-good"><Check className="h-3 w-3" /></button>
-                <span className="flex-1">{c.text}{c.due_at ? <span className={cn("ml-1 text-xs", late ? "font-semibold text-bad" : "text-subtle")}>by {new Date(c.due_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span> : null}</span>
+                <span className="flex-1">{c.text}{c.due_at ? <span className={cn("ml-1 text-xs", late ? "font-semibold text-bad" : "text-subtle")}>by {fmtZoned(c.due_at, { day: "numeric", month: "short" })}</span> : null}</span>
                 <VisibleTo kind="commitment" id={c.id} sharedWith={c.shared_with ?? []} audience={audience} authorUser={c.author_user} authorName={c.author_name} />
                 <button type="button" aria-label="Drop" onClick={() => set(c.id, "dropped")} className="text-subtle/50 hover:text-bad"><X className="h-3.5 w-3.5" /></button>
               </li>

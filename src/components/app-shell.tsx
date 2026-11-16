@@ -18,6 +18,7 @@ import { QuickAdd } from "./quick-add";
 import { StaleBanner } from "./stale-banner";
 import { ToastProvider } from "./toast";
 import { UndoWatcher, type RecentAction } from "./undo-watcher";
+import { setDisplayTz } from "@/lib/display-tz";
 
 function useTheme() {
   const [theme, setTheme] = useState<ThemePref>("system");
@@ -167,6 +168,8 @@ export function AppShell({
   undo: RecentAction | null;
   children: React.ReactNode;
 }) {
+  // every date on screen in the owner's zone, the same as the server rendered it
+  setDisplayTz(tz);
   const pathname = usePathname();
   const active = (href: string) =>
     href === "/sales"

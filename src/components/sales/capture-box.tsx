@@ -13,9 +13,10 @@ import { useToast } from "@/components/toast";
 import { VoiceButton } from "@/components/voice-button";
 import { cn } from "@/lib/cn";
 import type { CaptureResult } from "@/lib/sales/ingest";
+import { fmtZoned } from "@/lib/display-tz";
 
 const when = (iso: string) =>
-  new Date(iso).toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+  fmtZoned(iso, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
 /** What the capture did, in plain lines, so you can see where everything went. */
 function Filed({ r, onUndo }: { r: CaptureResult; onUndo?: () => void }) {

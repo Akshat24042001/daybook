@@ -1,3 +1,4 @@
+import { fmtZoned } from "@/lib/display-tz";
 /** Formatting helpers usable on both the server and the client. */
 export function ago(d: string | Date | null | undefined): string {
   if (!d) return "never";
@@ -48,5 +49,5 @@ export function money(n: number | null | undefined, cur = "INR"): string {
 
 export function fmtDate(d: string | Date | null | undefined): string {
   if (!d) return "";
-  return new Date(d).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+  return fmtZoned(d, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 }

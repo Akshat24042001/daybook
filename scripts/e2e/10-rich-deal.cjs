@@ -60,15 +60,23 @@ const { setup, check, choose } = require("./lib.cjs");
   await page.waitForTimeout(1800);
   const act = await one("select channel, duration_min, outcome, subject, occurred_at from sales_interactions where deal_id = $1 and source = 'manual' order by id desc limit 1", [deal]);
   check("activity logged with type, duration, outcome", act && act.channel === "call" && act.duration_min === 25 && act.outcome === "Connected" && act.subject === "Pricing call with the owner", act);
-  check("logged at the chosen time (2 days ago, 11:30 local)", act && Math.abs(new Date(act.occurred_at) - new Date(`${when.getFullYear()}-${p2(when.getMonth() + 1)}-${p2(when.getDate())}T11:30`)) < 60000, act && act.occurred_at);
+  // 11:30 on the owner's clock (IST) is 06:00 UTC, whatever zone the server runs in
+  check("logged at the chosen time (2 days ago, 11:30 IST)", act && new Date(act.occurred_at).toISOString() === `${when.getFullYear()}-${p2(when.getMonth() + 1)}-${p2(when.getDate())}T06:00:00.000Z`, act && act.occurred_at);
   // the full timeline (the summary card at the top has a short one without edit buttons)
   const tl = page.locator("li", { hasText: "Pricing call with the owner" }).filter({ has: page.getByRole("button", { name: "Edit entry" }) }).first();
   check("timeline shows date, duration and outcome", /25 min/.test(await tl.innerText()) && /Connected/.test(await tl.innerText()));
-  await tl.getByRole("button", { name: "Edit entry" }).click();
+  check("timeline time is on the owner's clock after a reload too", /11:30 am/.test(await tl.innerText()), await tl.innerText());
+  await go(`/sales/deal/${deal}`);
+  const tl2 = page.locator("li", { hasText: "Pricing call with the owner" }).filter({ has: page.getByRole("button", { name: "Edit entry" }) }).first();
+  check("server-rendered timeline shows 11:30 am, not UTC", /11:30 am/.test(await tl2.innerText()) && !/6:00 am/.test(await tl2.innerText()), await tl2.innerText());
+  await tl2.getByRole("button", { name: "Edit entry" }).click();
+  check("edit form opens on 11:30", (await page.getByLabel("When").last().inputValue()).endsWith("T11:30"), await page.getByLabel("When").last().inputValue());
   await page.getByLabel("Summary").fill("Pricing call with the owner (both partners)");
   await page.getByRole("button", { name: "Save" }).last().click();
   await page.waitForTimeout(1500);
-  check("entry corrected and marked edited", (await one("select summary, edited_at is not null as e from sales_interactions where deal_id = $1 and source = 'manual' order by id desc limit 1", [deal])).e === true);
+  const ed = await one("select summary, edited_at is not null as e, occurred_at from sales_interactions where deal_id = $1 and source = 'manual' order by id desc limit 1", [deal]);
+  check("entry corrected and marked edited", ed.e === true);
+  check("editing kept the time (no 5.5 hour shift)", new Date(ed.occurred_at).toISOString().endsWith("T06:00:00.000Z"), ed.occurred_at);
 
   // ---- lost, with a reason; then reopened with a reason
   await go(`/sales/deal/${deal}`);

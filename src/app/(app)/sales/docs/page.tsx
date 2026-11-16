@@ -3,11 +3,12 @@ import Link from "next/link";
 import { listDocs } from "@/lib/sales/docs";
 import { Chip } from "@/components/ui";
 import { money } from "@/components/sales/format";
+import { fmtZoned } from "@/lib/display-tz";
 
 export const metadata: Metadata = { title: "Documents" };
 export const dynamic = "force-dynamic";
 
-const fmt = (d: unknown) => (d ? new Date(d as string).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "");
+const fmt = (d: unknown) => (d ? fmtZoned(d as string, { day: "numeric", month: "short" }) : "");
 
 export default async function DocsPage() {
   const docs = await listDocs();

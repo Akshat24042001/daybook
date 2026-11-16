@@ -16,6 +16,7 @@ import {
 import type { Stage } from "@/lib/sales/stages";
 import { CURRENCIES, currencyLabel, currencySymbol, money } from "./format";
 import { ChannelIcon, CHANNEL_LABEL } from "./util";
+import { fmtZoned, fromZonedInput, toZonedInput } from "@/lib/display-tz";
 
 export interface PersonOpt { id: number; full_name: string; title?: string | null }
 
@@ -27,12 +28,12 @@ export interface PendingMove {
 
 // ---------------------------------------------------------------- time helpers
 
-/** "8 Nov 2026, 3:42 pm" in the viewer's time zone. */
+/** "8 Nov 2026, 3:42 pm" in the owner's time zone (Settings), the same on the server and in the browser. */
 export function fmtWhen(d: string | Date | null | undefined, withTime = true): string {
   if (!d) return "";
   const x = new Date(d);
   if (Number.isNaN(x.getTime())) return "";
-  return x.toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", ...(withTime ? { hour: "numeric", minute: "2-digit" } : {}) });
+  return fmtZoned(x, { day: "numeric", month: "short", year: "numeric", ...(withTime ? { hour: "numeric", minute: "2-digit" } : {}) });
 }
 
 /** "3d 4h", "5h 10m", "12m". */
@@ -47,11 +48,8 @@ export function fmtSpan(ms: number): string {
   return mm ? `${mm}m` : "under a minute";
 }
 
-/** A value for <input type="datetime-local"> in the viewer's own clock. */
-export function localInput(d: Date = new Date()): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-}
+/** A value for <input type="datetime-local"> on the owner's clock. */
+export const localInput = (d: Date = new Date()): string => toZonedInput(d);
 
 // ---------------------------------------------------------------- the move sheet (closing checklists)
 
@@ -222,7 +220,7 @@ export function FieldInput({ def, value, onChange, people = [] }: { def: FieldDe
       input = <Input type="date" value={s.slice(0, 10)} onChange={(e) => onChange(e.target.value)} {...common} />;
       break;
     case "datetime":
-      input = <Input type="datetime-local" value={s ? localInput(new Date(s)) : ""} onChange={(e) => onChange(e.target.value ? new Date(e.target.value).toISOString() : "")} {...common} />;
+      input = <Input type="datetime-local" value={s ? localInput(new Date(s)) : ""} onChange={(e) => onChange(fromZonedInput(e.target.value) ?? "")} {...common} />;
       break;
     case "number": case "money": case "percent":
       input = <Input value={s} onChange={(e) => onChange(e.target.value)} inputMode="decimal" {...common} />;
@@ -519,9 +517,9 @@ export function ActivityLogger({ dealId, people }: { dealId: number; people: Per
         <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
         <Button variant="primary" disabled={busy} onClick={() => start(async () => {
           const r = await logActivityAction(dealId, {
-            type: f.type, direction: note ? "internal" : (f.direction as "in" | "out" | "both"), occurred_at: f.at ? new Date(f.at).toISOString() : null,
+            type: f.type, direction: note ? "internal" : (f.direction as "in" | "out" | "both"), occurred_at: fromZonedInput(f.at),
             duration_min: timed ? f.duration : null, outcome: note ? null : f.outcome || null, person_id: f.person ? Number(f.person) : null,
-            subject: f.subject, body: f.body, next_step: note ? null : f.next || null, next_step_at: f.nextAt ? new Date(f.nextAt).toISOString() : null,
+            subject: f.subject, body: f.body, next_step: note ? null : f.next || null, next_step_at: fromZonedInput(f.nextAt),
           });
           if (!r.ok) return toast(r.error, "error");
           toast("Logged");
@@ -606,7 +604,7 @@ function EditEntry({ i, onDone }: { i: InteractionRow; onDone: () => void }) {
           <Button variant="ghost" onClick={onDone}>Cancel</Button>
           <Button variant="primary" disabled={busy} onClick={() => start(async () => {
             const r = await editInteractionAction(i.id, {
-              occurred_at: new Date(f.at).toISOString(), channel: f.channel, direction: f.direction, summary: f.summary, body: f.body, outcome: f.outcome, duration_min: f.duration,
+              occurred_at: fromZonedInput(f.at) ?? new Date().toISOString(), channel: f.channel, direction: f.direction, summary: f.summary, body: f.body, outcome: f.outcome, duration_min: f.duration,
             });
             if (!r.ok) return toast(r.error, "error");
             toast("Corrected");

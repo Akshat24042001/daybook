@@ -8,6 +8,8 @@ import { addCommitment, createDeal, logActivity, updateDeal } from "../sales/dea
 import { upsertPerson } from "../sales/identity";
 import { refreshMoves } from "../sales/moves";
 import { moveDeal } from "../sales/stages";
+import { messageAt } from "../sales/ingest";
+import { calendarDate } from "../time";
 import type { Ctx } from "../settings";
 import { dateArg, has, int, isClear, localTime, num, rowScope, s, strList, type Scope, type Snapshot } from "./action-kit";
 
@@ -143,7 +145,7 @@ export const SALES_ACTIONS: Record<string, SalesDef> = {
   },
 
   log_deal_note: {
-    doc: "log_deal_note: deal_id, text, channel (note|call|meeting|whatsapp|email|linkedin|in_person|instagram; default note), direction (in|out|both), occurred_at (YYYY-MM-DD): add something that happened to the lead's timeline",
+    doc: "log_deal_note: deal_id, text, channel (note|call|meeting|whatsapp|email|linkedin|in_person|instagram; default note), direction (in|out|both), occurred_at (YYYY-MM-DD, or YYYY-MM-DD HH:MM on the owner's clock when the time is known; leave it out for just now): add something that happened to the lead's timeline",
     async prepare(_c, o) {
       const d = await dealOr(o.deal_id);
       const text = s(o.text ?? o.note ?? o.body, 4000);
@@ -151,14 +153,14 @@ export const SALES_ACTIONS: Record<string, SalesDef> = {
       // "type" is the action's own name, so the kind of touch comes in "channel"
       const type = s(o.channel ?? o.kind, 20).toLowerCase() || "note";
       const direction = ["in", "out", "both"].includes(s(o.direction, 5)) ? s(o.direction, 5) : undefined;
-      const at = has(o, "occurred_at") ? isoDay(o.occurred_at) : null;
+      const at = has(o, "occurred_at") ? (/^\d{4}-\d{2}-\d{2}[ T]\d{1,2}:\d{2}$/.test(String(o.occurred_at).trim()) ? String(o.occurred_at).trim() : isoDay(o.occurred_at)) : null;
       return { params: { deal_id: d.id, person_id: d.person_id, text, type, direction, at }, label: `＋ ${type === "note" ? "Note" : type} on ${d.title}`, detail: text.slice(0, 200) };
     },
     scopes: () => [],
-    async run(_c, p, undo) {
+    async run(c, p, undo) {
       const id = await logActivity(p.deal_id as number, {
         type: p.type as string, direction: p.direction as never, body: p.text as string, subject: null, person_id: (p.person_id as number) ?? null,
-        occurred_at: p.at ? `${p.at}T06:30:00.000Z` : null,
+        occurred_at: noteTime(p.at as string | null, c.tz, c.now),
       });
       undo.created.push({ table: "sales_interactions", id });
       await refreshMoves(p.deal_id as number).catch(() => {});
@@ -459,3 +461,10 @@ export const SALES_ACTIONS: Record<string, SalesDef> = {
     },
   },
 };
+
+/** When a note from the chat happened: a time on the owner's clock, a past day at noon, today means now. */
+export function noteTime(at: string | null | undefined, tz: string, now: Date): string | null {
+  if (!at) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(at) && at === calendarDate(now, tz)) return null;
+  return messageAt(at, tz, now);
+}

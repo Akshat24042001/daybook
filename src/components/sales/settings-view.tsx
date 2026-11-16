@@ -19,6 +19,7 @@ import { TeamLoginsCard } from "./team-logins";
 import type { TeamUser } from "@/lib/team/users";
 import { PipelinesCard, PlaybookEditor, TaxCard, TeamCard } from "./settings-org";
 import type { Pipeline, TeamMember } from "@/lib/sales/org";
+import { fmtZoned } from "@/lib/display-tz";
 
 export interface SettingsData {
   cfg: SalesConfig;
@@ -133,7 +134,7 @@ export function SettingsView({ d }: { d: SettingsData }) {
             router.refresh();
           })}>Save</Button>
         </div>
-        <p className="mt-2 text-xs text-subtle">Last sync received: {d.lastGoogle ? new Date(d.lastGoogle).toLocaleString("en-IN") : "never"} · secret <code>{d.googleSecret.slice(0, 6)}…</code> <button type="button" className="text-accent" onClick={() => confirm("Rotate the secret? You must paste the new script again.") && start(async () => { await rotateTokenAction("google"); router.refresh(); })}>rotate</button></p>
+        <p className="mt-2 text-xs text-subtle">Last sync received: {d.lastGoogle ? fmtZoned(d.lastGoogle, { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "never"} · secret <code>{d.googleSecret.slice(0, 6)}…</code> <button type="button" className="text-accent" onClick={() => confirm("Rotate the secret? You must paste the new script again.") && start(async () => { await rotateTokenAction("google"); router.refresh(); })}>rotate</button></p>
       </Card>
 
       <Card title="Capture from anywhere" sub="Quick ways to log LinkedIn, Instagram and WhatsApp." info="These channels have no API, so these are the 2-second ways in: Telegram, a bookmarklet, or an iPhone Shortcut.">
