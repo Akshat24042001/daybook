@@ -9,6 +9,7 @@ import { getSettings } from "../settings";
 import { zonedInstant } from "../time";
 import { salesConfig, toUsd, type SalesConfig } from "./config";
 import { dealStateForFiling, iso } from "./context";
+import { dealReach, onlyReachable } from "./reach";
 import {
   addCommitment, createDeal, dealForPerson, getDeal, logInteraction, updateDeal, type Channel, type Direction,
 } from "./deals";
@@ -136,6 +137,7 @@ export interface Extraction {
   direction?: Direction | null;
   occurred_at?: string | null;
   messages?: { from: "me" | "them"; at?: string | null; text: string }[];
+  chat_with?: string | null;
   summary: string;
   deal_summary?: string | null;
   commitments?: { owner: "me" | "them"; text: string; due?: string | null }[];
@@ -175,11 +177,16 @@ Read the input (a chat, transcript, screenshot, email, note or web page) and ret
  "company": {"name","website","country","industry","city","phone","email","linkedin","address","employees": number or null} or null,
  "channel": "whatsapp|linkedin|email|call|meeting|in_person|instagram|sms|twitter|other",
  "direction": "in" (they wrote / spoke) | "out" (owner wrote) | "both",
- "occurred_at": ISO time if known else null,
- "messages": for chats or screenshots of chats, each message [{"from":"me|them","at":ISO or null,"text"}] (max 60, newest last), else [],
+ "occurred_at": "YYYY-MM-DD HH:MM" local time it happened, if known, else null,
+ "messages": for chats or screenshots of chats, each message [{"from":"me|them","at":"YYYY-MM-DD HH:MM" in the owner's local time, or null,"text"}] (max 60, oldest first),
+   else []. Times: use the time shown on each message and the date separator above it ("Today", "Yesterday", "Monday", "12 Nov");
+   resolve those relative to the status bar date if the screenshot shows one, else relative to NOW. A message with no date shown takes the
+   date of the separator above it; when no date can be known at all, null. Never guess a time or a date,
+ "chat_with": the name or number shown at the top of the chat (who the conversation is with), else null,
  "summary": 1 to 3 plain lines on what happened,
  "deal_summary": the updated "where we are" for the whole deal in 2 to 4 lines, merging PREVIOUS STATE with this input,
- "commitments": promises with owner "me" (owner promised) or "them", e.g. {"owner":"them","text":"share sample data","due":"YYYY-MM-DD"},
+ "commitments": promises with owner "me" (owner promised) or "them", e.g. {"owner":"them","text":"share sample data","due":"YYYY-MM-DD"}
+   ("tomorrow" or "by Friday" counts from the day that message was sent, not from today),
  "requirements", "budget", "timeline": short text or null,
  "objections": [], "services": which of the owner's offers fit (short names),
  "stage_signal": "none|replied|meeting_booked|proposal_requested|price_objection|accepted|not_now|lost|payment_received",
@@ -223,7 +230,12 @@ RULES THAT MATTER MOST:
    with next_step_due. Never repeat a step that this input shows is already done.
 3. THE BUSINESS. The business the contact owns or works at (a clinic, hospital, shop, firm, school), named anywhere in the
    input, goes in "company" with its exact name, and any website or link of theirs they share goes in company.website.
-4. DETAILS. Fill requirements, pain, scope and the rest from what they actually said. Never repeat what PREVIOUS STATE already says.
+4. DETAILS. Fill requirements, budget, timeline, pain, scope, decision process and the rest from what they actually said, and UPDATE them
+   when the conversation changes them ("budget is now 3 lakh", "we need it by March"). Never repeat what PREVIOUS STATE already says.
+5. CHANNELS AND FACTS. PREVIOUS STATE says how you can reach them and what you do not know. next_step and quick_actions only use channels
+   you can reach them on; a missing fact that matters becomes a step to find it out, never an assumption.
+6. TIME. Messages carry the time they were sent. If everything in this input is older than PREVIOUS STATE's conversation, it is history:
+   log it, but do not set a next step or a stage signal from it.
 Use only facts in the input. Unknown fields are null. Never invent emails, phone numbers, websites or names.`;
 
 /**
@@ -283,6 +295,10 @@ export interface CaptureResult {
   messages?: { from: "me" | "them"; at?: string | null; text: string }[];
   /** filing failed: the capture is kept so it can be tried again */
   failed?: string;
+  /** something to check (the chat looks like it is with someone else) */
+  warning?: string | null;
+  /** how it was handled, when that matters (an older screenshot did not change the next step) */
+  note?: string | null;
 }
 
 const QA_KINDS = new Set(["reply", "follow_up", "promise", "meeting", "call", "send", "stage"]);
@@ -316,6 +332,49 @@ interface CaptureRow {
 
 const CHANNEL_SET = new Set(["email", "whatsapp", "linkedin", "instagram", "call", "meeting", "in_person", "telegram", "sms", "twitter", "document", "other", "note"]);
 const asChannel = (c: string | null | undefined, fallback: Channel): Channel => (c && CHANNEL_SET.has(c) ? (c as Channel) : fallback);
+
+/**
+ * A time from a screenshot or a chat, as an instant. Local "YYYY-MM-DD HH:MM" is read in your timezone; a time with a
+ * zone is taken as is. A time in the future (a misread year, a typo) is pulled back a year if that fits, else dropped:
+ * a message cannot have been sent after you logged it. Pure.
+ */
+export function messageAt(at: string | null | undefined, tz: string, now: Date, allowFuture = false): string | null {
+  const v = (at ?? "").trim();
+  if (!v) return null;
+  let d: Date | null = null;
+  const local = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?$/.exec(v);
+  if (local) d = zonedInstant(`${local[1]}-${local[2]}-${local[3]}`, local[4] ? +local[4] : 12, local[5] ? +local[5] : 0, tz);
+  else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/.test(v)) d = new Date(v);
+  if (!d || Number.isNaN(d.getTime())) return null;
+  if (!allowFuture && d.getTime() > now.getTime() + 15 * 60_000) {
+    // a day or two ahead is a misread day, not a year: no time is better than a wrong one
+    if (d.getTime() - now.getTime() < 2 * 86_400_000) return null;
+    const back = new Date(d);
+    back.setUTCFullYear(back.getUTCFullYear() - 1);
+    return back.getTime() <= now.getTime() + 15 * 60_000 ? back.toISOString() : null;
+  }
+  return d.toISOString();
+}
+
+/** What the screenshot reader saw at the top: the app and who the chat is with. Pure. */
+export function screenHeader(screen: string | null | undefined): { app: string | null; chatWith: string | null } {
+  const t = screen ?? "";
+  const m = /CHAT WITH:\s*([^,\n]+?)\s*(?:,\s*APP:\s*([^\n]+))?$/im.exec(t);
+  const appRaw = (m?.[2] ?? /APP:\s*([^\n,]+)/i.exec(t)?.[1] ?? "").toLowerCase();
+  const app = /whats/.test(appRaw) ? "whatsapp" : /linked/.test(appRaw) ? "linkedin" : /insta/.test(appRaw) ? "instagram" : /telegram/.test(appRaw) ? "telegram"
+    : /gmail|outlook|mail/.test(appRaw) ? "email" : /sms|messages|imessage/.test(appRaw) ? "sms" : null;
+  const who = m?.[1]?.trim() || null;
+  return { app, chatWith: who && !/^(unknown|unreadable|\[unreadable\])$/i.test(who) ? who : null };
+}
+
+/** True when two names cannot be the same person (no shared name word, neither is a number). Pure. */
+export function differentPerson(a: string | null | undefined, b: string | null | undefined): boolean {
+  const words = (x: string) => x.toLowerCase().replace(/^(dr|mr|mrs|ms|miss)\.?\s+/, "").split(/[^a-z]+/).filter((w) => w.length >= 3);
+  if (!a || !b || /\d{5,}/.test(a) || /\d{5,}/.test(b)) return false;
+  const wa = words(a);
+  const wb = words(b);
+  return wa.length > 0 && wb.length > 0 && !wa.some((w) => wb.includes(w));
+}
 
 function dueIso(d: string | null | undefined): string | null {
   if (!d || !/^\d{4}-\d{2}-\d{2}/.test(d)) return null;
@@ -414,7 +473,18 @@ interface ApplyCtx {
 }
 
 export async function applyExtraction(cap: CaptureRow, extIn: Extraction, a: ApplyCtx): Promise<CaptureResult> {
-  let ext = extIn;
+  // times as real instants (your timezone, never in the future); the platform from what the screen showed
+  const tz = (await getSettings()).timezone;
+  const now = new Date();
+  const header = screenHeader((extIn as Extraction & { screen_text?: string | null }).screen_text ?? cap.screen_text ?? null);
+  let ext: Extraction = {
+    ...extIn,
+    // the channel you picked wins; then the app the screen shows; then what the AI read
+    channel: cap.channel || (header.app && header.app !== "telegram" ? header.app : extIn.channel),
+    occurred_at: messageAt(extIn.occurred_at, tz, now),
+    meeting_at: messageAt(extIn.meeting_at, tz, now, true),
+    messages: (extIn.messages ?? []).map((m) => ({ ...m, at: messageAt(m?.at, tz, now) })),
+  };
   const { cfg } = a;
   const res: CaptureResult = {
     summary: ext.summary, next_step: ext.next_step ?? null, interactions: [], commitments: [],
@@ -512,6 +582,25 @@ export async function applyExtraction(cap: CaptureRow, extIn: Extraction, a: App
     }
   }
 
+  // an older screenshot or chat (everything in it is older than what is already logged) fills the timeline and the
+  // details, but does not move the next step or the stage backwards
+  const prevLatest = dealId ? (await one<{ m: string | null }>("select max(occurred_at) as m from sales_interactions where deal_id = $1 and direction <> 'internal'", [dealId]))?.m ?? null : null;
+  const newestIn = [...(ext.messages ?? []).map((m) => m.at), ext.occurred_at].filter((x): x is string => !!x).sort().at(-1) ?? null;
+  const stale = !!(prevLatest && newestIn && Date.parse(newestIn) < Date.parse(prevLatest) - 3_600_000);
+  if (stale) res.note = "This is older than what is already logged: the timeline and details were updated, the next step and stage were left as they are.";
+
+  // the number shown at the top of a WhatsApp chat is theirs; a chat with someone else is flagged before you trust it
+  const top = header.chatWith ?? ext.chat_with ?? null;
+  if (personId && top) {
+    const pr = await one<{ full_name: string; phones: string[] }>("select full_name, phones from sales_people where id = $1", [personId]);
+    const num = top.replace(/[^\d+]/g, "");
+    if (num.replace(/\D/g, "").length >= 8 && pr && !pr.phones.some((x) => x.replace(/\D/g, "").endsWith(num.replace(/\D/g, "").slice(-10)))) {
+      await q("update sales_people set phones = array_append(phones, $2), whatsapp = coalesce(whatsapp, $2), updated_at = now() where id = $1", [personId, top.trim()]);
+      res.filled = [...(res.filled ?? []), "Person: Phone (from the chat)"];
+    }
+    if (pr && differentPerson(top, pr.full_name)) res.warning = `This chat looks like it is with "${top}", but this lead's contact is ${pr.full_name}. If it was the wrong lead, press Undo on this log.`;
+  }
+
   // timeline: chats are grouped per day so the timeline stays readable; everything else is one entry
   const channel = asChannel(a.chat ? "whatsapp" : ext.channel ?? cap.channel, cap.source === "email" ? "email" : "note");
   const ids: number[] = [];
@@ -543,16 +632,27 @@ export async function applyExtraction(cap: CaptureRow, extIn: Extraction, a: App
   } else if (allSeen) {
     // nothing new to log; the details below are still filled in
   } else if (freshMsgs.length > 1) {
-    const theirs = freshMsgs.filter((m) => m.from === "them");
-    const mine = freshMsgs.filter((m) => m.from === "me");
-    for (const [group, dir] of [[theirs, "in"], [mine, "out"]] as const) {
-      if (!group.length) continue;
-      const last = group[group.length - 1];
+    // the conversation as it went: each run of messages from one side on one day is one entry, at its own time,
+    // so the timeline and the journey keep the real back and forth (a message with no time shown takes the one before it)
+    let lastAt: string | null = null;
+    const timed = freshMsgs.map((m) => { if (m.at) lastAt = m.at; return { ...m, at: m.at ?? lastAt }; });
+    const fallback = ext.occurred_at ?? null;
+    const runs: { dir: Direction; msgs: typeof timed }[] = [];
+    for (const m of timed) {
+      const dir: Direction = m.from === "me" ? "out" : "in";
+      const prev = runs[runs.length - 1];
+      const sameDay = prev && (prev.msgs[prev.msgs.length - 1].at ?? "").slice(0, 10) === (m.at ?? "").slice(0, 10);
+      if (prev && prev.dir === dir && sameDay) prev.msgs.push(m);
+      else runs.push({ dir, msgs: [m] });
+    }
+    for (const [i, run] of runs.entries()) {
+      const last = run.msgs[run.msgs.length - 1];
       const r = await logInteraction({
-        deal_id: dealId, person_id: personId, channel, direction: dir as Direction,
-        occurred_at: last.at && !Number.isNaN(Date.parse(last.at)) ? last.at : ext.occurred_at && !Number.isNaN(Date.parse(ext.occurred_at)) ? ext.occurred_at : null,
-        body: group.map((m) => `${m.from === "me" ? "Me" : "Them"}: ${m.text}`).join("\n").slice(0, 12_000),
-        summary: ext.summary, source: cap.source, capture_id: cap.id, external_id: `cap:${cap.id}:${dir}`, extracted: dir === "in" ? ext : undefined,
+        deal_id: dealId, person_id: personId, channel, direction: run.dir,
+        occurred_at: last.at ?? fallback,
+        body: run.msgs.map((m) => `${m.from === "me" ? "Me" : "Them"}${m.at ? ` (${new Date(m.at).toLocaleString("en-IN", { timeZone: tz, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })})` : ""}: ${m.text}`).join("\n").slice(0, 12_000),
+        summary: runs.length === 1 ? ext.summary : `${run.msgs.length} message${run.msgs.length > 1 ? "s" : ""} ${run.dir === "in" ? "from them" : "from me"}`,
+        source: cap.source, capture_id: cap.id, external_id: `cap:${cap.id}:${i}:${run.dir}`, extracted: run.dir === "in" && i === runs.length - 1 ? ext : undefined,
       });
       if (r) {
         ids.push(r.id);
@@ -602,14 +702,24 @@ export async function applyExtraction(cap: CaptureRow, extIn: Extraction, a: App
       if (ext.deal_summary) patch.summary = ext.deal_summary;
       else if (ext.summary && !d.summary) patch.summary = ext.summary;
       if (ext.requirements && ext.requirements !== d.requirements) patch.requirements = d.requirements ? `${d.requirements}\n${ext.requirements}`.slice(-2000) : ext.requirements;
-      if (ext.budget) patch.budget = ext.budget;
-      if (ext.timeline) patch.timeline = ext.timeline;
+      // a field you set or changed yourself is yours: the AI never overwrites it. A field the AI filled earlier is updated
+      // when the conversation brings something new (a new budget, a new date).
+      const yours = new Set((await q<{ field: string }>(
+        `select field from (select distinct on (field) field, cause from sales_deal_events where deal_id = $1 and kind = 'field' and field is not null order by field, id desc) x
+         where cause in ('manual','telegram','client')`, [dealId])).map((r) => r.field));
+      const mayWrite = (k: string, cur: unknown) => !yours.has(k) || cur == null || cur === "" || (Array.isArray(cur) && !cur.length);
+      if (ext.budget && mayWrite("budget", d.budget) && ext.budget !== d.budget) patch.budget = ext.budget;
+      if (ext.timeline && mayWrite("timeline", d.timeline) && ext.timeline !== d.timeline) patch.timeline = ext.timeline;
       if (ext.objections?.length) patch.objections = Array.from(new Set([...(d.objections ?? []), ...ext.objections])).slice(-10);
       if (ext.services?.length && !d.services?.length) patch.services = ext.services.slice(0, 6);
       if (ext.value?.amount && !d.value_amount) {
         patch.value_amount = ext.value.amount;
         patch.currency = (ext.value.currency ?? cfg.default_currency).toUpperCase();
       }
+      // steps and actions only on channels you can really use (this log's conversation counts)
+      const reach = await dealReach(dealId);
+      if (ext.next_step) ext = { ...ext, next_step: stale ? null : onlyReachable(ext.next_step, reach) };
+      ext = { ...ext, quick_actions: (ext.quick_actions ?? []).map((a) => ({ ...a, label: onlyReachable(a?.label, reach) ?? a?.label, detail: onlyReachable(a?.detail, reach) })) as QuickAction[] };
       if (ext.next_step) {
         patch.next_action = ext.next_step;
         // a new step brings its own date; a stale date from the old step never stays behind
@@ -636,14 +746,16 @@ export async function applyExtraction(cap: CaptureRow, extIn: Extraction, a: App
       const det = ext.details ?? {};
       const blank = (v: unknown) => v == null || v === "" || (Array.isArray(v) && !v.length);
       const dd = d as unknown as Record<string, unknown>;
+      // empty fields are filled; fields the AI filled before are updated with what is new; yours are never touched
+      const writable = (k: string) => blank(dd[k]) || !yours.has(k);
       for (const k of ["pain", "desired_outcome", "impact", "current_solution", "compelling_event", "decision_criteria", "decision_process", "risks", "scope", "payment_terms", "industry", "city"] as const) {
         const v = det[k];
-        if (typeof v === "string" && v.trim() && blank(dd[k])) patch[k] = v.trim().slice(0, 2000);
+        if (typeof v === "string" && v.trim() && writable(k) && v.trim() !== String(dd[k] ?? "").trim()) patch[k] = v.trim().slice(0, 2000);
       }
-      if (det.competitors?.length && blank(dd.competitors)) patch.competitors = det.competitors.slice(0, 10);
+      if (det.competitors?.length && writable("competitors")) patch.competitors = Array.from(new Set([...((dd.competitors as string[] | null) ?? []), ...det.competitors])).slice(0, 10);
       for (const k of ["expected_close", "start_date"] as const) {
         const v = det[k];
-        if (v && /^\d{4}-\d{2}-\d{2}/.test(v) && !Number.isNaN(Date.parse(v.slice(0, 10))) && blank(dd[k])) patch[k] = v.slice(0, 10);
+        if (v && /^\d{4}-\d{2}-\d{2}/.test(v) && !Number.isNaN(Date.parse(v.slice(0, 10))) && writable(k) && String(dd[k] ?? "").slice(0, 10) !== v.slice(0, 10)) patch[k] = v.slice(0, 10);
       }
       if (det.deal_type && ["new", "upsell", "renewal", "repeat", "partnership", "other"].includes(det.deal_type) && blank(dd.deal_type)) patch.deal_type = det.deal_type;
       // a new lead gets a proper name instead of just the person's name
@@ -658,7 +770,7 @@ export async function applyExtraction(cap: CaptureRow, extIn: Extraction, a: App
       });
 
       // stage signals: forward moves are automatic, closing moves are only suggested
-      const sig = ext.stage_signal ?? "none";
+      const sig = stale ? "none" : ext.stage_signal ?? "none";
       if (sig === "meeting_booked") {
         const mv = await applyEvent(dealId, "meeting", { interactionId: ids[0] });
         if (mv) res.moved = mv.name;
@@ -668,8 +780,13 @@ export async function applyExtraction(cap: CaptureRow, extIn: Extraction, a: App
           const mv = await moveDeal(dealId, neg.id, { cause: "ai", force: true, note: ext.stage_detail ?? "price objection", interactionId: ids[0] }).catch(() => null);
           if (mv) res.moved = mv.name;
         }
-      } else if (sig === "not_now") {
-        res.suggestion = { kind: "stage", role: "nurture", reason: ext.stage_detail ?? null, date: ext.revisit_on ?? null, label: `Move to Nurture${ext.revisit_on ? ` until ${ext.revisit_on}` : ""}?` };
+      } else if (sig === "not_now" && d.stage_category === "open") {
+        // "not now, come back in March": parked in Nurture with the date they gave, so the revisit comes up on its own
+        const nur = await stageByRole("nurture");
+        const revisit = ext.revisit_on && /^\d{4}-\d{2}-\d{2}/.test(ext.revisit_on) ? ext.revisit_on.slice(0, 10) : null;
+        const mv = nur ? await moveDeal(dealId, nur.id, { cause: "ai", force: true, reason: ext.stage_detail ?? "they said not now", date: revisit, note: "they said not now", interactionId: ids[0] }).catch(() => null) : null;
+        if (mv) res.moved = `${mv.name}${revisit ? ` until ${revisit}` : ""}`;
+        else res.suggestion = { kind: "stage", role: "nurture", reason: ext.stage_detail ?? null, date: ext.revisit_on ?? null, label: `Move to Nurture${ext.revisit_on ? ` until ${ext.revisit_on}` : ""}?` };
       } else if (sig === "lost") {
         res.suggestion = { kind: "stage", role: "lost", reason: ext.stage_detail ?? "they said no", label: `Mark as Lost (${(ext.stage_detail ?? "they said no").slice(0, 40)})?` };
       } else if (sig === "accepted" && !["won", "active", "delivered", "paid"].includes(d.stage_role ?? "")) {

@@ -12,6 +12,7 @@ import { allowedTargets } from "@/lib/sales/stages";
 import { blockedDealIds } from "@/lib/sales/blocklist";
 import { listOffers, packageTotal, packagesFor } from "@/lib/sales/offers";
 import { DealView, type DealPageData } from "@/components/sales/deal-view";
+import { CHANNEL_NAME, dealEngagement, dealReach, engagementLine } from "@/lib/sales/reach";
 import { dealQuickLinks } from "@/lib/sales/quick-links";
 import { salesConfig } from "@/lib/sales/config";
 import { closingGaps } from "@/lib/sales/closing";
@@ -86,6 +87,15 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
     offerId: p.offer.id, index: p.index, offer: p.offer.name, name: p.pkg.name, currency: p.pkg.currency, total: packageTotal(p.pkg), items: p.pkg.items.length, timeline: p.pkg.timeline, fits: p.fits,
   }));
   const stageKey = deal.stage_role ?? stageRow?.key ?? String(deal.stage_id);
+  // how you can reach them, what is missing, and how they behave: one glance at the top of the page
+  const [reach, engage] = await Promise.all([dealReach(id), dealEngagement(id)]);
+  const pulse = {
+    reach: reach.channels.map((c) => CHANNEL_NAME[c.channel].replace(/^a /, "").replace(/^./, (x) => x.toUpperCase())),
+    missing: reach.missing.map((m) => CHANNEL_NAME[m.channel].replace(/^./, (x) => x.toUpperCase())),
+    best: reach.best ? CHANNEL_NAME[reach.best] : null,
+    engage: engagementLine(engage).replace(/^HOW THEY ENGAGE: /, "").replace(/\.$/, ""),
+    waiting: engage.waiting_on,
+  };
   return (
     <DealView
       d={{
@@ -95,7 +105,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         fit: fits.get(id) ?? null, items, defaultTax: cfg.default_tax_pct,
         itemPackages: packages.map((p) => ({ offerId: p.offerId, index: p.index, label: `${p.offer} · ${p.name}` })),
         stageKey, play: playFor({ role: deal.stage_role, key: stageRow?.key }, cfg.playbook), ticked: (deal.checklist ?? {})[stageKey] ?? [],
-        objections, shots, shares, owner: { name: cfg.owner.name, company: cfg.owner.company },
+        objections, shots, shares, owner: { name: cfg.owner.name, company: cfg.owner.company }, pulse,
         choices: {
           pipeline_id: pipelines.map((p) => [String(p.id), p.name] as [string, string]),
           owner_id: team.map((t) => [String(t.id), t.name] as [string, string]),

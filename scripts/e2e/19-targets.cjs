@@ -27,7 +27,7 @@ const { setup, check } = require("./lib.cjs");
   const card = page.getByRole("listitem", { name: "Udaipur trip" });
   await card.waitFor();
   const ct = await card.innerText();
-  check("the trip card counts down and shows the dates", /In 15 days · \d+ \w{3}( to | \w{3} to )\d+ \w{3} · Udaipur/.test(ct), ct.split("\n").slice(0, 3));
+  check("the trip card counts down and shows the dates", /In 15 days · \d+( \w{3})? to \d+ \w{3} · Udaipur/.test(ct), ct.split("\n").slice(0, 3));
   check("its day-by-day plan lists every day, all free", (await card.getByRole("list", { name: "Trip plan" }).getByRole("listitem").count()) === 4 && /free/.test(ct));
   const hunt = await one("select id, kind, cities, meet, prospects, sweep_sources, to_char(ends_on, 'YYYY-MM-DD') as ends_on from sales_hunts where name = 'Udaipur trip'");
   check("saved as a trip that stops on its last day", hunt.kind === "trip" && hunt.cities[0] === "Udaipur" && hunt.meet && hunt.prospects && !hunt.sweep_sources && hunt.ends_on === to.iso, hunt);

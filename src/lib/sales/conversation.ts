@@ -9,6 +9,7 @@ import { getDeal, updateDeal } from "./deals";
 import { cleanQuickActions, type QuickAction } from "./ingest";
 import { llmJson, llmConfigured } from "./llm";
 import { zonedInstant } from "../time";
+import { dealEngagement, dealKnowledge, dealReach, engagementLine, onlyReachable, reachLines } from "./reach";
 import { enqueue } from "./jobs";
 
 export interface Conversation {
@@ -55,9 +56,11 @@ export async function summarizeDeal(dealId: number): Promise<{ summary: string; 
   const promises = await q<{ id: number; owner: string; text: string; due_at: string | null }>(
     "select id, owner, text, due_at from sales_commitments where deal_id = $1 and status = 'open' order by due_at nulls last limit 20", [dealId]);
   const cfg = await salesConfig();
+  const reach = await dealReach(dealId);
   const out = await llmJson<{ summary?: string; quick_actions?: unknown; reply_draft?: string | null; next_step?: string | null; next_step_due?: string | null; done_promise_ids?: number[] }>(
     SYSTEM(cfg.owner.name, new Date().toISOString()),
     `LEAD: ${d.title}${d.company_name ? ` (${d.company_name})` : ""}${d.person_name ? `, contact ${d.person_name}` : ""}. STAGE: ${d.stage_name}.\n` +
+    `${reachLines(reach)}\n${await dealKnowledge(dealId)}\n${engagementLine(await dealEngagement(dealId))}\n` +
     `CURRENT NEXT STEP: ${d.next_action ? `${d.next_action}${d.next_action_at ? ` (due ${new Date(d.next_action_at).toISOString().slice(0, 10)})` : ""}` : "none"}\n` +
     `${promises.length ? `OPEN PROMISES:\n${promises.map((p) => `- id ${p.id}, ${p.owner === "me" ? "ME" : "THEM"}: ${p.text}${p.due_at ? ` (by ${new Date(p.due_at).toISOString().slice(0, 10)})` : ""}`).join("\n")}\n` : ""}` +
     `TOUCHES:\n${notes}`,
@@ -66,14 +69,15 @@ export async function summarizeDeal(dealId: number): Promise<{ summary: string; 
   const summary = String(out.summary ?? "").trim();
   if (!summary) throw new UserError("The AI did not return a summary. Try again.");
   const conversation: Conversation = {
-    quick_actions: cleanQuickActions(out.quick_actions),
+    // never a step on a channel you cannot use
+    quick_actions: cleanQuickActions(out.quick_actions).map((a) => ({ ...a, label: onlyReachable(a.label, reach) ?? a.label, detail: onlyReachable(a.detail, reach) })),
     reply_draft: out.reply_draft ? String(out.reply_draft).slice(0, 1500) : null,
     at: new Date().toISOString(),
     scope: "all",
   };
   // the next step follows the conversation: a step that already happened is replaced, with its own date
   const patch: Record<string, unknown> = { summary: summary.slice(0, 2000) };
-  const step = String(out.next_step ?? "").trim();
+  const step = String(onlyReachable(out.next_step, reach) ?? "").trim();
   if (step) {
     patch.next_action = step.slice(0, 300);
     const due = typeof out.next_step_due === "string" && /^\d{4}-\d{2}-\d{2}/.test(out.next_step_due) && !Number.isNaN(Date.parse(out.next_step_due.slice(0, 10))) ? out.next_step_due.slice(0, 10) : null;

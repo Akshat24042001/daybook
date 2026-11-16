@@ -22,6 +22,7 @@ export function readPrompt(owner?: Owner | null): string {
 ${owner ? `\nTHE PHONE / ACCOUNT OWNER is ${owner.name}${names.length > 1 ? ` (also shown as: ${[...new Set(names.slice(1))].join(", ")})` : ""}. Messages written by the owner are ME. Everyone else is THEM.\n` : ""}
 If it is a chat (WhatsApp, LinkedIn, Instagram, SMS, Telegram, email thread):
 - First line: CHAT WITH: <the other person's name or number at the top of the chat>, APP: <which app it looks like>
+- Second line, only if visible: STATUS BAR: <the time and date shown in the phone's status bar or the computer's clock>
 - Then one line per message, oldest first:
   [date and time if shown] ME (<name shown, or "no name shown">): <text>
   [date and time if shown] THEM (<name shown, or "no name shown">): <text>
@@ -31,7 +32,8 @@ If it is a chat (WhatsApp, LinkedIn, Instagram, SMS, Telegram, email thread):
   2. A "You", "You:", "You sent", "Sent" or tick marks label means ME.
   3. Only when no name or label is shown: right side (usually green or blue bubbles) is ME, left side is THEM.
   Never decide by what the message says. If you truly cannot tell, write UNSURE (<name shown>) instead of ME or THEM.
-- Keep date separators ("Yesterday", "12 March") as their own lines in square brackets.
+- Keep date separators ("Today", "Yesterday", "Monday", "12 March") as their own lines in square brackets, exactly as shown.
+- Copy each message's time exactly as shown (for example 10:42 am). Never add a time or date that is not on the screen.
 - Write "[image]", "[voice note 0:42]", "[document: name.pdf]", "[link preview: title, domain]" for media.
 
 If it is an email: FROM, TO, DATE, SUBJECT lines, then the body.

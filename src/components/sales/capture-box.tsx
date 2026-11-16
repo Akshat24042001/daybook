@@ -38,7 +38,9 @@ function Filed({ r, onUndo }: { r: CaptureResult; onUndo?: () => void }) {
         </p>
         {onUndo ? <button type="button" onClick={onUndo} className="text-xs text-subtle hover:text-fg hover:underline">Undo</button> : null}
       </div>
+      {r.warning ? <p role="alert" className="mt-2 rounded-lg bg-p-butter px-2.5 py-1.5 text-[13px] text-p-butter-fg">{r.warning}</p> : null}
       {r.summary ? <p className="mt-1 text-subtle">{r.summary}</p> : null}
+      {r.note ? <p className="mt-1 text-[13px] text-subtle">{r.note}</p> : null}
       {lines.length ? (
         <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-[13px]">
           {lines.map((l) => <li key={l}>{l}</li>)}

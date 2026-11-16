@@ -5,10 +5,10 @@ import { InfoTip } from "@/components/info-tip";
 
 import type { LinkGroup } from "@/lib/sales/quick-links-types";
 import { QuickLinks } from "./quick-links";
-import { ArrowDownLeft, ArrowUpRight, Check, Copy, ExternalLink, FileText, Link2, Loader2, Pencil, Plus, Radar, Sparkles, Trash2, Upload, Users, X } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Check, ChevronDown, Copy, ExternalLink, FileText, Link2, Loader2, Pencil, Plus, Radar, Sparkles, Trash2, Upload, Users, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import {
   addCommitmentAction, addPaymentAction, briefFromAuditAction, commitmentAction, createLinkAction, createQuoteAction, deleteDealAction,
   deleteInteractionAction, deletePaymentAction, markPaidAction, removeDealPersonAction, setPersonAction, startFileAction, updateDealAction,
@@ -34,6 +34,7 @@ import { FitCard, LineItems, PlaybookCard, type PackageOpt } from "./deal-extras
 import type { Fit } from "@/lib/sales/fit-calc";
 import type { DealItem } from "@/lib/sales/items-calc";
 import type { StagePlay } from "@/lib/sales/playbook-stages";
+import { Fold } from "./fold";
 import { ago, ChannelIcon, CHANNEL_LABEL, CURRENCIES, currencyLabel, currencySymbol, fmtDate, Label, money, Priority } from "./util";
 import { Ago } from "@/components/sales/ago";
 
@@ -41,6 +42,8 @@ export interface QuotePackage { offerId: number; index: number; offer: string; n
 
 export interface DealPageData {
   deal: DealCard;
+  /** how you can reach them, what is missing, how they behave (computed on the server) */
+  pulse?: { reach: string[]; missing: string[]; best: string | null; engage: string; waiting: "them" | "you" | null };
   /** the screenshots you shared that were filed to this deal */
   shots?: { capture_id: number; index: number; at: string; summary: string | null; source: string; author_user?: number | null; author_name?: string | null; shared_with?: number[] }[];
   /** salespeople who have (or could have) this lead */
@@ -210,6 +213,19 @@ export function DealView({ d }: { d: DealPageData }) {
               }}>Do not contact</Button>
           ) : null}
         </div>
+        {deal.next_action ? (
+          <p className="mt-3 flex flex-wrap items-baseline gap-x-2 rounded-xl bg-accent-muted/40 px-3 py-2 text-sm" aria-label="Next step">
+            <span className="text-xs font-semibold uppercase tracking-wide text-accent">Next step</span>
+            <span className="font-medium">{deal.next_action}</span>
+            {deal.next_action_at ? <span suppressHydrationWarning className={cn("text-xs", new Date(deal.next_action_at).getTime() < Date.now() ? "font-semibold text-bad" : "text-subtle")}>{new Date(deal.next_action_at).getTime() < Date.now() ? "overdue since " : "by "}{fmtDate(deal.next_action_at)}</span> : null}
+          </p>
+        ) : null}
+        {d.pulse ? (
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs" aria-label="Reach and behaviour">
+            <span><span className="text-subtle">Reach them on </span>{d.pulse.reach.length ? <b>{d.pulse.reach.join(", ")}</b> : <b className="text-bad">nothing yet</b>}{d.pulse.missing.length ? <span className="text-subtle"> · no {d.pulse.missing.join(", no ").toLowerCase().replace("linkedin", "LinkedIn").replace("whatsapp", "WhatsApp")} yet</span> : null}</span>
+            {d.pulse.engage ? <span className={cn(d.pulse.waiting === "you" && "font-semibold text-warn")}>{d.pulse.engage.replace(/^./, (x) => x.toUpperCase())}</span> : null}
+          </div>
+        ) : null}
         {deal.priority_why?.length ? (
           <p className="mt-2 text-xs text-subtle">Why this priority: {deal.priority_why.join(" · ")}</p>
         ) : null}
@@ -225,14 +241,20 @@ export function DealView({ d }: { d: DealPageData }) {
         ) : null}
       </div>
 
-      {d.links.length ? (
-        <div className="rounded-2xl border border-border bg-surface p-4">
-          <QuickLinks groups={d.links} />
+      {/* 1. log it: the first thing under the header, so a screenshot or a chat goes in in seconds */}
+      <section className="rounded-2xl border border-accent/30 bg-accent-muted/20 p-4" aria-label="Log something">
+        <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-3">
+          <h3 className="font-display text-base">Log something</h3>
+          <span className="text-xs text-subtle">Screenshots, pasted chats, emails or a voice note. Dates, the platform, details and the next step are picked up for you.</span>
         </div>
-      ) : null}
+        <CaptureBox dealId={deal.id} voiceEnabled={d.voiceEnabled} compact placeholder={`Paste the latest chat with ${deal.person_name ?? "them"}, an email, or speak a debrief. Promises and next steps are picked out for you.`} />
+        <div className="mt-2">
+          <ActivityLogger dealId={deal.id} people={people} />
+        </div>
+      </section>
 
       <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <ConversationCard
             dealId={deal.id}
             summary={deal.summary}
@@ -244,21 +266,12 @@ export function DealView({ d }: { d: DealPageData }) {
               if (!t) return toast(`It is not possible to move to ${role} from here.`, "error");
               setPendingMove({ deal, to: t, requires: t.requires });
             }}
-            extra={deal.objections?.length || deal.next_action ? (
-              <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-                {deal.objections?.length ? <div className="sm:col-span-2"><dt className="text-subtle">Objections</dt><dd>{deal.objections.join(" · ")}</dd></div> : null}
-                {deal.next_action ? <div className="sm:col-span-2"><dt className="text-subtle">Next step</dt><dd className="font-medium">{deal.next_action}{deal.next_action_at ? ` (${fmtDate(deal.next_action_at)})` : ""}</dd></div> : null}
+            extra={deal.objections?.length ? (
+              <dl className="mt-3 grid gap-2 text-xs">
+                <div><dt className="text-subtle">Objections</dt><dd>{deal.objections.join(" · ")}</dd></div>
               </dl>
             ) : null}
           />
-
-          <ClosingRecord deal={deal} people={people} gaps={d.gaps} onComplete={() => setCompleting(true)} />
-
-          <PlaybookCard key={d.stageKey} deal={deal} stageKey={d.stageKey} play={d.play} ticked={d.ticked} objections={d.objections} owner={d.owner} />
-
-          <DealDetails deal={deal} people={people} customDefs={d.customDefs} onEdit={openEdit} choices={d.choices} />
-
-          <LineItems deal={deal} items={d.items} defaultTax={d.defaultTax} packages={d.itemPackages} />
 
           {d.moves.length ? (
             <div>
@@ -267,26 +280,30 @@ export function DealView({ d }: { d: DealPageData }) {
             </div>
           ) : null}
 
-          <div className="space-y-2">
-            <Label>Log something</Label>
-            <ActivityLogger dealId={deal.id} people={people} />
-            <CaptureBox dealId={deal.id} voiceEnabled={d.voiceEnabled} compact placeholder={`Paste the latest chat with ${deal.person_name ?? "them"}, an email, or speak a debrief. Promises and next steps are picked out for you.`} />
-          </div>
+          <ClosingRecord deal={deal} people={people} gaps={d.gaps} onComplete={() => setCompleting(true)} />
 
-          <Section title={`Timeline · ${d.timeline.length}`}>
+          <Fold id="timeline" title={`Timeline · ${d.timeline.length}`} summary="every touch, newest first">
             {d.timeline.length ? (
               <ol className="space-y-2">
                 {d.timeline.map((i) => <TimelineItem key={i.id} i={i} onDelete={() => act(() => deleteInteractionAction(i.id))} extra={<VisibleTo kind="interaction" id={i.id} sharedWith={i.shared_with ?? []} audience={audience} authorUser={i.author_user} authorName={i.author_name} />} />)}
               </ol>
             ) : <p className="text-sm text-subtle">No touches yet.</p>}
-          </Section>
+          </Fold>
+
+          <Fold id="playbook" title="Playbook for this stage" summary={`what to ask and do in ${deal.stage_name}`}>
+          <PlaybookCard key={d.stageKey} deal={deal} stageKey={d.stageKey} play={d.play} ticked={d.ticked} objections={d.objections} owner={d.owner} />
+          </Fold>
+
+          <Fold id="details" title="Deal details" summary="needs, budget, who decides, dates and your own fields">
+          <DealDetails deal={deal} people={people} customDefs={d.customDefs} onEdit={openEdit} choices={d.choices} />
+          </Fold>
+
+          <Fold id="items" title="Line items" summary={d.items.length ? `${d.items.length} item${d.items.length === 1 ? "" : "s"}` : "what you are selling, with prices"}>
+          <LineItems deal={deal} items={d.items} defaultTax={d.defaultTax} packages={d.itemPackages} />
+          </Fold>
         </div>
 
-        <div className="space-y-4">
-          {d.fit ? <FitCard fit={d.fit} deal={deal} /> : null}
-
-          {d.shares?.length ? <TeamSharing dealId={deal.id} shares={d.shares} /> : null}
-
+        <div className="min-w-0 space-y-4">
           <Section title="Promises">
             <Promises dealId={deal.id} mine={mine} theirs={theirs} audience={audience} onChange={() => router.refresh()} />
           </Section>
@@ -303,61 +320,6 @@ export function DealView({ d }: { d: DealPageData }) {
               </ul>
             </Section>
           ) : null}
-
-          {d.shots?.length ? (
-            <Section title={`Screenshots · ${d.shots.length}`}>
-              <ul className="grid grid-cols-3 gap-2" aria-label="Screenshots you shared">
-                {d.shots.map((x) => (
-                  <li key={`${x.capture_id}-${x.index}`}>
-                    <a href={`/api/sales/shot/${x.capture_id}/${x.index}`} target="_blank" rel="noreferrer" title={`${fmtDate(x.at)}${x.summary ? `: ${x.summary}` : ""}`} className="block">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={`/api/sales/shot/${x.capture_id}/${x.index}`} alt={x.summary ?? "Screenshot"} loading="lazy" className="aspect-square w-full rounded-lg border border-border object-cover hover:border-accent" />
-                      <span className="mt-0.5 block truncate text-[11px] text-subtle">{fmtDate(x.at)}{x.source === "telegram" ? " · Telegram" : ""}</span>
-                    </a>
-                    {x.index === 0 ? <VisibleTo kind="capture" id={x.capture_id} sharedWith={x.shared_with ?? []} audience={audience} authorUser={x.author_user} authorName={x.author_name} /> : null}
-                  </li>
-                ))}
-              </ul>
-            </Section>
-          ) : null}
-
-          <Section title="Documents" action={<DocButtons dealId={deal.id} companyId={d.company?.id ?? null} packages={d.packages ?? []} />}>
-            {d.docs.length ? (
-              <ul className="space-y-2">
-                {d.docs.map((x) => {
-                  const url = x.kind === "link" ? `${d.baseUrl}/l/${x.slug}` : `${d.baseUrl}/q/${x.slug}`;
-                  return (
-                    <li key={x.id} className="rounded-xl border border-border p-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="min-w-0">
-                          <Link href={x.internal ? `/api/sales/file/${x.slug}` : `/sales/docs/${x.id}`} target={x.internal ? "_blank" : undefined} className="text-sm font-medium hover:text-accent">
-                            {x.kind === "quote" ? <FileText className="mr-1 inline h-3.5 w-3.5" /> : <Link2 className="mr-1 inline h-3.5 w-3.5" />}
-                            {x.title}{x.kind === "quote" ? ` v${x.current_rev}` : ""}
-                          </Link>
-                          <DocCategory category={DOC_CATEGORIES.find(([k]) => k === x.category)?.[1] ?? x.category} internal={x.internal} />
-                        </span>
-                        <Chip className={cn(x.status === "accepted" && "bg-p-mint text-p-mint-fg", x.status === "viewed" && "bg-p-sky text-p-sky-fg", x.status === "changes" && "bg-p-butter text-p-butter-fg")}>{x.status}</Chip>
-                      </div>
-                      <p suppressHydrationWarning className="mt-0.5 text-xs text-subtle">
-                        {x.total ? `${money(x.total, x.currency ?? deal.currency)} · ` : ""}{x.view_count ? `opened ${x.view_count}x, last ${ago(x.last_viewed_at)}` : x.sent_at ? "not opened yet" : "draft"}
-                      </p>
-                      <VisibleTo kind="doc" id={x.id} sharedWith={x.shared_with ?? []} audience={audience} authorUser={x.author_user} authorName={null} />
-                      <div className={cn("mt-1.5 flex items-center gap-1", x.internal && "hidden")}>
-                        <code className="truncate rounded bg-muted px-1.5 py-0.5 text-xs">{url.replace(/^https?:\/\//, "")}</code>
-                        <Button size="sm" variant="ghost" className="h-6 px-1.5" onClick={() => void navigator.clipboard.writeText(url).then(() => toast("Link copied. Send it instead of an attachment."), () => toast("Your browser blocked copying. Select the text and copy it by hand.", "error"))}>
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : <p className="text-sm text-subtle">Send links, not attachments: every open is tracked and pinged to you.</p>}
-          </Section>
-
-          <Section title="Money">
-            <Payments dealId={deal.id} currency={deal.currency} payments={d.payments} onChange={() => router.refresh()} />
-          </Section>
 
           <Section title="People" action={<AddPerson dealId={deal.id} />}>
             <ul className="space-y-2">
@@ -401,23 +363,106 @@ export function DealView({ d }: { d: DealPageData }) {
             </Section>
           ) : null}
 
+          <Section title="Documents" action={<DocButtons dealId={deal.id} companyId={d.company?.id ?? null} packages={d.packages ?? []} />}>
+            {d.docs.length ? (
+              <ul className="space-y-2">
+                {d.docs.map((x) => {
+                  const url = x.kind === "link" ? `${d.baseUrl}/l/${x.slug}` : `${d.baseUrl}/q/${x.slug}`;
+                  return (
+                    <li key={x.id} className="rounded-xl border border-border p-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="min-w-0">
+                          <Link href={x.internal ? `/api/sales/file/${x.slug}` : `/sales/docs/${x.id}`} target={x.internal ? "_blank" : undefined} className="text-sm font-medium hover:text-accent">
+                            {x.kind === "quote" ? <FileText className="mr-1 inline h-3.5 w-3.5" /> : <Link2 className="mr-1 inline h-3.5 w-3.5" />}
+                            {x.title}{x.kind === "quote" ? ` v${x.current_rev}` : ""}
+                          </Link>
+                          <DocCategory category={DOC_CATEGORIES.find(([k]) => k === x.category)?.[1] ?? x.category} internal={x.internal} />
+                        </span>
+                        <Chip className={cn(x.status === "accepted" && "bg-p-mint text-p-mint-fg", x.status === "viewed" && "bg-p-sky text-p-sky-fg", x.status === "changes" && "bg-p-butter text-p-butter-fg")}>{x.status}</Chip>
+                      </div>
+                      <p suppressHydrationWarning className="mt-0.5 text-xs text-subtle">
+                        {x.total ? `${money(x.total, x.currency ?? deal.currency)} · ` : ""}{x.view_count ? `opened ${x.view_count}x, last ${ago(x.last_viewed_at)}` : x.sent_at ? "not opened yet" : "draft"}
+                      </p>
+                      <VisibleTo kind="doc" id={x.id} sharedWith={x.shared_with ?? []} audience={audience} authorUser={x.author_user} authorName={null} />
+                      <div className={cn("mt-1.5 flex items-center gap-1", x.internal && "hidden")}>
+                        <code className="truncate rounded bg-muted px-1.5 py-0.5 text-xs">{url.replace(/^https?:\/\//, "")}</code>
+                        <Button size="sm" variant="ghost" className="h-6 px-1.5" onClick={() => void navigator.clipboard.writeText(url).then(() => toast("Link copied. Send it instead of an attachment."), () => toast("Your browser blocked copying. Select the text and copy it by hand.", "error"))}>
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : <p className="text-sm text-subtle">Send links, not attachments: every open is tracked and pinged to you.</p>}
+          </Section>
+
+          <Fold id="money" title="Money" summary={d.payments.length ? `${d.payments.length} payment${d.payments.length === 1 ? "" : "s"}` : "payments and what is due"} defaultOpen={d.payments.length > 0}>
+            <Payments dealId={deal.id} currency={deal.currency} payments={d.payments} onChange={() => router.refresh()} />
+          </Fold>
+
+          {d.fit ? (
+            <Fold id="fit" title="Fit" summary={`${d.fit.grade} · ${d.fit.score}: how well they suit your business`}>
+              <FitCard fit={d.fit} deal={deal} />
+            </Fold>
+          ) : null}
+
           {d.company?.audit?.summary ? (
-            <Section title="Opportunity audit">
+            <Fold id="audit" title="Opportunity audit" summary={d.company.audit.first_project ? `start with: ${d.company.audit.first_project}` : "what their website and business show"}>
               <p className="text-sm">{d.company.audit.summary}</p>
               {d.company.audit.money_leak ? <p className="mt-2 rounded-lg bg-warn-muted px-2.5 py-1.5 text-xs text-warn">{d.company.audit.money_leak}</p> : null}
               <ul className="mt-2 space-y-1.5 text-xs">
                 {(d.company.audit.opportunities ?? []).map((o, i) => <li key={i}><b>{o.title}</b>: {o.fix} <span className="text-subtle">({o.impact}; {o.effort})</span></li>)}
               </ul>
               {d.company.audit.first_project ? <p className="mt-2 text-xs"><b>Start with:</b> {d.company.audit.first_project}</p> : null}
-            </Section>
+            </Fold>
           ) : null}
 
+          {d.shots?.length ? (
+            <Fold id="shots" title={`Screenshots · ${d.shots.length}`} summary="the ones you logged">
+              <ul className="grid grid-cols-3 gap-2" aria-label="Screenshots you shared">
+                {d.shots.map((x) => (
+                  <li key={`${x.capture_id}-${x.index}`}>
+                    <a href={`/api/sales/shot/${x.capture_id}/${x.index}`} target="_blank" rel="noreferrer" title={`${fmtDate(x.at)}${x.summary ? `: ${x.summary}` : ""}`} className="block">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={`/api/sales/shot/${x.capture_id}/${x.index}`} alt={x.summary ?? "Screenshot"} loading="lazy" className="aspect-square w-full rounded-lg border border-border object-cover hover:border-accent" />
+                      <span className="mt-0.5 block truncate text-[11px] text-subtle">{fmtDate(x.at)}{x.source === "telegram" ? " · Telegram" : ""}</span>
+                    </a>
+                    {x.index === 0 ? <VisibleTo kind="capture" id={x.capture_id} sharedWith={x.shared_with ?? []} audience={audience} authorUser={x.author_user} authorName={x.author_name} /> : null}
+                  </li>
+                ))}
+              </ul>
+            </Fold>
+          ) : null}
+
+          {d.links.length ? (
+            <Fold id="links" title="Links" summary="profiles, website, where they came from">
+              <QuickLinks groups={d.links} />
+            </Fold>
+          ) : null}
+
+          {d.shares?.length ? (
+            <Fold id="team" title="Sales team" summary="who else sees this lead">
+              <TeamSharing dealId={deal.id} shares={d.shares} />
+            </Fold>
+          ) : null}
+
+          <Fold id="journey" title="Journey" summary="every stage and field change, dated">
           <Journey events={d.events} created={deal.created_at} customLabels={customLabels} />
+          </Fold>
         </div>
       </div>
 
-      {d.company ? <EnrichmentPanel kind="company" id={d.company.id} data={d.company.enrichment} groups={d.companyFields} enrichedAt={d.company.enriched_at} title={`Company: ${d.company.name}`} /> : null}
-      {d.person ? <EnrichmentPanel kind="person" id={d.person.id} data={d.person.enrichment} groups={d.personFields} enrichedAt={d.person.enriched_at} title={`Person: ${d.person.full_name}`} /> : null}
+      {d.company ? (
+        <Fold id="research-company" title={`Research: ${d.company.name}`} summary={d.company.enriched_at ? "everything found about the business, with sources" : "not researched yet"}>
+          <EnrichmentPanel kind="company" id={d.company.id} data={d.company.enrichment} groups={d.companyFields} enrichedAt={d.company.enriched_at} title={`Company: ${d.company.name}`} />
+        </Fold>
+      ) : null}
+      {d.person ? (
+        <Fold id="research-person" title={`Research: ${d.person.full_name}`} summary={d.person.enriched_at ? "their role, background and how to talk to them" : "not researched yet"}>
+          <EnrichmentPanel kind="person" id={d.person.id} data={d.person.enrichment} groups={d.personFields} enrichedAt={d.person.enriched_at} title={`Person: ${d.person.full_name}`} />
+        </Fold>
+      ) : null}
 
       <DealEditSheet deal={deal} people={people} customDefs={d.customDefs} open={edit} onOpenChange={setEdit} focusGroup={editGroup} choices={d.choices}
         footer={<Button variant="danger" size="sm" onClick={() => confirm("Delete this deal and its whole history?") && act(async () => {

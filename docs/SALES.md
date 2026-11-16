@@ -811,3 +811,39 @@ promise (kept or dropped), finish, skip or snooze a move, book a meeting, start 
 screenshot, whatever is still missing (a stale next step, kept promises, the business, the reply).
 On a lead's chat **Apply changes right away** is on: what you ask for is done at once, and each change keeps its Undo.
 Turn it off to tap each change instead. Deletes always wait for a tap.
+
+## An agent that knows what it knows
+
+**Only channels you can use.** For every lead the system works out how you can really reach them: a phone or WhatsApp
+number, an email, a LinkedIn or Instagram profile, or a conversation you already have on that app (you can reply in the
+same chat). Every AI step is told this, and what is missing ("no email, no LinkedIn yet"). Moves, drafts, next steps and
+quick actions only use those channels; a step naming one you cannot use is pointed at one you can, and a step about
+getting a contact ("ask for her email", "find her LinkedIn") stays. The next message goes where they last wrote to you.
+The deal header shows it: "Reach them on WhatsApp, Call · no email, no LinkedIn yet".
+
+**What is known, and what is not.** Every prompt (filing, drafts, summaries, the lead chat) gets the facts that matter for
+selling, each marked known or not known (role, who decides, business, website, size, needs, budget, timeline, how they
+decide, whether the business was researched), with the rule never to assume the unknown ones. Where one matters for the
+next step, the step is to find it out.
+
+**How they engage.** From the dated timeline: how often they wrote, how fast they usually answer and how fast the last
+time, warming or cooling, and who is waiting on whom and for how long. It is in every prompt and on the deal header.
+
+**Screenshots keep their real time and platform.** The reader copies each message's time and the date separators
+("Today", "Yesterday", "Monday", "12 Nov") and the status bar clock when visible; filing turns them into real times in
+your timezone, never in the future (a misread year is corrected, a time that cannot be right is left empty rather than
+guessed), and "tomorrow" in a message counts from the day it was sent. The app on the screen sets the channel (the
+channel you pick yourself still wins), and the number at the top of a WhatsApp chat is saved on the contact. A chat is
+filed as it went: each run of messages from one side on one day is its own timeline entry at its own time, so the
+journey keeps the real back and forth. A screenshot older than what is already logged fills in the history and details
+but does not move the next step or the stage. A chat that looks like it is with someone else is flagged on the result.
+
+**Fields stay current, yours stay yours.** Empty fields are filled; fields the AI filled before are updated when the
+conversation changes them (a new budget, a new date); a field you set or changed yourself is never overwritten.
+"Not now, come back in March" moves the lead to Nurture with that revisit date. Won and Lost stay suggestions you confirm.
+
+**The deal page.** Header with the next step (red when overdue), how you can reach them and how they engage; the
+**Log something** box right under it; then the conversation, moves and promises, people, company and documents. The
+timeline, playbook, deal details, line items, money, fit, audit, screenshots, links, team, journey and the research fold
+away with a one-line summary, and each remembers whether you left it open. On a radar lead, the links, the full post and
+"Ask them and watch out" fold the same way.

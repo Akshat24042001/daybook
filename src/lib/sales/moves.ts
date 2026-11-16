@@ -17,6 +17,7 @@ import { proofBlock, proofFor } from "./proofs";
 import { applyEvent } from "./stages";
 import { draftMessage } from "./voice";
 import { tripDraftLines, tripFor } from "./targets";
+import { dealReach, reachFrom } from "./reach";
 import { calendarDate } from "../time";
 import { getSettings } from "../settings";
 import { draftChannel, isHandle, targetInput } from "./reply-targets";
@@ -67,14 +68,9 @@ function who(d: DealCard): string {
   return d.person_name ? `${d.person_name}${d.company_name ? ` (${d.company_name})` : ""}` : d.company_name ?? d.title;
 }
 
-/** The channel to use next: where they last replied, else where you last wrote. */
+/** The channel to use next: where they last wrote to you, among the channels you can actually reach them on (reach). */
 async function bestChannel(dealId: number): Promise<string | null> {
-  const r = await one<{ channel: string }>(
-    `select channel from sales_interactions where deal_id = $1 and channel in ('whatsapp','email','linkedin','instagram','sms','twitter','call')
-     order by (direction in ('in','both')) desc, occurred_at desc limit 1`,
-    [dealId],
-  );
-  return r?.channel ?? null;
+  return (await dealReach(dealId)).best;
 }
 
 interface Extra {
@@ -292,13 +288,18 @@ export async function refreshMoves(dealId?: number): Promise<{ open: number }> {
   const openByCompany = new Map((await q<{ company_id: number; n: number }>(
     "select d.company_id, count(*)::int as n from sales_deals d join sales_stages s on s.id = d.stage_id where s.category = 'open' and d.company_id is not null group by 1",
   )).map((r) => [r.company_id, r.n]));
-  // each deal's best channel in one query, not one per deal
-  const channels = new Map((await q<{ deal_id: number; channel: string }>(
-    `select distinct on (deal_id) deal_id, channel from sales_interactions
-     where deal_id = any($1::int[]) and channel in ('whatsapp','email','linkedin','instagram','sms','twitter','call')
-     order by deal_id, (direction in ('in','both')) desc, occurred_at desc`,
-    [deals.map((d) => d.id)],
-  )).map((r) => [r.deal_id, r.channel]));
+  // each deal's best channel, from its contact's details and the conversations you have (two queries for all deals)
+  const ids = deals.map((d) => d.id);
+  const contacts = new Map((await q<{ deal_id: number; phones: string[]; emails: string[]; linkedin: string | null; instagram: string | null; whatsapp: string | null }>(
+    "select d.id as deal_id, p.phones, p.emails, p.linkedin, p.instagram, p.whatsapp from sales_deals d join sales_people p on p.id = d.person_id where d.id = any($1::int[])", [ids],
+  )).map((r) => [r.deal_id, r]));
+  const threads = new Map<number, { channel: string; direction: string; at: string }[]>();
+  for (const r of await q<{ deal_id: number; channel: string; direction: string; at: string }>(
+    `select deal_id, channel, direction, occurred_at as at from sales_interactions
+     where deal_id = any($1::int[]) and channel in ('whatsapp','email','linkedin','instagram','sms') and direction in ('in','out','both')
+     order by occurred_at desc`, [ids],
+  )) threads.set(r.deal_id, [...(threads.get(r.deal_id) ?? []), r]);
+  const channels = new Map(ids.map((id) => [id, reachFrom({ ...(contacts.get(id) ?? {}), threads: threads.get(id) ?? [] }).best]));
   for (const d of deals) {
     if (blocked.has(d.id)) continue;
     desired.push(...(await desiredForDeal(cfg, d, now, { channel: channels.get(d.id) ?? null, offers, otherOpenDeal: !!(d.company_id && openByCompany.get(d.company_id)) })));
@@ -510,11 +511,14 @@ export async function draftForMove(id: number, channelOverride?: string): Promis
   const m = await getMove(id);
   if (!m) return null;
   // write for the place it will really be sent: their WhatsApp, their inbox, or the platform they posted on
-  const channel = channelOverride ?? draftChannel(targetInput(m, false));
+  // a deal's message goes where you can really reach them (never LinkedIn without a profile or a LinkedIn chat)
+  const reach = m.deal_id ? await dealReach(m.deal_id) : null;
+  const channel = channelOverride ?? (reach?.best ?? draftChannel(targetInput(m, false)));
   let context = "";
   let toCountry: string | null = null;
   if (m.deal_id) {
     context = await dealContext(m.deal_id);
+    if (reach && !reach.channels.length) context = `NO WAY TO REACH THEM IS KNOWN YET: write the message, and the owner will find their number or email first.\n${context}`;
     // messages that should bring something new may cite approved proof that fits them (never a first touch or a breakup)
     if (["follow_up", "reengage", "quote_silent", "resurrect", "upsell", "stale"].includes(m.kind)) context += proofBlock(await proofFor(m.deal_id));
     toCountry = (await one<{ country: string | null }>("select country from sales_deals where id = $1", [m.deal_id]))?.country ?? null;

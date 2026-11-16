@@ -6,6 +6,7 @@
 import { one, q } from "../db";
 import { getDeal } from "./deals";
 import { STAGE_GOAL } from "./context";
+import { dealEngagement, dealKnowledge, dealReach, engagementLine, reachFrom, reachLines } from "./reach";
 import { money } from "@/components/sales/format";
 
 export interface ChatFocus {
@@ -57,6 +58,9 @@ export async function dealBrief(dealId: number): Promise<string | null> {
     line("Source", d.source),
     line("Next step", d.next_action ? `${d.next_action}${d.next_action_at ? ` (by ${day(d.next_action_at)})` : ""}` : "none set"),
     line("What this stage needs", d.stage_role ? STAGE_GOAL[d.stage_role] : null),
+    reachLines(await dealReach(dealId)),
+    await dealKnowledge(dealId),
+    engagementLine(await dealEngagement(dealId)),
     (() => {
       const c = (r.conversation ?? null) as { quick_actions?: { label: string; detail?: string | null }[]; reply_draft?: string | null; at?: string } | null;
       if (!c) return "";
@@ -98,6 +102,12 @@ export async function radarLeadBrief(itemId: number): Promise<string | null> {
     line("Posted", it.posted_at ? new Date(String(it.posted_at)).toISOString().slice(0, 16).replace("T", " ") : "unknown"),
     line("Found on", `${it.source_name ?? "manual"} ${it.url ?? ""}`),
     line("Fit score", it.score),
+    (() => {
+      const idn = (it.identity ?? {}) as { emails?: string[]; phones?: string[]; linkedin?: string | null };
+      const r = reachFrom({ emails: [...(idn.emails ?? []), ...people.flatMap((p) => p.emails)], phones: [...(idn.phones ?? []), ...people.flatMap((p) => p.phones)], linkedin: idn.linkedin ?? people.find((p) => p.linkedin)?.linkedin ?? null });
+      const where = it.url ? `Replying on the page where they posted (${String(it.url).replace(/^https?:\/\//, "").split("/")[0]}) is always possible when that site allows replies.` : "";
+      return `${reachLines(r)}${where ? `\n${where}` : ""}`;
+    })(),
     `THEIR POST:\n${String(it.body ?? "").slice(0, 4000)}`,
     it.poster ? `WHO POSTED IT (platform profile): ${j(it.poster)}` : "",
     it.fit ? `SCORER'S NOTES: ${j(it.fit)}` : "",

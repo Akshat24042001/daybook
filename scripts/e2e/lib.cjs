@@ -23,14 +23,25 @@ async function setup(viewport = { width: 1440, height: 1000 }) {
   page.on("dialog", (d) => d.accept(page.__dialogAnswer ?? undefined));
   const one = async (sql, params = []) => (await db.query(sql, params)).rows[0];
   const all = async (sql, params = []) => (await db.query(sql, params)).rows;
-  const go = async (path) => { await page.goto(U + path, { waitUntil: "networkidle" }); await page.waitForTimeout(300); };
+  // a deal page folds its less-used sections away: the checks open them all, as a user who needs them would
+  const openFolds = async () => {
+    // open the first closed one until none are left (opening one shifts the rest, so never by position)
+    const closed = page.locator('[data-fold][aria-expanded="false"]');
+    for (let i = 0; i < 30 && (await closed.count()) > 0; i++) await closed.first().click().catch(() => {});
+    await page.waitForTimeout(150);
+  };
+  const go = async (path) => {
+    await page.goto(U + path, { waitUntil: "networkidle" });
+    await page.waitForTimeout(300);
+    if (path.startsWith("/sales/deal/") || path.startsWith("/sales/radar")) await openFolds();
+  };
   const done = async () => {
     check("no browser console errors", errors.length === 0, errors);
     console.log(`\n${passed} passed, ${fails.length} failed${fails.length ? ": " + fails.join(" | ") : ""}`);
     await browser.close(); await db.end();
     process.exit(fails.length ? 1 : 0);
   };
-  return { page, ctx, db, one, all, go, done, errors };
+  return { page, ctx, db, one, all, go, done, errors, openFolds };
 }
 
 /** Picks an option in the app's custom select (a button with role=combobox and a listbox). */

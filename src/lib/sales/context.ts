@@ -1,6 +1,7 @@
 /** Plain-text context about a deal, for drafts, briefs and summaries. */
 import { one, q } from "../db";
 import { getDeal } from "./deals";
+import { dealEngagement, dealKnowledge, dealReach, engagementLine, reachLines } from "./reach";
 
 export const iso = (x: unknown): string => (x ? new Date(x as string).toISOString() : "");
 
@@ -52,6 +53,9 @@ export async function dealContext(dealId: number, opts: { interactions?: number 
   const lines: string[] = [];
   lines.push(`DEAL: ${d.title} | stage: ${d.stage_name} | source: ${d.source}${d.source_detail ? ` (${d.source_detail})` : ""}`);
   if (d.stage_role && STAGE_GOAL[d.stage_role]) lines.push(`STAGE GOAL: ${STAGE_GOAL[d.stage_role]}`);
+  lines.push(reachLines(await dealReach(dealId)));
+  lines.push(await dealKnowledge(dealId));
+  lines.push(engagementLine(await dealEngagement(dealId)));
   if (d.next_action) lines.push(`CURRENT NEXT STEP: ${d.next_action}${d.next_action_at ? ` (due ${iso(d.next_action_at).slice(0, 10)})` : ""}`);
   if (d.value_amount) lines.push(`VALUE: ${d.currency} ${d.value_amount}`);
   if (person) {
@@ -119,6 +123,9 @@ export async function dealStateForFiling(dealId: number): Promise<string | null>
     "select occurred_at, channel, direction, summary, body from sales_interactions where deal_id = $1 order by occurred_at desc limit 14", [dealId]);
   const lines = [
     `DEAL: ${d.title} | stage: ${d.stage_name}`,
+    reachLines(await dealReach(dealId)),
+    await dealKnowledge(dealId),
+    engagementLine(await dealEngagement(dealId)),
     person ? `CONTACT: ${person.full_name}${person.title ? `, ${person.title}` : ""}` : "CONTACT: unknown",
     `COMPANY ON FILE: ${company ? `${company.name}${company.website ? ` (${company.website})` : " (no website yet)"}` : "none yet"}`,
     `CURRENT NEXT STEP: ${d.next_action ? `${d.next_action}${d.next_action_at ? ` (due ${iso(d.next_action_at).slice(0, 16).replace("T", " ")} UTC)` : ""}` : "none"}`,

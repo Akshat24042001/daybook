@@ -274,7 +274,7 @@ describe("capture pipeline", () => {
     expect(await getDeal(deal.id)).toBeNull();
   });
 
-  it("files a debrief to the deal it was asked about and suggests closing moves instead of making them", async () => {
+  it("files a debrief to the deal it was asked about: not now parks it in Nurture, closing moves are only suggested", async () => {
     const id = await createDeal({ title: "Debrief deal", stage_role: "discovery" });
     aiAnswer.value = {
       kind: "meeting_notes", is_sales_related: true, people: [], summary: "They will come back in March.", stage_signal: "not_now", revisit_on: "2027-03-01",
@@ -282,8 +282,14 @@ describe("capture pipeline", () => {
     const c = await capture({ source: "telegram", text: "call done, not now, maybe March", hints: { deal_id: id } }, { now: true });
     const r = await processCapture(c);
     expect(r.deal_id).toBe(id);
-    expect(r.suggestion?.role).toBe("nurture");
-    expect(await role(id)).toBe("discovery");
+    expect(await role(id)).toBe("nurture");
+    expect(r.moved).toMatch(/until 2027-03-01/);
+    // a "no" is never acted on alone: it is suggested
+    const id2 = await createDeal({ title: "Lost deal", stage_role: "discovery" });
+    aiAnswer.value = { kind: "meeting_notes", is_sales_related: true, people: [], summary: "They went with another vendor.", stage_signal: "lost", stage_detail: "chose a cheaper vendor" };
+    const r2 = await processCapture(await capture({ source: "telegram", text: "they chose someone else", hints: { deal_id: id2 } }, { now: true }));
+    expect(r2.suggestion?.role).toBe("lost");
+    expect(await role(id2)).toBe("discovery");
   });
 });
 

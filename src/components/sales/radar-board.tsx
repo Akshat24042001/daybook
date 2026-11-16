@@ -27,6 +27,7 @@ import { SalesChat } from "./sales-chat";
 import { Ago } from "@/components/sales/ago";
 import { BookMeeting, TripBadge } from "./radar-trip";
 import { ShareLead } from "./radar-share";
+import { Fold } from "./fold";
 
 // ------------------------------------------------------------------ ranking lives in lib/sales/radar-rank (pure, tested)
 
@@ -401,16 +402,16 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
         {!it.known && !it.deal_id ? <WhoPanel itemId={it.id} identity={it.identity} paid={paid} platform={where?.name ?? null} /> : null}
       </Section>
 
-      {it.links?.length ? <div className="rounded-xl border border-border bg-surface p-3"><QuickLinks groups={it.links} fold={3} /></div> : null}
+      {it.links?.length ? <Fold id="radar-links" compact title="Links" summary="their profile, website, where it was posted"><QuickLinks groups={it.links} fold={3} /></Fold> : null}
 
       {it.prep && !move ? <ReadyPack itemId={it.id} prep={it.prep} draft={it.ready_draft ?? null} subject={it.ready_subject ?? null} channel={it.ready_channel ?? null} /> : null}
 
       {/* the post itself, then what needs doing */}
       {it.body ? (
-        <Section icon={ChevronDown} title={it.lead_kind === "prospect" ? "What we found about them" : it.lead_kind === "news" ? "The news, word for word" : "Their post, word for word"}>
-          <p className={cn("whitespace-pre-line text-sm text-subtle", !full && "line-clamp-[8]")}>{it.body}</p>
-          {it.body.length > 500 ? <button type="button" className="mt-1 text-xs text-accent" onClick={() => setFull((x) => !x)}>{full ? "Show less" : "Show the whole post"}</button> : null}
-        </Section>
+        <Fold id="radar-post" compact title={it.lead_kind === "prospect" ? "What we found about them" : it.lead_kind === "news" ? "The news, word for word" : "Their post, word for word"} summary={it.body.replace(/\s+/g, " ").slice(0, 90)}>
+          <p className={cn("whitespace-pre-line text-sm text-subtle", !full && "line-clamp-[12]")}>{it.body}</p>
+          {it.body.length > 800 ? <button type="button" className="mt-1 text-xs text-accent" onClick={() => setFull((x) => !x)}>{full ? "Show less" : "Show the whole post"}</button> : null}
+        </Fold>
       ) : null}
 
       {/* what they need */}
@@ -446,14 +447,15 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
       </Section>
 
       {brief?.questions.length || brief?.watch_out ? (
-        <div className={cn("grid gap-3", brief?.questions.length && brief?.watch_out && "xl:grid-cols-2")}>
+        <Fold id="radar-ask" compact title="Ask them and watch out" summary={[brief?.questions.length ? `${brief.questions.length} question${brief.questions.length === 1 ? "" : "s"} to ask` : "", brief?.watch_out ? "one thing to watch" : ""].filter(Boolean).join(" · ")}>
           {brief?.questions.length ? (
-            <Section icon={HelpCircle} title="Ask them">
-              <ul className="list-disc space-y-0.5 pl-5 text-sm">{brief.questions.map((x) => <li key={x}>{x}</li>)}</ul>
-            </Section>
+            <>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-subtle">Ask them</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm">{brief.questions.map((x) => <li key={x}>{x}</li>)}</ul>
+            </>
           ) : null}
-          {brief?.watch_out ? <Section icon={TriangleAlert} title="Watch out" tone="warn"><p className="text-sm">{brief.watch_out}</p></Section> : null}
-        </div>
+          {brief?.watch_out ? <p className="mt-2 rounded-lg bg-warn/10 px-2 py-1.5 text-sm"><b>Watch out:</b> {brief.watch_out}</p> : null}
+        </Fold>
       ) : null}
 
       {research ? <ResearchSheet open onOpenChange={setResearch} radarItemId={it.id} companyId={it.company_id ?? undefined} title={it.title.slice(0, 60)} /> : null}
