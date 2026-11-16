@@ -5,6 +5,7 @@
  */
 import { one, q } from "../db";
 import { getDeal } from "./deals";
+import { STAGE_GOAL } from "./context";
 import { money } from "@/components/sales/format";
 
 export interface ChatFocus {
@@ -35,8 +36,11 @@ export async function dealBrief(dealId: number): Promise<string | null> {
   const [person, company, talks, promises, moves, docs, pays, people] = await Promise.all([
     d.person_id ? one<Record<string, unknown>>("select id, full_name, title, emails, phones, whatsapp, linkedin, city, country, preferred_channel, is_decision_maker from sales_people where id = $1", [d.person_id]) : null,
     d.company_id ? one<Record<string, unknown>>("select id, name, website, industry, country, city, employees, description from sales_companies where id = $1", [d.company_id]) : null,
+    // the latest touches word for word (what they said matters), older ones as summaries
     q<{ occurred_at: string; channel: string; direction: string; s: string }>(
-      "select occurred_at, channel, direction, left(coalesce(summary, body, subject, ''), 280) as s from sales_interactions where deal_id = $1 order by occurred_at desc limit 10", [dealId]),
+      `select occurred_at, channel, direction,
+              case when row_number() over (order by occurred_at desc) <= 8 then left(coalesce(body, summary, subject, ''), 1500) else left(coalesce(summary, body, subject, ''), 300) end as s
+       from sales_interactions where deal_id = $1 order by occurred_at desc limit 25`, [dealId]),
     q<{ id: number; owner: string; text: string; due_at: string | null }>("select id, owner, text, due_at from sales_commitments where deal_id = $1 and status = 'open' order by due_at nulls last limit 8", [dealId]),
     q<{ id: number; title: string; due_at: string }>("select id, title, due_at from sales_moves where deal_id = $1 and status = 'open' order by due_at limit 5", [dealId]),
     q<{ title: string; kind: string; status: string; view_count: number }>("select title, kind, status, view_count from sales_docs where deal_id = $1 order by id desc limit 5", [dealId]),
@@ -52,6 +56,12 @@ export async function dealBrief(dealId: number): Promise<string | null> {
     line("Expected close", day(d.expected_close)),
     line("Source", d.source),
     line("Next step", d.next_action ? `${d.next_action}${d.next_action_at ? ` (by ${day(d.next_action_at)})` : ""}` : "none set"),
+    line("What this stage needs", d.stage_role ? STAGE_GOAL[d.stage_role] : null),
+    (() => {
+      const c = (r.conversation ?? null) as { quick_actions?: { label: string; detail?: string | null }[]; reply_draft?: string | null; at?: string } | null;
+      if (!c) return "";
+      return [c.quick_actions?.length ? `SUGGESTED NEXT ACTIONS (from the last log, ${day(c.at)}): ${c.quick_actions.map((a) => `${a.label}${a.detail ? ` (${a.detail})` : ""}`).join("; ")}` : "", c.reply_draft ? `SUGGESTED REPLY: ${c.reply_draft}` : ""].filter(Boolean).join("\n");
+    })(),
     line("Where we are", d.summary),
     ...["requirements", "budget", "timeline", "pain", "desired_outcome", "impact", "current_solution", "compelling_event", "decision_criteria", "decision_process", "competitors", "risks", "scope", "payment_terms", "services", "tags", "notes"].map((k) => line(k.replace(/_/g, " "), r[k])),
     line("Last they wrote", day(d.last_inbound_at)),
@@ -115,7 +125,10 @@ ${brief}`;
   if (f.deal_id) {
     const brief = await dealBrief(f.deal_id);
     if (!brief) return "";
-    return `FOCUS: this chat is about ONE LEAD. "This lead", "they", "them", "it" and "the deal" mean it. Answer from this record first (query for more only if needed). To change anything, propose the sales actions with deal_id=${f.deal_id}${brief.match(/person_id=(\d+)/) ? ` (contact person_id=${brief.match(/person_id=(\d+)/)![1]})` : ""}.\n${brief}`;
+    return `FOCUS: this chat is about ONE LEAD. "This lead", "they", "them", "it" and "the deal" mean it. Answer from this record first (query for more only if needed).
+Read the whole conversation below before answering: never suggest asking for something they already gave, or a step that is already done.
+When asked for a message, write it ready to send, answering their latest message, right for the stage. Use only facts in this record; never invent names, numbers, links or results.
+When the record shows the next step is out of date (it already happened), say so and propose the update with the sales actions. To change anything, propose the sales actions with deal_id=${f.deal_id}${brief.match(/person_id=(\d+)/) ? ` (contact person_id=${brief.match(/person_id=(\d+)/)![1]})` : ""}.\n${brief}`;
   }
   const top = await q<{ id: number; title: string; stage: string; priority: number; value: string | null }>(
     `select d.id, d.title, s.name as stage, d.priority, case when d.value_amount is null then null else d.value_amount::text || ' ' || d.currency end as value

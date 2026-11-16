@@ -16,13 +16,26 @@ short sentences, natural Indian English rhythm. Occasional natural imperfection 
   "kindly revert", "do the needful", "PFA", "synergy", "leverage", "streamline", "empower", "cutting-edge", "innovative",
   "game-changer", "seamlessly", "delighted", "thrilled", emojis in a first message, exclamation marks in a row.
 - Never list services. One specific thing tied to their pain, one line max.
-- First touch never pitches. Follow-ups add something new (an insight, a small idea, a relevant example, a question);
+- First touch never pitches a service list. Follow-ups add something new (an insight, a small idea, a relevant example, a question);
   never "just checking in" or "following up on my last message".
 - Always end with something that is easy to answer: a yes/no question, a one word answer, or a soft next step.
 - FACTS: use only what is in CONTEXT. Never invent their name, company, numbers, tools they use, past projects, results,
   client names or case studies. If you do not know their name, use no name ("Hi," or start directly). If proof is needed
   and none is given, ask a question instead. A wrong detail is worse than a generic line.
-PLATFORM LENGTH:
+READ THE WHOLE HISTORY FIRST (when CONTEXT has a conversation):
+- Answer their latest message before anything else, using what they actually said and shared.
+- Never ask for something they already gave (details, a website, a number), never repeat a question already asked,
+  never re-introduce yourself to someone you are already talking to, never pitch what they already agreed to.
+- Do what the STAGE needs (STAGE GOAL in CONTEXT) and move it exactly one step forward.
+COLD FIRST MESSAGE (purpose first_touch or radar, nobody has replied yet): be specific and complete, not a one-liner.
+  1. Why you are writing: the exact thing you saw (their post, their business, a fact from CONTEXT), in their words.
+  2. The problem behind it for a business like theirs, as an observation, not a claim about them.
+  3. One concrete idea of how you would solve it: what you would set up and what changes for them. Plain words, no service list.
+  4. Who you are, in one short line (name and company).
+  5. One easy question to answer.
+  Lengths for a cold first message: whatsapp 50 to 90 words; linkedin 70 to 120 words; email body 100 to 170 words;
+  a reply on the platform where they posted (reddit, freelancer, upwork...) follows that platform's rule below.
+PLATFORM LENGTH (replies and follow-ups):
 - whatsapp: 1 to 3 short sentences. No greeting line on its own. No sign-off.
 - linkedin: under 60 words (80 if they engaged with content). No links on a first message.
 - email: subject 6 to 10 words, plain, no spam words, no fake RE:. Body 55 to 120 words, plain text, sign with first name.
@@ -93,10 +106,43 @@ CHANNEL tells you where it will be posted; follow that platform's rules exactly.
 PURPOSE: ${d.purpose}${d.step ? `\nSTEP: ${d.step}` : ""}
 TO: ${d.toName ?? "the contact"}${d.toCountry ? ` (${d.toCountry})` : ""}
 CONTEXT:
-${d.context.slice(0, 6000)}`;
-  const out = await llmJson<Draft>(system, user, { maxTokens: 700, temperature: 0.6, totalMs: 40_000 });
+${d.context.slice(0, 12000)}`;
+  let out = await llmJson<Draft>(system, user, { maxTokens: 1200, temperature: 0.5, totalMs: 40_000 });
+  // nothing invented: an email, phone, link or number the context does not have sends it back once to be fixed
+  const allowed = `${d.context}\n${ownerLine(cfg)}\n${cfg.owner.signature}\n${cfg.owner.booking_url}\n${cfg.owner.emails.join(" ")}\n${cfg.owner.phones.join(" ")}\n${d.toName ?? ""}`;
+  const bad = unsupported(`${out.subject ?? ""}\n${out.message ?? ""}`, allowed);
+  if (bad.length) {
+    out = await llmJson<Draft>(system, `${user}\n\nYOUR LAST DRAFT USED DETAILS THAT ARE NOT IN CONTEXT: ${bad.join(", ")}. Write it again without them (ask instead if needed).`,
+      { maxTokens: 1200, temperature: 0.3, totalMs: 30_000 }).catch(() => out);
+  }
   return {
     subject: out.subject ? stripDashes(String(out.subject)) : null,
     message: stripDashes(String(out.message ?? "")).trim(),
   };
+}
+
+/**
+ * The checkable facts in a draft (emails, links and domains, phone numbers, amounts, percentages, counts with units) that
+ * appear nowhere in what the writer was given. Pure, so it is tested.
+ */
+export function unsupported(draft: string, context: string): string[] {
+  const ctx = context.toLowerCase();
+  const digits = ctx.replace(/[^0-9]/g, " ");
+  const out = new Set<string>();
+  for (const m of draft.match(/[\w.+-]+@[\w-]+\.[\w.]+/g) ?? []) if (!ctx.includes(m.toLowerCase())) out.add(m);
+  for (const m of draft.replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, " ").match(/\b(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+\.(?:com|in|io|ai|co|org|net|app|dev|me|us|uk)(?:\.[a-z]{2})?\b(?:\/\S*)?/gi) ?? []) {
+    const host = m.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
+    if (!ctx.includes(host)) out.add(m);
+  }
+  for (const m of draft.match(/\+?\d[\d\s-]{8,}\d/g) ?? []) {
+    const n = m.replace(/\D/g, "");
+    if (n.length >= 9 && !ctx.replace(/\D/g, "").includes(n.slice(-9))) out.add(m.trim());
+  }
+  // amounts and percentages: the number must be in the context (commas ignored, "2 lakh" and "200000" both count)
+  const plain = ctx.replace(/(\d),(?=\d)/g, "$1");
+  for (const m of draft.match(/(?:₹|rs\.?|inr|usd|\$|aed|£|€)\s?\d[\d,.]*\s?(?:lakhs|lakh|crores|crore|cr|million|k|l|m)?|\d[\d,.]*\s?(?:%|percent|lakh|lakhs|crore)/gi) ?? []) {
+    const num = m.replace(/(\d),(?=\d)/g, "$1").match(/\d+(?:\.\d+)?/)?.[0];
+    if (num && !new RegExp(`(^|[^\\d.])${num.replace(".", "\\.")}([^\\d]|$)`).test(plain)) out.add(m.trim());
+  }
+  return [...out].slice(0, 8);
 }

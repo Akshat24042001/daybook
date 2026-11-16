@@ -39,6 +39,18 @@ const { setup, check } = require("./lib.cjs");
   check("Download gives a named file", dl.suggestedFilename() === `lead-${it.id}-e2e-booking-bot-for-a-salon-chain.md`);
   const mail = await sheet.getByRole("link", { name: "Email it" }).getAttribute("href");
   check("Email it fills the subject and body", mail.startsWith("mailto:?subject=Lead%3A%20E2E") && decodeURIComponent(mail).includes("Glow Salons"));
+  await page.keyboard.press("Escape");
+  const msgBox = pane.getByLabel("Your first message");
+  check("the first message is shown on the lead, not hidden behind a copy button", (await msgBox.innerText()).includes("Saw your 4 salons lose bookings."));
+  const emailHref = decodeURIComponent(await pane.getByRole("link", { name: /Email meera@glowsalons.in/ }).getAttribute("href"));
+  check("Email sends the whole message, and hovering shows it", emailHref.includes("Hi Meera,") && emailHref.includes("Saw your 4 salons lose bookings.") && (await pane.getByRole("link", { name: /Email meera@glowsalons.in/ }).getAttribute("title")).includes("Saw your 4 salons"));
+  // a lead's chat takes screenshots
+  const deal = await one("insert into sales_deals (title, stage_id, source) select 'E2E share chat deal', id, 'outbound' from sales_stages where role = 'new' returning id");
+  await go(`/sales/deal/${deal.id}`);
+  await page.getByRole("button", { name: /Chat|Ask about this lead/ }).first().click();
+  check("a lead's chat has a Screenshot button", await page.getByRole("dialog").getByRole("button", { name: "Screenshot" }).isVisible());
+  await page.keyboard.press("Escape");
+  await db.query("delete from sales_deals where id = $1", [deal.id]);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(300);
   check("no sideways scroll on a phone", !(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)));

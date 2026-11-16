@@ -296,9 +296,12 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
   });
   const copy = (t: string, what: string) => void navigator.clipboard.writeText(t).then(() => toast(`${what} copied`), () => toast("Your browser blocked copying.", "error"));
   const opener = brief?.opener ?? f.angle ?? "";
-  const subject = `About your post: ${it.title.replace(/\([^)]*\)/g, "").trim().slice(0, 70)}`;
+  const subject = it.ready_subject ?? `About your post: ${it.title.replace(/\([^)]*\)/g, "").trim().slice(0, 70)}`;
   const firstName = c.name?.split(/\s+/).find((w) => !/^(dr|mr|mrs|ms)\.?$/i.test(w)) ?? null;
   const greeting = firstName ? `Hi ${firstName},\n\n` : "Hi,\n\n";
+  // the full first message: the drafted one when it is ready, else the brief's opener with a greeting
+  const message = (move?.draft ?? it.ready_draft ?? (opener ? `${greeting}${opener}` : "")).trim();
+  const [showMsg, setShowMsg] = useState(false);
 
   return (
     <article className="space-y-3" aria-label="Selected lead">
@@ -338,18 +341,27 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
         {/* the actions you need, one click each */}
         <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Reach them">
           {c.emails.map((e) => (
-            <a key={e} href={`mailto:${e}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(`${greeting}${opener}`)}`} className="act act-primary"><Mail className="h-3.5 w-3.5" /> Email {e}</a>
+            <a key={e} href={`mailto:${e}?subject=${encodeURIComponent(move?.draft_subject ?? subject)}&body=${encodeURIComponent(message)}`} title={message || undefined} className="act act-primary"><Mail className="h-3.5 w-3.5" /> Email {e}</a>
           ))}
           {c.phones.map((p) => (
             <span key={p} className="inline-flex gap-1.5">
               <a href={`tel:${p.replace(/[^\d+]/g, "")}`} className="act"><Phone className="h-3.5 w-3.5" /> Call {p}</a>
-              <a href={`https://wa.me/${p.replace(/\D/g, "")}?text=${encodeURIComponent(`${greeting}${opener}`)}`} target="_blank" rel="noreferrer" className="act"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</a>
+              <a href={`https://wa.me/${p.replace(/\D/g, "")}?text=${encodeURIComponent(message)}`} title={message || undefined} target="_blank" rel="noreferrer" className="act"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</a>
             </span>
           ))}
           {c.linkedin ? <a href={c.linkedin} target="_blank" rel="noreferrer" className="act"><Linkedin className="h-3.5 w-3.5" /> LinkedIn</a> : null}
           {it.url?.startsWith("http") ? <a href={it.url} target="_blank" rel="noreferrer" className="act">{it.lead_kind === "prospect" ? "Open their website" : it.lead_kind === "news" ? "Open the news" : "Open the post"} <ArrowUpRight className="h-3.5 w-3.5" /></a> : null}
-          {opener ? <button type="button" className="act" onClick={() => copy(opener, "Opening line")}><Copy className="h-3.5 w-3.5" /> Copy opener</button> : null}
+          {message ? <button type="button" className="act" title={message} onClick={() => copy(message, "Message")}><Copy className="h-3.5 w-3.5" /> Copy message</button> : null}
         </div>
+        {message ? (
+          <div className="mt-2 rounded-lg border border-accent/25 bg-accent-muted/30 p-2.5 text-sm" aria-label="Your first message">
+            <p className="flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-wide text-subtle">
+              <span>{move?.draft || it.ready_draft ? `Your message${(move?.channel ?? it.ready_channel) ? ` for ${move?.channel ?? it.ready_channel}` : ""}` : "Your opener"}</span>
+              <button type="button" className="font-medium normal-case text-accent" onClick={() => setShowMsg((x) => !x)}>{showMsg ? "Show less" : "Show all"}</button>
+            </p>
+            <p className={cn("mt-1 whitespace-pre-line", !showMsg && "line-clamp-3")}>{message}</p>
+          </div>
+        ) : null}
         <div className="mt-2 flex flex-wrap gap-1.5 border-t border-border pt-2">
           {!(paid && !direct) ? (
             <Button id="radar-draft" size="sm" variant={direct ? "outline" : "primary"} disabled={busy} onClick={() => start(async () => {
@@ -380,6 +392,7 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
         </div>
         {it.trip || it.lead_kind === "prospect" || it.meeting_at ? <div className="mt-2 border-t border-border pt-2"><BookMeeting itemId={it.id} trip={it.trip ?? null} today={today} booked={it.meeting_at ?? null} /></div> : null}
       </header>
+      {move ? <div ref={(el) => el?.scrollIntoView({ behavior: "smooth", block: "nearest" })}><MoveCard m={move} googleReady={googleReady} onGone={() => onDrop(it.id)} /></div> : null}
 
       {/* who */}
       <Section icon={Search} title="Who posted it">
@@ -391,7 +404,6 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
       {it.links?.length ? <div className="rounded-xl border border-border bg-surface p-3"><QuickLinks groups={it.links} fold={3} /></div> : null}
 
       {it.prep && !move ? <ReadyPack itemId={it.id} prep={it.prep} draft={it.ready_draft ?? null} subject={it.ready_subject ?? null} channel={it.ready_channel ?? null} /> : null}
-      {move ? <MoveCard m={move} googleReady={googleReady} onGone={() => onDrop(it.id)} /> : null}
 
       {/* the post itself, then what needs doing */}
       {it.body ? (

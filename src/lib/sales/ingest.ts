@@ -8,7 +8,7 @@ import { one, q, UserError } from "../db";
 import { getSettings } from "../settings";
 import { zonedInstant } from "../time";
 import { salesConfig, toUsd, type SalesConfig } from "./config";
-import { iso } from "./context";
+import { dealStateForFiling, iso } from "./context";
 import {
   addCommitment, createDeal, dealForPerson, getDeal, logInteraction, updateDeal, type Channel, type Direction,
 } from "./deals";
@@ -150,6 +150,10 @@ export interface Extraction {
   meeting_at?: string | null;
   value?: { amount?: number; currency?: string } | null;
   next_step?: string | null;
+  /** when the next step should happen */
+  next_step_due?: string | null;
+  /** open promises (by id, from the deal's state) that this input shows are done */
+  done_commitment_ids?: number[] | null;
   /** two to four things the owner can do next, each one click in the app */
   quick_actions?: QuickAction[] | null;
   /** a reply the owner could send now, when one is due */
@@ -183,7 +187,9 @@ Read the input (a chat, transcript, screenshot, email, note or web page) and ret
  "revisit_on": YYYY-MM-DD when they said to come back later, else null,
  "meeting_at": ISO start time of a meeting agreed in the future, else null,
  "value": {"amount": number, "currency": "INR|USD|AED|GBP|EUR|CAD|AUD|SGD"} if a price or budget number is stated, else null (amount as a plain number: 2 lakh is 200000; leave currency out unless it is named or shown, e.g. ₹, Rs, $, and ${cfg.default_currency} is assumed),
- "next_step": the single best next action for the owner, imperative, under 15 words,
+ "next_step": the single best next action for the owner NOW, after this input, imperative, under 15 words,
+ "next_step_due": YYYY-MM-DD when that next step should be done (what they or the owner said; else a realistic day: a reply today, a demo or proposal in 1 to 3 working days), else null,
+ "done_commitment_ids": ids from OPEN PROMISES in PREVIOUS STATE that this input shows are done (they sent what they promised, or the owner did what was promised), else [],
  "quick_actions": 2 to 4 concrete things the owner should do next, most urgent first, each
    {"kind":"reply|follow_up|promise|meeting|call|send|stage","label":"imperative, under 10 words","detail":"what exactly, one line, or null",
     "due":"YYYY-MM-DD or null","stage":"for kind stage only: contacted|engaged|discovery|proposal|negotiation|won|lost|nurture, else null"}
@@ -206,7 +212,19 @@ Read the input (a chat, transcript, screenshot, email, note or web page) and ret
    (each null unless stated or clearly implied in the input)
  }
 }
-Use only facts in the input. Unknown fields are null. Never invent emails or phone numbers.`;
+RULES THAT MATTER MOST:
+1. WHO SAID WHAT. In SCREENSHOT TEXT, ME/THEM comes from an image reader and can be wrong (LinkedIn shows names, not sides).
+   The name in brackets decides: the owner's names (${[cfg.owner.name, ...cfg.owner.aliases].join(", ")}) are "me", any other name is "them".
+   A message that matches one in PREVIOUS STATE's conversation keeps the side it had there (FROM ME = "me", FROM THEM = "them").
+   The person sharing details of their own business (their clinic, company, website, phone, team) is "them". Resolve UNSURE lines by these clues.
+2. THE NEXT STEP MOVES ON. PREVIOUS STATE has the CURRENT NEXT STEP and OPEN PROMISES. If this input shows a step happened
+   (they sent the details that were asked for, a call took place, a document was shared), it is done: put its promise ids in
+   done_commitment_ids and make next_step the NEW thing that follows (for example "Prepare the demo with their clinic details and share it"),
+   with next_step_due. Never repeat a step that this input shows is already done.
+3. THE BUSINESS. The business the contact owns or works at (a clinic, hospital, shop, firm, school), named anywhere in the
+   input, goes in "company" with its exact name, and any website or link of theirs they share goes in company.website.
+4. DETAILS. Fill requirements, pain, scope and the rest from what they actually said. Never repeat what PREVIOUS STATE already says.
+Use only facts in the input. Unknown fields are null. Never invent emails, phone numbers, websites or names.`;
 
 /**
  * Files an input in two steps when it has screenshots: an image model writes out what is on them (readScreens), then
@@ -219,11 +237,11 @@ export async function extract(
 ): Promise<Extraction & { screen_text?: string | null }> {
   const started = Date.now(); // reading and filing together fit in one 60-second request
   const shots = images.slice(0, 4);
-  const screen = o.screenText ?? (shots.length ? screensAsText(await readScreens(shots, 28_000)) : null);
+  const screen = o.screenText ?? (shots.length ? screensAsText(await readScreens(shots, 28_000, cfg.owner)) : null);
   const typed = text && text !== "(see image)" ? text.slice(0, 14_000) : "";
   const body = [
     typed,
-    screen ? `SCREENSHOT TEXT (written out from ${shots.length || "the"} screenshot${shots.length === 1 ? "" : "s"}; ME = the owner, THEM = the other side):\n${screen.slice(0, 14_000)}` : "",
+    screen ? `SCREENSHOT TEXT (written out from ${shots.length || "the"} screenshot${shots.length === 1 ? "" : "s"} by an image reader; ME = the owner, THEM = the other side, with the name shown in brackets; UNSURE = the reader could not tell):\n${screen.slice(0, 14_000)}` : "",
   ].filter(Boolean).join("\n\n") || "(empty)";
   const intro = `${hintLine}${previous ? `\nPREVIOUS STATE OF THIS DEAL:\n${previous}\n` : ""}\nINPUT:\n${body}`;
   const ext = await llmJson<Extraction>(EXTRACT_SYSTEM(cfg, new Date(), tz), intro, { maxTokens: 2600, totalMs: o.totalMs ?? Math.max(15_000, 54_000 - (Date.now() - started)) });
@@ -342,7 +360,8 @@ export async function processCapture(id: number, force: { person_id?: number; de
     personId = personId ?? m?.person_id ?? null;
   }
   if (dealId && !personId) personId = (await one<{ person_id: number | null }>("select person_id from sales_deals where id = $1", [dealId]))?.person_id ?? null;
-  const prev = dealId ? (await getDeal(dealId))?.summary ?? null : null;
+  // the deal as it stands (next step, open promises, the conversation so far), so this log can move it on correctly
+  const prev = dealId ? await dealStateForFiling(dealId) : null;
 
   const hintLine = [
     cap.source ? `SOURCE: ${cap.source}` : "",
@@ -359,7 +378,7 @@ export async function processCapture(id: number, force: { person_id?: number; de
     const images = await shotDataUrls(cap);
     let screen = cap.screen_text ?? null;
     if (images.length && !screen) {
-      screen = screensAsText(await readScreens(images.slice(0, 4), 28_000));
+      screen = screensAsText(await readScreens(images.slice(0, 4), 28_000, cfg.owner));
       await q("update sales_captures set screen_text = $2 where id = $1", [id, screen]);
     }
     ext = await extract(cfg, tz, text, images, prev, hintLine, { screenText: screen, totalMs: Math.max(15_000, 54_000 - (Date.now() - started)) });
@@ -475,6 +494,14 @@ export async function applyExtraction(cap: CaptureRow, extIn: Extraction, a: App
   if (!a.chat && dealId && freshMsgs.length) {
     const keys = freshMsgs.map(msgKey);
     const seen = new Set((await q<{ hash: string }>("select hash from sales_seen where hash = any($1)", [keys])).map((r) => r.hash));
+    // also a message already on the deal's timeline some other way (typed, sent from the app, an earlier paste)
+    const norm = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+    const logged = (await q<{ body: string | null }>("select body from sales_interactions where deal_id = $1 and body is not null order by occurred_at desc limit 200", [dealId]))
+      .map((r) => norm(r.body ?? "")).filter(Boolean);
+    freshMsgs.forEach((m, i) => {
+      const t = norm(m.text);
+      if (t.length >= 12 && logged.some((b) => b.includes(t))) seen.add(keys[i]);
+    });
     freshMsgs = freshMsgs.filter((_, i) => !seen.has(keys[i]));
     res.already = keys.length - freshMsgs.length;
     allSeen = freshMsgs.length === 0;
@@ -558,6 +585,10 @@ export async function applyExtraction(cap: CaptureRow, extIn: Extraction, a: App
       console.warn("[capture] details not filled:", (e as Error).message);
       return [] as string[];
     }))];
+    res.filled = [...(res.filled ?? []), ...(await linkDealCompany(dealId, personId, primary, ext).catch((e) => {
+      console.warn("[capture] company not linked:", (e as Error).message);
+      return [] as string[];
+    }))];
     if (allSeen) ext = { ...ext, commitments: [], meeting_at: null, stage_signal: "none" };
     res.commitment_texts = (ext.commitments ?? []).filter((c) => c?.text).map((c) => `${c.owner === "me" ? "You" : "They"}: ${c.text}${c.due ? ` (by ${c.due})` : ""}`);
     for (const c of ext.commitments ?? []) {
@@ -581,6 +612,16 @@ export async function applyExtraction(cap: CaptureRow, extIn: Extraction, a: App
       }
       if (ext.next_step) {
         patch.next_action = ext.next_step;
+        // a new step brings its own date; a stale date from the old step never stays behind
+        const due = ext.next_step_due && /^\d{4}-\d{2}-\d{2}/.test(ext.next_step_due) && !Number.isNaN(Date.parse(ext.next_step_due.slice(0, 10))) ? ext.next_step_due.slice(0, 10) : null;
+        if (due) patch.next_action_at = zonedInstant(due, 11, 0, (await getSettings()).timezone).toISOString();
+        else if (ext.next_step.trim() !== (d.next_action ?? "").trim()) patch.next_action_at = null;
+      }
+      // promises this log shows are kept are closed, so their reminders stop
+      const doneIds = (ext.done_commitment_ids ?? []).map(Number).filter((n) => Number.isInteger(n) && n > 0);
+      if (doneIds.length) {
+        const closed = await q<{ id: number }>("update sales_commitments set status = 'done', done_at = now() where deal_id = $1 and id = any($2::int[]) and status = 'open' returning id", [dealId, doneIds]);
+        if (closed.length) res.filled = [...(res.filled ?? []), `${closed.length} promise${closed.length === 1 ? "" : "s"} marked done`];
       }
       const qa = cleanQuickActions(ext.quick_actions);
       if (qa.length || ext.reply_draft) {
@@ -704,6 +745,46 @@ async function fillPersonAndCompany(personId: number | null, p: Extraction["peop
         }
       }
     }
+  }
+  return out;
+}
+
+/**
+ * The business named in a log (the clinic they work at, the website they shared) becomes the deal's company: linked to
+ * the deal and the contact, its website saved, and the company research started, so the lead's details fill in on their own.
+ */
+export async function linkDealCompany(dealId: number, personId: number | null, p: Extraction["people"][number] | undefined, ext: Extraction): Promise<string[]> {
+  const out: string[] = [];
+  const name = ext.company?.name?.trim() || p?.company?.trim() || null;
+  const site = ext.company?.website?.trim() || null;
+  if (!name && !site) return out;
+  const d = await one<{ company_id: number | null }>("select company_id from sales_deals where id = $1", [dealId]);
+  if (!d) return out;
+  let companyId = d.company_id;
+  let fresh = false;
+  if (!companyId) {
+    companyId = (personId ? (await one<{ company_id: number | null }>("select company_id from sales_people where id = $1", [personId]))?.company_id : null)
+      ?? (await ensureCompany(name, { website: site, country: ext.company?.country, industry: ext.company?.industry }));
+    if (!companyId) return out;
+    await updateDeal(dealId, { company_id: companyId }, { cause: "ai" });
+    if (personId) await q("update sales_people set company_id = $2 where id = $1 and company_id is null", [personId, companyId]);
+    out.push("Deal: Company");
+    fresh = true;
+  }
+  const co = await one<{ website: string | null; domain: string | null; enriched_at: string | null; name: string }>("select website, domain, enriched_at, name from sales_companies where id = $1", [companyId]);
+  if (!co) return out;
+  if (site && !co.website) {
+    const dom = domainOf(site);
+    const taken = dom ? await one("select 1 from sales_companies where lower(domain) = lower($1) and id <> $2", [dom, companyId]) : null;
+    await q("update sales_companies set website = $2, domain = coalesce(domain, $3), updated_at = now() where id = $1", [companyId, site, taken ? null : dom]);
+    out.push("Company: Website");
+    fresh = true;
+  }
+  // a business with a name or website and no research yet: research it now (and check its website)
+  if (fresh && !co.enriched_at) {
+    await enqueue("enrich_company", { id: companyId }, { dedupeKey: `enrich_company:${companyId}` });
+    if (site || co.website) await enqueue("audit_website", { id: companyId }, { dedupeKey: `audit:${companyId}` });
+    out.push("Company research started");
   }
   return out;
 }

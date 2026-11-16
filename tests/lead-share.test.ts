@@ -9,7 +9,7 @@ import { one, q } from "@/lib/db";
 import { allContacts, claudeText, dossierText, leadDossier, leadShare, sendLeadToTelegram, whatsappText } from "@/lib/sales/lead-share";
 import { TOOLS } from "@/lib/mcp/tools";
 
-const DASH = /[‒–—―]/;
+const DASH = /[\u2012\u2013\u2014\u2015]/;
 
 async function makeLead(): Promise<number> {
   const co = (await one<{ id: number }>(
@@ -18,7 +18,7 @@ async function makeLead(): Promise<number> {
   await q(`insert into sales_people (full_name, title, company_id, emails, phones, linkedin, is_decision_maker) values ('Dr Ravi Shah', 'Founder', $1, '{ravi@shahdental.in}', '{+91 98200 11111}', 'https://linkedin.com/in/ravishah', true)`, [co.id]);
   const it = (await one<{ id: number }>(
     `insert into sales_radar_items (url, url_hash, title, body, status, score, posted_at, company_id, poster, identity, brief, fit, prep) values
-      ('https://www.freelancer.com/projects/booking-bot', 'share1', 'WhatsApp booking bot for 3 dental clinics', 'Our three clinics in Kothrud miss thirty calls a day — we need booking on WhatsApp.', 'qualified', 82, now(), $1,
+      ('https://www.freelancer.com/projects/booking-bot', 'share1', 'WhatsApp booking bot for 3 dental clinics', 'Our three clinics in Kothrud miss thirty calls a day \u2014 we need booking on WhatsApp.', 'qualified', 82, now(), $1,
       '{"name":"Ravi S.","username":"ravis","city":"Pune","country":"India","history":"4 projects completed"}',
       $2, $3, '{"country":"India","industry":"Healthcare","why":"Clear need, three branches","budget":"INR 60,000"}', $4) returning id`,
     [co.id,

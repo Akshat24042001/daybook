@@ -1,10 +1,12 @@
 "use client";
 
-import { Loader2, MessageCircle, RotateCcw, Send, Sparkles } from "lucide-react";
+import { ImagePlus, Loader2, MessageCircle, RotateCcw, Send, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { loadChatAction } from "@/app/assistant-actions";
+import { logToDealAction } from "@/app/sales-actions";
+import { prepImages } from "@/lib/client/image-prep";
 import { Blocks } from "@/components/assistant/blocks";
 import { Markdown } from "@/components/assistant/markdown";
 import { Button, Sheet, Textarea } from "@/components/ui";
@@ -34,6 +36,17 @@ export function SalesChat({ focus, title, voiceEnabled, label = "Chat" }: { focu
   const [error, setError] = useState<string | null>(null);
   const end = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  // screenshots: on a lead's chat they are read and filed to the lead first, so the answer knows what they said
+  const dealId = "deal_id" in focus ? focus.deal_id : null;
+  const [shots, setShots] = useState<string[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const addFiles = async (files: File[]) => {
+    const imgs = files.filter((f) => f.type.startsWith("image/"));
+    if (!imgs.length) return;
+    const r = await prepImages(imgs, 4 - shots.length);
+    setShots((cur) => [...cur, ...r.urls].slice(0, 4));
+    if (r.errors.length) setError(r.errors.join(" "));
+  };
 
   // pick up the last conversation for this page when the panel opens
   useEffect(() => {
@@ -67,13 +80,27 @@ export function SalesChat({ focus, title, voiceEnabled, label = "Chat" }: { focu
   };
 
   const send = async (text: string) => {
-    const question = text.trim();
-    if (!question || status) return;
+    let question = text.trim();
+    const pics = shots;
+    if ((!question && !pics.length) || status) return;
     setInput("");
+    setShots([]);
     setError(null);
-    setMessages((m) => [...m, { id: -Date.now(), role: "user", content: question, blocks: [], steps: [], model: null, createdAt: new Date().toISOString() }]);
-    setStatus("Thinking…");
+    setMessages((m) => [...m, { id: -Date.now(), role: "user", content: `${question}${pics.length ? `${question ? "\n" : ""}[${pics.length} screenshot${pics.length === 1 ? "" : "s"}]` : ""}`, blocks: [], steps: [], model: null, createdAt: new Date().toISOString() }]);
     try {
+      if (pics.length && dealId) {
+        setStatus("Reading the screenshot and filing it to this lead…");
+        const r = await logToDealAction(dealId, "", { images: pics });
+        if (!r.ok) throw new Error(r.error);
+        const res = r.result;
+        if (res.failed) throw new Error(res.failed);
+        const read = (res.messages ?? []).slice(-12).map((m) => `${m.from === "me" ? "Me" : "Them"}: ${m.text}`).join("\n");
+        question = `${question || "I just added a screenshot of our conversation. What does it change, and what should I do next?"}
+
+[The screenshot was filed to this lead. What it said:${read ? `\n${read}` : ` ${res.summary ?? "(no messages read)"}`}${res.filled?.length ? `\nUpdated: ${res.filled.join(", ")}` : ""}${res.next_step ? `\nNext step now: ${res.next_step}` : ""}]`;
+        router.refresh();
+      }
+      setStatus("Thinking…");
       const res = await fetch("/api/assistant", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chatId, message: question, focus }) });
       if (!res.ok || !res.body) {
         const j = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -160,10 +187,22 @@ export function SalesChat({ focus, title, voiceEnabled, label = "Chat" }: { focu
               void send(input);
             }}
           >
+            {shots.length ? (
+              <div className="flex flex-wrap gap-2" aria-label="Screenshots to send">
+                {shots.map((u, i) => (
+                  <span key={i} className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={u} alt={`Screenshot ${i + 1}`} className="h-14 w-14 rounded-lg border border-border object-cover" />
+                    <button type="button" aria-label={`Remove screenshot ${i + 1}`} onClick={() => setShots((cur) => cur.filter((_, j) => j !== i))} className="absolute -right-1.5 -top-1.5 rounded-full bg-fg p-0.5 text-bg"><X className="h-3 w-3" /></button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
             <Textarea
+              onPaste={(e) => { if (dealId && e.clipboardData.files.length) { e.preventDefault(); void addFiles([...e.clipboardData.files]); } }}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={"deal_id" in focus ? "Ask about this lead, or say what changed…" : "Ask about your sales, or update a lead…"}
+              placeholder={"deal_id" in focus ? "Ask about this lead, say what changed, or paste a screenshot…" : "Ask about your sales, or update a lead…"}
               aria-label="Message"
               className="min-h-[64px]"
               onKeyDown={(e) => {
@@ -175,11 +214,17 @@ export function SalesChat({ focus, title, voiceEnabled, label = "Chat" }: { focu
             />
             <div className="flex items-center gap-2">
               <VoiceButton enabled={voiceEnabled} onText={(t) => setInput((cur) => (cur ? `${cur} ${t}` : t))} showLabel label="Speak" />
+              {dealId ? (
+                <>
+                  <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { void addFiles([...(e.target.files ?? [])]); e.target.value = ""; }} />
+                  <Button type="button" size="sm" variant="ghost" disabled={shots.length >= 4} onClick={() => fileRef.current?.click()} title="Add a screenshot: it is read, filed to this lead, and the lead is updated"><ImagePlus className="h-3.5 w-3.5" /> Screenshot</Button>
+                </>
+              ) : null}
               {messages.length ? (
                 <Button type="button" size="sm" variant="ghost" onClick={fresh}><RotateCcw className="h-3.5 w-3.5" /> New chat</Button>
               ) : null}
               {chatId ? <Link href={`/assistant?c=${chatId}`} className="text-xs text-subtle hover:text-fg">Open in Assistant</Link> : null}
-              <Button type="submit" size="sm" variant="primary" className="ml-auto" disabled={!!status || !input.trim()}>
+              <Button type="submit" size="sm" variant="primary" className="ml-auto" disabled={!!status || (!input.trim() && !shots.length)}>
                 <Send className="h-4 w-4" /> Send
               </Button>
             </div>

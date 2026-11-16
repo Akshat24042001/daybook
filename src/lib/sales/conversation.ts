@@ -8,6 +8,8 @@ import { salesConfig } from "./config";
 import { getDeal, updateDeal } from "./deals";
 import { cleanQuickActions, type QuickAction } from "./ingest";
 import { llmJson, llmConfigured } from "./llm";
+import { zonedInstant } from "../time";
+import { enqueue } from "./jobs";
 
 export interface Conversation {
   quick_actions: QuickAction[];
@@ -26,8 +28,12 @@ Return JSON:
  "quick_actions": 2 to 4 concrete next steps, most urgent first, each
    {"kind":"reply|follow_up|promise|meeting|call|send|stage","label":"imperative, under 10 words","detail":"one line or null",
     "due":"YYYY-MM-DD or null","stage":"contacted|engaged|discovery|proposal|negotiation|won|lost|nurture for kind stage, else null"},
- "reply_draft": a short reply the owner could send now if THEM wrote last or a follow-up is due, in the chat's language and tone, else null
+ "reply_draft": a short reply the owner could send now if THEM wrote last or a follow-up is due, in the chat's language and tone, else null,
+ "next_step": the single next thing the owner should do now, after everything in the notes, imperative, under 15 words,
+ "next_step_due": YYYY-MM-DD for it (what was agreed, else a realistic day), else null,
+ "done_promise_ids": ids of OPEN PROMISES the notes show were already kept, else []
 }
+The CURRENT NEXT STEP may be out of date: if the notes show it already happened, replace it with what follows; never repeat a step that is done.
 Use only what is in the notes. Do not invent prices, dates or names.`;
 
 export async function summarizeDeal(dealId: number): Promise<{ summary: string; conversation: Conversation }> {
@@ -46,13 +52,14 @@ export async function summarizeDeal(dealId: number): Promise<{ summary: string; 
   const lines = rows.reverse().map((r) => `[${day(r.occurred_at)}] ${r.channel} ${who(r.direction)}: ${(r.body || r.summary || "").replace(/\s+/g, " ").slice(0, 600)}`);
   let notes = lines.join("\n");
   while (notes.length > 16_000 && lines.length > 5) notes = (lines.shift(), lines.join("\n"));
-  const promises = await q<{ owner: string; text: string; due_at: string | null }>(
-    "select owner, text, due_at from sales_commitments where deal_id = $1 and status = 'open' order by due_at nulls last limit 20", [dealId]);
+  const promises = await q<{ id: number; owner: string; text: string; due_at: string | null }>(
+    "select id, owner, text, due_at from sales_commitments where deal_id = $1 and status = 'open' order by due_at nulls last limit 20", [dealId]);
   const cfg = await salesConfig();
-  const out = await llmJson<{ summary?: string; quick_actions?: unknown; reply_draft?: string | null }>(
+  const out = await llmJson<{ summary?: string; quick_actions?: unknown; reply_draft?: string | null; next_step?: string | null; next_step_due?: string | null; done_promise_ids?: number[] }>(
     SYSTEM(cfg.owner.name, new Date().toISOString()),
     `LEAD: ${d.title}${d.company_name ? ` (${d.company_name})` : ""}${d.person_name ? `, contact ${d.person_name}` : ""}. STAGE: ${d.stage_name}.\n` +
-    `${promises.length ? `OPEN PROMISES:\n${promises.map((p) => `- ${p.owner === "me" ? "ME" : "THEM"}: ${p.text}${p.due_at ? ` (by ${p.due_at.slice(0, 10)})` : ""}`).join("\n")}\n` : ""}` +
+    `CURRENT NEXT STEP: ${d.next_action ? `${d.next_action}${d.next_action_at ? ` (due ${new Date(d.next_action_at).toISOString().slice(0, 10)})` : ""}` : "none"}\n` +
+    `${promises.length ? `OPEN PROMISES:\n${promises.map((p) => `- id ${p.id}, ${p.owner === "me" ? "ME" : "THEM"}: ${p.text}${p.due_at ? ` (by ${new Date(p.due_at).toISOString().slice(0, 10)})` : ""}`).join("\n")}\n` : ""}` +
     `TOUCHES:\n${notes}`,
     { maxTokens: 1500, totalMs: 45_000 },
   );
@@ -64,7 +71,18 @@ export async function summarizeDeal(dealId: number): Promise<{ summary: string; 
     at: new Date().toISOString(),
     scope: "all",
   };
-  await updateDeal(dealId, { summary: summary.slice(0, 2000) }, { cause: "ai" });
+  // the next step follows the conversation: a step that already happened is replaced, with its own date
+  const patch: Record<string, unknown> = { summary: summary.slice(0, 2000) };
+  const step = String(out.next_step ?? "").trim();
+  if (step) {
+    patch.next_action = step.slice(0, 300);
+    const due = typeof out.next_step_due === "string" && /^\d{4}-\d{2}-\d{2}/.test(out.next_step_due) && !Number.isNaN(Date.parse(out.next_step_due.slice(0, 10))) ? out.next_step_due.slice(0, 10) : null;
+    patch.next_action_at = due ? zonedInstant(due, 11, 0, tz).toISOString() : step === (d.next_action ?? "").trim() ? d.next_action_at : null;
+  }
+  await updateDeal(dealId, patch, { cause: "ai" });
+  const kept = (out.done_promise_ids ?? []).map(Number).filter((n) => promises.some((p) => p.id === n));
+  if (kept.length) await q("update sales_commitments set status = 'done', done_at = now() where deal_id = $1 and id = any($2::int[]) and status = 'open'", [dealId, kept]);
+  await enqueue("refresh_moves", { deal_id: dealId }, { dedupeKey: `refresh_moves:${dealId}` });
   await q("update sales_deals set conversation = $2 where id = $1", [dealId, JSON.stringify(conversation)]);
   return { summary, conversation };
 }

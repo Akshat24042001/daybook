@@ -498,6 +498,13 @@ const PURPOSE: Partial<Record<MoveKind, string>> = {
   retainer: "Offer a monthly retainer after delivery: support, small improvements and a monthly check that everything runs. Frame it around keeping what you built working and improving. Ask if they want the details.",
 };
 
+/** Everything about a radar lead (as shared), without any earlier draft, as the facts a first message may use. */
+async function radarDraftContext(itemId: number): Promise<string> {
+  const { leadDossier, dossierText } = await import("./lead-share");
+  const d = await leadDossier(itemId).catch(() => null);
+  return d ? dossierText({ ...d, draft: null, prep_steps: [], links: d.links.slice(0, 6) }).slice(0, 9000) : "";
+}
+
 /** Writes (or rewrites) the draft for a move, in the owner's voice. */
 export async function draftForMove(id: number, channelOverride?: string): Promise<MoveRow | null> {
   const m = await getMove(id);
@@ -515,7 +522,7 @@ export async function draftForMove(id: number, channelOverride?: string): Promis
     const r = await one<{ title: string; body: string | null; url: string | null; angle: string | null; author: string | null; fit: { country?: string } | null }>("select title, body, url, angle, author, fit from sales_radar_items where id = $1", [m.radar_item_id]);
     const signal = m.radar_category && ["hiring", "funding", "review", "launch", "prospect"].includes(m.radar_category);
     const direct = !!(m.emails?.length || m.phones?.length);
-    context = `${direct ? `DIRECT: we found the business behind this post and are writing to them directly${m.company_name ? ` (${m.company_name})` : ""}, not on the site where it was posted. Mention the need they posted, never bids or platforms.\n` : ""}${m.radar_category === "prospect" ? "PROSPECT: a local business we found ourselves; nobody asked us. This is a first touch: one specific, honest observation about their kind of business and one easy question. Never pretend they posted anything.\n" : signal ? `SIGNAL (${m.radar_category}): nobody asked us directly. This is a first touch to the company's decision maker, whose name we do not know.\n` : `THEY POSTED THIS${r?.author ? ` (as ${r.author})` : ""}:\n`}TITLE: ${r?.title}\n${(r?.body ?? "").slice(0, 3000)}\nURL: ${r?.url ?? ""}\nANGLE IDEA: ${r?.angle ?? ""}`;
+    context = `${direct ? `DIRECT: we found the business behind this post and are writing to them directly${m.company_name ? ` (${m.company_name})` : ""}, not on the site where it was posted. Mention the need they posted, never bids or platforms.\n` : ""}${m.radar_category === "prospect" ? "PROSPECT: a local business we found ourselves; nobody asked us. This is a first touch: one specific, honest observation about their kind of business and one easy question. Never pretend they posted anything.\n" : signal ? `SIGNAL (${m.radar_category}): nobody asked us directly. This is a first touch to the company's decision maker, whose name we do not know.\n` : `THEY POSTED THIS${r?.author ? ` (as ${r.author})` : ""}:\n`}TITLE: ${r?.title}\nURL: ${r?.url ?? ""}\nANGLE IDEA: ${r?.angle ?? ""}\n\nEVERYTHING KNOWN ABOUT THIS LEAD (the post, who posted it, the business, the research, the brief; use only these facts):\n${await radarDraftContext(m.radar_item_id)}`;
     toCountry = r?.fit?.country ?? null;
   }
   // a lead from a trip: ask to meet while you are in their city, with two concrete options

@@ -758,3 +758,35 @@ On Telegram, hot-lead alerts have a **Full details to forward** button that send
 
 Claude connector: `sales_radar_leads` lists the newest good leads, and `sales_radar_lead` returns everything about one,
 so Claude can read a lead directly by its number.
+
+## Logs that move the lead on, and messages that read the whole story
+
+**Screenshots: who wrote what.** The screenshot reader is told who you are (your name and the names in Sales >
+Settings > How you appear in chats). The sender name on screen decides who wrote a message (LinkedIn puts a name above
+each group of messages, not your messages on the right); "You" labels come next; the bubble side only when no name is
+shown. Each line keeps the name it showed, and anything unclear is marked unsure. Filing then checks again: a message
+already on the deal keeps the side it had, and the person sharing their own business details is the client.
+
+**A log updates the lead.** Filing sees the deal as it stands: the stage, the current next step and its date, open
+promises (with ids) and the conversation so far, word for word. From a log or screenshot it now:
+- links the business they work at or own (a clinic, a shop, a firm) to the deal and the contact, saves the website they
+  shared, and starts the company research and website check, so the lead's details fill in on their own;
+- replaces a next step that already happened with the one that follows, with a date (for example "Prepare the demo with
+  their clinic details and share it", due in two days), and closes the promises the log shows were kept;
+- never logs a message twice when a screenshot repeats one already on the timeline (typed, sent or pasted before).
+**Summarize again** on a deal does the same from the whole conversation, so one tap fixes a lead logged earlier.
+
+**Drafts.** A message is written from the stage (what this stage needs), the current next step, the deal's details,
+their latest message word for word, who is waiting on whom, and the newest messages in full. It answers their latest
+message first and never asks for what they already gave. A cold first message is complete, not a one-liner: why you
+are writing (what you saw), the likely problem for a business like theirs, one concrete idea, who you are, one easy
+question (WhatsApp 50 to 90 words, LinkedIn 70 to 120, email 100 to 170). Radar leads are drafted from everything known
+about them (the same record Share gives). Any email, link, phone number, amount or percentage in a draft that is not in
+what the writer was given sends it back to be written again without it.
+
+**On a radar lead** your first message is shown in full under the contact buttons (the drafted one when ready, else the
+opener), Email and WhatsApp send that whole message, and hovering them shows it. A new draft opens right under the lead.
+
+**The lead chat** reads the whole record: the latest 8 messages word for word, older ones summarised, the stage and what
+it needs, the suggested next actions. Add or paste a **Screenshot** in a lead's chat: it is read, filed to that lead
+(updating it as above), and the answer already knows what it said.
