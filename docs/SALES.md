@@ -790,3 +790,24 @@ opener), Email and WhatsApp send that whole message, and hovering them shows it.
 **The lead chat** reads the whole record: the latest 8 messages word for word, older ones summarised, the stage and what
 it needs, the suggested next actions. Add or paste a **Screenshot** in a lead's chat: it is read, filed to that lead
 (updating it as above), and the answer already knows what it said.
+
+## Done for you, and a lead chat that changes everything
+
+**After every log** (a chat, a screenshot, a call note, from the deal page, the lead chat or Telegram) the AI does the
+work it can do on its own, in short background jobs:
+- refreshes the deal's moves and writes the messages that are due (a reply when they wrote last, the next follow-up),
+  ready in Moves with their Send buttons (unless Sales settings say "suggest only" for replies);
+- researches the contact and the business if they never were, and checks the business's website;
+- when the next step is to prepare something (a demo, a proposal or quote, a plan or deck), writes a **prep note** from
+  everything known: what they told us, what to build or show, the steps with rough times, what to confirm with them, and
+  the message to send with it. It is saved on the lead (only you see it) and Telegram tells you when it is ready.
+The deal's conversation card shows **Done for you** with each of these and a link to it. **Summarize again** runs it too.
+
+**The lead chat changes anything.** Besides the deal's fields, stage, notes, promises and contact, it can now:
+update the business (name, website, city and more; creates and links it when there is none, then researches it), close a
+promise (kept or dropped), finish, skip or snooze a move, book a meeting, start research, save a message as a ready move
+(save the draft it wrote), save a working document (a demo plan, a proposal outline, a call script), and **do everything**
+(the same work as after a log). It is told to propose every change your message implies in one go, and after a
+screenshot, whatever is still missing (a stale next step, kept promises, the business, the reply).
+On a lead's chat **Apply changes right away** is on: what you ask for is done at once, and each change keeps its Undo.
+Turn it off to tap each change instead. Deletes always wait for a tap.

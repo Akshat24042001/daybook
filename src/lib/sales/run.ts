@@ -113,6 +113,14 @@ export const HANDLERS: Record<string, Handler> = {
   async draft_move(p) {
     await draftForMove(Number(p.id));
   },
+  async deal_autopilot(p) {
+    const { dealAutopilot } = await import("./autopilot");
+    await dealAutopilot(Number(p.deal_id), p.trigger ? String(p.trigger) : "log");
+  },
+  async deal_prep(p) {
+    const { dealPrep } = await import("./autopilot");
+    await dealPrep(Number(p.deal_id));
+  },
 };
 
 async function lastDone(kind: string): Promise<number> {

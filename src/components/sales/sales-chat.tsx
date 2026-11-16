@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { loadChatAction } from "@/app/assistant-actions";
 import { logToDealAction } from "@/app/sales-actions";
+import { applyAssistantAction } from "@/app/assistant-actions";
 import { prepImages } from "@/lib/client/image-prep";
 import { Blocks } from "@/components/assistant/blocks";
 import { Markdown } from "@/components/assistant/markdown";
@@ -39,6 +40,31 @@ export function SalesChat({ focus, title, voiceEnabled, label = "Chat" }: { focu
   // screenshots: on a lead's chat they are read and filed to the lead first, so the answer knows what they said
   const dealId = "deal_id" in focus ? focus.deal_id : null;
   const [shots, setShots] = useState<string[]>([]);
+  // on a lead's chat, what you ask for is done straight away (each change can be undone); off = tap to apply
+  const [auto, setAuto] = useState(true);
+  useEffect(() => {
+    try { setAuto(localStorage.getItem("sales-chat:auto") !== "0"); } catch { /* private mode */ }
+  }, []);
+  const applyNow = async (msg: MessageView): Promise<MessageView> => {
+    const blocks = [...msg.blocks];
+    let n = 0;
+    for (let b = 0; b < blocks.length; b++) {
+      const blk = blocks[b];
+      if (blk.type !== "actions") continue;
+      const items = [...blk.items];
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        // deletes always wait for a tap
+        if (it.status !== "proposed" || it.label.startsWith("🗑")) continue;
+        const r = await applyAssistantAction(it.id);
+        items[i] = r.ok ? r.item : { ...it, status: "failed", error: r.error };
+        if (r.ok) n += 1;
+      }
+      blocks[b] = { ...blk, items };
+    }
+    if (n) router.refresh();
+    return { ...msg, blocks };
+  };
   const fileRef = useRef<HTMLInputElement>(null);
   const addFiles = async (files: File[]) => {
     const imgs = files.filter((f) => f.type.startsWith("image/"));
@@ -127,7 +153,13 @@ export function SalesChat({ focus, title, voiceEnabled, label = "Chat" }: { focu
           else if (ev.t === "query") setStatus("Looking it up…");
           else if (ev.t === "done") {
             finished = true;
-            setMessages((m) => [...m, ev.message]);
+            const hasActions = ev.message.blocks.some((b) => b.type === "actions" && b.items.some((x) => x.status === "proposed"));
+            if (dealId && auto && hasActions) {
+              // shown once the changes are made, so the cards show them applied (with Undo)
+              setStatus("Making the changes…");
+              const applied = await applyNow(ev.message);
+              setMessages((m) => [...m, applied]);
+            } else setMessages((m) => [...m, ev.message]);
           } else if (ev.t === "error") {
             finished = true;
             setError(ev.error);
@@ -222,6 +254,11 @@ export function SalesChat({ focus, title, voiceEnabled, label = "Chat" }: { focu
               ) : null}
               {messages.length ? (
                 <Button type="button" size="sm" variant="ghost" onClick={fresh}><RotateCcw className="h-3.5 w-3.5" /> New chat</Button>
+              ) : null}
+              {dealId ? (
+                <label className="flex items-center gap-1.5 text-xs text-subtle" title="On: changes you ask for are made straight away, and each can be undone. Off: tap to apply.">
+                  <input type="checkbox" checked={auto} onChange={(e) => { setAuto(e.target.checked); try { localStorage.setItem("sales-chat:auto", e.target.checked ? "1" : "0"); } catch { /* ignore */ } }} /> Apply changes right away
+                </label>
               ) : null}
               {chatId ? <Link href={`/assistant?c=${chatId}`} className="text-xs text-subtle hover:text-fg">Open in Assistant</Link> : null}
               <Button type="submit" size="sm" variant="primary" className="ml-auto" disabled={!!status || (!input.trim() && !shots.length)}>

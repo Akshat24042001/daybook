@@ -70,8 +70,8 @@ export async function dealBrief(dealId: number): Promise<string | null> {
     people.length ? `OTHER PEOPLE: ${people.map((p) => `${p.full_name}${p.title ? `, ${p.title}` : ""} (${p.role}, person_id=${p.id})`).join("; ")}` : "",
     company ? `COMPANY: ${company.name}; ${[line("website", company.website), line("industry", company.industry), line("country", company.country), line("city", company.city), line("employees", company.employees)].filter(Boolean).join("; ")}${company.description ? `\n  ${String(company.description).slice(0, 400)}` : ""}` : "",
     talks.length ? `LATEST CONVERSATIONS (newest first):\n${talks.map((t) => `- ${day(t.occurred_at)} ${t.channel} ${t.direction === "in" ? "from them" : t.direction === "out" ? "from you" : t.direction}: ${t.s.replace(/\s+/g, " ")}`).join("\n")}` : "LATEST CONVERSATIONS: none logged",
-    promises.length ? `OPEN PROMISES:\n${promises.map((p) => `- ${p.owner === "me" ? "You" : "They"}: ${p.text}${p.due_at ? ` (due ${day(p.due_at)})` : ""}`).join("\n")}` : "",
-    moves.length ? `OPEN MOVES:\n${moves.map((m) => `- ${m.title} (due ${day(m.due_at)})`).join("\n")}` : "",
+    promises.length ? `OPEN PROMISES:\n${promises.map((p) => `- commitment_id=${p.id} ${p.owner === "me" ? "You" : "They"}: ${p.text}${p.due_at ? ` (due ${day(p.due_at)})` : ""}`).join("\n")}` : "",
+    moves.length ? `OPEN MOVES:\n${moves.map((m) => `- move_id=${m.id} ${m.title} (due ${day(m.due_at)})`).join("\n")}` : "",
     docs.length ? `DOCUMENTS: ${docs.map((x) => `${x.title} (${x.kind}, ${x.status}${x.view_count ? `, opened ${x.view_count}x` : ""})`).join("; ")}` : "",
     pays.length ? `PAYMENTS: ${pays.map((p) => `${p.label} ${money(Number(p.amount), p.currency)} ${p.status}${p.due_on ? ` due ${day(p.due_on)}` : ""}`).join("; ")}` : "",
   ].filter(Boolean);
@@ -128,7 +128,12 @@ ${brief}`;
     return `FOCUS: this chat is about ONE LEAD. "This lead", "they", "them", "it" and "the deal" mean it. Answer from this record first (query for more only if needed).
 Read the whole conversation below before answering: never suggest asking for something they already gave, or a step that is already done.
 When asked for a message, write it ready to send, answering their latest message, right for the stage. Use only facts in this record; never invent names, numbers, links or results.
-When the record shows the next step is out of date (it already happened), say so and propose the update with the sales actions. To change anything, propose the sales actions with deal_id=${f.deal_id}${brief.match(/person_id=(\d+)/) ? ` (contact person_id=${brief.match(/person_id=(\d+)/)![1]})` : ""}.\n${brief}`;
+ACT, DO NOT JUST ADVISE. When the owner says what happened, what changed or asks for something, propose EVERY change it implies in the same answer, several at once:
+update_deal (next_action with next_action_at, summary, requirements, value, any field), move_deal, update_company (their business, website), update_lead_contact,
+add_deal_promise, close_promise (by commitment_id), finish_move (by move_id), book_meeting, log_deal_note, research_lead, save_draft (the message you wrote, ready to send),
+prepare_doc (a demo plan, proposal outline or script you wrote), do_everything. When a screenshot was just filed (the message says so), check the record and propose what is
+still missing: a stale next step, promises it kept, the business or website, a reply saved with save_draft. Never propose a change the record already shows.
+When the record shows the next step is out of date (it already happened), propose the update. To change anything, propose the sales actions with deal_id=${f.deal_id}${brief.match(/person_id=(\d+)/) ? ` (contact person_id=${brief.match(/person_id=(\d+)/)![1]})` : ""}.\n${brief}`;
   }
   const top = await q<{ id: number; title: string; stage: string; priority: number; value: string | null }>(
     `select d.id, d.title, s.name as stage, d.priority, case when d.value_amount is null then null else d.value_amount::text || ' ' || d.currency end as value

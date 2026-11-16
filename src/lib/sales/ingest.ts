@@ -625,7 +625,7 @@ export async function applyExtraction(cap: CaptureRow, extIn: Extraction, a: App
       }
       const qa = cleanQuickActions(ext.quick_actions);
       if (qa.length || ext.reply_draft) {
-        await q("update sales_deals set conversation = $2 where id = $1", [dealId, JSON.stringify({
+        await q("update sales_deals set conversation = $2::jsonb || coalesce(jsonb_build_object('autopilot', conversation->'autopilot'), '{}'::jsonb) where id = $1", [dealId, JSON.stringify({
           quick_actions: qa, reply_draft: ext.reply_draft ? String(ext.reply_draft).slice(0, 1500) : null, at: new Date().toISOString(), capture_id: cap.id,
         })]);
         res.quick_actions = qa;
@@ -689,6 +689,8 @@ export async function applyExtraction(cap: CaptureRow, extIn: Extraction, a: App
       }
     }
     await enqueue("refresh_moves", { deal_id: dealId }, { dedupeKey: `refresh_moves:${dealId}` });
+    // done for you: replies written, research started, the prep note for the next step (see autopilot)
+    await enqueue("deal_autopilot", { deal_id: dealId, trigger: cap.source }, { dedupeKey: `deal_autopilot:${dealId}` });
     res.deal_title = (await one<{ title: string }>("select title from sales_deals where id = $1", [dealId]))?.title ?? null;
   }
   return res;

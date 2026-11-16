@@ -46,9 +46,14 @@ const { setup, check } = require("./lib.cjs");
   check("Email sends the whole message, and hovering shows it", emailHref.includes("Hi Meera,") && emailHref.includes("Saw your 4 salons lose bookings.") && (await pane.getByRole("link", { name: /Email meera@glowsalons.in/ }).getAttribute("title")).includes("Saw your 4 salons"));
   // a lead's chat takes screenshots
   const deal = await one("insert into sales_deals (title, stage_id, source) select 'E2E share chat deal', id, 'outbound' from sales_stages where role = 'new' returning id");
+  await db.query(`update sales_deals set conversation = $2 where id = $1`, [deal.id, JSON.stringify({ quick_actions: [], reply_draft: null, at: new Date().toISOString(), autopilot: { at: new Date().toISOString(), items: [{ label: "Message being written: Reply to Neha", href: "/sales/moves" }, { label: "Prep note ready: Prepare the demo" }] } })]);
+  await db.query("insert into sales_interactions (deal_id, channel, direction, body, occurred_at, source) values ($1,'linkedin','in','Here are the clinic details', now(),'web')", [deal.id]);
   await go(`/sales/deal/${deal.id}`);
+  const done = page.getByLabel("Done for you");
+  check("the deal shows what was done for you", (await done.count()) > 0 && /Message being written: Reply to Neha[\s\S]*Prep note ready/.test(await done.first().innerText()));
   await page.getByRole("button", { name: /Chat|Ask about this lead/ }).first().click();
   check("a lead's chat has a Screenshot button", await page.getByRole("dialog").getByRole("button", { name: "Screenshot" }).isVisible());
+  check("and makes changes right away by default (each can be undone)", await page.getByRole("dialog").getByLabel("Apply changes right away").isChecked());
   await page.keyboard.press("Escape");
   await db.query("delete from sales_deals where id = $1", [deal.id]);
   await page.setViewportSize({ width: 390, height: 844 });

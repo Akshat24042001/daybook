@@ -87,7 +87,7 @@ export function ConversationCard({ dealId, summary, timeline, conversation, cont
   dealId: number;
   summary: string | null;
   timeline: TimelineLine[];
-  conversation: { quick_actions?: QuickAction[]; reply_draft?: string | null; at?: string; done?: number[] } | null;
+  conversation: { quick_actions?: QuickAction[]; reply_draft?: string | null; at?: string; done?: number[]; autopilot?: { at: string; items: { label: string; href?: string | null }[] } | null } | null;
   contact?: Contact;
   onStage?: (role: string) => void;
   extra?: React.ReactNode;
@@ -115,6 +115,16 @@ export function ConversationCard({ dealId, summary, timeline, conversation, cont
       {summary ? <p className="whitespace-pre-line text-sm">{summary}</p> : <p className="text-sm text-subtle">Log a chat, a call or a screenshot below and this fills itself.</p>}
       {extra}
 
+      {conversation?.autopilot?.items?.length ? (
+        <div className="mt-3 rounded-xl border border-good/30 bg-p-mint/40 p-2.5 text-xs" aria-label="Done for you">
+          <p className="font-semibold text-p-mint-fg">Done for you <span className="font-normal text-subtle" suppressHydrationWarning>· {new Date(conversation.autopilot.at).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span></p>
+          <ul className="mt-1 space-y-0.5">
+            {conversation.autopilot.items.map((x, i) => (
+              <li key={i} className="flex gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-good" />{x.href ? <a href={x.href} className="underline">{x.label}</a> : x.label}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {conversation?.quick_actions?.length ? (
         <div className="mt-3">
           <p className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-subtle"><Sparkles className="h-3 w-3 text-accent" /> Do next</p>

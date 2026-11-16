@@ -9,7 +9,7 @@ import { upsertPerson } from "../sales/identity";
 import { refreshMoves } from "../sales/moves";
 import { moveDeal } from "../sales/stages";
 import type { Ctx } from "../settings";
-import { has, int, isClear, num, rowScope, s, strList, type Scope, type Snapshot } from "./action-kit";
+import { dateArg, has, int, isClear, localTime, num, rowScope, s, strList, type Scope, type Snapshot } from "./action-kit";
 
 export interface SalesDef {
   doc: string;
@@ -277,6 +277,185 @@ export const SALES_ACTIONS: Record<string, SalesDef> = {
       undo.created.push({ table: "sales_hunts", id });
       await runHuntNow(id).catch(() => {});
       return `Started (target ${id}). The first search runs within a minute; leads appear on the Radar under its name.`;
+    },
+  },
+
+  update_company: {
+    doc: "update_company: deal_id (or company_id) + any of name, website, industry, city, country, phone, email, linkedin, address, employees, description: the business the lead belongs to (their clinic, shop, firm). Creates and links it to the deal when there is none; research starts when a website or a new business is added",
+    async prepare(_c, o) {
+      let cid = int(o.company_id);
+      let dealId: number | null = null;
+      if (cid === null && has(o, "deal_id")) { const d = await dealOr(o.deal_id); dealId = d.id; cid = (await one<{ company_id: number | null }>("select company_id from sales_deals where id = $1", [d.id]))?.company_id ?? null; }
+      const set: Record<string, unknown> = {};
+      const said: string[] = [];
+      for (const k of ["name", "website", "industry", "city", "country", "phone", "email", "linkedin", "address", "description"]) {
+        if (!has(o, k)) continue;
+        const v = isClear(o[k]) ? null : s(o[k], k === "description" ? 2000 : 300) || null;
+        if (k === "website" && v && !/^(https?:\/\/)?[a-z0-9-]+(\.[a-z0-9-]+)+/i.test(v)) throw new UserError(`"${v}" is not a website address.`);
+        set[k] = k === "website" && v && !/^https?:\/\//i.test(v) ? `https://${v}` : v;
+        said.push(`${k}: ${v ?? "cleared"}`);
+      }
+      if (has(o, "employees")) { const n = num(o.employees); if (n !== null) { set.employees = Math.round(n); said.push(`employees: ${set.employees}`); } }
+      if (!Object.keys(set).length) throw new UserError("update_company needs something to change (name, website, city...).");
+      if (cid === null && !set.name && !set.website) throw new UserError("This lead has no business yet: give its name or website.");
+      const name = cid ? (await one<{ name: string }>("select name from sales_companies where id = $1", [cid]))?.name : String(set.name ?? set.website);
+      return { params: { company_id: cid, deal_id: dealId, set }, label: `🏢 ${cid ? name : `New business: ${name}`}`, detail: said.join(" · ").slice(0, 280) };
+    },
+    scopes: (_c, p) => [...(p.company_id ? [rowScope("sales_companies", p.company_id as number)] : []), ...(p.deal_id ? [rowScope("sales_deals", p.deal_id as number)] : [])],
+    async run(_c, p, undo) {
+      const set = { ...(p.set as Record<string, unknown>) };
+      let cid = (p.company_id as number | null) ?? null;
+      const { ensureCompany, domainOf } = await import("../sales/identity");
+      if (!cid) {
+        cid = await ensureCompany((set.name as string) ?? null, { website: (set.website as string) ?? null });
+        if (!cid) throw new UserError("Could not create the business.");
+        undo.created.push({ table: "sales_companies", id: cid });
+        await q("update sales_deals set company_id = $2 where id = $1", [p.deal_id, cid]);
+        await q("update sales_people set company_id = $2 where id = (select person_id from sales_deals where id = $1) and company_id is null", [p.deal_id, cid]);
+      }
+      if (set.website) {
+        const dom = domainOf(String(set.website));
+        if (dom && !(await one("select 1 from sales_companies where lower(domain) = lower($1) and id <> $2", [dom, cid]))) set.domain = dom;
+      }
+      const keys = Object.keys(set);
+      if (keys.length) await q(`update sales_companies set ${keys.map((k, i) => `${k} = $${i + 2}`).join(", ")}, updated_at = now() where id = $1`, [cid, ...keys.map((k) => set[k])]);
+      const { enqueue } = await import("../sales/jobs");
+      if (set.website || !p.company_id) {
+        await enqueue("enrich_company", { id: cid }, { dedupeKey: `enrich_company:${cid}` });
+        if (set.website) await enqueue("audit_website", { id: cid }, { dedupeKey: `audit:${cid}` });
+        return "Saved. Researching the business now.";
+      }
+      return "Saved.";
+    },
+  },
+
+  close_promise: {
+    doc: "close_promise: commitment_id (from the lead's OPEN PROMISES), status (done|dropped): a promise that was kept or no longer matters",
+    async prepare(_c, o) {
+      const id = int(o.commitment_id ?? o.id);
+      const c = id === null ? null : await one<{ id: number; text: string; owner: string; deal_id: number | null }>("select id, text, owner, deal_id from sales_commitments where id = $1 and status = 'open'", [id]);
+      if (!c) throw new UserError("That open promise does not exist. Query sales_commitments where status = 'open' for the lead.");
+      const status = s(o.status, 10) === "dropped" ? "dropped" : "done";
+      return { params: { id: c.id, status, deal_id: c.deal_id }, label: `${status === "done" ? "✓ Kept" : "✕ Dropped"}: ${c.text.slice(0, 60)}`, detail: c.owner === "me" ? "your promise" : "their promise" };
+    },
+    scopes: (_c, p) => [rowScope("sales_commitments", p.id as number)],
+    async run(_c, p) {
+      await q("update sales_commitments set status = $2, done_at = now() where id = $1", [p.id, p.status]);
+      if (p.deal_id) await refreshMoves(p.deal_id as number).catch(() => {});
+      return "Closed.";
+    },
+  },
+
+  finish_move: {
+    doc: "finish_move: move_id (from the lead's OPEN MOVES), status (done|skipped|snoozed), until (YYYY-MM-DD, for snoozed): mark a planned move done, not needed, or later",
+    async prepare(c, o) {
+      const id = int(o.move_id ?? o.id);
+      const m = id === null ? null : await one<{ id: number; title: string; deal_id: number | null }>("select id, title, deal_id from sales_moves where id = $1 and status in ('open','snoozed')", [id]);
+      if (!m) throw new UserError("That open move does not exist. Query sales_moves where status = 'open' for the lead.");
+      const st = s(o.status, 10);
+      const status = st === "skipped" ? "skipped" : st === "snoozed" ? "snoozed" : "done";
+      const until = status === "snoozed" ? dateArg(c, o.until ?? "tomorrow") : null;
+      return { params: { id: m.id, status, until, deal_id: m.deal_id }, label: `${status === "done" ? "✓ Done" : status === "skipped" ? "✕ Skipped" : "⏰ Later"}: ${m.title.slice(0, 60)}`, detail: until ? `until ${until}` : null };
+    },
+    scopes: (_c, p) => [rowScope("sales_moves", p.id as number)],
+    async run(_c, p) {
+      if (p.status === "snoozed") await q("update sales_moves set status = 'snoozed', snoozed_until = $2::date where id = $1", [p.id, p.until]);
+      else await q("update sales_moves set status = $2, done_at = now() where id = $1", [p.id, p.status]);
+      return "Updated.";
+    },
+  },
+
+  book_meeting: {
+    doc: "book_meeting: deal_id, date (YYYY-MM-DD or tomorrow), time (HH:MM), minutes (default 30), title, place (address or video link): a call or meeting with the lead",
+    async prepare(c, o) {
+      const d = await dealOr(o.deal_id);
+      const date = dateArg(c, o.date);
+      const at = localTime(c, s(o.time, 10) || "11:00", date);
+      const minutes = Math.max(10, Math.min(480, Math.round(num(o.minutes) ?? 30)));
+      const title = s(o.title, 200) || `Call: ${d.title}`;
+      return { params: { deal_id: d.id, person_id: d.person_id, at: at.toISOString(), minutes, title, place: s(o.place, 300) || null }, label: `📅 ${title}`, detail: `${at.toLocaleString("en-IN", { timeZone: c.tz, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}, ${minutes} min` };
+    },
+    scopes: () => [],
+    async run(_c, p, undo) {
+      const r = await one<{ id: number }>(
+        "insert into sales_meetings (external_id, deal_id, person_id, title, starts_at, ends_at, link, place) values ($1,$2,$3,$4,$5,$5::timestamptz + make_interval(mins => $6),$7,$7) returning id",
+        [`chat:${p.deal_id}:${p.at}`, p.deal_id, p.person_id, p.title, p.at, p.minutes, p.place]);
+      undo.created.push({ table: "sales_meetings", id: r!.id });
+      await refreshMoves(p.deal_id as number).catch(() => {});
+      return "Booked.";
+    },
+  },
+
+  research_lead: {
+    doc: "research_lead: deal_id, what (company|person|both, default both): research the business (and check its website) and the contact now",
+    async prepare(_c, o) {
+      const d = await dealOr(o.deal_id);
+      const what = ["company", "person"].includes(s(o.what, 10)) ? s(o.what, 10) : "both";
+      const co = (await one<{ company_id: number | null }>("select company_id from sales_deals where id = $1", [d.id]))?.company_id ?? null;
+      if ((what === "company" || what === "both") && !co && what === "company") throw new UserError("This lead has no business yet: add it with update_company first.");
+      return { params: { deal_id: d.id, company_id: co, person_id: d.person_id, what }, label: `🔎 Research ${what === "both" ? "the business and the contact" : what === "company" ? "the business" : "the contact"}`, detail: d.title };
+    },
+    scopes: () => [],
+    async run(_c, p) {
+      const { enqueue } = await import("../sales/jobs");
+      if (p.company_id && p.what !== "person") { await enqueue("enrich_company", { id: p.company_id }, { dedupeKey: `enrich_company:${p.company_id}` }); await enqueue("audit_website", { id: p.company_id }, { dedupeKey: `audit:${p.company_id}` }); }
+      if (p.person_id && p.what !== "company") await enqueue("enrich_person", { id: p.person_id }, { dedupeKey: `enrich_person:${p.person_id}` });
+      return "Started. Results land on the lead in a few minutes.";
+    },
+  },
+
+  save_draft: {
+    doc: "save_draft: deal_id, message (the full text, ready to send), channel (whatsapp|email|linkedin|instagram|sms), subject (email only), title (what it is for): saves a message you wrote with the owner as a ready move with Send buttons",
+    async prepare(_c, o) {
+      const d = await dealOr(o.deal_id);
+      const message = s(o.message ?? o.text, 4000);
+      if (!message) throw new UserError("save_draft needs the message.");
+      const channel = ["whatsapp", "email", "linkedin", "instagram", "sms"].includes(s(o.channel, 12)) ? s(o.channel, 12) : "whatsapp";
+      const title = s(o.title, 200) || `Send: ${message.split("\n")[0].slice(0, 60)}`;
+      return { params: { deal_id: d.id, message, channel, subject: s(o.subject, 200) || null, title }, label: `✉️ Ready to send (${channel}): ${title.slice(0, 50)}`, detail: message.slice(0, 200) };
+    },
+    scopes: () => [],
+    async run(_c, p, undo) {
+      const { noDashes } = await import("../text/no-dashes");
+      const r = await one<{ id: number }>(
+        `insert into sales_moves (deal_id, kind, title, why, channel, due_at, draft, ai_draft, draft_subject, created_by, dedupe_key)
+         values ($1, 'custom', $2, 'Written with you in the chat', $3, now(), $4, $4, $5, 'ai', $6) returning id`,
+        [p.deal_id, p.title, p.channel, noDashes(p.message as string), p.subject, `chat:${p.deal_id}:${Date.now()}`]);
+      undo.created.push({ table: "sales_moves", id: r!.id });
+      return "Saved. It is in Moves, ready to send.";
+    },
+  },
+
+  prepare_doc: {
+    doc: "prepare_doc: deal_id, title, body (Markdown: a demo plan, proposal outline, call script, notes): saves a working document on the lead (only you see it)",
+    async prepare(_c, o) {
+      const d = await dealOr(o.deal_id);
+      const title = s(o.title, 200);
+      const body = s(o.body ?? o.text, 20_000);
+      if (!title || !body) throw new UserError("prepare_doc needs a title and the body.");
+      return { params: { deal_id: d.id, title, body }, label: `📄 ${title}`, detail: body.slice(0, 160) };
+    },
+    scopes: () => [],
+    async run(_c, p, undo) {
+      const { createLinkDoc } = await import("../sales/docs");
+      const { noDashes } = await import("../text/no-dashes");
+      const id = await createLinkDoc({ deal_id: p.deal_id as number, title: p.title as string, kind: "brief", body: noDashes(p.body as string), internal: true, category: "prep" });
+      undo.created.push({ table: "sales_docs", id });
+      return "Saved on the lead.";
+    },
+  },
+
+  do_everything: {
+    doc: "do_everything: deal_id: does all the work the AI can on this lead now (refreshes its moves, writes the messages that are due, researches the contact and business, writes a prep note when the next step is a demo or proposal)",
+    async prepare(_c, o) {
+      const d = await dealOr(o.deal_id);
+      return { params: { deal_id: d.id }, label: `🤖 Do everything possible on ${d.title}`, detail: "messages due, research, prep note for the next step" };
+    },
+    scopes: () => [],
+    async run(_c, p) {
+      const { dealAutopilot } = await import("../sales/autopilot");
+      const items = await dealAutopilot(p.deal_id as number, "chat");
+      return items.length ? `Started: ${items.map((x) => x.label).join("; ")}.` : "Nothing more to do right now: messages are written and research is done.";
     },
   },
 };

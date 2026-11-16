@@ -83,7 +83,9 @@ export async function summarizeDeal(dealId: number): Promise<{ summary: string; 
   const kept = (out.done_promise_ids ?? []).map(Number).filter((n) => promises.some((p) => p.id === n));
   if (kept.length) await q("update sales_commitments set status = 'done', done_at = now() where deal_id = $1 and id = any($2::int[]) and status = 'open'", [dealId, kept]);
   await enqueue("refresh_moves", { deal_id: dealId }, { dedupeKey: `refresh_moves:${dealId}` });
-  await q("update sales_deals set conversation = $2 where id = $1", [dealId, JSON.stringify(conversation)]);
+  // what was done for you stays when the summary is rebuilt
+  await q("update sales_deals set conversation = $2::jsonb || coalesce(jsonb_build_object('autopilot', conversation->'autopilot'), '{}'::jsonb) where id = $1", [dealId, JSON.stringify(conversation)]);
+  await enqueue("deal_autopilot", { deal_id: dealId, trigger: "summary" }, { dedupeKey: `deal_autopilot:${dealId}` });
   return { summary, conversation };
 }
 

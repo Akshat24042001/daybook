@@ -71,13 +71,13 @@ const ORDER = [
   "settings", "projects", "people", "tasks", "day_entries", "time_logs", "task_remarks", "work_segments", "days",
   "exercise_types", "exercise_logs", "contacts", "contact_touches", "refs", "diary_entries", "diary_summaries",
   "scratch_items", "reviews",
-  "sales_companies", "sales_people", "sales_deals", "sales_commitments", "sales_interactions",
+  "sales_companies", "sales_people", "sales_deals", "sales_commitments", "sales_interactions", "sales_moves", "sales_meetings", "sales_docs",
 ];
 const TABLES = new Set(ORDER);
 const CREATED_TABLES = new Set([
   "tasks", "diary_entries", "scratch_items", "contact_touches", "task_remarks", "time_logs", "projects", "people",
   "contacts", "refs", "exercise_types", "exercise_logs", "work_segments",
-  "sales_deals", "sales_commitments", "sales_interactions", "sales_hunts",
+  "sales_deals", "sales_commitments", "sales_interactions", "sales_hunts", "sales_moves", "sales_meetings", "sales_docs", "sales_companies",
 ]);
 
 export const taskScopes = (taskId: number): Scope[] => [
