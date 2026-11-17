@@ -6,7 +6,10 @@ export function ago(d: string | Date | null | undefined): string {
   const future = ms < 0;
   const a = Math.abs(ms);
   const m = Math.round(a / 60_000);
-  const txt = m < 1 ? "now" : m < 60 ? `${m}m` : m < 48 * 60 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`;
+  const days = m / 1440;
+  // long spans read as months and years, not "743d"
+  const txt = m < 1 ? "now" : m < 60 ? `${m}m` : m < 48 * 60 ? `${Math.round(m / 60)}h` : days < 60 ? `${Math.round(days)}d`
+    : days < 365 ? `${Math.round(days / 30.4)}mo` : `${(days / 365.25).toFixed(days < 730 ? 1 : 0).replace(/\.0$/, "")}y`;
   return txt === "now" ? "now" : future ? `in ${txt}` : `${txt} ago`;
 }
 

@@ -181,7 +181,8 @@ Read the input (a chat, transcript, screenshot, email, note or web page) and ret
  "messages": for chats or screenshots of chats, each message [{"from":"me|them","at":"YYYY-MM-DD HH:MM" in the owner's local time, or null,"text"}] (max 60, oldest first),
    else []. Times: use the time shown on each message and the date separator above it ("Today", "Yesterday", "Monday", "12 Nov");
    resolve those relative to the status bar date if the screenshot shows one, else relative to NOW. A message with no date shown takes the
-   date of the separator above it; when no date can be known at all, null. Never guess a time or a date,
+   date of the separator above it; when no date can be known at all, null. Never guess a time or a date. A date shown without a
+   year ("4 Nov", "Monday") is in the year of NOW (or the year before, if that would be in the future); never take a year from anywhere else,
  "chat_with": the name or number shown at the top of the chat (who the conversation is with), else null,
  "summary": 1 to 3 plain lines on what happened,
  "deal_summary": the updated "where we are" for the whole deal in 2 to 4 lines, merging PREVIOUS STATE with this input,
@@ -356,6 +357,28 @@ export function messageAt(at: string | null | undefined, tz: string, now: Date, 
   return d.toISOString();
 }
 
+/**
+ * The year of a date is kept only when the source shows it ("2024", "04/11/24", "'24"). Chat screenshots say "4 Nov"
+ * with no year, and models fill in a year from their training (often a past one): a lead talked to this week then
+ * shows "743 days ago". A year the source does not show becomes the latest one that is not in the future. Pure.
+ */
+export function trustYear(at: string | null | undefined, source: string, now: Date): string | null {
+  const v = (at ?? "").trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})(.*)$/.exec(v);
+  if (!m) return at ?? null;
+  const year = Number(m[1]);
+  const cur = now.getUTCFullYear();
+  if (year === cur) return v;
+  const yy = String(year).slice(2);
+  const shown = new RegExp(`\\b${year}\\b|'${yy}\\b|\\b\\d{1,2}[/.-]\\d{1,2}[/.-]${yy}\\b`).test(source);
+  if (shown) return v;
+  const mmdd = `${m[2]}-${m[3]}`;
+  const t = Date.parse(`${cur}-${mmdd}T00:00:00Z`);
+  // later than two days from now would be a future date: then it was last year
+  const y = Number.isFinite(t) && t > now.getTime() + 2 * 86_400_000 ? cur - 1 : cur;
+  return `${y}-${mmdd}${m[4]}`;
+}
+
 /** What the screenshot reader saw at the top: the app and who the chat is with. Pure. */
 export function screenHeader(screen: string | null | undefined): { app: string | null; chatWith: string | null } {
   const t = screen ?? "";
@@ -477,13 +500,15 @@ export async function applyExtraction(cap: CaptureRow, extIn: Extraction, a: App
   const tz = (await getSettings()).timezone;
   const now = new Date();
   const header = screenHeader((extIn as Extraction & { screen_text?: string | null }).screen_text ?? cap.screen_text ?? null);
+  // what was actually read: a year must appear here to be believed
+  const source = `${(extIn as Extraction & { screen_text?: string | null }).screen_text ?? cap.screen_text ?? ""}\n${cap.text ?? ""}`;
   let ext: Extraction = {
     ...extIn,
     // the channel you picked wins; then the app the screen shows; then what the AI read
     channel: cap.channel || (header.app && header.app !== "telegram" ? header.app : extIn.channel),
-    occurred_at: messageAt(extIn.occurred_at, tz, now),
-    meeting_at: messageAt(extIn.meeting_at, tz, now, true),
-    messages: (extIn.messages ?? []).map((m) => ({ ...m, at: messageAt(m?.at, tz, now) })),
+    occurred_at: messageAt(trustYear(extIn.occurred_at, source, now), tz, now),
+    meeting_at: messageAt(trustYear(extIn.meeting_at, source, now), tz, now, true),
+    messages: (extIn.messages ?? []).map((m) => ({ ...m, at: messageAt(trustYear(m?.at, source, now), tz, now) })),
   };
   const { cfg } = a;
   const res: CaptureResult = {
