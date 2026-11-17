@@ -4,6 +4,8 @@ const { setup, check, choose } = require("./lib.cjs");
 
 (async () => {
   const { page, one, go, done } = await setup();
+  // earlier runs' cards would crowd the boxes: close them first
+  await one("update tasks set state = 'dropped', closed_at = now() where title like 'E2E pri %' and state = 'active'");
   const tag = Date.now().toString(36);
   const T = (s) => `E2E pri ${s} ${tag}`;
   const mk = async (s, extra = "") => (await one(`insert into tasks (title${extra ? ", " + extra.split("=")[0] : ""}) values ($1${extra ? ", $2" : ""}) returning id`, extra ? [T(s), extra.split("=")[1]] : [T(s)])).id;

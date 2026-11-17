@@ -317,34 +317,62 @@ export interface SiteAudit {
   money_leak?: string;
   first_project?: string;
   brief_md?: string;
+  /** what it was built on: a fingerprint of what the lead had said, when, and which website */
+  based_on?: { hash: string; at: string; website: string | null; said: boolean; research: boolean };
 }
 
-/** Scans the website and writes the value-first brief: what they are losing today and the fixes, with honest estimates. */
+/**
+ * The opportunity audit: what they asked for first, then what their website and business show, with honest estimates.
+ * Built on what the lead told you (requirement, problem, their messages), the website proved to be theirs, and research
+ * only when it is confirmed to be this business. It is rebuilt whenever they tell you something new.
+ */
 export async function auditCompany(id: number): Promise<SiteAudit | null> {
   const cfg = await salesConfig();
-  const c = await one<{ id: number; name: string; website: string | null; domain: string | null; industry: string | null; country: string | null; employees: number | null; revenue_usd: number | null; enrichment: Enrichment }>(
-    "select id, name, website, domain, industry, country, employees, revenue_usd, enrichment from sales_companies where id = $1",
+  const c = await one<{ id: number; name: string; website: string | null; domain: string | null; website_source: string | null; industry: string | null; country: string | null; employees: number | null; revenue_usd: number | null; enrichment: Enrichment }>(
+    "select id, name, website, domain, website_source, industry, country, employees, revenue_usd, enrichment from sales_companies where id = $1",
     [id],
   );
   if (!c) return null;
-  const url = c.website ?? (c.domain ? `https://${c.domain}` : await findWebsite(c.name));
-  const page = url ? await fetchPage(url, { maxChars: 6000 }) : null;
+  const { gatherAnchors, placeOf, anchorLines } = await import("./anchors");
+  const { leadSaid } = await import("./lead-said");
+  const a = await gatherAnchors(id);
+  const trusted = ["confirmed", "likely"].includes(String(c.enrichment?.identity_match?.v ?? ""));
+  // their website: yours or the lead's, one research proved, else found now and checked against the lead
+  let url: string | null = c.website && (c.website_source === "you" || c.website_source === "lead" || (c.website_source === "research" && trusted)) ? c.website : null;
+  let page = url ? await fetchPage(url, { maxChars: 6000 }) : null;
+  if (!url && a) {
+    const { resolveWebsite } = await import("./research");
+    const pick = await resolveWebsite(a).catch(() => null);
+    if (pick?.url) {
+      url = pick.url;
+      page = pick.page ?? (await fetchPage(pick.url, { maxChars: 6000 }));
+      if (!c.website) await q("update sales_companies set website = $2, website_source = 'research' where id = $1 and website is null", [id, pick.url]).catch(() => {});
+    }
+  }
   const tech = page?.html ? techAudit(page.url, page.html) : null;
-  const facts = Object.entries(c.enrichment ?? {}).filter(([, f]) => f?.v).slice(0, 40).map(([k, f]) => `${k}: ${String(f.v).slice(0, 200)}`).join("\n");
-  const system = `You are ${cfg.owner.name} of ${cfg.owner.company}, writing a value-first opportunity brief for a business you want to help.
+  const facts = trusted ? Object.entries(c.enrichment ?? {}).filter(([, f]) => f?.v).slice(0, 40).map(([k, f]) => `${k}: ${String(f.v).slice(0, 200)}`).join("\n") : "";
+  const said = await leadSaid(id);
+  const system = `You are ${cfg.owner.name} of ${cfg.owner.company}, writing a value-first opportunity audit for a business you are talking to.
 Offers you can deliver: ${cfg.offers.join("; ")}.
-Return JSON {"score": 0-100 digital maturity, "summary": 2 lines, "findings": [plain observations from the scan, max 8],
+WHAT THEY TOLD US comes first and is the truth: the audit must answer what they asked for before anything else. The first opportunity and
+first_project are what they asked for, shaped by what the scan shows. Further opportunities only where the evidence supports them.
+Never contradict what they told us, never invent facts about their business, and say plainly when there is no website to scan.
+Return JSON {"score": 0-100 digital maturity (null if there is no website and too little evidence), "summary": 2 lines starting from what they want,
+"findings": [plain observations, each from the scan, their words or confirmed research; max 8],
 "opportunities": [{"title","problem","fix","impact" (honest estimate with the assumption, e.g. "~25 hrs/week of manual order entry, about $30k/yr at local wages"),"effort":"days|weeks|months"}] max 5,
 "money_leak": one honest line on what the gaps cost them per year with assumptions,
-"first_project": the smallest high-value first project,
-"brief_md": a short markdown brief addressed to them (headings: What we noticed, What it is costing you, What we would fix first, How it would work), friendly and specific, no hype, no invented numbers beyond clearly labelled estimates, no em dashes}.`;
-  const user = `COMPANY: ${c.name} | ${c.industry ?? ""} | ${c.country ?? ""} | employees ${c.employees ?? "?"} | revenue est ${c.revenue_usd ?? "?"} USD
-WEBSITE: ${url ?? "none found"}
+"first_project": the smallest high-value first project (normally what they asked for),
+"brief_md": a short markdown brief addressed to them (headings: What you told us, What we noticed, What it is costing you, What we would do first, How it would work), friendly and specific, no hype, no invented numbers beyond clearly labelled estimates, no em dashes}.`;
+  const user = `COMPANY: ${c.name}${a && placeOf(a) ? ` | ${placeOf(a)}` : c.country ? ` | ${c.country}` : ""} | ${a?.industry ?? c.industry ?? ""}${trusted ? ` | employees ${c.employees ?? "?"} | revenue est ${c.revenue_usd ?? "?"} USD` : ""}
+${a ? `\nTHE LEAD:\n${anchorLines(a)}\n` : ""}
+WHAT THEY TOLD US:\n${said.text || "nothing logged yet"}
+
+WEBSITE: ${url ?? "none found that is surely theirs"}
 SCAN: ${tech ? JSON.stringify(tech) : "no site scan"}
 PAGE TEXT: ${(page?.text ?? "").slice(0, 4000)}
-KNOWN FACTS:\n${facts}`;
-  const out = await llmJson<SiteAudit>(system, user, { maxTokens: 3000, totalMs: 60_000 });
-  const audit: SiteAudit = { ...out, tech: tech ?? undefined };
-  await q("update sales_companies set audit = $2, audited_at = now(), website = coalesce(website, $3) where id = $1", [id, JSON.stringify(audit), url]);
+${facts ? `CONFIRMED RESEARCH:\n${facts}` : "RESEARCH: not confirmed to be this business yet, so not used."}`;
+  const out = await llmJson<SiteAudit>(system, user, { maxTokens: 3500, totalMs: 60_000, deep: true });
+  const audit: SiteAudit = { ...out, tech: tech ?? undefined, based_on: { hash: said.hash, at: new Date().toISOString(), website: url, said: !!said.text, research: trusted } };
+  await q("update sales_companies set audit = $2, audited_at = now() where id = $1", [id, JSON.stringify(audit)]);
   return audit;
 }

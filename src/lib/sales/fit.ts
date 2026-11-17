@@ -4,6 +4,7 @@ import { salesConfig } from "./config";
 import { focusOutlook } from "./focus";
 import { fitScore, type Fit, type FitContext, type FitInput } from "./fit-calc";
 import { listOffers } from "./offers";
+import { countryOfCity } from "./anchors";
 
 export async function loadFitContext(): Promise<FitContext> {
   const cfg = await salesConfig();
@@ -28,7 +29,7 @@ export async function loadFitContext(): Promise<FitContext> {
 interface Row {
   id: number; industry: string | null; country: string | null; city: string | null; source: string; value_usd: number | null; budget: string | null;
   services: string[]; person_id: number | null; economic_buyer_id: number | null; company_id: number | null;
-  text: string | null; c_industry: string | null; c_country: string | null; employees: number | null; dm: boolean; bought: string[] | null;
+  said: string | null; text: string | null; c_industry: string | null; c_country: string | null; c_city: string | null; employees: number | null; dm: boolean; bought: string[] | null;
 }
 
 /** Fit for many deals at once (the pipeline), or one (the deal page). */
@@ -38,11 +39,16 @@ export async function fitForDeals(ids: number[], ctx?: FitContext): Promise<Map<
   const c = ctx ?? (await loadFitContext());
   const rows = await q<Row>(
     `select d.id, d.industry, d.country, d.city, d.source, d.value_usd::float as value_usd, d.budget, d.services, d.person_id, d.economic_buyer_id, d.company_id,
-            concat_ws(E'\\n', d.title, d.requirements, d.pain, d.desired_outcome, d.impact, d.current_solution, d.notes, d.summary,
+            concat_ws(E'\\n', d.title, d.requirements, d.pain, d.desired_outcome, d.impact, d.current_solution, d.notes, d.summary, d.next_action,
+              (select string_agg(coalesce(i.summary, left(i.body, 600)), E'\\n') from (select summary, body from sales_interactions
+                where deal_id = d.id and direction in ('in','both') order by occurred_at desc limit 8) i)) as said,
+            -- research counts only once it is confirmed to be this business (a namesake's profile must not score the lead)
+            case when co.enrichment->'identity_match'->>'v' in ('confirmed','likely') then concat_ws(E'\\n',
               co.description, co.audit->>'summary', co.audit->>'money_leak',
               (select string_agg(concat_ws(' ', o->>'title', o->>'problem'), E'\\n') from jsonb_array_elements(case when jsonb_typeof(co.audit->'opportunities') = 'array' then co.audit->'opportunities' else '[]'::jsonb end) o),
-              co.enrichment->'pain_points'->>'v', co.enrichment->'summary'->>'v') as text,
-            co.industry as c_industry, co.country as c_country, co.employees,
+              co.enrichment->'pain_points'->>'v', co.enrichment->'summary'->>'v') else null end as text,
+            co.industry as c_industry, co.country as c_country, co.city as c_city,
+            case when co.enrichment->'identity_match'->>'v' in ('confirmed','likely') or co.enrichment is null or co.enrichment = '{}'::jsonb then co.employees end as employees,
             (d.economic_buyer_id is not null
               or exists (select 1 from sales_people p where p.id = d.person_id and p.is_decision_maker)
               or exists (select 1 from sales_deal_people x where x.deal_id = d.id and x.role = 'decision_maker')) as dm,
@@ -54,8 +60,9 @@ export async function fitForDeals(ids: number[], ctx?: FitContext): Promise<Map<
   );
   for (const r of rows) {
     const input: FitInput = {
-      industry: r.industry ?? r.c_industry, country: r.country ?? r.c_country, city: r.city, employees: r.employees, source: r.source,
-      value_usd: r.value_usd, budget: r.budget, decision_maker: r.dm, has_contact: !!r.person_id, services: r.services ?? [], text: r.text ?? "",
+      // the deal's own place first (what you typed), then the company's
+      industry: r.industry ?? r.c_industry, country: r.country ?? countryOfCity(r.city) ?? r.c_country, city: r.city ?? r.c_city, employees: r.employees, source: r.source,
+      value_usd: r.value_usd, budget: r.budget, decision_maker: r.dm, has_contact: !!r.person_id, services: r.services ?? [], said: r.said ?? "", text: r.text ?? "",
       bought: r.bought ?? [],
     };
     out.set(r.id, fitScore(input, c));

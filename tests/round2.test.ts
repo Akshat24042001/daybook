@@ -52,12 +52,16 @@ const ctx: FitContext = {
 
 describe("fit score", () => {
   it("scores a clinic in India that asked about missed calls, through a referral, with the owner, as an A, and says why", () => {
-    const f = fitScore({ industry: "Dental clinic", country: "India", employees: 25, source: "referral", value_usd: 3600, decision_maker: true, has_contact: true, services: [], text: "Front desk misses about 30 calls a day" }, ctx);
+    const f = fitScore({ industry: "Dental clinic", country: "India", employees: 25, source: "referral", value_usd: 3600, decision_maker: true, has_contact: true, services: [], said: "Front desk misses about 30 calls a day" }, ctx);
     expect(f.grade).toBe("A");
     expect(f.score).toBeGreaterThanOrEqual(90);
-    expect(f.plus).toEqual(expect.arrayContaining(["Dental clinic: an industry you target", "you have won 1 deal in healthcare clinics", "India: your home market", "what they need matches Voice agents", "you are talking to who decides", "Source: came by referral"]));
+    expect(f.plus).toEqual(expect.arrayContaining(["Dental clinic: an industry you target", "you have won 1 deal in healthcare clinics", "India: your home market", "what they told you they need matches Voice agents", "you are talking to who decides", "Source: came by referral"]));
     expect(f.hints[0]).toMatchObject({ offer: "Voice agents" });
-    expect(f.hints[0].why[0]).toMatch(/^they mention calls going unanswered \("[^"]+"\)$/);
+    expect(f.hints[0].why[0]).toMatch(/^they told you about calls going unanswered \("[^"]+"\)$/);
+    // the same words found only by research count, but for less, and say where they came from
+    const r = fitScore({ industry: "Dental clinic", country: "India", text: "Front desk misses about 30 calls a day" }, ctx);
+    expect(r.hints[0].why[0]).toMatch(/^research shows calls going unanswered/);
+    expect(r.hints[0].strength).toBeLessThan(f.hints[0].strength);
   });
 
   it("scores an unknown cold lead low and lists what is missing", () => {
@@ -91,9 +95,11 @@ describe("fit score", () => {
     expect(pick("we want a custom portal for dealers")).toMatch(/^Custom software/);
   });
 
-  it("scores real deals from their records and research", async () => {
+  it("scores real deals from their records and research (research only once it is confirmed to be them)", async () => {
     const co = (await ensureCompany("Shah Dental"))!;
-    await q("update sales_companies set employees = 30, industry = 'Dental clinics', audit = $2 where id = $1", [co, JSON.stringify({ summary: "Calls go unanswered at lunch", opportunities: [{ title: "Voice booking", problem: "missed calls" }] })]);
+    await q("update sales_companies set employees = 30, industry = 'Dental clinics', audit = $2, enrichment = $3 where id = $1", [co,
+      JSON.stringify({ summary: "Calls go unanswered at lunch", opportunities: [{ title: "Voice booking", problem: "missed calls" }] }),
+      JSON.stringify({ identity_match: { v: "likely" } })]);
     const p = await upsertPerson({ name: "Dr Shah", company_id: co });
     await q("update sales_people set is_decision_maker = true where id = $1", [p]);
     const id = await createDeal({ title: "Shah Dental", company_id: co, person_id: p, source: "inbound" });
@@ -102,6 +108,15 @@ describe("fit score", () => {
     expect(f.plus).toEqual(expect.arrayContaining(["India: your home market", "you are talking to who decides", "Source: they came to you"]));
     expect(f.hints.length).toBeGreaterThan(0);
     expect(f.hints[0].why.join(" ")).toMatch(/call/i);
+    // a profile not confirmed to be them (a namesake's, perhaps) scores nothing: not its pains, not its size
+    await q("update sales_companies set enrichment = $2 where id = $1", [co, JSON.stringify({ identity_match: { v: "not found" } })]);
+    const g = (await fitForDeals([id])).get(id)!;
+    expect(g.hints.flatMap((h) => h.why).join(" ")).not.toMatch(/research shows/);
+    expect(g.minus).toContain("Company size not known");
+    // what they told you counts in full
+    await updateDeal(id, { requirements: "Front desk misses calls at lunch; want a voice agent to book appointments" });
+    const t = (await fitForDeals([id])).get(id)!;
+    expect(t.hints[0].why.join(" ")).toMatch(/they told you about/);
   });
 });
 

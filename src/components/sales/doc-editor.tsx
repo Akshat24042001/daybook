@@ -1,4 +1,5 @@
 "use client";
+import { mdToHtml } from "@/lib/sales/md";
 
 import { Copy, ExternalLink, Plus, Send, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -46,7 +47,9 @@ export function DocEditor({ doc, revs, views, url, dealTitle }: { doc: DocRow; r
           {dealTitle && doc.deal_id ? <Link href={`/sales/deal/${doc.deal_id}`} className="text-sm text-accent hover:underline">{dealTitle}</Link> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Chip>{doc.status}</Chip>
+          <Chip>{doc.internal ? "internal" : doc.status}</Chip>
+          {!doc.internal ? (
+            <>
           <Button size="sm" variant="outline" onClick={() => void navigator.clipboard.writeText(url).then(() => toast("Link copied"), () => toast("Your browser blocked copying. Select the text and copy it by hand.", "error"))}><Copy className="h-3.5 w-3.5" /> Copy link</Button>
           <a href={url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 rounded-xl px-3 text-xs text-accent hover:bg-muted">Preview <ExternalLink className="h-3 w-3" /></a>
           {!doc.sent_at || (doc.kind === "quote" && !locked) ? (
@@ -58,9 +61,19 @@ export function DocEditor({ doc, revs, views, url, dealTitle }: { doc: DocRow; r
               return markDocSentAction(doc.id);
             }, "Marked as sent. Copy the link and send it.")}><Send className="h-3.5 w-3.5" /> Mark as sent</Button>
           ) : null}
+            </>
+          ) : null}
         </div>
       </div>
-      <p className="rounded-xl bg-accent-muted px-3 py-2 text-xs text-accent">Send this link instead of a PDF: <b>{url}</b>. No password for them. You get a Telegram ping on every fresh open{doc.kind === "quote" ? ", and they can accept it right on the page" : ""}.</p>
+      {doc.internal ? (
+        <p className="rounded-xl bg-p-butter px-3 py-2 text-xs text-p-butter-fg">Internal: only you can open this. It is never sent to the client.</p>
+      ) : (
+        <p className="rounded-xl bg-accent-muted px-3 py-2 text-xs text-accent">Send this link instead of a PDF: <b>{url}</b>. No password for them. You get a Telegram ping on every fresh open{doc.kind === "quote" ? ", and they can accept it right on the page" : ""}.</p>
+      )}
+      {doc.internal && doc.kind === "brief" && body.trim() ? (
+        <article className="prose-sm max-w-none rounded-2xl border border-border bg-surface p-4 text-sm leading-relaxed [&_h1]:mt-3 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:font-semibold [&_li]:ml-5 [&_ol]:list-decimal [&_p]:mt-2 [&_ul]:list-disc"
+          dangerouslySetInnerHTML={{ __html: mdToHtml(body) }} />
+      ) : null}
 
       {doc.kind === "quote" && cur ? (
         <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">

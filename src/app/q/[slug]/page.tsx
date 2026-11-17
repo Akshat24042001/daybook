@@ -37,6 +37,8 @@ export default async function PublicDoc({ params, searchParams }: { params: Prom
   const cfg = await salesConfig();
   const wantRev = sp.rev ? Number(sp.rev) : null;
   const owner = await isOwnerRequest();
+  // an internal note (a prep note, a signed contract) is yours only: nobody else can open it, link or no link
+  if ((doc as { internal?: boolean }).internal && !owner) notFound();
   // Clients only ever see revisions that were sent. You (signed in) can also preview the draft.
   const sentOnly = owner ? "" : "and sent_at is not null";
   const latestSent = doc.kind === "quote"

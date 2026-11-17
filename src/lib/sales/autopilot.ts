@@ -71,6 +71,14 @@ export async function dealAutopilot(dealId: number, trigger: string | null = "lo
     }
     items.push({ label: "Researching the business and checking its website" });
   }
+  // they said something new: the opportunity audit is rebuilt on it (after the deal's fields catch up)
+  if (d.company_id && llmConfigured()) {
+    const { auditStale } = await import("./lead-said");
+    if (await auditStale(d.company_id).catch(() => false)) {
+      await enqueue("audit_website", { id: d.company_id }, { dedupeKey: `audit:${d.company_id}`, runAfter: new Date(Date.now() + 60_000) });
+      items.push({ label: "Updating the opportunity audit with what they told you" });
+    }
+  }
   // the next step is to prepare something: a prep note follows
   const kind = prepKind(d.next_action);
   if (kind && llmConfigured() && !(await one("select 1 from sales_docs where deal_id = $1 and title = $2", [dealId, prepTitle(d.next_action!)]))) {

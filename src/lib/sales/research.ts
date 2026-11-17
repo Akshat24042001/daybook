@@ -715,6 +715,8 @@ export async function synthStage(runId: number): Promise<void> {
       if ((e as Error).message !== "skip people") await say(runId, `People search did not complete (${(e as Error).message.slice(0, 80)}).`);
     }
     await q("update sales_research_runs set status = 'done', stage = 'done', finished_at = now(), updated_at = now() where id = $1", [runId]);
+    // the audit was built on the old profile: rebuild it on this one
+    await enqueue("audit_website", { id: c.id }, { dedupeKey: `audit:${c.id}` });
   } catch (e) {
     await failRun(runId, e);
     throw e;
@@ -1013,5 +1015,13 @@ export async function scheduleIdentityRechecks(): Promise<number> {
       order by c.updated_at desc limit 2`,
   );
   for (const c of due) await startResearch({ subject: "company", id: c.id, trigger: "recheck" });
-  return due.length;
+  // audits written before they were built on what the lead said: rebuilt for live leads, two at a time
+  const audits = await q<{ id: number }>(
+    `select c.id from sales_companies c
+      where c.audit is not null and (c.audit->'based_on') is null
+        and exists (select 1 from sales_deals d join sales_stages s on s.id = d.stage_id where d.company_id = c.id and s.category = 'open')
+        and not (c.id = any($1::int[]))
+      order by c.updated_at desc limit 2`, [due.map((x) => x.id)]);
+  for (const c of audits) await enqueue("audit_website", { id: c.id }, { dedupeKey: `audit:${c.id}` });
+  return due.length + audits.length;
 }

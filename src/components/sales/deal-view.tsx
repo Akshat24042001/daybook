@@ -10,7 +10,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
-  addCommitmentAction, addPaymentAction, briefFromAuditAction, commitmentAction, createLinkAction, createQuoteAction, deleteDealAction,
+  addCommitmentAction, addPaymentAction, briefFromAuditAction, enrichAction, commitmentAction, createLinkAction, createQuoteAction, deleteDealAction,
   deleteInteractionAction, deletePaymentAction, markPaidAction, removeDealPersonAction, setPersonAction, startFileAction, updateDealAction,
 } from "@/app/sales-actions";
 import { Button, Chip, Field, Input, Select, Sheet, Textarea } from "@/components/ui";
@@ -57,7 +57,7 @@ export interface DealPageData {
   docs: { id: number; slug: string; kind: string; title: string; status: string; shared_with?: number[]; author_user?: number | null; view_count: number; last_viewed_at: string | null; current_rev: number; total: number | null; currency: string | null; sent_at: string | null; category?: string | null; internal?: boolean }[];
   moves: MoveRow[];
   people: ({ id: number; full_name: string; title: string | null; role: string; emails: string[]; phones: string[]; linkedin: string | null; is_decision_maker: boolean | null } & Record<string, unknown>)[];
-  company: ({ id: number; name: string; website: string | null; industry: string | null; country: string | null; employees: number | null; city?: string | null; region?: string | null; address?: string | null; postal_code?: string | null; phone?: string | null; email?: string | null; tax_id?: string | null } & Record<string, unknown> & { revenue_usd: number | null; revenue_is_estimate: boolean; enrichment: Enrichment; enriched_at: string | null; audit: { summary?: string; opportunities?: { title: string; problem: string; fix: string; impact: string; effort: string }[]; money_leak?: string; first_project?: string } | null }) | null;
+  company: ({ id: number; name: string; website: string | null; industry: string | null; country: string | null; employees: number | null; city?: string | null; region?: string | null; address?: string | null; postal_code?: string | null; phone?: string | null; email?: string | null; tax_id?: string | null } & Record<string, unknown> & { revenue_usd: number | null; revenue_is_estimate: boolean; enrichment: Enrichment; enriched_at: string | null; audit: { summary?: string; opportunities?: { title: string; problem: string; fix: string; impact: string; effort: string }[]; money_leak?: string; first_project?: string; based_on?: { at: string; said: boolean; research: boolean; website: string | null } } | null; audited_at?: string | null; audit_stale?: boolean }) | null;
   person: { id: number; full_name: string; enrichment: Enrichment; enriched_at: string | null } | null;
   /** your own company and person fields */
   companyDefs: FieldDef[];
@@ -373,7 +373,7 @@ export function DealView({ d }: { d: DealPageData }) {
                     <li key={x.id} className="rounded-xl border border-border p-2.5">
                       <div className="flex items-start justify-between gap-2">
                         <span className="min-w-0">
-                          <Link href={x.internal ? `/api/sales/file/${x.slug}` : `/sales/docs/${x.id}`} target={x.internal ? "_blank" : undefined} className="text-sm font-medium hover:text-accent">
+                          <Link href={x.internal && x.kind === "file" ? `/api/sales/file/${x.slug}` : `/sales/docs/${x.id}`} target={x.internal && x.kind === "file" ? "_blank" : undefined} className="text-sm font-medium hover:text-accent">
                             {x.kind === "quote" ? <FileText className="mr-1 inline h-3.5 w-3.5" /> : <Link2 className="mr-1 inline h-3.5 w-3.5" />}
                             {x.title}{x.kind === "quote" ? ` v${x.current_rev}` : ""}
                           </Link>
@@ -416,6 +416,7 @@ export function DealView({ d }: { d: DealPageData }) {
                 {(d.company.audit.opportunities ?? []).map((o, i) => <li key={i}><b>{o.title}</b>: {o.fix} <span className="text-subtle">({o.impact}; {o.effort})</span></li>)}
               </ul>
               {d.company.audit.first_project ? <p className="mt-2 text-xs"><b>Start with:</b> {d.company.audit.first_project}</p> : null}
+              <AuditBasis companyId={d.company.id} audit={d.company.audit} auditedAt={d.company.audited_at ?? null} stale={!!d.company.audit_stale} />
             </Fold>
           ) : null}
 
@@ -768,6 +769,28 @@ function DocButtons({ dealId, companyId, packages }: { dealId: number; companyId
           </div>
         </div>
       </Sheet>
+    </div>
+  );
+}
+
+/** What the audit was built on, and a way to rebuild it now. */
+function AuditBasis({ companyId, audit, auditedAt, stale }: { companyId: number; audit: { based_on?: { said: boolean; research: boolean; website: string | null } }; auditedAt: string | null; stale: boolean }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [busy, start] = useTransition();
+  const b = audit.based_on;
+  const basis = b ? [b.said ? "what they told you" : null, b.website ? "their website" : "no website found", b.research ? "confirmed research" : null].filter(Boolean).join(", ") : "their website only (written before audits used what they told you)";
+  return (
+    <div className={cn("mt-3 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px]", stale ? "bg-p-butter text-p-butter-fg" : "bg-muted text-subtle")}>
+      <span className="min-w-0 flex-1" suppressHydrationWarning>
+        {stale ? "Out of date: they have told you more since. " : ""}Built on {basis}{auditedAt ? `, ${ago(auditedAt)}` : ""}.
+      </span>
+      <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" disabled={busy} onClick={() => start(async () => {
+        const r = await enrichAction("audit", companyId, true);
+        if (!r.ok) return toast(r.error, "error");
+        toast("Audit rebuilt");
+        router.refresh();
+      })}>{busy ? "Rebuilding…" : "Rebuild now"}</Button>
     </div>
   );
 }

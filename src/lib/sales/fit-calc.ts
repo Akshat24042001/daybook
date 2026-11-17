@@ -99,7 +99,9 @@ export interface FitInput {
   decision_maker?: boolean;
   has_contact?: boolean;
   services?: string[];
-  /** everything said or found about them: requirement, problem, notes, research, audit */
+  /** what they told you or you wrote about them: requirement, problem, notes, their messages (counts most) */
+  said?: string;
+  /** what research and the audit found about the business (counts less; only research confirmed to be them) */
   text?: string;
   /** services they already bought from you (won deals with this company) */
   bought?: string[];
@@ -135,10 +137,13 @@ export function serviceHints(input: FitInput, offers: FitOffer[]): ServiceHint[]
   for (const s of input.services ?? []) {
     for (const cap of Object.keys(OFFER_TEXT) as Capability[]) if (OFFER_TEXT[cap].test(s)) add(cap, 3, `they asked about "${s}"`);
   }
-  const text = input.text ?? "";
+  const said = input.said ?? "";
+  const found = input.text ?? "";
   for (const sig of SIGNALS) {
-    const m = text.match(sig.re);
-    if (m) add(sig.cap, 2, `they mention ${sig.says} ("${m[0].trim()}")`);
+    const m = said.match(sig.re);
+    if (m) { add(sig.cap, 3, `they told you about ${sig.says} ("${m[0].trim()}")`); continue; }
+    const r = found.match(sig.re);
+    if (r) add(sig.cap, 1, `research shows ${sig.says} ("${r[0].trim()}")`);
   }
   const ind = INDUSTRY.find((x) => input.industry && x.re.test(input.industry));
   if (ind) for (const [cap, why] of ind.caps) add(cap, 1, `${input.industry}: ${why}`);
@@ -186,7 +191,8 @@ export function fitScore(input: FitInput, ctx: FitContext): Fit {
   // need (20)
   const hints = serviceHints(input, ctx.offers);
   const strong = hints.filter((h) => h.strength >= 2);
-  if (strong.length) { score += 20; plus.push(`what they need matches ${strong[0].offer}`); }
+  const told = hints.some((h) => h.why.some((w) => w.startsWith("they told you") || w.startsWith("they asked")));
+  if (strong.length) { score += 20; plus.push(`${told ? "what they told you they need" : "what they need"} matches ${strong[0].offer}`); }
   else if (hints.length) { score += 10; plus.push(`businesses like this usually need ${hints[0].offer}`); minus.push("They have not said what they need yet"); }
   else minus.push("Nothing on the record matches what you sell yet");
 

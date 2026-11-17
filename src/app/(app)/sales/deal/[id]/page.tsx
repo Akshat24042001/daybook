@@ -23,6 +23,7 @@ import { listPipelines, listTeam } from "@/lib/sales/org";
 import { playFor } from "@/lib/sales/playbook-stages";
 import { dealShots } from "@/lib/sales/shots";
 import { dealShares } from "@/lib/team/sharing";
+import { auditStale } from "@/lib/sales/lead-said";
 
 export const metadata: Metadata = { title: "Deal" };
 export const dynamic = "force-dynamic";
@@ -51,7 +52,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
        from sales_deal_people dp join sales_people p on p.id = dp.person_id where dp.deal_id = $1 order by (p.id = $2) desc, p.full_name`,
       [id, deal.person_id ?? 0],
     ),
-    deal.company_id ? one<DealPageData["company"]>("select id, name, website, industry, country, city, region, address, postal_code, phone, email, tax_id, linkedin, notes, custom, employees, revenue_usd, revenue_is_estimate, enrichment, enriched_at, audit from sales_companies where id = $1", [deal.company_id]) : Promise.resolve(null),
+    deal.company_id ? one<DealPageData["company"]>("select id, name, website, industry, country, city, region, address, postal_code, phone, email, tax_id, linkedin, notes, custom, employees, revenue_usd, revenue_is_estimate, enrichment, enriched_at, audit, audited_at from sales_companies where id = $1", [deal.company_id]) : Promise.resolve(null),
     deal.person_id ? one<DealPageData["person"]>("select id, full_name, enrichment, enriched_at from sales_people where id = $1", [deal.person_id]) : Promise.resolve(null),
     // the whole journey: every stage move and field change, with the stages' order so a move back can be shown
     soft(q<DealPageData["events"][number]>(
@@ -96,10 +97,12 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
     engage: engagementLine(engage).replace(/^HOW THEY ENGAGE: /, "").replace(/\.$/, ""),
     waiting: engage.waiting_on,
   };
+  // the audit is out of date when they have told you something since it was written
+  const staleAudit = company?.audit ? await auditStale(company.id).catch(() => false) : false;
   return (
     <DealView
       d={{
-        deal, targets, timeline: tl, touches, commitments: commits, payments: pays, docs, moves, people, company, person, events, meetings,
+        deal, targets, timeline: tl, touches, commitments: commits, payments: pays, docs, moves, people, company: company ? { ...company, audit_stale: staleAudit } : null, person, events, meetings,
         companyFields: COMPANY_FIELDS, personFields: PERSON_FIELDS, googleReady: google, voiceEnabled: voiceConfigured(), baseUrl: baseUrl(), blocked, packages, links,
         reasons: cfg.reasons, customDefs: asFieldDefs(customDefs), gaps, companyDefs: asFieldDefs(companyDefs), personDefs: asFieldDefs(personDefs),
         fit: fits.get(id) ?? null, items, defaultTax: cfg.default_tax_pct,
