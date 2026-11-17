@@ -718,3 +718,24 @@ export async function setDealShareAction(dealId: number, userId: number, o: { sh
 export async function setVisibilityAction(kind: ItemKind, id: number, userIds: number[]) {
   return run<{ shared_with: number[] }>(async () => ({ shared_with: await setItemVisibility(kind, id, userIds) }), ALL);
 }
+
+/** Smart search inside every field of deals (chats, notes, company, person included): the matching ids. Read only. */
+export async function searchDealsAction(query: string): Promise<{ ok: true; ids: number[]; where: Record<number, string | null> } | { ok: false; error: string }> {
+  try {
+    const { searchDeals } = await import("@/lib/sales/find");
+    const rows = await searchDeals(query, 200);
+    return { ok: true, ids: rows.map((r) => r.id), where: Object.fromEntries(rows.map((r) => [r.id, r.where])) };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+/** Smart search inside every field of radar leads, of any age (the research, the brief and the draft included). Read only. */
+export async function searchRadarAction(query: string): Promise<{ ok: true; leads: { id: number; title: string; status: string; score: number | null; where: string | null }[] } | { ok: false; error: string }> {
+  try {
+    const { searchRadar } = await import("@/lib/sales/find");
+    return { ok: true, leads: await searchRadar(query, 100) };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}

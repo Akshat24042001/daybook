@@ -294,7 +294,7 @@ async function fetchApi(api: string, c: Record<string, unknown>, focus: { countr
 
 const urlHash = (s: string) => createHash("sha1").update(s.toLowerCase().replace(/[?#].*$/, "").replace(/\/+$/, "")).digest("hex");
 
-export async function storeItems(sourceId: number | null, items: RawItem[], o: { huntId?: number; runId?: number; kind?: "post" | "prospect" | "news" } = {}): Promise<number> {
+export async function storeItems(sourceId: number | null, items: RawItem[], o: { huntId?: number; runId?: number; kind?: "post" | "prospect" | "news" | "signal" } = {}): Promise<number> {
   let added = 0;
   const weekAgo = Date.now() - 7 * 86_400_000;
   for (const it of items) {
@@ -383,6 +383,11 @@ Each item has a CATEGORY that changes how to score it:
 - prospect: a local business found for one of the owner's targets; nobody asked. Score by how clearly the offers would help this kind of business
   (enquiries, bookings, WhatsApp, follow-ups, reviews, operations), whether it is an independent business someone local decides for (not a chain's branch),
   and whether it is really in the target place. 55 to 80 for a clear fit; above 80 only with public evidence of a problem the offers fix. buyer is "signal".
+- hidden_need: a company that never posted a need, found through a public buying signal (hiring salespeople or call staff, a new sales leader,
+  funding, expansion, complaints about slow replies). The item says the signal, the evidence page and why they likely need it. Score how strong and
+  recent the signal is, how directly an offer fixes the problem it implies, and whether a founder or leader can say yes (an independent or mid-size
+  business scores higher than a large enterprise, a recruiter or a government body, which score under 30). 60 to 80 for a clear, recent signal with a
+  direct fit; above 80 only when the evidence shows the pain itself (several sales hires at once, many reviews about no replies). buyer is "signal".
 - launch (also local news): a business opening, launching or expanding. Score the fit and whether it is a business you could approach.
 Return a JSON array, one object per item: {"i": item number, "score": 0-100, "buyer": "direct_client|agency|job_full_time|signal|candidate|spam|other",
 "country", "industry", "company" (exactly as written in the post, else null), "contact" (a person's name exactly as written, else null),
@@ -420,7 +425,7 @@ export async function qualifyPending(budgetMs = 45_000): Promise<number> {
   while (Date.now() < deadline - 15_000) {
     const batch = await q<{ id: number; title: string; body: string | null; url: string | null; category: string; source: string; posted_at: string | null; hunt_brief: string | null; hunt_min: number | null; hunt_notify: boolean | null; hunt_place: string | null; trip: string | null }>(
       `select r.id, r.title, r.body, r.url,
-              case r.lead_kind when 'prospect' then 'prospect' when 'news' then 'launch' else coalesce(s.category, 'requirement') end as category,
+              case r.lead_kind when 'prospect' then 'prospect' when 'signal' then 'hidden_need' when 'news' then 'launch' else coalesce(s.category, 'requirement') end as category,
               coalesce(s.name, h.name, 'manual') as source, r.posted_at,
               h.brief as hunt_brief, h.min_score as hunt_min, h.notify as hunt_notify,
               nullif(array_to_string(h.cities || h.countries, ', '), '') as hunt_place,

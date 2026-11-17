@@ -3,6 +3,7 @@
  * to reply, and which leads are the same requirement found twice. Pure functions, shared by the board and the tests.
  */
 import { platformOf } from "./reply-targets";
+import { GENERIC_LOCAL } from "./research-extract";
 
 export interface RankItem {
   id: number;
@@ -17,7 +18,7 @@ export interface RankItem {
   trip?: { from: string } | null;
   fit: { urgency?: string } | null;
   identity?: { status: string; emails: string[]; phones: string[]; linkedin?: string | null; person?: string | null } | null;
-  prep?: { stage: string } | null;
+  prep?: { stage: string; pack?: { decision_maker?: { name: string; title?: string | null; email?: string | null; phone?: string | null; linkedin?: string | null } | null; contacts?: { whatsapp?: string | null } } | null } | null;
   ready_draft?: string | null;
 }
 
@@ -45,6 +46,38 @@ export function contactsOf(it: RankItem): { emails: string[]; phones: string[]; 
   };
 }
 
+export type ReachLevel = "decision_maker" | "person" | "generic" | "none";
+
+/** An inbox for everyone (info@, sales@, bookings@): it reaches the company, not the person who decides. Pure. */
+export const isGenericEmail = (e: string) => GENERIC_LOCAL.test(e.split("@")[0] ?? "");
+
+/**
+ * How well you can reach the person who decides, best first:
+ *   decision_maker  the decision maker by name, with their own email, mobile or LinkedIn
+ *   person          a named person's own email or LinkedIn, not yet known to be the one who decides
+ *   generic         only a shared inbox (info@, sales@), a front desk or company WhatsApp number, or a contact form
+ *   none            nothing yet
+ * A company line or a sales WhatsApp is never counted as reaching the decision maker. Pure.
+ */
+export function reachOf(it: RankItem): { level: ReachLevel; label: string; via: string[] } {
+  const dm = it.prep?.pack?.decision_maker ?? null;
+  const c = contactsOf(it);
+  const own = (e: string | null | undefined) => !!e && /@/.test(e) && !isGenericEmail(e);
+  if (dm && (own(dm.email) || dm.phone || dm.linkedin)) {
+    const via = [own(dm.email) ? dm.email! : null, dm.phone ? `${dm.phone} (their own number)` : null, dm.linkedin ? "LinkedIn" : null].filter(Boolean) as string[];
+    return { level: "decision_maker", label: `Decision maker reachable: ${dm.name}${dm.title ? `, ${dm.title}` : ""}`, via };
+  }
+  const personal = c.emails.filter(own);
+  // a number someone wrote in their own post is theirs: the poster is usually the one who decides
+  const postPhones = (it.lead_kind ?? "post") === "post" ? [...`${it.title}\n${it.body ?? ""}`.matchAll(/\+\d{1,3}[\s().-]*\d[\d\s().-]{7,15}\d/g)].map((m) => m[0].trim()) : [];
+  if (personal.length || postPhones.length || (c.linkedin && c.name)) {
+    return { level: "person", label: `A person's own contact${c.name ? `: ${c.name}` : ""}`, via: [...personal, ...postPhones, c.linkedin ? "LinkedIn" : null].filter(Boolean) as string[] };
+  }
+  const generic = [...c.emails.filter(isGenericEmail), ...c.phones, it.prep?.pack?.contacts?.whatsapp ?? null].filter(Boolean) as string[];
+  if (generic.length) return { level: "generic", label: "Only a general inbox or front desk number", via: generic };
+  return { level: "none", label: "No way to reach them yet", via: [] };
+}
+
 /**
  * One number for "do this first": how good the fit is, how fresh it is (a reply in the first hours wins most work),
  * whether you can reach them directly, and whether answering costs credits. Pure, so it is tested.
@@ -58,12 +91,15 @@ export function priority(it: RankItem, now = Date.now()): { value: number; reaso
   const reasons: string[] = [];
   let v = (it.score ?? 50) * fresh;
   // a local business we found was not posted by anyone: its time is when we found it
-  const what = it.lead_kind === "prospect" ? "Found" : "Posted";
+  const what = it.lead_kind === "prospect" || it.lead_kind === "signal" ? "Found" : "Posted";
   if (h < 6) reasons.push(`${what} in the last 6 hours`);
   else if (h < 24) reasons.push(`${what} today`);
   if (it.trip) { v += 3; reasons.push("For your trip: reach them before you go"); }
   if ((it.score ?? 0) >= 80) reasons.push(`Strong fit (${it.score})`);
-  if (direct) { v += 12; reasons.push("You can reach them directly"); }
+  const reach = reachOf(it);
+  if (reach.level === "decision_maker") { v += 18; reasons.push("You can reach the decision maker directly"); }
+  else if (reach.level === "person") { v += 12; reasons.push("You can reach a person there directly"); }
+  else if (direct) { v += 4; reasons.push("Only a general inbox or front desk number"); }
   else if (paid) { v -= 8; }
   else if (platformOf(it.url)?.replyable) { v += 4; reasons.push(`Free to reply on ${platformOf(it.url)!.name}`); }
   if (it.fit?.urgency === "high") { v += 6; reasons.push("They need it soon"); }

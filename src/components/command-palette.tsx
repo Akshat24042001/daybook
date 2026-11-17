@@ -5,7 +5,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import {
   BarChart3, BookMarked, BookOpen, Bot, CalendarCheck, ClipboardList, CornerDownLeft, Download, FileText, FolderOpen,
   Calculator, HeartPulse, History, Keyboard, LineChart, Loader2, Mic, Moon, PenLine, Plus, Search, Settings, StickyNote, Sun, Target,
-  User, Users,
+  User, Users, Briefcase, Radar, Building2, UserRound,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -74,9 +74,11 @@ interface Item {
 
 const KIND_ICON: Record<SearchKind, typeof Sun> = {
   task: FileText, project: FolderOpen, contact: User, ref: BookMarked, diary: BookOpen, scratch: PenLine,
+  deal: Briefcase, lead: Radar, company: Building2, person: UserRound,
 };
 const KIND_GROUP: Record<SearchKind, string> = {
   task: "Tasks", project: "Projects", contact: "Contacts", ref: "References", diary: "Diary", scratch: "Scratchpad",
+  deal: "Deals", lead: "Radar leads", company: "Companies", person: "Sales people",
 };
 
 export function CommandPalette() {

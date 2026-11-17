@@ -60,7 +60,7 @@ const { setup, check } = require("./lib.cjs");
   await page.waitForTimeout(1200);
   check("skip removes it (both copies) and opens the next", !(await rows()).some((x) => x.includes("salon")) && (await one("select count(*)::int n from sales_radar_items where url like 'https://e2e.radar/reddit-%' and status = 'skipped'")).n === 2 && !!free);
 
-  await page.getByRole("button", { name: "Contact found" }).click();
+  await page.getByRole("button", { name: "Any contact" }).click();
   check("filter: contact found", (await rows()).length === 1 && (await rows())[0].includes("Inventory app"));
   await page.getByRole("button", { name: "Free to reply" }).click();
   check("filter: free to reply hides paid sites", !(await rows()).some((x) => x.includes("Inventory app") || x.includes("Logo animation")));

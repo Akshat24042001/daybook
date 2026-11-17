@@ -14,7 +14,8 @@ import { voiceConfigured } from "@/lib/deepgram";
 export const metadata: Metadata = { title: "Radar" };
 export const dynamic = "force-dynamic";
 
-export default async function RadarPage() {
+export default async function RadarPage({ searchParams }: { searchParams: Promise<{ lead?: string }> }) {
+  const lead = Number((await searchParams).lead) || null;
   await seedHunts();
   const [items, sources, cfg, google, hunts, plan] = await Promise.all([
     q<RadarItem>(
@@ -23,9 +24,9 @@ export default async function RadarPage() {
               (select to_char(m.starts_at at time zone $1, 'YYYY-MM-DD HH24:MI') from sales_meetings m where m.radar_item_id = r.id and not m.cancelled order by m.starts_at desc limit 1) as meeting_at
        from sales_radar_items r left join sales_radar_sources s on s.id = r.source_id left join sales_hunts h on h.id = r.hunt_id left join sales_companies co on co.id = r.company_id
        left join sales_moves mv on mv.dedupe_key = 'radar:' || r.id and mv.status = 'open'
-       where (r.found_at > now() - interval '10 days' or r.sent_back_at > now() - interval '10 days') and r.status in ('qualified','new','rejected','skipped')
+       where ((r.found_at > now() - interval '10 days' or r.sent_back_at > now() - interval '10 days') and r.status in ('qualified','new','rejected','skipped')) or r.id = $2
        order by coalesce(r.posted_at, r.found_at) desc limit 300`,
-      [(await getSettings()).timezone],
+      [(await getSettings()).timezone, lead],
     ),
     q<SourceRow>("select * from sales_radar_sources order by enabled desc, category, name"),
     salesConfig(),
@@ -35,5 +36,5 @@ export default async function RadarPage() {
   ]);
   const links = await radarQuickLinks(items.map((i) => i.id));
   for (const it of items) it.links = links[it.id] ?? [];
-  return <RadarView items={items} sources={sources} googleReady={google} focus={await currentFocus(cfg)} searchProviders={searchConfigured()} hunts={hunts} plan={plan} searchCap={cfg.radar.search_daily_cap} tz={(await getSettings()).timezone} voiceEnabled={voiceConfigured()} />;
+  return <RadarView items={items} sources={sources} googleReady={google} focus={await currentFocus(cfg)} searchProviders={searchConfigured()} hunts={hunts} plan={plan} searchCap={cfg.radar.search_daily_cap} tz={(await getSettings()).timezone} voiceEnabled={voiceConfigured()} openId={lead} />;
 }

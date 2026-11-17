@@ -105,6 +105,14 @@ export const HANDLERS: Record<string, Handler> = {
     await hunt(40_000);
     await enqueue("radar_qualify", {}, { dedupeKey: "radar_qualify" });
   },
+  async signal_hunt() {
+    const { huntSignals } = await import("./signals");
+    const r = await huntSignals(45_000);
+    if (r.added) await enqueue("radar_qualify", {}, { dedupeKey: "radar_qualify" });
+  },
+  async enrich_sweep() {
+    await enrichSweep();
+  },
   async hunt_run(p) {
     await runHunt(Number(p.id), String(p.trigger ?? "schedule"), 45_000);
   },
@@ -179,6 +187,29 @@ async function debriefPrompts(): Promise<void> {
   }
 }
 
+/**
+ * Research by default: a deal whose business or contact was never researched (imported, created before research
+ * existed, or its job was lost) gets queued here, three at a time, open deals first, newest first.
+ */
+export async function enrichSweep(limit = 3): Promise<number> {
+  const rows = await q<{ kind: "company" | "person"; id: number }>(
+    `select kind, id from (
+       select 'company' as kind, c.id, max(d.updated_at) as at from sales_deals d join sales_stages s on s.id = d.stage_id
+         join sales_companies c on c.id = d.company_id
+       where c.enriched_at is null and s.category = 'open' group by c.id
+       union all
+       select 'person', p.id, max(d.updated_at) from sales_deals d join sales_stages s on s.id = d.stage_id
+         join sales_people p on p.id = d.person_id
+       where p.enriched_at is null and s.category = 'open' group by p.id
+     ) x
+     where not exists (select 1 from sales_jobs j where j.kind = 'enrich_' || x.kind and j.payload->>'id' = x.id::text and j.created_at > now() - interval '3 days')
+     order by at desc limit $1`,
+    [limit],
+  );
+  for (const r of rows) await enqueue(`enrich_${r.kind}`, { id: r.id }, { dedupeKey: `enrich_${r.kind}:${r.id}` });
+  return rows.length;
+}
+
 async function morningBrief(): Promise<void> {
   await refreshMoves();
   const cfg = await salesConfig();
@@ -221,6 +252,11 @@ export async function runSalesTick(now: Date = new Date()): Promise<string> {
     const { scheduleIdentityRechecks } = await import("./research");
     await scheduleIdentityRechecks().catch((e) => console.warn("[sales] rechecks:", (e as Error).message));
   }
+  // businesses that never posted a need but show a buying signal (hiring salespeople, funding, expansion, slow replies)
+  const every = cfg.radar.signal_every_hours ?? 3;
+  if (every > 0 && Date.now() - (await lastDone("signal_hunt")) > every * 3_600_000) await enqueue("signal_hunt", {}, { dedupeKey: "signal_hunt" });
+  // every deal's business and contact are researched without a click, a few at a time
+  if (Date.now() - (await lastDone("enrich_sweep")) > 10 * 60_000) await enqueue("enrich_sweep", {}, { dedupeKey: "enrich_sweep" });
   // qualified leads are made ready on their own: requirement, business behind it, company, decision maker, contacts, draft
   await scheduleRadarPrep().catch((e) => console.warn("[sales] radar prep:", (e as Error).message));
   // anything captured but never queued (a crash mid-request)

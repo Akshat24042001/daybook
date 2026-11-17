@@ -79,7 +79,10 @@ export function WhoPanel({ itemId, identity, paid, platform }: { itemId: number;
     router.refresh();
   });
 
-  const id = identity && identity.status !== "running" ? identity : null;
+  // older or partial records may lack a list: every list is read as empty rather than breaking the page
+  const id = identity && identity.status !== "running"
+    ? { ...identity, emails: identity.emails ?? [], phones: identity.phones ?? [], candidates: identity.candidates ?? [], evidence: identity.evidence ?? [] }
+    : null;
   const hasAny = !!id && (id.company || id.website || id.person || id.emails.length || id.phones.length || id.linkedin);
   return (
     <div className={cn("mt-2 rounded-xl border p-2.5 text-xs", hasAny ? "border-good/30 bg-good/5" : paid ? "border-warn/30 bg-warn/5" : "border-border")} aria-label="Who is behind it">

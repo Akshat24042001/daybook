@@ -10,13 +10,14 @@ import { GripVertical, Pin } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { moveStageAction, orderDealsAction, resetOrderAction } from "@/app/sales-actions";
+import { moveStageAction, orderDealsAction, resetOrderAction, searchDealsAction } from "@/app/sales-actions";
 import { Button, Field, Input, Select, Sheet, Textarea } from "@/components/ui";
 import { StageMoveSheet, type PendingMove } from "./deal-rich";
 import { DEFAULT_REASONS, needsDetails, type FieldDef, type Reasons } from "@/lib/sales/fields";
 import { applyFilters, DealTable, FilterBar, NO_FILTERS, type Filters } from "./pipeline-table";
 import { ImportExport } from "./pipeline-io";
 import { useToast } from "@/components/toast";
+import { haystack, matchesAll, searchTerms } from "@/lib/sales/find-match";
 import { cn } from "@/lib/cn";
 import type { DealCard } from "@/lib/sales/deals";
 import type { Stage, Transition } from "@/lib/sales/stages";
@@ -165,6 +166,15 @@ export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [items, setItems] = useState(deals);
   const [query, setQuery] = useState("");
+  const [deep, setDeep] = useState<{ q: string; ids: Set<number> } | null>(null);
+  useEffect(() => {
+    const qy = query.trim();
+    if (searchTerms(qy).length === 0) { setDeep(null); return; }
+    const t = setTimeout(() => {
+      searchDealsAction(qy).then((r) => { if (r.ok) setDeep({ q: qy, ids: new Set(r.ids) }); }).catch(() => {});
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
   // a pipeline with no open stages (say, Retainers: won and live only) starts on All, not on an empty Open view
   const [show, setShow] = useState<"open" | "won" | "parked" | "lost" | "all">(stages.some((s) => s.category === "open") ? "open" : "all");
   const [view, setView] = useState<"board" | "ranked">("board");
@@ -201,10 +211,11 @@ export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR
   );
   const cols = stages.filter((s) => show === "all" || s.category === show);
   const filtered = useMemo(() => {
-    const qy = query.trim().toLowerCase();
-    const list = qy ? items.filter((d) => [d.title, d.person_name, d.company_name, d.source, d.country, d.city, d.industry, ...(d.tags ?? [])].some((x) => x?.toLowerCase().includes(qy))) : items;
+    const terms = searchTerms(query);
+    // every word, anywhere: any field on the card here, and the chats, notes and documents through the server
+    const list = terms.length ? items.filter((d) => matchesAll(haystack(d), terms) || deep?.ids.has(d.id)) : items;
     return sortDeals(applyFilters(list, filters), sort);
-  }, [items, query, sort, filters]);
+  }, [items, query, sort, filters, deep]);
   const edgesFrom = (stageId: number) => transitions.filter((t) => t.from_stage === stageId);
 
   const move = (d: DealCard, toId: number) => {
@@ -293,7 +304,7 @@ export function PipelineBoard({ stages, deals, transitions, report = { cur: "INR
             </button>
           ))}
         </div>
-        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search deals, people, companies, city, tag" className="h-9 max-w-xs text-sm" />
+        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search anything: name, number, email, chat, note" aria-label="Search deals" className="h-9 max-w-xs text-sm" />
         <FilterBar deals={items} f={filters} onChange={setFilters} team={team} />
         <span className="flex-1" />
         <ImportExport pipelineId={pipelineId} />

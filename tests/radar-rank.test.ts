@@ -24,7 +24,7 @@ describe("do first", () => {
     const paid = item({ url: "https://www.freelancer.com/projects/a", score: 80 });
     const reachable = { ...paid, identity: { status: "found", emails: ["owner@acme.in"], phones: [], linkedin: null } };
     expect(priority(reachable, NOW).value - priority(paid, NOW).value).toBe(20);
-    expect(priority(reachable, NOW).reasons).toContain("You can reach them directly");
+    expect(priority(reachable, NOW).reasons).toContain("You can reach a person there directly");
     expect(priority(item({ url: "https://www.reddit.com/r/x" }), NOW).reasons.some((r) => r.startsWith("Free to reply on Reddit"))).toBe(true);
   });
 

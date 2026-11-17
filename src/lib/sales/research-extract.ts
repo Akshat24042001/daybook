@@ -17,7 +17,7 @@ export interface Contacts {
   org: Record<string, unknown>;
 }
 
-const GENERIC_LOCAL = /^(info|hello|hi|contact|sales|support|admin|office|enquir(y|ies)|inquir(y|ies)|careers|jobs|hr|team|mail|accounts?|billing|help|marketing|press|media|service|customerservice|reception|bookings?|orders?|general|partners?|hey)$/i;
+export const GENERIC_LOCAL = /^(info|hello|hi|contact|sales|support|admin|office|enquir(y|ies)|inquir(y|ies)|careers|jobs|hr|team|mail|accounts?|billing|help|marketing|press|media|service|customerservice|reception|bookings?|orders?|general|partners?|hey)$/i;
 const JUNK_LOCAL = /^(no-?reply|do-?not-?reply|donotreply|user|name|yourname|your-?email|email|test|username|example|you|someone|firstname|lastname|john\.?doe|jane\.?doe)$/i;
 const JUNK_DOMAIN = /(^|\.)(example\.(com|org)|domain\.com|email\.com|sentry\.io|sentry\.wixpress\.com|wixpress\.com|yoursite\.com|yourdomain\.com|mysite\.com|company\.com|test\.com|godaddy\.com|schema\.org|w3\.org|gravatar\.com)$/i;
 

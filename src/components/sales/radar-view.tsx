@@ -1,12 +1,13 @@
 "use client";
 
-import { Loader2, Plus, Radar } from "lucide-react";
+import { Loader2, Plus, Radar, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { addRadarItemAction, addSourceAction, digestNowAction, runRadarAction, toggleSourceAction } from "@/app/sales-actions";
+import { useEffect, useState, useTransition } from "react";
+import { addRadarItemAction, addSourceAction, digestNowAction, runRadarAction, searchRadarAction, toggleSourceAction } from "@/app/sales-actions";
 import { Button, Field, Input, Select, Sheet, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
+import { haystack, matchesAll, searchTerms } from "@/lib/sales/find-match";
 import type { LinkGroup } from "@/lib/sales/quick-links-types";
 import { ago } from "./util";
 import { HuntsPanel } from "./hunts-view";
@@ -37,7 +38,7 @@ export interface RadarItem {
   ready_channel?: string | null;
   hunt_id?: number | null;
   /** post: someone wrote it; prospect: a local business found for a target; news: local news about a business */
-  lead_kind?: "post" | "prospect" | "news" | null;
+  lead_kind?: "post" | "prospect" | "news" | "signal" | null;
   trip?: { city: string; from: string; to: string } | null;
   meeting_at?: string | null;
 }
@@ -47,8 +48,28 @@ export interface SourceRow {
   last_run_at: string | null; last_ok_at: string | null; last_error: string | null; items_found: number; items_qualified: number; deals_created: number;
 }
 
-export function RadarView({ items, sources, googleReady, focus, searchProviders, hunts, plan, searchCap, tz, voiceEnabled = false }: { items: RadarItem[]; sources: SourceRow[]; googleReady: boolean; focus: { country: string; industry: string }; searchProviders: string[]; hunts: HuntView[]; plan: RadarPlan; searchCap: number; tz: string; voiceEnabled?: boolean }) {
-  const [tab, setTab] = useState<"qualified" | "new" | "rejected" | "hunts" | "plan" | "sources">("qualified");
+const KINDS = [["all", "All kinds"], ["post", "Posted needs"], ["signal", "Hidden needs"], ["prospect", "Local businesses"], ["news", "News"]] as const;
+type KindFilter = (typeof KINDS)[number][0];
+const tabOf = (status: string) => (status === "qualified" ? "qualified" : status === "new" ? "new" : "rejected");
+
+export function RadarView({ items, sources, googleReady, focus, searchProviders, hunts, plan, searchCap, tz, voiceEnabled = false, openId = null }: { items: RadarItem[]; sources: SourceRow[]; googleReady: boolean; focus: { country: string; industry: string }; searchProviders: string[]; hunts: HuntView[]; plan: RadarPlan; searchCap: number; tz: string; voiceEnabled?: boolean; openId?: number | null }) {
+  const opened = openId ? items.find((i) => i.id === openId) : null;
+  const [tab, setTab] = useState<"qualified" | "new" | "rejected" | "hunts" | "plan" | "sources">(opened ? tabOf(opened.status) : "qualified");
+  const [query, setQuery] = useState("");
+  const [kind, setKind] = useState<KindFilter>("all");
+  // the server looks in every lead of any age, the research and drafts included; the page looks in what is loaded
+  const [deep, setDeep] = useState<{ ids: Set<number>; older: { id: number; title: string; status: string; score: number | null; where: string | null }[] } | null>(null);
+  const terms = searchTerms(query);
+  useEffect(() => {
+    const qy = query.trim();
+    if (!searchTerms(qy).length) { setDeep(null); return; }
+    const t = setTimeout(() => {
+      searchRadarAction(qy).then((r) => {
+        if (r.ok) setDeep({ ids: new Set(r.leads.map((l) => l.id)), older: r.leads.filter((l) => !items.some((i) => i.id === l.id)).slice(0, 12) });
+      }).catch(() => {});
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query, items]);
   // the leads of one target or trip ("See its leads" on a target card picks it)
   const [target, setTarget] = useState<number | null>(null);
   const [busy, start] = useTransition();
@@ -57,7 +78,11 @@ export function RadarView({ items, sources, googleReady, focus, searchProviders,
   const [src, setSrc] = useState({ name: "", kind: "rss" as "rss" | "search" | "reddit" | "gnews", value: "", category: "requirement" });
   const { toast } = useToast();
   const router = useRouter();
-  const tabItems = items.filter((i) => (tab === "qualified" ? i.status === "qualified" : tab === "new" ? i.status === "new" : ["rejected", "skipped"].includes(i.status)));
+  const ofKind = (i: RadarItem) => kind === "all" || (i.lead_kind ?? "post") === kind;
+  // a search looks in every tab at once: what you look for may be scored, below the bar or skipped
+  const searching = terms.length > 0;
+  const matched = searching ? items.filter((i) => ofKind(i) && (matchesAll(haystack(i), terms) || deep?.ids.has(i.id))) : [];
+  const tabItems = searching ? matched : items.filter((i) => (opened && i.id === opened.id && tabOf(i.status) === tab) || (ofKind(i) && (tab === "qualified" ? i.status === "qualified" : tab === "new" ? i.status === "new" : ["rejected", "skipped"].includes(i.status))));
   const counts = { qualified: items.filter((i) => !i.hidden && i.status === "qualified").length, new: items.filter((i) => !i.hidden && i.status === "new").length, rejected: items.filter((i) => !i.hidden && ["rejected", "skipped"].includes(i.status)).length };
   const broken = sources.filter((s) => s.enabled && s.last_error).length;
 
@@ -88,12 +113,36 @@ export function RadarView({ items, sources, googleReady, focus, searchProviders,
           <button key={k} type="button" onClick={() => setTab(k)} className={cn("rounded-md border px-3 py-1 text-xs", tab === k ? "border-accent bg-accent-muted text-accent" : "border-border text-subtle")}>{l}</button>
         ))}
       </div>
+      {!["hunts", "plan", "sources"].includes(tab) ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-0 flex-1 sm:max-w-md">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
+            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search anything: company, person, city, need, email, number" aria-label="Search the radar" className="h-9 pl-8 text-sm" />
+          </div>
+          <div className="flex flex-wrap gap-1" role="group" aria-label="Kind of lead">
+            {KINDS.map(([k, l]) => (
+              <button key={k} type="button" onClick={() => setKind(k)} aria-pressed={kind === k} className={cn("rounded-md border px-2.5 py-1 text-xs", kind === k ? "border-accent bg-accent-muted text-accent" : "border-border text-subtle")}>{l}</button>
+            ))}
+          </div>
+          {searching ? <span className="text-xs text-subtle">{matched.length} match{matched.length === 1 ? "" : "es"} in every tab</span> : null}
+        </div>
+      ) : null}
+      {searching && deep?.older.length && !["hunts", "plan", "sources"].includes(tab) ? (
+        <div className="rounded-xl border border-border p-3 text-sm">
+          <p className="mb-1.5 text-xs font-medium text-subtle">Older leads that match</p>
+          <ul className="space-y-1">
+            {deep.older.map((l) => (
+              <li key={l.id}><a href={`/sales/radar?lead=${l.id}`} className="hover:underline"><b>{l.score ?? "?"}</b> {l.title}</a>{l.where ? <span className="block truncate text-xs text-subtle">{l.where}</span> : null}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {tab === "plan" ? (
         <PlanPanel plan={plan} />
       ) : tab === "hunts" ? (
         <HuntsPanel hunts={hunts} searchCap={searchCap} providers={searchProviders} tz={tz} onShowLeads={(id) => { setTarget(id); setTab("qualified"); }} />
       ) : tab !== "sources" ? (
-        <RadarBoard key={tab} items={tabItems} googleReady={googleReady} tz={tz} voiceEnabled={voiceEnabled}
+        <RadarBoard key={searching ? `search:${query}` : tab} initialSel={!searching && opened && tabOf(opened.status) === tab ? opened.id : null} items={tabItems} googleReady={googleReady} tz={tz} voiceEnabled={voiceEnabled}
           targets={hunts.map((h) => ({ id: h.id, name: h.name, trip: h.kind === "trip" }))} target={target} onTarget={setTarget} emptyText="Nothing here yet. The radar runs every 15 minutes; the morning digest always brings at least one opportunity." />
       ) : (
         <div className="space-y-3">

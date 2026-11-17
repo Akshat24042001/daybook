@@ -1,12 +1,14 @@
 /**
- * One search across everything: tasks, projects, contacts, references, diary notes, day summaries and scratchpad items.
- * Case-insensitive substring match, a few results per group, best matches (title starts with the query) first.
+ * One search across everything: tasks, projects, contacts, references, diary notes, day summaries, scratchpad items,
+ * and sales: deals, radar leads, companies and people. Case-insensitive substring match, a few results per group, best
+ * matches (title starts with the query) first. Sales match on every word in any field (find.ts), chats and notes included.
  */
 import { q } from "../db";
 import { itemPreview, KIND_META, type ScratchData, type ScratchKind } from "../scratch";
 import { fmtDay, type DateStr } from "../time";
+import { searchDeals, searchRadar } from "../sales/find";
 
-export type SearchKind = "task" | "project" | "contact" | "ref" | "diary" | "scratch";
+export type SearchKind = "task" | "project" | "contact" | "ref" | "diary" | "scratch" | "deal" | "lead" | "company" | "person";
 
 export interface SearchHit {
   kind: SearchKind;
@@ -29,7 +31,7 @@ export async function searchAll(query: string): Promise<SearchHit[]> {
   const starts = `${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
   const safe = <T>(promise: Promise<T[]>) => promise.catch(() => [] as T[]); // a missing optional table never breaks search
-  const [tasks, projects, contacts, refs, diary, scratch] = await Promise.all([
+  const [tasks, projects, contacts, refs, diary, scratch, deals, leads, companies, people] = await Promise.all([
     safe(q<{ id: number; title: string; state: string; project: string | null; due_date: DateStr | null }>(
       `select t.id, t.title, t.state, p.name as project, t.due_date from tasks t left join projects p on p.id = t.project_id
        where t.title ilike $1 or t.notes ilike $1
@@ -79,9 +81,41 @@ export async function searchAll(query: string): Promise<SearchHit[]> {
        order by date desc, id desc limit ${PER_GROUP}`,
       [p],
     )),
+    safe(searchDeals(term, PER_GROUP)),
+    safe(searchRadar(term, PER_GROUP)),
+    safe(q<{ id: number; name: string; industry: string | null; city: string | null; country: string | null; website: string | null }>(
+      `select id, name, industry, city, country, website from sales_companies
+       where to_jsonb(sales_companies)::text ilike $1
+       order by (name ilike $2) desc, lower(name) limit ${PER_GROUP}`,
+      [p, starts],
+    )),
+    safe(q<{ id: number; full_name: string; title: string | null; company: string | null; deal_id: number | null }>(
+      `select p.id, p.full_name, p.title, c.name as company,
+              (select d.id from sales_deals d where d.person_id = p.id order by d.updated_at desc limit 1) as deal_id
+       from sales_people p left join sales_companies c on c.id = p.company_id
+       where concat_ws(' ', to_jsonb(p)::text, c.name) ilike $1
+       order by (p.full_name ilike $2) desc, lower(p.full_name) limit ${PER_GROUP}`,
+      [p, starts],
+    )),
   ]);
 
   return [
+    ...deals.map((d): SearchHit => ({
+      kind: "deal", id: `deal${d.id}`, title: d.title,
+      subtitle: [d.stage, d.company, d.person].filter(Boolean).join(" · ") || null, href: `/sales/deal/${d.id}`,
+    })),
+    ...leads.map((l): SearchHit => ({
+      kind: "lead", id: `lead${l.id}`, title: l.title, subtitle: [l.score !== null ? `score ${l.score}` : null, l.status].filter(Boolean).join(" · "),
+      href: `/sales/radar?lead=${l.id}`,
+    })),
+    ...companies.map((c): SearchHit => ({
+      kind: "company", id: `co${c.id}`, title: c.name, subtitle: [c.industry, c.city, c.country].filter(Boolean).join(" · ") || c.website,
+      href: `/sales/accounts?tab=companies&q=${encodeURIComponent(c.name)}`,
+    })),
+    ...people.map((x): SearchHit => ({
+      kind: "person", id: `pe${x.id}`, title: x.full_name, subtitle: [x.title, x.company].filter(Boolean).join(" · ") || null,
+      href: x.deal_id ? `/sales/deal/${x.deal_id}` : `/sales/accounts?q=${encodeURIComponent(x.full_name)}`,
+    })),
     ...tasks.map((t): SearchHit => ({
       kind: "task", id: `t${t.id}`, title: t.title,
       subtitle: [t.project, t.state === "active" ? null : t.state, t.due_date ? `due ${fmtDay(t.due_date)}` : null].filter(Boolean).join(" · ") || null,

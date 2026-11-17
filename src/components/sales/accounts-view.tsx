@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { haystack, matchesAll, searchTerms } from "@/lib/sales/find-match";
 import { importContactsAction, mergePeopleAction, updateCompanyAction, updatePersonAction } from "@/app/sales-actions";
 import { Button, Chip, Field, Input, Select, Sheet, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
@@ -27,9 +28,15 @@ export function AccountsView({ companies, people, companyFields, personFields, c
   const [busy, start] = useTransition();
   const { toast } = useToast();
   const router = useRouter();
-  const qy = query.trim().toLowerCase();
-  const ppl = useMemo(() => people.filter((p) => !qy || [p.full_name, p.company_name, p.title, ...p.emails, ...p.phones].some((x) => x?.toLowerCase().includes(qy))), [people, qy]);
-  const cos = useMemo(() => companies.filter((c) => !qy || [c.name, c.industry, c.country, c.website].some((x) => x?.toLowerCase().includes(qy))), [companies, qy]);
+  // every word, in any field (name, email, number, notes, research...)
+  const terms = useMemo(() => searchTerms(query), [query]);
+  const ppl = useMemo(() => people.filter((p) => matchesAll(haystack(p), terms)), [people, terms]);
+  const cos = useMemo(() => companies.filter((c) => matchesAll(haystack(c), terms)), [companies, terms]);
+  useEffect(() => {
+    const u = new URLSearchParams(window.location.search);
+    if (u.get("q")) setQuery(u.get("q")!);
+    if (u.get("tab") === "companies") setTab("companies");
+  }, []);
 
   return (
     <div className="space-y-3">
@@ -46,7 +53,7 @@ export function AccountsView({ companies, people, companyFields, personFields, c
             {k} · {k === "people" ? people.length : companies.length}
           </button>
         ))}
-        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search" className="h-9 max-w-xs text-sm" />
+        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search anything: name, email, number, note" aria-label="Search accounts" className="h-9 max-w-xs text-sm" />
       </div>
       <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
         {tab === "people" ? (

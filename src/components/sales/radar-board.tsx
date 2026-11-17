@@ -2,7 +2,7 @@
 
 import {
   ArrowUpRight, Ban, Briefcase, CheckCircle2, ChevronDown, Clock, Copy, Eye, EyeOff, Flame, HelpCircle, Lightbulb, Linkedin, Loader2, Mail, MapPin,
-  MessageCircle, Phone, Plus, Search, Sparkles, Target, TriangleAlert, Wallet, X,
+  MessageCircle, Phone, Plus, Search, Sparkles, Target, TriangleAlert, UserCheck, Wallet, X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -21,7 +21,7 @@ import { PosterLine, WhoPanel, whenLabel } from "./radar-who";
 import { ResearchSheet } from "./research-sheet";
 import type { RadarItem } from "./radar-view";
 import { ago } from "./util";
-import { contactsOf, dedupeKey, hoursSince, isPaid, isReady, priority } from "@/lib/sales/radar-rank";
+import { contactsOf, dedupeKey, hoursSince, isPaid, isReady, priority, reachOf } from "@/lib/sales/radar-rank";
 import { ReadyPack } from "./radar-ready";
 import { SalesChat } from "./sales-chat";
 import { Ago } from "@/components/sales/ago";
@@ -32,12 +32,14 @@ import { Fold } from "./fold";
 // ------------------------------------------------------------------ ranking lives in lib/sales/radar-rank (pure, tested)
 
 type Sort = "first" | "newest" | "best";
-type Only = "all" | "ready" | "unread" | "direct" | "free" | "paid";
+type Only = "all" | "ready" | "unread" | "dm" | "direct" | "free" | "paid";
 
 // ------------------------------------------------------------------ the board
 
-export function RadarBoard({ items, googleReady, tz, emptyText, voiceEnabled = false, targets = [], target = null, onTarget }: {
+export function RadarBoard({ items, googleReady, tz, emptyText, voiceEnabled = false, targets = [], target = null, onTarget, initialSel = null }: {
   items: RadarItem[]; googleReady: boolean; tz: string; emptyText: string; voiceEnabled?: boolean;
+  /** the lead to open first (a link to one lead, or a search result) */
+  initialSel?: number | null;
   /** your targets and trips, to show only the leads one of them found */
   targets?: { id: number; name: string; trip: boolean }[]; target?: number | null; onTarget?: (id: number | null) => void;
 }) {
@@ -46,7 +48,7 @@ export function RadarBoard({ items, googleReady, tz, emptyText, voiceEnabled = f
   const [showHidden, setShowHidden] = useState(false);
   const [seen, setSeen] = useState<Set<number>>(new Set());
   const [gone, setGone] = useState<Set<number>>(new Set());
-  const [sel, setSel] = useState<number | null>(null);
+  const [sel, setSel] = useState<number | null>(initialSel);
   const [sheet, setSheet] = useState(false);
   const [busy, start] = useTransition();
   const { toast } = useToast();
@@ -65,7 +67,7 @@ export function RadarBoard({ items, googleReady, tz, emptyText, voiceEnabled = f
     });
     const filtered = out.filter(({ it }) => {
       const c = contactsOf(it);
-      return only === "ready" ? isReady(it) : only === "unread" ? !it.seen_at : only === "direct" ? c.emails.length + c.phones.length > 0 || !!c.linkedin : only === "paid" ? isPaid(it.url) : only === "free" ? !isPaid(it.url) : true;
+      return only === "ready" ? isReady(it) : only === "unread" ? !it.seen_at : only === "dm" ? reachOf(it).level === "decision_maker" : only === "direct" ? c.emails.length + c.phones.length > 0 || !!c.linkedin : only === "paid" ? isPaid(it.url) : only === "free" ? !isPaid(it.url) : true;
     });
     const t = (i: RadarItem) => new Date(i.posted_at ?? i.found_at).getTime();
     return filtered.sort((a, b) => (sort === "first" ? b.p.value - a.p.value : sort === "newest" ? t(b.it) - t(a.it) : (b.it.score ?? -1) - (a.it.score ?? -1)) || t(b.it) - t(a.it));
@@ -133,7 +135,7 @@ export function RadarBoard({ items, googleReady, tz, emptyText, voiceEnabled = f
   const toolbar = (
     <div className="flex flex-wrap items-center gap-2 text-xs">
       <Seg label="Order" value={sort} onChange={setSort} options={[["first", "Do first"], ["newest", "Newest"], ["best", "Best match"]]} />
-      <Seg label="Show" value={only} onChange={setOnly} options={[["all", "All"], ["ready", `Ready${ready ? ` · ${ready}` : ""}`], ["unread", `Unread${unread ? ` · ${unread}` : ""}`], ["direct", "Contact found"], ["free", "Free to reply"], ["paid", "Paid sites"]]} />
+      <Seg label="Show" value={only} onChange={setOnly} options={[["all", "All"], ["ready", `Ready${ready ? ` · ${ready}` : ""}`], ["unread", `Unread${unread ? ` · ${unread}` : ""}`], ["dm", "Decision maker reachable"], ["direct", "Any contact"], ["free", "Free to reply"], ["paid", "Paid sites"]]} />
       {targets.length ? (
         <label className="flex items-center gap-1.5 text-subtle">Target
           <Select aria-label="Target" value={target == null ? "" : String(target)} onChange={(e) => onTarget?.(e.target.value ? Number(e.target.value) : null)} className="h-7 w-auto min-w-[10rem] rounded-md px-2 pr-8 text-xs shadow-none">
@@ -198,6 +200,7 @@ function Seg<T extends string>({ label, value, onChange, options }: { label: str
 function Row({ it, rank, also, reasons, first, active, tz, now, onOpen }: { it: RadarItem; rank: number; also: number; reasons: string[]; first: boolean; active: boolean; tz: string; now: number; onOpen: () => void }) {
   const h = hoursSince(it, now);
   const c = contactsOf(it);
+  const reach = reachOf(it);
   const paid = isPaid(it.url);
   const where = platformOf(it.url);
   const need = it.brief?.need ?? (it.fit as { need?: string } | null)?.need ?? it.fit?.why ?? null;
@@ -227,8 +230,9 @@ function Row({ it, rank, also, reasons, first, active, tz, now, onOpen }: { it: 
           {need ? <p className="mt-0.5 line-clamp-1 text-xs text-subtle">{need}</p> : null}
           <p className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
             {it.trip ? <Tag tone="warn"><MapPin className="h-2.5 w-2.5" /> {it.trip.city} trip</Tag> : null}
-            {it.lead_kind === "prospect" ? <Tag>local business</Tag> : it.lead_kind === "news" ? <Tag>local news</Tag> : null}
+            {it.lead_kind === "signal" ? <Tag>hidden need</Tag> : it.lead_kind === "prospect" ? <Tag>local business</Tag> : it.lead_kind === "news" ? <Tag>local news</Tag> : null}
             {isReady(it) ? <Tag tone="good"><CheckCircle2 className="h-2.5 w-2.5" /> Ready</Tag> : it.prep && now - new Date(it.prep.started_at).getTime() < 30 * 60_000 ? <Tag><Loader2 className="h-2.5 w-2.5 animate-spin" /> Preparing</Tag> : null}
+            {reach.level === "decision_maker" ? <Tag tone="good"><UserCheck className="h-2.5 w-2.5" /> decision maker</Tag> : reach.level === "generic" ? <Tag tone="warn">general inbox only</Tag> : null}
             {c.emails.length ? <Tag tone="good"><Mail className="h-2.5 w-2.5" /> email</Tag> : null}
             {c.phones.length ? <Tag tone="good"><Phone className="h-2.5 w-2.5" /> phone</Tag> : null}
             {c.linkedin ? <Tag tone="good"><Linkedin className="h-2.5 w-2.5" /> LinkedIn</Tag> : null}
@@ -241,6 +245,18 @@ function Row({ it, rank, also, reasons, first, active, tz, now, onOpen }: { it: 
         </div>
       </div>
     </button>
+  );
+}
+
+/** Who you can reach and how: the decision maker's own contact beats a shared inbox or a front desk number. */
+function ReachLine({ it }: { it: RadarItem }) {
+  const r = reachOf(it);
+  if (r.level === "none") return null;
+  const tone = r.level === "decision_maker" || r.level === "person" ? "bg-p-mint text-p-mint-fg" : "bg-p-butter text-p-butter-fg";
+  return (
+    <p className={cn("mt-1.5 inline-flex flex-wrap items-center gap-1 rounded-md px-2 py-1 text-xs", tone)}>
+      <UserCheck className="h-3.5 w-3.5" /> <b>{r.label}</b>{r.via.length ? <span>· {r.via.slice(0, 3).join(" · ")}</span> : null}
+    </p>
   );
 }
 
@@ -314,8 +330,9 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
           <span className="inline-flex items-center gap-1 font-semibold"><Clock className="h-3.5 w-3.5 text-subtle" />{it.posted_at ? "Posted" : "Found"} {whenLabel(at, tz)}</span>
           <span className="text-subtle">(<Ago d={at} />)</span>
           {it.trip ? <TripBadge trip={it.trip} today={today} /> : null}
-          {it.lead_kind === "prospect" ? <span className="rounded-md bg-p-lilac px-1.5 py-0.5 text-p-lilac-fg">Local business we found for you: nobody posted this</span> : null}
+          {it.lead_kind === "prospect" ? <span className="rounded-md bg-p-lilac px-1.5 py-0.5 text-p-lilac-fg">Local business we found for you: nobody posted this</span> : it.lead_kind === "signal" ? <span className="rounded-md bg-p-lilac px-1.5 py-0.5 text-p-lilac-fg">Hidden need: nobody posted this, we found a public buying signal</span> : null}
         </p>
+        <ReachLine it={it} />
         <div className="mt-1.5 flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
           <h2 className="min-w-0 flex-1 basis-64 font-display text-xl leading-snug">{it.title}</h2>
           <span className="flex shrink-0 gap-1.5">
@@ -351,7 +368,7 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
             </span>
           ))}
           {c.linkedin ? <a href={c.linkedin} target="_blank" rel="noreferrer" className="act"><Linkedin className="h-3.5 w-3.5" /> LinkedIn</a> : null}
-          {it.url?.startsWith("http") ? <a href={it.url} target="_blank" rel="noreferrer" className="act">{it.lead_kind === "prospect" ? "Open their website" : it.lead_kind === "news" ? "Open the news" : "Open the post"} <ArrowUpRight className="h-3.5 w-3.5" /></a> : null}
+          {it.url?.startsWith("http") ? <a href={it.url} target="_blank" rel="noreferrer" className="act">{it.lead_kind === "prospect" || it.lead_kind === "signal" ? "Open their website" : it.lead_kind === "news" ? "Open the news" : "Open the post"} <ArrowUpRight className="h-3.5 w-3.5" /></a> : null}
           {message ? <button type="button" className="act" title={message} onClick={() => copy(message, "Message")}><Copy className="h-3.5 w-3.5" /> Copy message</button> : null}
         </div>
         {message ? (
@@ -408,7 +425,7 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
 
       {/* the post itself, then what needs doing */}
       {it.body ? (
-        <Fold id="radar-post" compact title={it.lead_kind === "prospect" ? "What we found about them" : it.lead_kind === "news" ? "The news, word for word" : "Their post, word for word"} summary={it.body.replace(/\s+/g, " ").slice(0, 90)}>
+        <Fold id="radar-post" compact title={it.lead_kind === "prospect" || it.lead_kind === "signal" ? "What we found about them" : it.lead_kind === "news" ? "The news, word for word" : "Their post, word for word"} summary={it.body.replace(/\s+/g, " ").slice(0, 90)}>
           <p className={cn("whitespace-pre-line text-sm text-subtle", !full && "line-clamp-[12]")}>{it.body}</p>
           {it.body.length > 800 ? <button type="button" className="mt-1 text-xs text-accent" onClick={() => setFull((x) => !x)}>{full ? "Show less" : "Show the whole post"}</button> : null}
         </Fold>
