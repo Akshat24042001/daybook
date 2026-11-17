@@ -31,7 +31,8 @@ function taskFilter(f: StatsFilters, params: unknown[]): string {
   if (f.type) sql += ` and t.type = ${add(f.type)}`;
   if (f.scope === "work") sql += " and not t.is_personal";
   if (f.scope === "personal") sql += " and t.is_personal";
-  if (f.person) sql += ` and t.person_id = ${add(f.person)}`;
+  // a task with several people counts for each of them
+  if (f.person) sql += ` and exists (select 1 from task_people tp where tp.task_id = t.id and tp.person_id = ${add(f.person)})`;
   if (f.via) sql += ` and lower(t.via) = lower(${add(f.via)})`;
   return sql;
 }

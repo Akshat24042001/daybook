@@ -61,6 +61,7 @@ time_logs: task_id, date, minutes, source ('web','telegram'), created_at
 task_remarks: task_id, body, created_at: running notes on a task
 projects: id, name, color, archived, weekly_target_min (weekly time goal in minutes), created_at
 people: id, name, relation: people named on tasks (+Name)
+task_people: task_id, person_id, sort: everyone a task is with (a task can have several; tasks.person_id is the first, sort 0). Use task_people to find a person's tasks; task_person_names(task_id) gives "Krina Mehta, Ravi"
 work_segments: id, date, kind, start_at, end_at: raw form of v_segments
 days: date, score, steps, sleep_minutes, sleep_quality, instagram_minutes, worked_minutes_override, planned_at, closed_at (Day end tapped)
 exercise_types: id, name, default_amount (amount per set), unit ('reps' = repetitions, 'seconds' = hold or keep moving that long), active

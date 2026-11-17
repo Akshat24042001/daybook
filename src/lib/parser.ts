@@ -230,9 +230,13 @@ export function parseQuickAdd(input: string, ctx: ParseContext): ParsedQuickAdd 
   s = extract(s, /(^|\s)\^([^\s]+)/, (m, first) => {
     if (first) out.via = m[2];
   });
-  s = extract(s, /(^|\s)\+([A-Za-z][A-Za-z0-9_'’-]*)/, (m, first) => {
-    if (first) out.person = tidyPersonName(m[2]);
+  // +Krina +Ravi: a task can be with several people; they are kept as one comma-separated list
+  const people: string[] = [];
+  s = extract(s, /(^|\s)\+([A-Za-z][A-Za-z0-9_'’-]*)/, (m) => {
+    const name = tidyPersonName(m[2]);
+    if (name && !people.some((x) => x.toLowerCase() === name.toLowerCase())) people.push(name);
   });
+  if (people.length) out.person = people.join(", ");
 
   // Date with optional time: @tom 11am, @mon 5:30pm, @21sep 4pm
   let dateWord: string | null = null;

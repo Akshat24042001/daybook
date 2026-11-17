@@ -100,7 +100,7 @@ const optText = (o: Record<string, unknown>, k: string, max = 2000): string | nu
 export const MORE: Record<string, Def> = {
   // ============================================================ tasks
   update_task: {
-    doc: `update_task: task_id + any of title, notes, project ("" clears), person, task_type (one_off|ongoing|follow_up|cadence|recurring|someday|target), is_personal, estimate_min, due_date (YYYY-MM-DD or "clear"), due_time ("HH:MM" or "clear"), show_from ("18:00"/"6pm": keep it off Today until then; "clear"), repeat (phrase: "every day", "every day except sun", "every mon,wed", "every 2 weeks", "1st of the month"; makes it recurring), cadence_days, target_period (week|month|quarter|year), goal_hours, goal_count, lead_min (reminder minutes before due_time), via`,
+    doc: `update_task: task_id + any of title, notes, project ("" clears), person (one name, or several comma-separated: "Krina Mehta, Ravi"; "" clears; the full list replaces the old one), task_type (one_off|ongoing|follow_up|cadence|recurring|someday|target), is_personal, estimate_min, due_date (YYYY-MM-DD or "clear"), due_time ("HH:MM" or "clear"), show_from ("18:00"/"6pm": keep it off Today until then; "clear"), repeat (phrase: "every day", "every day except sun", "every mon,wed", "every 2 weeks", "1st of the month"; makes it recurring), cadence_days, target_period (week|month|quarter|year), goal_hours, goal_count, lead_min (reminder minutes before due_time), via`,
     async prepare(ctx, o) {
       const t = await taskOr(o.task_id);
       const patch: TaskPatch = {};

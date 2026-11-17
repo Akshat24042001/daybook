@@ -36,7 +36,7 @@ export interface UnfinishedTask {
 export async function unfinishedTasks(today: DateStr, db: Db = getPool()): Promise<UnfinishedTask[]> {
   return q<UnfinishedTask>(
     `select t.id as "taskId", t.title, t.type, p.name as "projectName", p.color as "projectColor",
-            pe.name as "personName", t.is_personal as "isPersonal",
+            coalesce(task_person_names(t.id), pe.name) as "personName", t.is_personal as "isPersonal",
             last.date as "lastDate", last.status as "lastStatus",
             (select count(*)::int from day_entries e where e.task_id = t.id) as days,
             t.carry_count as "carryCount",

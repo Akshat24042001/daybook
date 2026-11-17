@@ -16,7 +16,7 @@ import type { EntryRow, TaskRow } from "../types";
 import { addEntry } from "./entries";
 
 const TASK_SELECT = `
-  select t.*, p.name as project_name, p.color as project_color, pe.name as person_name
+  select t.*, p.name as project_name, p.color as project_color, coalesce(task_person_names(t.id), pe.name) as person_name
   from tasks t
   left join projects p on p.id = t.project_id
   left join people pe on pe.id = t.person_id`;
@@ -55,6 +55,31 @@ export async function ensurePerson(
     db,
   );
   return row!.id;
+}
+
+/** "Krina Mehta, Ravi" (or "Krina and Ravi") into names, each once, in order. Pure. */
+export function splitPeople(v: string | null | undefined): string[] {
+  const out: string[] = [];
+  for (const raw of (v ?? "").split(/\s*(?:,|;|\band\b|&)\s*/i)) {
+    const n = raw.trim();
+    if (n && !out.some((x) => x.toLowerCase() === n.toLowerCase())) out.push(n.slice(0, 80));
+  }
+  return out.slice(0, 12);
+}
+
+/** Sets who a task is with, in order; the first is its main person. */
+export async function setTaskPeople(taskId: number, names: string[], db: Db = getPool()): Promise<void> {
+  const ids: number[] = [];
+  for (const n of names) {
+    const pid = await ensurePerson(n, null, db);
+    if (!ids.includes(pid)) ids.push(pid);
+  }
+  // people no longer on the task come off it (kept in Deleted, like every removal)
+  await q("delete from task_people where task_id = $1 and not (person_id = any($2::int[]))", [taskId, ids], db);
+  for (const [i, pid] of ids.entries()) {
+    await q("insert into task_people (task_id, person_id, sort) values ($1, $2, $3) on conflict (task_id, person_id) do update set sort = excluded.sort", [taskId, pid, i], db);
+  }
+  await q("update tasks set person_id = $2 where id = $1 and person_id is distinct from $2", [taskId, ids[0] ?? null], db);
 }
 
 /** Duplicate guard: active tasks whose title closely matches the parsed line. */
@@ -102,7 +127,8 @@ export async function createFromParsed(
 
   const created = await tx(async (db) => {
     const projectId = parsed.project ? await ensureProject(parsed.project, db) : null;
-    const personId = parsed.person ? await ensurePerson(parsed.person, null, db) : null;
+    const names = splitPeople(parsed.person);
+    const personId = names.length ? await ensurePerson(names[0], null, db) : null;
     const period: TargetPeriod | null = type === "target" ? (parsed.targetPeriod ?? "week") : null;
 
     const row = await one<{ id: number }>(
@@ -131,6 +157,8 @@ export async function createFromParsed(
       ],
       db,
     );
+    if (names.length > 1) await setTaskPeople(row!.id, names, db);
+    else if (personId) await q("insert into task_people (task_id, person_id, sort) values ($1, $2, 0) on conflict do nothing", [row!.id, personId], db);
     const taskId = row!.id;
 
     // Which types get a day entry straight away.
@@ -203,6 +231,7 @@ export async function updateTask(ctx: Ctx, id: number, patch: TaskPatch): Promis
       vals.push(v);
       sets.push(`${col} = $${vals.length}`);
     };
+    let peopleAfter: string[] | null = null;
 
     if (patch.title !== undefined) {
       const t = patch.title.trim();
@@ -220,7 +249,10 @@ export async function updateTask(ctx: Ctx, id: number, patch: TaskPatch): Promis
       set("project_id", patch.project?.trim() ? await ensureProject(patch.project, db) : null);
     }
     if (patch.person !== undefined) {
-      set("person_id", patch.person?.trim() ? await ensurePerson(patch.person, null, db) : null);
+      // "Krina Mehta, Ravi": everyone is kept; the first one is the task's main person
+      const names = splitPeople(patch.person);
+      set("person_id", names.length ? await ensurePerson(names[0], null, db) : null);
+      peopleAfter = names;
     }
     if (patch.person_role !== undefined) set("person_role", patch.person_role);
     if (patch.via !== undefined) set("via", patch.via?.trim() || null);
@@ -254,6 +286,7 @@ export async function updateTask(ctx: Ctx, id: number, patch: TaskPatch): Promis
     }
 
     if (sets.length) await db.query(`update tasks set ${sets.join(", ")} where id = $${vals.length + 1}`, [...vals, id]);
+    if (peopleAfter) await setTaskPeople(id, peopleAfter, db);
 
     // A task moved to a date should show up on that date (never retyped).
     if (newDue && cur.state === "active" && ["one_off", "follow_up", "ongoing"].includes(type)) {

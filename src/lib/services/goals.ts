@@ -14,7 +14,7 @@ import type { TaskRow } from "../types";
 import { addEntry } from "./entries";
 
 const TASK_SELECT = `
-  select t.*, p.name as project_name, p.color as project_color, pe.name as person_name
+  select t.*, p.name as project_name, p.color as project_color, coalesce(task_person_names(t.id), pe.name) as person_name
   from tasks t
   left join projects p on p.id = t.project_id
   left join people pe on pe.id = t.person_id`;

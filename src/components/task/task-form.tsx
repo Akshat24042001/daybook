@@ -16,6 +16,7 @@ import { useToast } from "../toast";
 import { Button, Card, Chip, ErrorNote, Field, Input, Select, Textarea, ComboInput } from "../ui";
 import { VoiceButton } from "../voice-button";
 import { RepeatEditor } from "./repeat-editor";
+import { PeopleInput } from "@/components/people-input";
 
 export interface TaskFormData {
   id: number;
@@ -267,13 +268,13 @@ export function TaskForm({
             <Card className="space-y-4 p-4">
               <h2 className="text-xs font-semibold uppercase tracking-wide text-subtle">Who</h2>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Person">
-                  <ComboInput value={f.person} onChange={(v) => set("person", v)} suggestions={people} placeholder="None" aria-label="Person" newHint="new person" />
+                <Field label="People" hint="Add as many as it involves. The first is the main one.">
+                  <PeopleInput value={f.person} onChange={(v) => set("person", v)} suggestions={people} />
                 </Field>
                 <Field label="They are">
                   <Select value={f.personRole} onChange={(e) => set("personRole", e.target.value as "with" | "requested_by")} disabled={!f.person}>
-                    <option value="with">Someone I follow up with</option>
-                    <option value="requested_by">Someone who asked for it</option>
+                    <option value="with">People I follow up with</option>
+                    <option value="requested_by">People who asked for it</option>
                   </Select>
                 </Field>
               </div>
@@ -284,8 +285,8 @@ export function TaskForm({
             <summary className="cursor-pointer text-sm font-semibold">More options</summary>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               {!showPeople ? (
-                <Field label="Person" hint="Who it is with. Makes it a follow-up when added from quick-add.">
-                  <ComboInput value={f.person} onChange={(v) => set("person", v)} suggestions={people} placeholder="None" aria-label="Person" newHint="new person" />
+                <Field label="People" hint="Who it is with. Add as many as it involves.">
+                  <PeopleInput value={f.person} onChange={(v) => set("person", v)} suggestions={people} />
                 </Field>
               ) : null}
               <Field label="Via (referrer)">
