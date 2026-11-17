@@ -40,7 +40,7 @@ export default function ClipPage() {
       {state === "error" ? <p className="text-sm text-bad">{error}</p> : null}
       {state === "done" && result ? (
         <div className="space-y-2 text-sm">
-          <p className="font-semibold">{result.skipped ?? (result.created_deal ? "New lead created" : result.deal_id ? "Logged" : "Could not tell who this is about")}</p>
+          <p className="font-semibold">{result.skipped ?? (result.created_deal ? "New deal created" : result.deal_id ? "Logged" : "Could not tell who this is about")}</p>
           {result.summary ? <p className="text-subtle">{result.summary}</p> : null}
           {result.next_step ? <p>Next: {result.next_step}</p> : null}
           <div className="flex gap-2 pt-2">

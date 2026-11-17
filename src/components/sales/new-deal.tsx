@@ -12,7 +12,7 @@ import { DEAL_TYPES } from "@/lib/sales/fields";
 /** defaultCurrency: Sales settings > Default currency (INR unless you changed it). */
 export function NewDealButton({ defaultCurrency = "INR", pipelineId = null }: { defaultCurrency?: string; pipelineId?: number | null }) {
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ person_name: "", company_name: "", email: "", phone: "", linkedin: "", source: "outbound", referrer_name: "", value_amount: "", currency: defaultCurrency, notes: "", stage_role: "new", city: "", region: "", industry: "", deal_type: "new", expected_close: "", services: "" });
+  const [f, setF] = useState({ title: "", person_name: "", company_name: "", email: "", phone: "", linkedin: "", source: "outbound", referrer_name: "", value_amount: "", currency: defaultCurrency, notes: "", stage_role: "new", city: "", region: "", industry: "", deal_type: "new", expected_close: "", services: "" });
   const [pending, start] = useTransition();
   const { toast } = useToast();
   const router = useRouter();
@@ -29,11 +29,16 @@ export function NewDealButton({ defaultCurrency = "INR", pipelineId = null }: { 
   return (
     <>
       <Button variant="primary" size="sm" onClick={() => setOpen(true)}>
-        <Plus className="h-4 w-4" /> New lead
+        <Plus className="h-4 w-4" /> New deal
       </Button>
-      <Sheet open={open} onOpenChange={setOpen} title="New lead" description="Only a name or company is needed. Enrichment fills the rest in the background.">
+      <Sheet open={open} onOpenChange={setOpen} title="New deal" description="A person or a company is enough. Research fills in the rest.">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Person"><Input value={f.person_name} onChange={set("person_name")} placeholder="Rahul Mehta" autoFocus /></Field>
+          <div className="sm:col-span-2">
+            <Field label="Deal name" hint="The project or what it is about. Leave empty and it is named from what you write below.">
+              <Input value={f.title} onChange={set("title")} placeholder="Namlink website" autoFocus />
+            </Field>
+          </div>
+          <Field label="Person"><Input value={f.person_name} onChange={set("person_name")} placeholder="Rahul Mehta" /></Field>
           <Field label="Company"><Input value={f.company_name} onChange={set("company_name")} placeholder="Acme Jewels" /></Field>
           <Field label="WhatsApp / phone"><Input value={f.phone} onChange={set("phone")} placeholder="+971..." /></Field>
           <Field label="Email"><Input value={f.email} onChange={set("email")} type="email" /></Field>
@@ -80,7 +85,7 @@ export function NewDealButton({ defaultCurrency = "INR", pipelineId = null }: { 
           <Field label="What they need"><Textarea value={f.notes} onChange={set("notes")} placeholder="Requirement, context, anything" /></Field>
         </div>
         <div className="mt-4 flex justify-end">
-          <Button variant="primary" onClick={save} disabled={pending}>{pending ? "Saving…" : "Create lead"}</Button>
+          <Button variant="primary" onClick={save} disabled={pending}>{pending ? "Saving…" : "Create deal"}</Button>
         </div>
       </Sheet>
     </>

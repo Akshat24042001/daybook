@@ -131,6 +131,8 @@ export async function createDealAction(d: {
     }
     if (personId) await enqueue("enrich_person", { id: personId }, { dedupeKey: `enrich_person:${personId}` });
     if (companyId) await enqueue("enrich_company", { id: companyId }, { dedupeKey: `enrich_company:${companyId}` });
+    // no name typed, but you wrote what it is about: it gets a real name ("Krina Mehta: Namlink"), not just theirs
+    if (!d.title?.trim() && (d.notes?.trim() || d.services?.trim())) await enqueue("name_deal", { id }, { dedupeKey: `name_deal:${id}` });
     await refreshMoves(id);
     return { id };
   }, ["/sales", "/sales/pipeline"]);

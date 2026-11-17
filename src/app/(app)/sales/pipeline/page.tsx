@@ -50,7 +50,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
           <NewDealButton defaultCurrency={cfg.default_currency} pipelineId={current?.id ?? null} />
         </div>
       </div>
-      <CaptureBox dealId={null} voiceEnabled={voiceConfigured()} compact placeholder="New lead or update? Paste or drop a screenshot, mail or chat." />
+      <CaptureBox dealId={null} voiceEnabled={voiceConfigured()} compact placeholder="New deal or update? Paste or drop a screenshot, mail or chat." />
       {pipelines.length > 1 ? (
         <nav className="flex flex-wrap gap-1 border-b border-border" aria-label="Pipelines">
           {pipelines.map((p) => (

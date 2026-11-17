@@ -172,7 +172,7 @@ export function DealView({ d }: { d: DealPageData }) {
               {deal.source_detail && /^https?:/.test(deal.source_detail) ? <a href={deal.source_detail} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-accent">source <ExternalLink className="h-3 w-3" /></a> : null}
               {deal.country ? <Chip>{deal.country}</Chip> : null}
             </div>
-            <h1 className="mt-1.5 font-display text-2xl leading-tight">{deal.title}</h1>
+            <DealTitle id={deal.id} title={deal.title} />
             <p className="text-sm text-subtle">
               {deal.person_name ?? "No contact yet"}{deal.person_title ? `, ${deal.person_title}` : ""}{deal.company_name ? ` · ${deal.company_name}` : ""}
               {deal.referrer_name ? ` · referred by ${deal.referrer_name}` : ""}{deal.intermediary_name ? ` · via ${deal.intermediary_name} (${deal.intermediary_type})` : ""}
@@ -792,5 +792,39 @@ function AuditBasis({ companyId, audit, auditedAt, stale }: { companyId: number;
         router.refresh();
       })}>{busy ? "Rebuilding…" : "Rebuild now"}</Button>
     </div>
+  );
+}
+
+/** The deal's name, with a pencil to rename it right here. */
+function DealTitle({ id, title }: { id: number; title: string }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [busy, start] = useTransition();
+  const [edit, setEdit] = useState(false);
+  const [v, setV] = useState(title);
+  const save = () => start(async () => {
+    if (!v.trim()) return toast("A deal needs a name.", "error");
+    const r = await updateDealAction(id, { title: v.trim() });
+    if (!r.ok) return toast(r.error, "error");
+    setEdit(false);
+    toast("Renamed");
+    router.refresh();
+  });
+  if (edit) {
+    return (
+      <form className="mt-1.5 flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); save(); }}>
+        <Input value={v} onChange={(e) => setV(e.target.value)} aria-label="Deal name" autoFocus className="h-10 max-w-xl font-display text-lg" />
+        <Button type="submit" size="sm" variant="primary" disabled={busy}>Save</Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => { setEdit(false); setV(title); }}>Cancel</Button>
+      </form>
+    );
+  }
+  return (
+    <h1 className="group mt-1.5 flex items-center gap-2 font-display text-2xl leading-tight">
+      <span className="min-w-0 break-words">{title}</span>
+      <button type="button" aria-label="Rename this deal" title="Rename" onClick={() => setEdit(true)} className="shrink-0 rounded-md p-1 text-subtle hover:bg-muted hover:text-fg">
+        <Pencil className="h-4 w-4" />
+      </button>
+    </h1>
   );
 }

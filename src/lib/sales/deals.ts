@@ -626,3 +626,36 @@ export async function refreshHeat(dealId?: number): Promise<void> {
   const { refreshPriorities } = await import("./priority");
   await refreshPriorities(dealId);
 }
+
+/** A deal name from what you wrote: "<who>: <project or need>" (the project's name when you gave one). Pure. */
+export function dealName(who: string, project: string | null | undefined): string {
+  const p = (project ?? "").replace(/\s+/g, " ").trim().replace(/[.:;,]+$/, "");
+  return (p ? `${who}: ${p}` : who).slice(0, 120);
+}
+
+/**
+ * Names a deal that was saved with only the person's or company's name, from what you wrote about it. Only while the
+ * name is still that default: a name you typed or changed is never touched.
+ */
+export async function nameDeal(id: number): Promise<string | null> {
+  const d = await one<{ title: string; requirements: string | null; services: string[] | null; person: string | null; company: string | null }>(
+    `select d.title, d.requirements, d.services, p.full_name as person, c.name as company
+       from sales_deals d left join sales_people p on p.id = d.person_id left join sales_companies c on c.id = d.company_id where d.id = $1`, [id]);
+  if (!d) return null;
+  const who = d.company ?? d.person ?? "New deal";
+  if (![d.company, d.person, "New deal"].includes(d.title)) return null;
+  const about = [d.requirements, (d.services ?? []).join(", ")].filter(Boolean).join(" | ");
+  if (!about.trim()) return null;
+  const { llmConfigured, llmJson } = await import("./llm");
+  if (!llmConfigured()) return null;
+  const r = await llmJson<{ project: string | null }>(
+    `Name a sales deal from the owner's note. Return {"project": "..."}: the project, product or brand name the note mentions (e.g. "Namlink"),
+or else the need in 2 to 4 words (e.g. "WhatsApp booking bot"). Use the note's own words, never invent a name. null if the note says nothing usable.`,
+    `WHO: ${who}\nNOTE: ${about.slice(0, 1200)}`, { maxTokens: 120, totalMs: 20_000 },
+  ).catch(() => null);
+  const project = typeof r?.project === "string" ? r.project.trim().slice(0, 60) : "";
+  if (!project || project.toLowerCase() === who.toLowerCase()) return null;
+  const title = dealName(who, project);
+  await updateDeal(id, { title }, { cause: "ai" });
+  return title;
+}

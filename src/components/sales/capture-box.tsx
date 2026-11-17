@@ -21,7 +21,7 @@ const when = (iso: string) =>
 /** What the capture did, in plain lines, so you can see where everything went. */
 function Filed({ r, onUndo }: { r: CaptureResult; onUndo?: () => void }) {
   const lines: string[] = [];
-  if (r.created_deal) lines.push("New lead created");
+  if (r.created_deal) lines.push("New deal created");
   if (r.message_count) lines.push(`${r.message_count} message${r.message_count > 1 ? "s" : ""} logged${r.channel ? ` (${r.channel.replace("_", " ")})` : ""}`);
   else if (r.interactions?.length) lines.push(`Logged to the timeline${r.channel ? ` (${r.channel.replace("_", " ")})` : ""}`);
   if (r.already) lines.push(`${r.already} message${r.already > 1 ? "s were" : " was"} already on the deal, not logged again`);
@@ -132,7 +132,7 @@ export function CaptureBox({ dealId, voiceEnabled, placeholder, compact }: { dea
     }
     setAsk(null);
     setLast(res);
-    toast(res.created_deal ? "New lead created" : "Filed");
+    toast(res.created_deal ? "New deal created" : "Filed");
     setText("");
     setImages([]);
     router.refresh();
@@ -239,7 +239,7 @@ export function CaptureBox({ dealId, voiceEnabled, placeholder, compact }: { dea
             <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Or a new person: their name" aria-label="New person's name" className="h-8 max-w-xs text-sm"
               onKeyDown={(e) => { if (e.key === "Enter" && newName.trim()) resolve({ newPersonName: newName }); }} />
             <Button size="sm" variant="primary" disabled={pending || !newName.trim()} onClick={() => resolve({ newPersonName: newName })}>
-              <UserPlus className="h-4 w-4" /> New lead
+              <UserPlus className="h-4 w-4" /> New deal
             </Button>
             <button type="button" className="text-xs text-subtle hover:text-fg" onClick={() => setAsk(null)}>Cancel</button>
           </div>

@@ -51,6 +51,10 @@ export const HANDLERS: Record<string, Handler> = {
     await draftProof(Number(p.deal_id));
   },
   // the old "enrich" jobs now start the deep, staged research (live log, sources, people, contacts)
+  async name_deal(p) {
+    const { nameDeal } = await import("./deals");
+    await nameDeal(Number(p.id));
+  },
   async enrich_company(p) {
     await startResearch({ subject: "company", id: Number(p.id), trigger: "auto" });
   },
