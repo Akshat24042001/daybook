@@ -35,7 +35,10 @@ const { setup, check } = require("./lib.cjs");
   await page.waitForTimeout(2000);
   check("deal back with the same id", !!(await one("select 1 from sales_deals where id = $1", [a.id])));
   check("its note is back", !!(await one("select 1 from sales_interactions where id = $1", [a.note])));
-  check("marked restored", /restored/.test(await page.locator("li", { hasText: `E2E bin clinic ${tag}` }).first().innerText()));
+  // the list refreshes after the restore: wait for it rather than a fixed time
+  const restoredRow = page.locator("li", { hasText: `E2E bin clinic ${tag}` }).first();
+  await restoredRow.getByText("restored", { exact: true }).waitFor({ timeout: 10000 }).catch(() => {});
+  check("marked restored", /restored/.test(await restoredRow.innerText()));
   await go(`/sales/deal/${a.id}`);
   check("the deal page opens again with its note", (await page.locator("main").innerText()).includes("wants a booking bot"));
 
