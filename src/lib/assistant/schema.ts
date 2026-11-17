@@ -47,6 +47,11 @@ tasks: id, title, notes, type, project_id→projects, person_id→people, person
   state ('active','done','dropped'), carry_count, last_done_at, created_at, closed_at,
   waiting_on (person/thing), waiting_since, waiting_until (check-back date),
   show_from ('HH:MM' local: the task stays off Today's list until this time, e.g. an evening routine)
+  Priorities board (the owner's own sorting): value_level, effort_level ('high','low'; Value x Effort: high value +
+  low effort = Quick wins, do first; high+high = Big bets; low+low = Fill-ins; low value + high effort = Time sinks),
+  importance, urgency ('high','low'; Eisenhower: Do now, Schedule, Delegate, Drop; null urgency = read from due_date,
+  urgent when due within 2 days), value_rank / eisen_rank (their order in a box, 1 = top), matrix_why (an AI reason).
+  "What should I do first" = Quick wins in value_rank order, then Do now; null levels mean not sorted yet.
   type: one_off, ongoing (open-ended, stays on the list), follow_up, cadence (every N days), recurring (rrule),
   someday (parked pool, not scheduled), target (a count/minutes goal over a week/month/quarter)
 day_entries: task_id, date, must_do, status, source, note, carried_from, reason, updated_at

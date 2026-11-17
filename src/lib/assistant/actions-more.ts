@@ -28,6 +28,7 @@ import { createRef, deleteRef, updateRef, type Ref } from "../services/refs";
 import { deleteEntry as deleteDiaryEntry, summarizeDay, updateEntry as updateDiaryEntry } from "../services/diary";
 import { createItem, deleteItem, updateItem } from "../services/scratch";
 import { listDeleted, restoreDeleted } from "../bin";
+import { BOXES, modeOfBox, placeTask, type Box, type Mode } from "../services/matrix";
 import { createSegment, deleteSegment, KIND_LABEL, type StateKind } from "../services/segments";
 import type { SegmentKind } from "../hours";
 import { generateReview, getReview, periodBounds, setIntentions, type ReviewPeriod } from "../services/review";
@@ -708,6 +709,24 @@ export const MORE: Record<string, Def> = {
     async run(_c, p) {
       await deleteItem(p.item_id as number);
       return "Deleted.";
+    },
+  },
+
+  place_task: {
+    doc: "place_task: task_id, box (quick|big|fill|sink on the Value x Effort board; do|schedule|delegate|drop on the Urgent x Important board; unsorted_value or unsorted_eisen to take it off a board): put a task in a box on the Priorities page",
+    async prepare(_c, o) {
+      const t = await rowOr<{ id: number; title: string }>("tasks", int(o.task_id), "task");
+      const raw = s(o.box, 20).toLowerCase();
+      const off = raw === "unsorted_value" ? "value" : raw === "unsorted_eisen" ? "eisen" : null;
+      const mode = off ?? modeOfBox(raw);
+      if (!mode) throw new UserError("Say which box: quick wins, big bets, fill-ins, time sinks, do now, schedule, delegate or drop.");
+      const def = off ? null : BOXES[mode].find((b) => b.key === raw)!;
+      return { params: { task_id: t.id, mode, box: def ? def.key : null }, label: `▦ ${t.title} → ${def ? def.name : "To sort"}`, detail: mode === "value" ? "Value × Effort" : "Urgent × Important" };
+    },
+    scopes: (_c, p) => [rowScope("tasks", p.task_id as number)],
+    async run(_c, p) {
+      await placeTask(p.task_id as number, p.mode as Mode, (p.box as Box | null) ?? null);
+      return "Placed.";
     },
   },
 

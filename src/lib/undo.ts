@@ -3,6 +3,7 @@
  * names it in plain words, lists the history, and undoes (or redoes) an action by replaying its rows backwards.
  */
 import { actionStore, one, q, tx, UserError } from "./db";
+import { boxDef, boxOf } from "./matrix";
 
 export interface UndoInfo {
   id: number;
@@ -99,6 +100,12 @@ async function phrase(r: LogRow): Promise<string> {
       if (r.op === "I") return `Created task ${name}`;
       if (r.op === "D") return `Deleted task ${name}`;
       if (r.chg?.state) return `Marked task ${name} ${String(r.chg.state[1])}`;
+      if (r.chg?.value_level || r.chg?.effort_level || r.chg?.importance || r.chg?.urgency) {
+        const mode = r.chg.value_level || r.chg.effort_level ? "value" : "eisen";
+        const box = boxOf(after(r) as never, mode, "2000-01-01");
+        return box ? `Moved ${name} to ${boxDef(mode, box.box)?.name ?? "a box"}` : `Took ${name} off the ${mode === "value" ? "Value × Effort" : "Urgent × Important"} board`;
+      }
+      if (r.chg?.value_rank || r.chg?.eisen_rank) return `Reordered ${name} on Priorities`;
       return `Edited task ${name}`;
     case "contact_touches": {
       const c = await one<{ name: string }>("select name from contacts where id = $1", [v.contact_id]);

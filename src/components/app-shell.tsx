@@ -59,6 +59,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/calendar", label: "Calendar", Icon: CalendarDays },
       { href: "/assistant", label: "Assistant", Icon: Bot },
       { href: "/plan", label: "Plan", Icon: ClipboardList },
+      { href: "/priorities", label: "Priorities", Icon: LayoutGrid },
       { href: "/tasks", label: "All tasks", Icon: ListChecks },
       { href: "/unfinished", label: "Unfinished", Icon: History },
       { href: "/diary", label: "Diary", Icon: BookOpen },
@@ -106,6 +107,7 @@ const MOBILE_MAIN: NavItem[] = [
 ];
 const MOBILE_MORE: NavItem[] = [
   { href: "/calendar", label: "Calendar", Icon: CalendarDays },
+  { href: "/priorities", label: "Priorities", Icon: LayoutGrid },
   { href: "/sales/pipeline", label: "Pipeline", Icon: KanbanSquare },
   { href: "/sales/radar", label: "Radar", Icon: Radar },
   { href: "/sales/insights", label: "Insights", Icon: LineChart },
