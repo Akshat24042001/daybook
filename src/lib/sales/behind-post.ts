@@ -32,6 +32,8 @@ export interface Identity {
   checked_at: string;
   /** other businesses that could be behind it, when the evidence points to more than one; each grounded the same way */
   candidates?: Candidate[];
+  /** while it runs: which step (planning, checking) */
+  stage?: string;
 }
 
 export interface Candidate {
@@ -123,74 +125,190 @@ If nothing in the evidence ties a business to this post, say so with confidence 
 
 const blank = (note: string, status: Identity["status"]): Identity => ({ status, emails: [], phones: [], evidence: [], note, checked_at: new Date().toISOString() });
 
+type Item = { id: number; title: string; body: string | null; url: string | null; poster: Poster | null; fit: { company?: string | null; website?: string | null; industry?: string | null; country?: string | null; city?: string | null } | null };
+type Draft = {
+  kind?: string; company?: string | null; website?: string | null; person?: string | null; title?: string | null; linkedin?: string | null;
+  emails?: string[]; phones?: string[]; confidence?: string; evidence?: { url: string; says: string }[]; note?: string; candidates?: unknown;
+};
+/** What round one leaves for round two: the evidence read and the first answer. */
+export interface HuntWork { hay: string; evidence: { url: string; text: string }[]; draft: Draft; hooks: string[]; place: string | null }
+
+const loadItem = (itemId: number) => one<Item>("select id, title, body, url, poster, fit from sales_radar_items where id = $1", [itemId]);
+const saveIdentity = (itemId: number, id: Identity) => q("update sales_radar_items set identity = $2 where id = $1", [itemId, JSON.stringify(id)]);
+
+const PLAN = `You plan how to find the business behind a posted requirement, like an expert open-source researcher. You get the post,
+the poster's public profile and what is already known. Read every hint: brand, product, app or shop names; website fragments;
+the exact unusual phrases; the place (city, area, currency, phone code, language, time zone); the kind of business and its size;
+the poster's username (people reuse it on other sites); tools, platforms and partners named; dates and events.
+Return JSON {"hooks": [the 3 to 8 strongest hints, short], "place": "city, country" or null, "business_type": "what kind of business" or null,
+"queries": [up to 8 web search queries that would surface the business or its owner: exact phrases in quotes, the username on other sites,
+brand or product names with the place, the kind of business with the place and the need]}.
+Businesses only: if it reads like a private person's own job, return {"hooks": [], "queries": [], "private": true}. No dashes as punctuation.`;
+
+/** Round one: plan from every hint, then search the web and Google together, and form a first answer. */
+export async function huntRound1(it: Item, deadline: number): Promise<HuntWork | { private: true; note: string }> {
+  const clues = postClues(it);
+  const post = `${it.title}\n${it.body ?? ""}`;
+  const known = `POST (${it.url ?? ""}):\n${post.slice(0, 3000)}\n\nPOSTER: ${JSON.stringify(it.poster ?? {})}\n\nKNOWN: ${JSON.stringify(it.fit ?? {})}`;
+  const plan = await llmJson<{ hooks?: string[]; place?: string | null; queries?: string[]; private?: boolean }>(PLAN, known, { maxTokens: 900, totalMs: 15_000 })
+    .catch(() => ({ hooks: [], queries: [] } as { hooks?: string[]; place?: string | null; queries?: string[]; private?: boolean }));
+  if (plan.private) return { private: true, note: "This reads like a private person's own job, not a business. Reply on the platform instead." };
+  const hooks = (plan.hooks ?? []).map(String).filter(Boolean).slice(0, 8);
+  const place = plan.place ? String(plan.place).slice(0, 80) : [it.poster?.city, it.poster?.country ?? it.fit?.country].filter(Boolean).join(", ") || null;
+  const queries = [...new Set([...behindQueries(it, clues, it.fit), ...(plan.queries ?? []).map((x) => String(x).trim()).filter((x) => x.length > 3)])].slice(0, 12);
+
+  const evidence: { url: string; text: string }[] = [{ url: it.url ?? "the post", text: post }];
+  if (it.poster) evidence.push({ url: it.poster.profile_url ?? "poster profile", text: `Poster's public profile: ${JSON.stringify(it.poster)}` });
+
+  // the business's own site, when the post names it
+  const site = it.fit?.website ? domainOf(it.fit.website) : clues.websites[0] ?? null;
+  const sitePages = site && !PLATFORM.test(site)
+    ? Promise.all(["", "/contact", "/about"].map((path) => fetchPage(`https://${site}${path}`, { maxChars: 5000 }).catch(() => null)))
+    : Promise.resolve([]);
+  // the web, four searches at a time, while Google (through Gemini) is asked the same question with every hint
+  const webPass = (async () => {
+    const hits: SearchHit[] = [];
+    for (let i = 0; i < queries.length && Date.now() < deadline - 18_000; i += 4) {
+      const got = await Promise.all(queries.slice(i, i + 4).map((qy) => webSearch(qy, 6, "radar: who is behind").catch(() => [] as SearchHit[])));
+      hits.push(...got.flat());
+    }
+    return hits;
+  })();
+  const googlePass = geminiSearchReady() && Date.now() < deadline - 20_000
+    ? groundedResearch(
+      `Find the business that posted this requirement on ${(it.url && domainOf(it.url)) || "a job site"}, its owner or decision maker, and the contact details the business publishes (website, business email, business phone, LinkedIn).\n` +
+      `Work like an investigator: search the exact phrases, the brand and product names, the poster's username on other sites, and the kind of business in the place.\n` +
+      `HINTS: ${hooks.join("; ") || "none"}\nPLACE: ${place ?? "unknown"}\n` +
+      `Only report what you can tie to this post, and how. If it is a private person's personal job, say so and stop.\n\nPOST:\n${post.slice(0, 2500)}\n\nPOSTER: ${JSON.stringify(it.poster ?? {})}`,
+      { timeoutMs: Math.min(32_000, deadline - Date.now() - 12_000), label: "radar: who is behind", deep: true },
+    ).catch(() => null)
+    : Promise.resolve(null);
+  const [pages, hits, g] = await Promise.all([sitePages, webPass, googlePass]);
+  for (const page of pages) if (page?.text) evidence.push({ url: page.url, text: `${page.title}\n${page.text}\n${page.html ? extractPhones(page.html).join(" ") : ""}` });
+  const seen = new Set<string>();
+  for (const h of hits) {
+    if (seen.has(h.url) || seen.size >= 30) continue;
+    seen.add(h.url);
+    evidence.push({ url: h.url, text: `${h.title}\n${h.snippet}` });
+  }
+  if (g?.text) evidence.push({ url: "Google search (Gemini)", text: `${g.text}\n${g.sources.map((x) => `${x.title} ${x.url} ${x.snippet}`).join("\n")}` });
+
+  const draft = await llmJson<Draft>(SYSTEM, `${known}\n\nHINTS: ${hooks.join("; ")}\nPLACE: ${place ?? "unknown"}\n\nEVIDENCE:\n${evidence.slice(1).map((e, i) => `[${i + 1}] ${e.url}\n${e.text.slice(0, 1800)}`).join("\n\n").slice(0, 26_000)}`,
+    { maxTokens: 1800, totalMs: Math.max(12_000, deadline - Date.now()), deep: true });
+  if (draft.kind === "private") return { private: true, note: draft.note || "This reads like a private person's own job, not a business. Reply on the platform instead." };
+  return { hay: evidence.map((e) => `${e.url}\n${e.text}`).join("\n\n").slice(0, 60_000), evidence, draft, hooks, place };
+}
+
 /**
- * Looks for the business behind one radar lead and saves what it finds on the lead. When a business is found with
- * at least medium confidence it is returned so the full company research (decision makers, every contact) can follow.
+ * Round two: every business round one named (the main answer and the other possibilities) is checked: its own
+ * website's home, contact and about pages, and a search for it with the place. Then the answer is written again from
+ * all of it, so the business that really matches wins and its published contacts are filled in.
+ */
+export async function huntRound2(it: Item, w: HuntWork, deadline: number): Promise<Identity> {
+  const names: { company: string; website: string | null }[] = [];
+  const add = (company: unknown, website: unknown) => {
+    const c = typeof company === "string" ? company.trim() : "";
+    if (c.length < 2 || names.some((n) => n.company.toLowerCase() === c.toLowerCase())) return;
+    names.push({ company: c, website: typeof website === "string" && website ? website : null });
+  };
+  add(w.draft.company, w.draft.website);
+  for (const c of Array.isArray(w.draft.candidates) ? w.draft.candidates : []) add((c as Record<string, unknown>)?.company, (c as Record<string, unknown>)?.website);
+  if (!names.length) return groundIdentity(w.draft, w.hay);
+  const more: { url: string; text: string }[] = [];
+  await Promise.all(names.slice(0, 4).map(async (n) => {
+    if (Date.now() > deadline - 15_000) return;
+    const dom = n.website ? domainOf(/^https?:/i.test(n.website) ? n.website : `https://${n.website}`) : null;
+    if (dom && !PLATFORM.test(dom)) {
+      const pages = await Promise.all(["", "/contact", "/contact-us", "/about"].map((path) => fetchPage(`https://${dom}${path}`, { maxChars: 4000 }).catch(() => null)));
+      for (const page of pages) if (page?.text) more.push({ url: page.url, text: `${page.title}\n${page.text}\n${page.html ? `${extractPhones(page.html).join(" ")} ${extractEmails(page.html, page.url).map((e) => e.email).join(" ")}` : ""}` });
+    }
+    const hits = await webSearch(`"${n.company}"${w.place ? ` ${w.place}` : ""} contact OR owner OR founder`, 6, "radar: who is behind").catch(() => [] as SearchHit[]);
+    for (const h of hits) more.push({ url: h.url, text: `${h.title}\n${h.snippet}` });
+  }));
+  const evidence = [...w.evidence, ...more];
+  const hay = `${w.hay}\n\n${more.map((e) => `${e.url}\n${e.text}`).join("\n\n")}`;
+  const post = `${it.title}\n${it.body ?? ""}`;
+  const out = await llmJson<Draft>(`${SYSTEM}
+This is the second, checking round: you also get FIRST ANSWER and what was found when each business it named was checked. Keep the business
+whose details really match the post (place, kind of business, the exact need, the poster); demote or drop the others. Fill in the contacts
+those businesses publish, only as they appear in the evidence.`,
+  `POST (${it.url ?? ""}):\n${post.slice(0, 3000)}\n\nPOSTER: ${JSON.stringify(it.poster ?? {})}\nHINTS: ${w.hooks.join("; ")}\nPLACE: ${w.place ?? "unknown"}\n\nFIRST ANSWER: ${JSON.stringify(w.draft).slice(0, 3000)}\n\nEVIDENCE:\n${evidence.slice(1).map((e, i) => `[${i + 1}] ${e.url}\n${e.text.slice(0, 1500)}`).join("\n\n").slice(0, 30_000)}`,
+  { maxTokens: 1800, totalMs: Math.max(12_000, deadline - Date.now()), deep: true }).catch(() => w.draft);
+  if (out.kind === "private") return blank(out.note || "This reads like a private person's own job, not a business.", "private");
+  return groundIdentity(out, hay);
+}
+
+/**
+ * Looks for the business behind one radar lead and saves what it finds on the lead (both rounds in one go, within the
+ * time given: used by automatic preparation). The button runs the same two rounds as background steps (startFindBehind).
  */
 export async function findBehindPost(itemId: number, budgetMs = 45_000): Promise<Identity> {
   const deadline = Date.now() + budgetMs;
-  const it = await one<{ id: number; title: string; body: string | null; url: string | null; poster: Poster | null; fit: { company?: string | null; website?: string | null; industry?: string | null; country?: string | null } | null }>(
-    "select id, title, body, url, poster, fit from sales_radar_items where id = $1", [itemId]);
+  const it = await loadItem(itemId);
   if (!it) throw new UserError("That lead no longer exists.");
   if (!llmConfigured()) throw new UserError("Finding who is behind a post needs an AI key: add GEMINI_API_KEY.");
-  await q("update sales_radar_items set identity = $2 where id = $1", [itemId, JSON.stringify(blank("Looking for the business behind this post…", "running"))]);
+  await saveIdentity(itemId, blank("Looking for the business behind this post…", "running"));
   try {
-    const id = await investigate(it, deadline);
-    await q("update sales_radar_items set identity = $2 where id = $1", [itemId, JSON.stringify(id)]);
+    const w = await huntRound1(it, deadline - (budgetMs > 40_000 ? 15_000 : 0));
+    const id = "private" in w ? blank(w.note, "private") : Date.now() < deadline - 15_000 ? await huntRound2(it, w, deadline) : groundIdentity(w.draft, w.hay);
+    await saveIdentity(itemId, id);
     return id;
   } catch (e) {
     const id = blank(e instanceof UserError ? e.message : `The search could not finish: ${(e as Error).message.slice(0, 160)}. Try again.`, "error");
-    await q("update sales_radar_items set identity = $2 where id = $1", [itemId, JSON.stringify(id)]);
+    await saveIdentity(itemId, id);
     return id;
   }
 }
 
-async function investigate(
-  it: { title: string; body: string | null; url: string | null; poster: Poster | null; fit: { company?: string | null; website?: string | null; industry?: string | null; country?: string | null } | null },
-  deadline: number,
-): Promise<Identity> {
-  const clues = postClues(it);
-  const post = `${it.title}\n${it.body ?? ""}`;
-  const evidence: { url: string; text: string }[] = [{ url: it.url ?? "the post", text: post }];
-  if (it.poster) evidence.push({ url: it.poster.profile_url ?? "poster profile", text: `Poster's public profile: ${JSON.stringify(it.poster)}` });
+/**
+ * The "Find them directly" button: marks the lead as being searched and queues round one, which starts at once in the
+ * background. The page is never held up, you can open other leads meanwhile, and coming back shows the progress.
+ */
+export async function startFindBehind(itemId: number, trigger = "manual"): Promise<number | null> {
+  const it = await loadItem(itemId);
+  if (!it) throw new UserError("That lead no longer exists.");
+  if (!llmConfigured()) throw new UserError("Finding who is behind a post needs an AI key: add GEMINI_API_KEY.");
+  await saveIdentity(itemId, { ...blank("Reading every hint in the post and planning the search…", "running"), stage: "planning" });
+  const { enqueue } = await import("./jobs");
+  return enqueue("find_behind", { id: itemId, round: 1, trigger }, { dedupeKey: `find_behind:${itemId}` });
+}
 
-  // 1. the business's own site, when the post names it
-  const site = it.fit?.website ? domainOf(it.fit.website) : clues.websites[0] ?? null;
-  if (site && !PLATFORM.test(site) && Date.now() < deadline - 25_000) {
-    for (const path of ["", "/contact", "/about"]) {
-      const page = await fetchPage(`https://${site}${path}`, { maxChars: 5000 }).catch(() => null);
-      if (page?.text) evidence.push({ url: page.url, text: `${page.title}\n${page.text}\n${page.html ? extractPhones(page.html).join(" ") : ""}` });
-      if (Date.now() > deadline - 25_000) break;
+/** The background steps of the button: round one, then round two in its own slot, then the company research. */
+export async function findBehindStep(itemId: number, round: number, trigger = "manual"): Promise<void> {
+  const it = await loadItem(itemId);
+  if (!it) return;
+  const { enqueue, kickJob } = await import("./jobs");
+  try {
+    if (round === 1) {
+      const w = await huntRound1(it, Date.now() + 48_000);
+      if ("private" in w) return void (await saveIdentity(itemId, blank(w.note, "private")));
+      const named = [w.draft.company, ...(Array.isArray(w.draft.candidates) ? w.draft.candidates.map((c) => (c as Record<string, unknown>)?.company) : [])].filter(Boolean).length;
+      await q("update sales_radar_items set hunt_work = $2 where id = $1", [itemId, JSON.stringify(w)]);
+      await saveIdentity(itemId, { ...blank(named ? `Checking ${named} possible business${named === 1 ? "" : "es"}: their sites, contacts and place…` : "Writing up what was found…", "running"), stage: "checking" });
+      const job = await enqueue("find_behind", { id: itemId, round: 2, trigger }, { dedupeKey: `find_behind:${itemId}:2` });
+      await kickJob(job);
+      return;
     }
+    const work = (await one<{ w: HuntWork | null }>("select hunt_work as w from sales_radar_items where id = $1", [itemId]))?.w;
+    if (!work) return void (await findBehindStep(itemId, 1, trigger));
+    const id = await huntRound2(it, work, Date.now() + 48_000);
+    await saveIdentity(itemId, id);
+    await q("update sales_radar_items set hunt_work = null where id = $1", [itemId]);
+    await afterFound(itemId, id, trigger);
+  } catch (e) {
+    await saveIdentity(itemId, blank(e instanceof UserError ? e.message : `The search could not finish: ${(e as Error).message.slice(0, 160)}. Try again.`, "error"));
   }
+}
 
-  // 2. the web: the same need posted elsewhere, the poster's username, the named company
-  const hits: SearchHit[] = [];
-  for (const query of behindQueries(it, clues, it.fit)) {
-    if (Date.now() > deadline - 22_000) break;
-    hits.push(...(await webSearch(query, 6, "radar: who is behind").catch(() => [])));
+/** A business was found: the lead gets it, and the full company research follows (decision makers, every contact). */
+async function afterFound(itemId: number, id: Identity, trigger: string): Promise<void> {
+  if (!((id.status === "found" || id.status === "partial") && (id.company || id.website) && id.confidence !== "low")) return;
+  const { researchRadarItem } = await import("./research");
+  await researchRadarItem(itemId, { company: id.company ?? null, website: id.website ?? null }, trigger).catch(() => {});
+  if (id.person) {
+    const fit = (await one<{ fit: Record<string, unknown> | null }>("select fit from sales_radar_items where id = $1", [itemId]))?.fit ?? {};
+    await q("update sales_radar_items set fit = $2 where id = $1", [itemId, JSON.stringify({ ...fit, contact: fit.contact ?? id.person, company: fit.company ?? id.company, website: fit.website ?? id.website })]);
   }
-  for (const h of hits.slice(0, 18)) evidence.push({ url: h.url, text: `${h.title}\n${h.snippet}` });
-
-  // 3. Google through Gemini, asked the same question, when there is time
-  if (geminiSearchReady() && Date.now() < deadline - 20_000) {
-    const g = await groundedResearch(
-      `A requirement was posted on ${(it.url && domainOf(it.url)) || "a job site"}. Find the business that posted it, its owner or decision maker, and the contact details the business publishes (website, business email, business phone, LinkedIn). ` +
-      `Only report what you can tie to this post. If it is a private person's personal job, say so and stop.\n\nPOST:\n${post.slice(0, 2500)}\n\nPOSTER: ${JSON.stringify(it.poster ?? {})}`,
-      { timeoutMs: Math.min(30_000, deadline - Date.now() - 12_000), label: "radar: who is behind" },
-    ).catch(() => null);
-    if (g?.text) evidence.push({ url: "Google search (Gemini)", text: `${g.text}\n${g.sources.map((s) => `${s.title} ${s.url} ${s.snippet}`).join("\n")}` });
-  }
-
-  const hay = evidence.map((e) => `${e.url}\n${e.text}`).join("\n\n");
-  const out = await llmJson<{
-    kind?: string; company?: string | null; website?: string | null; person?: string | null; title?: string | null; linkedin?: string | null;
-    emails?: string[]; phones?: string[]; confidence?: string; evidence?: { url: string; says: string }[]; note?: string;
-  }>(SYSTEM, `POST (${it.url ?? ""}):\n${post.slice(0, 3000)}\n\nPOSTER: ${JSON.stringify(it.poster ?? {})}\n\nEVIDENCE:\n${evidence.slice(1).map((e, i) => `[${i + 1}] ${e.url}\n${e.text.slice(0, 1800)}`).join("\n\n").slice(0, 24_000)}`,
-  { maxTokens: 1500, totalMs: Math.max(12_000, deadline - Date.now()) });
-
-  if (out.kind === "private") return { ...blank(out.note || "This reads like a private person's own job, not a business. Reply on the platform instead.", "private") };
-  return groundIdentity(out, hay);
 }
 
 /** Keeps only what the evidence shows: names and sites it mentions, emails and phones it literally contains. Pure. */
@@ -249,15 +367,7 @@ export function groundCandidates(list: unknown, hay: string, main: string | null
 /** For a lead whose business was found: the company research follows with it (decision makers, every contact). */
 export async function behindThenResearch(itemId: number, trigger = "auto", budgetMs = 45_000): Promise<Identity> {
   const id = await findBehindPost(itemId, budgetMs);
-  if ((id.status === "found" || id.status === "partial") && (id.company || id.website) && id.confidence !== "low") {
-    const { researchRadarItem } = await import("./research");
-    await researchRadarItem(itemId, { company: id.company ?? null, website: id.website ?? null }, trigger).catch(() => {});
-    // the person they found becomes the contact on the lead
-    if (id.person) {
-      const fit = (await one<{ fit: Record<string, unknown> | null }>("select fit from sales_radar_items where id = $1", [itemId]))?.fit ?? {};
-      await q("update sales_radar_items set fit = $2 where id = $1", [itemId, JSON.stringify({ ...fit, contact: fit.contact ?? id.person, company: fit.company ?? id.company, website: fit.website ?? id.website })]);
-    }
-  }
+  await afterFound(itemId, id, trigger);
   return id;
 }
 
@@ -271,6 +381,12 @@ export async function researchLeadFully(itemId: number, trigger = "auto", budget
   if (!it) throw new UserError("That lead no longer exists.");
   const known = identifyLead(it);
   if (known.name || known.website || it.company_id) return researchRadarItem(itemId, {}, trigger);
+  if (trigger === "manual") {
+    // from a button: the two rounds run in the background, the research follows them
+    const { kickJob } = await import("./jobs");
+    await kickJob(await startFindBehind(itemId, trigger));
+    return null;
+  }
   await behindThenResearch(itemId, trigger, budgetMs);
   return (await one<{ id: number }>("select id from sales_research_runs where radar_item_id = $1 order by id desc limit 1", [itemId]))?.id ?? null;
 }

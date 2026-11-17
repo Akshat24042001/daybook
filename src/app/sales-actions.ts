@@ -1,10 +1,11 @@
 "use server";
 
 import { markRadarSeen, radarBrief, type RadarBrief } from "@/lib/sales/radar-brief";
-import { behindThenResearch, researchLeadFully, type Identity } from "@/lib/sales/behind-post";
+import { researchLeadFully, startFindBehind } from "@/lib/sales/behind-post";
 import { doneQuickAction, summarizeDeal } from "@/lib/sales/conversation";
 import { noDashes } from "@/lib/text/no-dashes";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { one, q, UserError } from "@/lib/db";
 import { journaled } from "@/lib/undo";
 import { completeMove, markOpened, sendMoveEmail, targetsFor } from "@/lib/sales/act";
@@ -424,7 +425,15 @@ export async function radarSeenAction(ids: number[]) {
 }
 /** Finds the business behind a post (and then researches it): who posted it, who decides, how to reach them directly. */
 export async function findBehindAction(itemId: number) {
-  return run<{ identity: Identity }>(async () => ({ identity: await behindThenResearch(itemId, "manual") }), ["/sales/radar"]);
+  // the search runs in the background (two rounds, a minute or two): this returns at once, so you can open other leads
+  return run<{ started: boolean }>(async () => {
+    const job = await startFindBehind(itemId, "manual");
+    after(async () => {
+      const [{ runJobNow }, { HANDLERS }] = await Promise.all([import("@/lib/sales/jobs"), import("@/lib/sales/run")]);
+      await runJobNow(job, HANDLERS).catch(() => {});
+    });
+    return { started: true };
+  }, []);
 }
 /** Everything known about a lead's company and people, plus the live progress of any research. Safe to poll. */
 export async function researchViewAction(a: { radarItemId?: number; companyId?: number }): Promise<{ ok: true; view: ResearchView } | { ok: false; error: string }> {

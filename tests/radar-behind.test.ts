@@ -122,7 +122,8 @@ describe("finding the business behind a post", () => {
   it("an AI failure is saved as a message, never left spinning", async () => {
     const it0 = (await post("Our three dental clinics in Kothrud miss around thirty calls every single day during peak hours."))!;
     const { llmJson } = await import("@/lib/sales/llm");
-    vi.mocked(llmJson).mockRejectedValueOnce(new Error("all models busy"));
+    // every AI call fails (the plan step, then the answer): it must still end with a message, never spinning
+    vi.mocked(llmJson).mockRejectedValueOnce(new Error("all models busy")).mockRejectedValueOnce(new Error("all models busy"));
     const id = await findBehindPost(it0.id);
     expect(id.status).toBe("error");
     expect(id.note).toMatch(/all models busy/);

@@ -51,6 +51,10 @@ export const HANDLERS: Record<string, Handler> = {
     await draftProof(Number(p.deal_id));
   },
   // the old "enrich" jobs now start the deep, staged research (live log, sources, people, contacts)
+  async find_behind(p) {
+    const { findBehindStep } = await import("./behind-post");
+    await findBehindStep(Number(p.id), Number(p.round ?? 1), String(p.trigger ?? "manual"));
+  },
   async name_deal(p) {
     const { nameDeal } = await import("./deals");
     await nameDeal(Number(p.id));

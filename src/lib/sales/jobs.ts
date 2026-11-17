@@ -72,3 +72,42 @@ export async function queueStats(): Promise<{ queued: number; failed: number; ru
     "select count(*) filter (where status='queued')::int as queued, count(*) filter (where status='failed' and created_at > now() - interval '2 days')::int as failed, count(*) filter (where status='running')::int as running from sales_jobs",
   )) as { queued: number; failed: number; running: number };
 }
+
+/**
+ * Runs one queued job now (right after a click, or chained from another job), so it does not wait for the next
+ * minute's scheduler. If it is already taken or not due, nothing happens; the scheduler remains the safety net.
+ */
+export async function runJobNow(id: number | null, handlers: Record<string, Handler>): Promise<boolean> {
+  if (!id) return false;
+  const job = await one<Job>(
+    `update sales_jobs set status = 'running', attempts = attempts + 1, locked_until = now() + interval '3 minutes'
+      where id = $1 and status = 'queued' and run_after <= now() returning id, kind, payload, attempts`, [id]);
+  if (!job) return false;
+  const handler = handlers[job.kind];
+  try {
+    if (!handler) throw new Error(`no handler for ${job.kind}`);
+    await handler(job.payload, job);
+    await q("update sales_jobs set status = 'done', done_at = now(), last_error = null, dedupe_key = null where id = $1", [job.id]);
+    return true;
+  } catch (e) {
+    const msg = (e as Error).message.slice(0, 500);
+    console.warn(`[sales-job] ${job.kind}#${job.id} failed:`, msg);
+    if (job.attempts >= 3) await q("update sales_jobs set status = 'failed', last_error = $2, dedupe_key = null where id = $1", [job.id, msg]);
+    else await q(`update sales_jobs set status = 'queued', last_error = $2, run_after = now() + interval '1 minute' where id = $1`, [job.id, msg]);
+    return false;
+  }
+}
+
+/**
+ * Starts a job in its own fresh server slot (a call to /api/sales/job), for a step that needs its own full minute.
+ * Fire and forget: if the call cannot be made, the scheduler runs the job within a minute.
+ */
+export async function kickJob(id: number | null): Promise<void> {
+  const base = process.env.APP_BASE_URL?.replace(/\/+$/, "");
+  const secret = process.env.CRON_SECRET;
+  if (!id || !base || !secret) return;
+  await fetch(`${base}/api/sales/job`, {
+    method: "POST", headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+    body: JSON.stringify({ id }), signal: AbortSignal.timeout(4_000),
+  }).catch(() => {});
+}

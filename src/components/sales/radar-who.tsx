@@ -16,6 +16,8 @@ export interface WhoIdentity {
   company?: string | null; website?: string | null; person?: string | null; title?: string | null; linkedin?: string | null;
   emails: string[]; phones: string[]; confidence?: "high" | "medium" | "low" | null;
   evidence: { url: string; says: string }[]; note: string; checked_at: string;
+  /** while it runs: planning or checking */
+  stage?: string;
 }
 
 /** Dates for the radar, in your time zone: "Today, 4:20 pm", "Yesterday, 9:05 am", "Wed 12 Nov, 6:40 pm". */
@@ -62,7 +64,8 @@ export function WhoPanel({ itemId, identity, paid, platform }: { itemId: number;
   const [busy, start] = useTransition();
   const { toast } = useToast();
   const router = useRouter();
-  const running = identity?.status === "running" && Date.now() - new Date(identity.checked_at).getTime() < 3 * 60_000;
+  // the search runs in the background (two rounds): it is "running" for up to five minutes, then treated as stuck
+  const running = identity?.status === "running" && Date.now() - new Date(identity.checked_at).getTime() < 5 * 60_000;
   useEffect(() => {
     if (!running) return;
     const t = setTimeout(() => router.refresh(), 4000);
@@ -72,8 +75,7 @@ export function WhoPanel({ itemId, identity, paid, platform }: { itemId: number;
   const find = () => start(async () => {
     const r = await findBehindAction(itemId);
     if (!r.ok) return toast(r.error, "error");
-    const id = r.identity;
-    toast(id.status === "found" ? `Found ${id.person ?? id.company}` : id.status === "partial" ? "Found part of it" : id.status === "private" ? "Looks like a private person, not a business" : "Could not tie a business to this post");
+    toast("Searching in the background. Open other leads meanwhile; this one updates by itself.");
     router.refresh();
   });
 
@@ -83,7 +85,10 @@ export function WhoPanel({ itemId, identity, paid, platform }: { itemId: number;
     <div className={cn("mt-2 rounded-xl border p-2.5 text-xs", hasAny ? "border-good/30 bg-good/5" : paid ? "border-warn/30 bg-warn/5" : "border-border")} aria-label="Who is behind it">
       {paid && !hasAny ? <p className="mb-1.5"><b>{platform ?? "This site"}</b> needs paid bids or credits to reply. Find the business behind it and reach them directly instead.</p> : null}
       {running || busy ? (
-        <p className="flex items-center gap-1.5 text-subtle"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Looking for the business behind this post: searching the web and Google, checking every detail against what it reads. Up to a minute.</p>
+        <div className="space-y-1 text-subtle">
+          <p className="flex items-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin" /> {identity?.status === "running" && identity.note ? identity.note : "Starting the search…"}</p>
+          <p className="text-[11px]">Step {identity?.stage === "checking" ? "2 of 2: checking each possible business" : "1 of 2: reading the hints and searching the web and Google"}. Takes a minute or two and keeps going if you open other leads.</p>
+        </div>
       ) : id ? (
         <div className="space-y-1">
           {hasAny ? (

@@ -24,6 +24,8 @@ function isPublicPath(pathname: string): boolean {
     pathname === "/api/sales/go" ||
     pathname === "/api/sales/view" ||
     pathname === "/api/sales/respond" ||
+    // runs one queued job now; checks the scheduler's secret itself
+    pathname === "/api/sales/job" ||
     pathname.startsWith("/api/sales/file/") ||
     pathname === "/manifest.webmanifest" ||
     pathname === "/sw.js" ||
