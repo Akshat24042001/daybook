@@ -12,8 +12,11 @@
 import { one, q, UserError } from "../db";
 import { salesConfig } from "./config";
 import {
-  COMPANY_FIELDS, PERSON_FIELDS, allKeys, findWebsite, subLinks, techAudit, wikidata, type Enrichment, type Field,
+  COMPANY_FIELDS, NOT_THEIR_SITE, PERSON_FIELDS, allKeys, domainGuesses, subLinks, techAudit, wikidata, type Enrichment, type Field,
 } from "./enrich";
+import {
+  anchorLines, canDisambiguate, gatherAnchors, knownCountry, matchLead, nameKeyWords, normCountry, placeOf, placeTerm, type Anchors, type Match,
+} from "./anchors";
 import { domainOf, ensureCompany, upsertPerson } from "./identity";
 import { enqueue } from "./jobs";
 import { llmJson } from "./llm";
@@ -21,6 +24,7 @@ import {
   ageYears, classifyMx, extractContacts, guessEmail, learnEmailPattern, mergeContacts, parseRdap, parseSpf, type Contacts, type EmailPattern,
 } from "./research-extract";
 import { fetchPage, geminiSearchReady, groundedResearch, webSearch, type Grounded, type SearchHit } from "./search";
+export { gatherAnchors } from "./anchors";
 
 /**
  * A LinkedIn profile or email the AI reports is kept only if it literally appears in what was read (pages, search
@@ -69,6 +73,8 @@ interface Evidence {
   audit: unknown;
   intel: { registered: string | null; age: number | null; registrar: string | null; nameservers: string[]; mail: string | null; tools: string[] };
   pattern?: EmailPattern | null;
+  /** how the website was proved to be the lead's (score and reasons), when it was */
+  siteMatch?: { score: number; reasons: string[] } | null;
   /** Google research through Gemini: its write-up (read by the AI, but never proof of an email or profile link) */
   grounded?: string | null;
 }
@@ -161,28 +167,164 @@ export async function domainIntel(domain: string): Promise<Evidence["intel"]> {
   return { registered: r.registered, age: ageYears(r.registered), registrar: r.registrar, nameservers: r.nameservers, mail: classifyMx(hosts), tools: parseSpf((txt?.Answer ?? []).map((a) => a.data)) };
 }
 
+export interface WebsitePick { url: string | null; page: Awaited<ReturnType<typeof fetchPage>>; match: Match | null; rejected: { url: string; why: string }[] }
+
+/** Enough to accept a website: the owner's own, a decisive clue (email domain, phone, contact), or name plus place with nothing against it. Pure. */
+export function acceptSite(m: Match, a: Anchors): boolean {
+  if (m.conflict) return false;
+  if (m.score >= 8) return true;
+  const located = !!(a.country || a.city);
+  return located ? m.score >= 4 && m.reasons.some((r) => r.startsWith("it is in") || r.includes("numbers are") || r.includes("address ends")) : m.score >= 2;
+}
+
+/**
+ * Finds the lead's own website and proves it is theirs. Candidates, strongest clue first: the website you gave (taken
+ * as is), your contact's business email domain, a website earlier research found, web results for the name with the
+ * place, industry and phone, likely domains (the country's ending first), then Google through Gemini. Each candidate
+ * page is read and scored against everything you entered; a namesake elsewhere is rejected and said so.
+ */
+export async function resolveWebsite(a: Anchors, opts: { skip?: string[] } = {}): Promise<WebsitePick> {
+  const rejected: WebsitePick["rejected"] = [];
+  const skip = new Set((opts.skip ?? []).map((u) => domainOf(u)).filter(Boolean) as string[]);
+  const tried = new Set<string>();
+  const check = async (url: string): Promise<WebsitePick | null> => {
+    const d = domainOf(url);
+    if (!d || tried.has(d) || skip.has(d) || NOT_THEIR_SITE.test(d)) return null;
+    tried.add(d);
+    const page = await fetchPage(/^https?:/i.test(url) ? url : `https://${url}`, { maxChars: 20_000, reader: false }).catch(() => null);
+    if (!page) return null;
+    const phones = page.html ? extractContacts(page.html, page.url).phones.join(" ") : "";
+    let m = matchLead({ url: page.url, title: page.title, text: `${page.text} ${phones}` }, a);
+    // the home page often does not say where they are, or prove it is them: the contact and about pages do
+    if (m.score < 8 && !m.conflict && m.score >= 1 && page.html) {
+      const more = pickLinks(page.url, page.html, 9).filter((l) => /contact|about|reach|find-us|locations|who-we-are|our-story|company/i.test(l)).slice(0, 2);
+      const extra = (await Promise.all(more.map((l) => fetchPage(l, { maxChars: 12_000, reader: false }).catch(() => null)))).filter(Boolean);
+      if (extra.length) {
+        const text = extra.map((x) => `${x!.text} ${x!.html ? extractContacts(x!.html, x!.url).phones.join(" ") : ""}`).join(" ");
+        m = matchLead({ url: page.url, title: page.title, text: `${page.text} ${phones} ${text}` }, a);
+      }
+    }
+    if (acceptSite(m, a)) return { url: page.url, page, match: m, rejected };
+    rejected.push({ url: d, why: m.reasons.filter((r) => r.includes("not ") || r.includes("numbers are") && m.conflict).join("; ") || "nothing on it matches what you entered" });
+    return null;
+  };
+  const firstOk = async (urls: string[]) => {
+    for (let i = 0; i < urls.length; i += 4) {
+      const got = (await Promise.all(urls.slice(i, i + 4).map(check))).filter(Boolean) as WebsitePick[];
+      if (got.length) return got.sort((x, y) => (y.match?.score ?? 0) - (x.match?.score ?? 0))[0];
+    }
+    return null;
+  };
+
+  // 1. yours: no second-guessing
+  if (a.website && a.websiteSource !== "research" && a.websiteSource !== null && !skip.has(a.domain ?? "")) {
+    const page = await fetchPage(a.website, { maxChars: 20_000 }).catch(() => null);
+    return { url: page?.url ?? a.website, page, match: null, rejected };
+  }
+  // 2. the contact's business email domain, and a website stored earlier (checked like any other)
+  const early = await firstOk([...a.emailDomains.map((d) => `https://${d}`), ...(a.website ? [a.website] : [])]);
+  if (early) return early;
+
+  // 3. the web, with the place, the industry, the phone and the people
+  const place = placeTerm(a);
+  const queries = [
+    `"${a.name}"${place ? ` ${place}` : ""}${a.industry ? ` ${a.industry}` : ""}`,
+    `${a.name}${place ? ` ${place}` : ""} official website`,
+    ...a.people.slice(0, 1).map((p) => `"${p.name}" "${a.name}"`),
+    ...a.phones.slice(0, 1).map((ph) => `"${ph.replace(/^\+/, "+").trim()}"`),
+  ];
+  const hits = (await Promise.all(queries.map((qy) => webSearch(qy, 8, `website: ${a.name}`, { wide: true }).catch(() => [] as SearchHit[])))).flat();
+  // results that already look like them first
+  const scored = hits.filter((h) => !NOT_THEIR_SITE.test(h.url))
+    .map((h) => ({ h, m: matchLead({ url: h.url, title: h.title, text: `${h.title} ${h.snippet}` }, a) }));
+  // a namesake is plain from its search result alone: say so, do not even open it
+  for (const x of scored.filter((y) => y.m.conflict)) {
+    const d = domainOf(x.h.url);
+    if (d && !tried.has(d)) {
+      tried.add(d);
+      rejected.push({ url: d, why: x.m.reasons.filter((r) => r.includes("not ") || r.includes("numbers are")).join("; ") || "it is another business" });
+    }
+  }
+  const ranked = scored.filter((x) => !x.m.conflict).sort((x, y) => y.m.score - x.m.score).map((x) => x.h.url);
+  const fromWeb = await firstOk([...new Set(ranked)].slice(0, 8));
+  if (fromWeb) return fromWeb;
+
+  // 4. likely domains: the name with the country's ending and with the city
+  const words = nameKeyWords(a.name);
+  const stem = words.join("");
+  const guesses = [...new Set([
+    ...domainGuesses(a.name, a.country),
+    ...(a.city && stem ? [`${stem}${a.city.toLowerCase().replace(/[^a-z]/g, "")}.com`] : []),
+    ...(a.country === "United Arab Emirates" && stem ? [`${stem}.ae`, `${stem}uae.com`, `${stem}dubai.com`] : []),
+  ])].slice(0, 12);
+  const live: string[] = [];
+  for (const g of guesses) if (await resolves(g)) live.push(`https://${g}`);
+  const guessed = await firstOk(live);
+  if (guessed) return guessed;
+
+  // 5. Google through Gemini, told everything we know
+  if (geminiSearchReady()) {
+    try {
+      const g = await groundedResearch(`Find the official website of this exact business. Use every detail to make sure it is the same business, not a namesake elsewhere.\n${anchorLines(a)}\nAnswer with the URL only, or "not found".`, { timeoutMs: 25_000, label: `website: ${a.name}`, deep: true });
+      const cands = [g.text.match(/https?:\/\/[^\s)"'<>\]]+/)?.[0], ...g.sources.map((x) => x.url)].filter((u): u is string => !!u);
+      const viaGoogle = await firstOk(cands.slice(0, 4));
+      if (viaGoogle) return viaGoogle;
+    } catch {
+      /* nothing from Google either */
+    }
+  }
+  return { url: null, page: null, match: null, rejected };
+}
+
+async function resolves(domain: string): Promise<boolean> {
+  try {
+    const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=A`, { headers: { accept: "application/dns-json" }, signal: AbortSignal.timeout(5_000) });
+    const j = (await res.json()) as { Answer?: unknown[] };
+    return !!j.Answer?.length;
+  } catch {
+    return false;
+  }
+}
+
 export async function siteStage(runId: number): Promise<void> {
   const run = await getRun(runId);
   try {
     await stage(runId, "site");
-    const c = await one<{ id: number; name: string; domain: string | null; website: string | null }>("select id, name, domain, website from sales_companies where id = $1", [run.subject_id]);
+    const c = await one<{ id: number; name: string }>("select id, name from sales_companies where id = $1", [run.subject_id]);
     if (!c) throw new UserError("That company no longer exists.");
-    await say(runId, `Starting research on ${c.name}.`);
-    let website = c.website ?? (c.domain ? `https://${c.domain}` : null);
-    if (!website) {
-      website = await findWebsite(c.name, (await one<{ country: string | null }>("select country from sales_companies where id = $1", [c.id]))?.country ?? null);
-      await say(runId, website ? `Found their website: ${website}` : "Could not find an official website. Continuing with web search only.");
+    const a = await gatherAnchors(c.id);
+    if (!a) throw new UserError("That company no longer exists.");
+    const where = placeOf(a);
+    await say(runId, `Starting research on ${c.name}${where ? ` in ${where}` : ""}.`);
+    const known = [where ? `location ${where}${a.countryFrom && a.countryFrom !== "you entered it" ? ` (${a.countryFrom})` : ""}` : null, a.industry ? `industry ${a.industry}` : null,
+      a.people.length ? `contact ${a.people.map((p) => p.name).join(", ")}` : null, a.phones.length ? `phone ${a.phones.join(", ")}` : null,
+      a.emailDomains.length ? `email domain ${a.emailDomains.join(", ")}` : null].filter(Boolean);
+    await say(runId, known.length ? `Matching everything to what you entered: ${known.join("; ")}.` : "You have entered only the name, so namesakes cannot be ruled out. Add the city, a phone or the website for a sure match.");
+    // the company's own record agrees with what you typed (an earlier run may have put a namesake's country there)
+    const typed = a.countryFrom === "you entered it" || a.countryFrom?.startsWith("from the city") || a.countryFrom?.startsWith("from the phone");
+    if (typed && a.country) await q("update sales_companies set country = $2, city = coalesce($3, city) where id = $1 and (country is null or country is distinct from $2)", [c.id, a.country, a.city]).catch(() => {});
+
+    const pick = await resolveWebsite(a);
+    for (const r of pick.rejected.slice(0, 4)) await say(runId, `Not their website: ${r.url} (${r.why}).`);
+    if (a.website && a.websiteSource !== "you" && a.websiteSource !== "lead" && pick.url !== a.website && domainOf(pick.url) !== a.domain) {
+      // the website stored earlier belongs to someone else: take it off the record
+      if (pick.rejected.some((r) => r.url === a.domain)) {
+        await q("update sales_companies set website = null, domain = null, website_source = null where id = $1 and website_source is distinct from 'you' and website_source is distinct from 'lead'", [c.id]).catch(() => {});
+        await say(runId, `Removed the website an earlier run had picked (${a.domain}): it belongs to a different business.`);
+      }
     }
+    const website = pick.url;
+    await say(runId, website ? `Their website: ${website}${pick.match?.reasons.length ? ` (${pick.match.reasons.slice(0, 3).join("; ")})` : ""}.` : "Could not find a website that is surely theirs. Continuing with web search, filtered to your lead.");
     const parts: string[] = [];
     const sources: Source[] = [];
     const contacts: Contacts[] = [];
     let audit: unknown = null;
     let finalUrl: string | null = null;
     if (website) {
-      const home = await fetchPage(website, { maxChars: 6000 });
+      const home = pick.page && pick.page.text.length > 200 ? pick.page : await fetchPage(website, { maxChars: 6000 });
       if (home) {
         finalUrl = home.url;
-        parts.push(`[website ${home.url}] ${home.title}\n${home.text}`);
+        parts.push(`[website ${home.url}] ${home.title}\n${home.text.slice(0, 6000)}`);
         sources.push({ label: "Their website: home page", url: home.url, kind: "website" });
         if (home.html) {
           audit = techAudit(home.url, home.html);
@@ -222,11 +364,12 @@ export async function siteStage(runId: number): Promise<void> {
       sources.push({ label: "Wikidata", url: null, kind: "registry" });
       await say(runId, "Found them on Wikidata (public company facts).");
     }
-    const evidence: Evidence = { site: parts, search: [], wikidata: wd, website: finalUrl ?? website, domain, contacts: merged, audit, intel };
+    const siteMatch = !website ? null : pick.match ? { score: pick.match.score, reasons: pick.match.reasons } : { score: 10, reasons: ["it is the website you gave"] };
+    const evidence: Evidence = { site: parts, search: [], wikidata: wd, website: finalUrl ?? website, domain, contacts: merged, audit, intel, siteMatch };
     await q("update sales_research_runs set evidence = $2 where id = $1", [runId, JSON.stringify(evidence)]);
     await addSources(runId, sources);
     if (evidence.website) {
-      await q("update sales_companies set website = coalesce(website, $2), domain = coalesce(domain, $3) where id = $1", [c.id, evidence.website, domain]).catch(() => {});
+      await q("update sales_companies set website = coalesce(website, $2), domain = coalesce(domain, $3), website_source = coalesce(website_source, 'research') where id = $1", [c.id, evidence.website, domain]).catch(() => {});
     }
     await stage(runId, "search");
     await enqueue("research_search", { runId }, { dedupeKey: `research_search:${runId}` });
@@ -238,7 +381,31 @@ export async function siteStage(runId: number): Promise<void> {
 
 // ------------------------------------------------------------------ stage 2: the web
 
-export function companyQueries(name: string, year: number): string[] {
+/**
+ * The searches for a company. With anchors, every query carries the place, and the contact, phone, email domain and
+ * website get searches of their own: that is what finds the right business and keeps namesakes out. Pure.
+ */
+export function companyQueries(name: string, year: number, a?: Anchors | null): string[] {
+  if (a && canDisambiguate(a)) {
+    const place = placeTerm(a);
+    const n = `"${name}"${place ? ` ${place}` : ""}`;
+    return [
+      ...(a.domain ? [`site:${a.domain}`, `"${a.domain}"`] : []),
+      ...a.emailDomains.filter((d) => d !== a.domain).slice(0, 1).map((d) => `"${d}"`),
+      ...a.phones.slice(0, 2).map((ph) => `"${ph.trim()}"`),
+      ...a.people.slice(0, 2).map((p) => `"${p.name}" ${place ?? ""} ${name}`.trim()),
+      `${n}${a.industry ? ` ${a.industry}` : ""}`,
+      `${n} owner OR founder OR CEO OR "managing director" OR manager`,
+      `site:linkedin.com ${n}`,
+      `${n} reviews OR rating`,
+      `${n} contact phone address`,
+      `${n} instagram OR facebook`,
+      `${n} employees OR team OR hiring`,
+      `${n} news ${year}`,
+      `${n} revenue OR turnover OR customers`,
+      `${n} competitors OR alternatives`,
+    ].slice(0, 15);
+  }
   return [
     `"${name}" revenue OR turnover OR "annual sales"`,
     `"${name}" employees OR "team size" site:linkedin.com/company`,
@@ -258,9 +425,10 @@ export function companyQueries(name: string, year: number): string[] {
   ];
 }
 
-async function searchBatch(queries: string[], label: string, deadline: number): Promise<{ parts: string[]; sources: Source[]; hits: number; ran: number }> {
+async function searchBatch(queries: string[], label: string, deadline: number, a?: Anchors | null): Promise<{ parts: string[]; sources: Source[]; hits: number; ran: number; dropped: string[] }> {
   const parts: string[] = [];
   const sources: Source[] = [];
+  const dropped: string[] = [];
   let hits = 0;
   let ran = 0;
   for (let i = 0; i < queries.length; i += 3) {
@@ -269,13 +437,19 @@ async function searchBatch(queries: string[], label: string, deadline: number): 
     results.forEach((r, j) => {
       ran += 1;
       const qy = queries[i + j];
-      const list: SearchHit[] = r.status === "fulfilled" ? r.value : [];
+      const all: SearchHit[] = r.status === "fulfilled" ? r.value : [];
+      // a result about a namesake somewhere else never reaches the profile
+      const list = a && canDisambiguate(a) ? all.filter((h) => {
+        const m = matchLead({ url: h.url, title: h.title, text: h.snippet }, a);
+        if (m.conflict) dropped.push(`${h.title.slice(0, 60)} (${m.reasons.find((x) => x.includes("not ") || x.includes("numbers are")) ?? "another place"})`);
+        return !m.conflict;
+      }) : all;
       hits += list.length;
       if (list.length) parts.push(`[search: ${qy}]\n${list.map((h) => `- ${h.title} | ${h.url} | ${h.snippet}`).join("\n")}`);
       for (const h of list.slice(0, 6)) sources.push({ label: h.title.slice(0, 90), url: h.url, kind: "search" });
     });
   }
-  return { parts, sources, hits, ran };
+  return { parts, sources, hits, ran, dropped };
 }
 
 export async function searchStage(runId: number): Promise<void> {
@@ -285,10 +459,12 @@ export async function searchStage(runId: number): Promise<void> {
     const c = await one<{ name: string }>("select name from sales_companies where id = $1", [run.subject_id]);
     if (!c) throw new UserError("That company no longer exists.");
     const ev = (run as unknown as { evidence: Evidence }).evidence ?? ({} as Evidence);
-    const r = await searchBatch(companyQueries(c.name, new Date().getUTCFullYear()), `research: ${c.name}`, Date.now() + 38_000);
+    const a = await gatherAnchors(run.subject_id!);
+    const r = await searchBatch(companyQueries(c.name, new Date().getUTCFullYear(), a), `research: ${c.name}`, Date.now() + 38_000, a);
     await q("update sales_research_runs set evidence = $2 where id = $1", [runId, JSON.stringify({ ...ev, search: r.parts })]);
     await addSources(runId, r.sources);
     await say(runId, r.hits ? `Ran ${r.ran} web searches and read ${r.hits} results.` : `Ran ${r.ran} web searches, but the free search engines returned nothing from this server.`);
+    if (r.dropped.length) await say(runId, `Left out ${r.dropped.length} result${r.dropped.length === 1 ? "" : "s"} about other businesses with the same name: ${r.dropped.slice(0, 3).join("; ")}${r.dropped.length > 3 ? "; and more" : ""}.`);
     await stage(runId, "deep");
     await enqueue("research_deep", { runId }, { dedupeKey: `research_deep:${runId}` });
   } catch (e) {
@@ -300,10 +476,13 @@ export async function searchStage(runId: number): Promise<void> {
 // ------------------------------------------------------------------ stage 2b: Google, in depth (free Gemini key)
 
 /** What to ask Google about a company. Pure. */
-export function companyBrief(name: string, o: { website?: string | null; country?: string | null; industry?: string | null; year: number }): string {
-  return `Research the company "${name}"${o.website ? ` (website ${o.website})` : ""}${o.country ? `, ${o.country}` : ""}${o.industry ? `, ${o.industry}` : ""} using Google Search.
-Run several searches (the company name with: founder, CEO, owner, LinkedIn, revenue, turnover, employees, funding, news ${o.year}, reviews, hiring, contact, Instagram, address, GST or registration, competitors).
-Make sure every fact is about THIS company (same name and same website or city); skip namesakes.
+export function companyBrief(name: string, o: { website?: string | null; country?: string | null; industry?: string | null; year: number; lead?: string | null; place?: string | null }): string {
+  const lead = o.lead ? `\nTHE LEAD (from the owner, who has spoken to them; treat every line as true):\n${o.lead}\n` : "";
+  return `Research the business "${name}"${o.place ? ` in ${o.place}` : ""}${o.website ? ` (website ${o.website})` : ""}${!o.place && o.country ? `, ${o.country}` : ""}${o.industry ? `, ${o.industry}` : ""} using Google Search.${lead}
+First confirm you have the right business: search the name with the location${o.lead ? ", the contact's name, the phone number and the email domain above" : ""}. Many businesses share a name; one in another city or country is a different business and must be ignored completely, even if it is bigger or better known.
+Then run several searches about THAT business (with the location in every query): owner, founder, CEO, LinkedIn, revenue, employees, news ${o.year}, reviews, hiring, contact, Instagram, address, licence or registration, competitors.
+Start your answer with "MATCH:" and how you know it is the same business (phone, address, contact, website or location), or "MATCH: not found" if you could not find this exact business. If not found, report nothing about namesakes.
+Make sure every fact is about THIS business (same name and same location, phone, contact or website); skip namesakes.
 Report only what you found, as short lines, each ending with its source in brackets:
 - What they do, for whom, and where (cities, branches)
 - Founded year, legal name, registration (e.g. GST, CIN) if public
@@ -316,9 +495,10 @@ Report only what you found, as short lines, each ending with its source in brack
 Write "not found" for anything you could not find. Never guess.`;
 }
 
-export function personBrief(name: string, o: { company?: string | null; title?: string | null; country?: string | null; linkedin?: string | null }): string {
-  return `Research the person "${name}"${o.title ? `, ${o.title}` : ""}${o.company ? ` at ${o.company}` : ""}${o.country ? ` (${o.country})` : ""}${o.linkedin ? `, LinkedIn ${o.linkedin}` : ""} using Google Search.
-Run several searches (their name with the company, LinkedIn, interview, podcast, news, X/Twitter, Instagram).
+export function personBrief(name: string, o: { company?: string | null; title?: string | null; country?: string | null; linkedin?: string | null; place?: string | null; known?: string | null }): string {
+  return `Research the person "${name}"${o.title ? `, ${o.title}` : ""}${o.company ? ` at ${o.company}` : ""}${o.place ? ` in ${o.place}` : o.country ? ` (${o.country})` : ""}${o.linkedin ? `, LinkedIn ${o.linkedin}` : ""} using Google Search.
+${o.known ? `WHAT THE OWNER KNOWS (true; use it to find the right person and to rule out namesakes):\n${o.known}\n` : ""}Run several searches: their name with the company and the city; LinkedIn (site:linkedin.com/in with the name and the company or city); their phone number and email in quotes; Instagram, Facebook and X with the name and the business; interviews, podcasts, events, news; the business's own team or about page.
+Many people share a name: a person in another city, at another company, or in an unrelated field is someone else. Start with "MATCH:" and how you know it is the same person (company, city, phone, email, photo-free details), or "MATCH: not found".
 Make sure every fact is about THIS person (same name AND same company or role); skip namesakes.
 Report only what you found, as short lines, each ending with its source in brackets:
 - Current role and since when; past roles and companies; education
@@ -346,7 +526,9 @@ export async function deepStage(runId: number): Promise<void> {
     const ev = (run as unknown as { evidence: Evidence }).evidence ?? ({} as Evidence);
     if (geminiSearchReady()) {
       try {
-        const g = await groundedResearch(companyBrief(c.name, { website: ev.website, country: c.country, industry: c.industry, year: new Date().getUTCFullYear() }), { timeoutMs: 50_000, label: `research: ${c.name}` });
+        const a = await gatherAnchors(run.subject_id!);
+        const g = await groundedResearch(companyBrief(c.name, { website: ev.website, country: a?.country ?? c.country, industry: a?.industry ?? c.industry, year: new Date().getUTCFullYear(), lead: a ? anchorLines(a) : null, place: a ? placeOf(a) : null }), { timeoutMs: 50_000, label: `research: ${c.name}`, deep: true });
+        if (/MATCH:\s*not found/i.test(g.text)) await say(runId, "Google could not find this exact business (it may have no web presence yet). Namesakes were ignored.");
         const gp = groundedParts(g, c.name);
         await q("update sales_research_runs set evidence = $2 where id = $1", [runId, JSON.stringify({ ...ev, grounded: gp.prose, search: [...(ev.search ?? []), gp.lines].filter(Boolean) })]);
         await addSources(runId, gp.sources);
@@ -383,6 +565,37 @@ const set = (out: Enrichment, k: string, v: string | number | null | undefined, 
   out[k] = { v, src, conf, est };
 };
 
+/**
+ * What the owner entered beats what the AI wrote: the location, and the industry when the AI found none. A country
+ * the AI gives that contradicts the lead is replaced, and the profile says it was not matched. Pure.
+ */
+export function applyAnchors(out: Enrichment, a: Anchors, siteMatch?: { score: number; reasons: string[] } | null): Enrichment {
+  const typed = a.countryFrom === "you entered it" || !!a.countryFrom?.startsWith("from the city") || !!a.countryFrom?.startsWith("from the phone") || !!a.countryFrom?.startsWith("from the email");
+  const aiCountry = out.hq_country?.v ? normCountry(String(out.hq_country.v)) : null;
+  const same = (x: string, y: string) => x === y || y.split(" or ").some((part) => part === x || x.startsWith(part) || part.startsWith(x));
+  if (a.country && typed && aiCountry && knownCountry(aiCountry) && !same(aiCountry, a.country)) {
+    out.identity_match = { v: "not found", src: "check", conf: "high" };
+    out.identity_basis = { v: `The research described a business in ${aiCountry}; your lead is in ${placeOf(a)}. Its other facts were about a namesake and are not shown.`, src: "check", conf: "high" };
+    // nothing about the namesake survives except what came off the lead's own website and DNS
+    for (const k of Object.keys(out)) {
+      if (!["identity_match", "identity_basis", "public_emails", "generic_email", "public_phones", "whatsapp_number", "address", "social_profiles", "domain_registered", "domain_age_years", "registrar", "email_provider", "sending_tools", "nameservers"].includes(k)) out[k] = { v: null };
+    }
+  }
+  if (a.country && typed) out.hq_country = { v: a.country, src: "you", conf: "high" };
+  if (a.city) out.hq_city = { v: a.city, src: "you", conf: "high" };
+  if (a.industry && !out.industry?.v) out.industry = { v: a.industry, src: "you", conf: "high" };
+  // the website was checked against the lead: that is proof the profile is about them
+  const im = String(out.identity_match?.v ?? "");
+  if (siteMatch && im !== "not found" || siteMatch && !im) {
+    if (!im || im === "likely" && siteMatch.score >= 8) {
+      out.identity_match = { v: siteMatch.score >= 8 ? "confirmed" : "likely", src: "check", conf: siteMatch.score >= 8 ? "high" : "medium" };
+      out.identity_basis = { v: `Their website matches your lead: ${siteMatch.reasons.slice(0, 3).join("; ")}.`, src: "check", conf: "high" };
+    }
+  }
+  if (!out.identity_match?.v) out.identity_match = { v: canDisambiguate(a) ? "not found" : "unchecked", src: "check", conf: "low" };
+  return out;
+}
+
 /** Facts that came straight off the pages and DNS overwrite whatever the AI wrote for the same field. Pure. */
 export function applyFacts(out: Enrichment, ev: Pick<Evidence, "contacts" | "intel">): Enrichment {
   const { contacts, intel } = ev;
@@ -403,11 +616,24 @@ export function applyFacts(out: Enrichment, ev: Pick<Evidence, "contacts" | "int
   return out;
 }
 
-function companySystem(offers: string[], year: number): string {
-  return `You are a B2B research analyst. Build a company profile from the EVIDENCE only.
+function companySystem(offers: string[], year: number, lead?: string | null): string {
+  return `You are a B2B research analyst. Build a profile of ONE business from the EVIDENCE only.
 Return JSON: an object whose keys are exactly these: ${allKeys(COMPANY_FIELDS).join(", ")}.
-Each value is {"v": value or null, "src": short source (url or "website" / "search" / "wikidata" / "estimate"), "conf": "high|medium|low", "est": true when estimated}.
-Rules:
+Each value is {"v": value or null, "src": short source (url or "website" / "search" / "wikidata" / "estimate" / "you"), "conf": "high|medium|low", "est": true when estimated}.
+${lead ? `THE LEAD (from the owner, who has spoken to them; every line is true):
+${lead}
+
+IDENTITY FIRST (most important):
+- Profile ONLY the business in THE LEAD. Many businesses share a name. Evidence about a business in another city or country,
+  with another phone, website, email domain or owners, or in an unrelated industry, is a NAMESAKE: ignore it completely, even if it is
+  bigger, better known or appears most often.
+- identity_match: "confirmed" when evidence about this business shares the lead's phone, email domain, contact person or website;
+  "likely" when it shares the name and the exact location and nothing contradicts; "not found" when no evidence clearly matches.
+  identity_basis: one line saying exactly which detail matched (or that nothing did).
+- When identity_match is "not found": fill only what THE LEAD itself says (location, industry, contact) with src "you", and leave
+  the rest null. Never borrow a namesake's revenue, employees, founders, reviews or history.
+- hq_city and hq_country come from THE LEAD's location unless evidence about THIS business proves otherwise.
+` : ""}Rules:
 - Never invent names, numbers, customers, reviews or news. Unknown facts are {"v": null}.
 - revenue_usd is NEVER null. If not published, estimate it realistically: employees x typical revenue per employee for this industry and
   country, adjusted by signals (locations, pricing, traffic, funding, store count, domain age, team size). Put the number in USD per year,
@@ -444,16 +670,24 @@ export async function synthStage(runId: number): Promise<void> {
     // what was literally read (pages, search results): only this can prove an email or a LinkedIn link
     const evidenceText = [...ev.site, ...facts, ...ev.search].join("\n\n").slice(0, 30_000);
     const aiText = [ev.grounded ?? "", evidenceText].filter(Boolean).join("\n\n").slice(0, 36_000);
-    const out = await llmJson<Enrichment>(companySystem(cfg.offers, year), `COMPANY: ${c.name}${c.country ? `, ${c.country}` : ""}${c.industry ? `, ${c.industry}` : ""}\n\nEVIDENCE:\n${aiText}`, { maxTokens: 6500, totalMs: 38_000 });
+    const a = await gatherAnchors(c.id);
+    const lead = a && canDisambiguate(a) ? anchorLines(a) : null;
+    const out = await llmJson<Enrichment>(companySystem(cfg.offers, year, lead), `COMPANY: ${c.name}${a && placeOf(a) ? `, ${placeOf(a)}` : c.country ? `, ${c.country}` : ""}${(a?.industry ?? c.industry) ? `, ${a?.industry ?? c.industry}` : ""}\n\nEVIDENCE:\n${aiText}`, { maxTokens: 6500, totalMs: 55_000, deep: true });
     applyFacts(out, { contacts, intel: ev.intel ?? { registered: null, age: null, registrar: null, nameservers: [], mail: null, tools: [] } });
+    if (a) applyAnchors(out, a, ev.siteMatch ?? null);
     await saveCompany(c.id, out, ev.website, ev.domain, ev.audit);
     const filled = Object.values(out).filter((f) => f?.v !== null && f?.v !== undefined && f?.v !== "").length;
-    await say(runId, `Profile written: ${filled} facts.`);
+    const im = String(out.identity_match?.v ?? "");
+    await say(runId, `Profile written: ${filled} facts. ${im === "confirmed" ? `Confirmed it is your lead (${String(out.identity_basis?.v ?? "").slice(0, 120)}).` : im === "likely" ? `Very likely your lead (${String(out.identity_basis?.v ?? "").slice(0, 120)}).` : im === "not found" ? "No public source could be tied to this exact business, so only what you entered is shown." : ""}`.trim());
 
     // the people behind the company
     let found = 0;
     try {
-      const people = await llmJson<{ people?: Candidate[] }>(PEOPLE_SYSTEM, `COMPANY: ${c.name}\n\nEVIDENCE:\n${aiText}`, { maxTokens: 1500, totalMs: 20_000 });
+      if (out.identity_match?.v === "not found" && lead) {
+        await say(runId, "Could not confirm any web result is this exact business, so no people were taken from the web (they could be a namesake's).");
+        throw new Error("skip people");
+      }
+      const people = await llmJson<{ people?: Candidate[] }>(PEOPLE_SYSTEM, `COMPANY: ${c.name}${a && placeOf(a) ? `, ${placeOf(a)}` : ""}${lead ? `\n\nTHE LEAD (true; people of a namesake business elsewhere must be left out):\n${lead}` : ""}\n\nEVIDENCE:\n${aiText}`, { maxTokens: 1500, totalMs: 25_000, deep: true });
       const names: string[] = [];
       const decisionMakers: number[] = [];
       for (const p of (people.people ?? []).slice(0, 8)) {
@@ -478,7 +712,7 @@ export async function synthStage(runId: number): Promise<void> {
         await say(runId, "No named people could be found for this company yet.");
       }
     } catch (e) {
-      await say(runId, `People search did not complete (${(e as Error).message.slice(0, 80)}).`);
+      if ((e as Error).message !== "skip people") await say(runId, `People search did not complete (${(e as Error).message.slice(0, 80)}).`);
     }
     await q("update sales_research_runs set status = 'done', stage = 'done', finished_at = now(), updated_at = now() where id = $1", [runId]);
   } catch (e) {
@@ -525,17 +759,29 @@ export async function personStage(runId: number): Promise<void> {
       [run.subject_id],
     );
     if (!p || p.full_name.length < 3 || /unknown/i.test(p.full_name)) throw new UserError("There is no named person to research yet.");
-    await say(runId, `Starting research on ${p.full_name}${p.company ? ` at ${p.company}` : ""}.`);
+    const a = p.company_id ? await gatherAnchors(p.company_id) : null;
+    const place = a ? placeTerm(a) : p.country;
+    await say(runId, `Starting research on ${p.full_name}${p.company ? ` at ${p.company}` : ""}${a && placeOf(a) ? ` in ${placeOf(a)}` : ""}.`);
     const who = `"${p.full_name}"${p.company ? ` "${p.company}"` : ""}`;
+    const where = place ? ` ${place}` : "";
     const queries = [
-      `${who} linkedin`, who, `"${p.full_name}" ${p.company ?? ""} interview OR podcast OR speaker`, `"${p.full_name}" ${p.company ?? ""} founder OR director OR investor`,
-      `"${p.full_name}" ${p.company ?? ""} twitter OR x.com`, `"${p.full_name}" ${p.company ?? ""} github OR medium OR substack OR youtube`,
-      `"${p.full_name}" ${p.company ?? ""} news OR award`, `site:linkedin.com/in "${p.full_name}" ${p.company ?? ""}`,
+      `site:linkedin.com/in "${p.full_name}"${p.company ? ` ${p.company}` : ""}${where}`,
+      `${who}${where}`,
+      ...p.phones.slice(0, 1).map((ph) => `"${ph.trim()}"`),
+      ...p.emails.slice(0, 1).map((em) => `"${em}"`),
+      `"${p.full_name}"${where} linkedin`,
+      `"${p.full_name}" ${p.company ?? ""}${where} instagram OR facebook`,
+      `"${p.full_name}" ${p.company ?? ""} founder OR owner OR director OR manager`,
+      `"${p.full_name}" ${p.company ?? ""} interview OR podcast OR speaker OR event`,
+      `"${p.full_name}" ${p.company ?? ""} news OR award`,
+      `"${p.full_name}" ${p.company ?? ""} twitter OR x.com OR youtube OR medium`,
     ];
     // leave room in this time slot for the Google pass below
-    const r = await searchBatch(queries, `research: ${p.full_name}`, Date.now() + (geminiSearchReady() ? 20_000 : 34_000));
+    const personAnchors = a ? { ...a, people: [{ name: p.full_name, title: p.title, phones: p.phones, emails: p.emails, linkedin: p.linkedin }, ...a.people], phones: [...new Set([...p.phones, ...a.phones])] } : null;
+    const r = await searchBatch(queries, `research: ${p.full_name}`, Date.now() + (geminiSearchReady() ? 20_000 : 34_000), personAnchors);
     await addSources(runId, r.sources);
     await say(runId, `Ran ${r.ran} web searches and read ${r.hits} results.`);
+    if (r.dropped.length) await say(runId, `Left out ${r.dropped.length} result${r.dropped.length === 1 ? "" : "s"} about people or businesses elsewhere.`);
     const evidence = [...r.parts];
     // what we already learned about their company, and what their colleagues' emails look like
     let pattern: EmailPattern | null = null;
@@ -562,7 +808,12 @@ export async function personStage(runId: number): Promise<void> {
     if (geminiSearchReady()) {
       await stage(runId, "deep");
       try {
-        const g = await groundedResearch(personBrief(p.full_name, { company: p.company, title: p.title, country: p.country, linkedin: p.linkedin }), { timeoutMs: 30_000, label: `research: ${p.full_name}` });
+        const known = [
+          p.title ? `Title: ${p.title}` : null, p.company ? `Company: ${p.company}` : null, a && placeOf(a) ? `Location: ${placeOf(a)}` : null,
+          p.phones.length ? `Phone: ${p.phones.join(" / ")}` : null, p.emails.length ? `Email: ${p.emails.join(" / ")}` : null,
+          p.linkedin ? `LinkedIn: ${p.linkedin}` : null, a?.industry ? `Industry: ${a.industry}` : null, a?.website ? `Company website: ${a.website}` : null,
+        ].filter(Boolean).join("\n");
+        const g = await groundedResearch(personBrief(p.full_name, { company: p.company, title: p.title, country: p.country, linkedin: p.linkedin, place: a ? placeOf(a) : null, known }), { timeoutMs: 40_000, label: `research: ${p.full_name}`, deep: true });
         const gp = groundedParts(g, p.full_name);
         grounded = gp.prose;
         if (gp.lines) evidence.push(gp.lines);
@@ -598,9 +849,23 @@ export async function personSynthStage(runId: number): Promise<void> {
     const pattern = saved.pattern ?? null;
     const domain = saved.domain ?? null;
     const year = new Date().getUTCFullYear();
+    const ca = run.subject_id ? await one<{ company_id: number | null }>("select company_id from sales_people where id = $1", [run.subject_id]) : null;
+    const anchors = ca?.company_id ? await gatherAnchors(ca.company_id) : null;
+    const known = [
+      `Name: ${p.full_name}`, p.title ? `Title: ${p.title}` : null, p.company ? `Company: ${p.company}` : null, anchors && placeOf(anchors) ? `Location: ${placeOf(anchors)}` : null,
+      p.phones.length ? `Phone: ${p.phones.join(" / ")}` : null, p.emails.length ? `Email: ${p.emails.join(" / ")}` : null, p.linkedin ? `LinkedIn: ${p.linkedin}` : null,
+      anchors?.industry ? `Industry: ${anchors.industry}` : null,
+    ].filter(Boolean).join("\n");
     const system = `You are a sales researcher. Build a profile of this person from the EVIDENCE only (public information and the owner's own conversations).
 Return JSON whose keys are exactly: ${allKeys(PERSON_FIELDS).join(", ")}.
 Each value is {"v": value or null, "src": short source, "conf": "high|medium|low", "est": true when estimated}.
+WHAT THE OWNER KNOWS (true):
+${known}
+IDENTITY FIRST: many people share a name. Use only evidence about THIS person: same name AND (same company, or same city with a matching role,
+or the same phone, email or LinkedIn). A same-named person elsewhere or in another field is someone else: ignore them completely.
+identity_match: "confirmed" (evidence shares their company, phone, email or LinkedIn), "likely" (same name, same city and a fitting role),
+or "not found". identity_basis: one line on exactly what matched. When "not found", fill only what the owner knows and the owner's
+conversations, and leave public facts null.
 Rules:
 - Never invent employers, schools, emails, phones or facts. Unknown is {"v": null}. Do not guess private contact details.
 - Make sure the evidence is about THIS person (same name AND same company or role). If unsure, leave it null.
@@ -611,7 +876,10 @@ Rules:
 - other_profiles: GitHub, Medium, Substack, YouTube and similar, only URLs literally in the evidence. linkedin_snippet: what the LinkedIn result says about them.
 - what_they_care_about, talking_points, opener, likely_objections: practical, specific, for ${cfg.owner.name} of an AI agency.
 - email_found / email_guess / email_pattern_basis / phone_found are filled in afterwards from verified data: leave them null.`;
-    const out = await llmJson<Enrichment>(system, `PERSON: ${p.full_name}${p.title ? `, ${p.title}` : ""}${p.company ? ` at ${p.company}` : ""}${p.country ? `, ${p.country}` : ""}${p.linkedin ? `\nLinkedIn: ${p.linkedin}` : ""}\n\nEVIDENCE:\n${[saved.grounded ?? "", ...evidence].filter(Boolean).join("\n\n").slice(0, 28_000)}`, { maxTokens: 5200, totalMs: 45_000 });
+    const out = await llmJson<Enrichment>(system, `PERSON: ${p.full_name}${p.title ? `, ${p.title}` : ""}${p.company ? ` at ${p.company}` : ""}${p.country ? `, ${p.country}` : ""}${p.linkedin ? `\nLinkedIn: ${p.linkedin}` : ""}\n\nEVIDENCE:\n${[saved.grounded ?? "", ...evidence].filter(Boolean).join("\n\n").slice(0, 28_000)}`, { maxTokens: 5200, totalMs: 55_000, deep: true });
+    if (anchors?.country && !out.location_country?.v) set(out, "location_country", anchors.country, "you");
+    if (anchors?.city && !out.location_city?.v) set(out, "location_city", anchors.city, "you");
+    if (!out.identity_match?.v) set(out, "identity_match", "not found", "check", "low");
     // reach-them facts come from data we hold, never from the AI
     if (p.emails[0]) set(out, "email_found", p.emails[0], "your records or their company's site");
     if (p.phones[0]) set(out, "phone_found", p.phones[0], "your records");
@@ -727,4 +995,23 @@ export async function researchView(a: { radarItemId?: number; companyId?: number
   const stale = Date.now() - 10 * 60_000;
   const running = runs.some((r) => (r.status === "queued" || r.status === "running") && new Date(r.updated_at).getTime() > stale);
   return { company, people, runs, running, groups: { company: COMPANY_FIELDS, person: PERSON_FIELDS } };
+}
+
+// ------------------------------------------------------------------ re-checking older profiles
+
+/**
+ * Profiles written before research was pinned to the lead (they have no identity check) may describe a namesake.
+ * Each one tied to a live lead is researched again, two at a time, at most once a day each, until all are checked.
+ */
+export async function scheduleIdentityRechecks(): Promise<number> {
+  const due = await q<{ id: number }>(
+    `select c.id from sales_companies c
+      where c.enriched_at is not null and (c.enrichment->'identity_match') is null
+        and (exists (select 1 from sales_deals d join sales_stages s on s.id = d.stage_id where d.company_id = c.id and s.category = 'open')
+             or exists (select 1 from sales_radar_items r where r.company_id = c.id and r.created_at > now() - interval '60 days'))
+        and not exists (select 1 from sales_research_runs r where r.subject = 'company' and r.subject_id = c.id and r.started_at > now() - interval '1 day')
+      order by c.updated_at desc limit 2`,
+  );
+  for (const c of due) await startResearch({ subject: "company", id: c.id, trigger: "recheck" });
+  return due.length;
 }

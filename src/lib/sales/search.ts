@@ -7,7 +7,7 @@
  * itself is available through Gemini's grounding, used for deep research and as the last resort here.
  * A daily cap (Sales settings) protects the free quotas.
  */
-import { geminiModels } from "./gemini-models";
+import { geminiModels, researchModels } from "./gemini-models";
 import { NO_DASH_RULE, noDashes } from "../text/no-dashes";
 import { one, q } from "../db";
 import { salesConfig } from "./config";
@@ -229,12 +229,18 @@ export function geminiSearchReady(): boolean {
 }
 
 /** Asks Gemini to research with Google Search and report what it found. Free tier; waits for a free slot. */
-export async function groundedResearch(prompt: string, o: { timeoutMs?: number; label?: string } = {}): Promise<Grounded> {
+// a model out of quota is left alone for hours, not retried on every search
+const groundCool = ((globalThis as unknown as { __groundCool?: Map<string, number> }).__groundCool ??= new Map<string, number>());
+
+export async function groundedResearch(prompt: string, o: { timeoutMs?: number; label?: string; deep?: boolean } = {}): Promise<Grounded> {
   const key = process.env.GEMINI_API_KEY?.trim();
   if (!key) throw new Error("No GEMINI_API_KEY: Google search through Gemini is off");
-  const models = await geminiModels("GEMINI_SEARCH_MODELS");
+  const all = o.deep ? await researchModels() : await geminiModels("GEMINI_SEARCH_MODELS");
+  const models = [...all.filter((m) => (groundCool.get(m) ?? 0) < Date.now()), ...all.filter((m) => (groundCool.get(m) ?? 0) >= Date.now())];
+  const started = Date.now();
   let last: Error | null = null;
   for (const model of models) {
+    if (Date.now() - started > (o.timeoutMs ?? 45_000)) break;
     try {
       await geminiTurn();
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
@@ -251,6 +257,7 @@ export async function groundedResearch(prompt: string, o: { timeoutMs?: number; 
       return out;
     } catch (e) {
       last = e as Error;
+      if (/\b(429|403)\b|quota|RESOURCE_EXHAUSTED|not found|404/i.test(last.message)) groundCool.set(model, Date.now() + 3 * 60 * 60_000);
       await logSearch("google (gemini)", prompt.slice(0, 200), 0, o.label, last.message);
     }
   }

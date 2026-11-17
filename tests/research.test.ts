@@ -122,7 +122,7 @@ describe("the research pipeline", () => {
     await siteStage(runId);
     let run = (await one<{ status: string; stage: string; log: string[]; sources: { label: string; kind: string }[] }>("select * from sales_research_runs where id = $1", [runId]))!;
     expect(run.stage).toBe("search");
-    expect(run.log.join("\n")).toMatch(/Found their website: https:\/\/acmefreight\.com/);
+    expect(run.log.join("\n")).toMatch(/Their website: https:\/\/acmefreight\.com/);
     expect(run.log.join("\n")).toMatch(/Read 5 pages/);
     expect(run.log.join("\n")).toMatch(/2 emails, 1 phone and 1 social profile/);
     expect(run.log.join("\n")).toMatch(/registered 2014-03-02.*email runs on Google Workspace/);
@@ -132,7 +132,7 @@ describe("the research pipeline", () => {
     await searchStage(runId);
     run = (await one("select * from sales_research_runs where id = $1", [runId]))!;
     expect(run.stage).toBe("deep");
-    expect(run.log.join("\n")).toMatch(/Ran 15 web searches/);
+    expect(run.log.join("\n")).toMatch(/Ran 12 web searches/);
     // no Gemini key in tests: the Google pass is skipped with a tip, and the profile is still written
     await deepStage(runId);
     run = (await one("select * from sales_research_runs where id = $1", [runId]))!;

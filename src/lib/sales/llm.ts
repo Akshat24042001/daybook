@@ -7,7 +7,7 @@
 import { noDashes, withNoDashRule } from "../text/no-dashes";
 import { openModels } from "../ai";
 import { freeModels } from "../assistant/models";
-import { geminiModels } from "./gemini-models";
+import { geminiModels, researchModels } from "./gemini-models";
 
 export type Part = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 export interface LlmMessage {
@@ -24,6 +24,8 @@ export interface LlmOptions {
   vision?: boolean;
   /** skip Gemini (used when the caller already tried it) */
   noGemini?: boolean;
+  /** research quality: the strongest models first (Gemini Pro when the key has quota) and more thinking */
+  deep?: boolean;
 }
 
 const VISION_FALLBACK = [
@@ -44,6 +46,8 @@ interface Target {
   extra?: Record<string, unknown>;
   /** spends part of max_tokens on thinking */
   thinks?: boolean;
+  /** how much room the thinking gets */
+  thinkTokens?: number;
 }
 
 // a model that just failed is skipped for a while, so the next request does not wait on it again
@@ -68,9 +72,14 @@ async function targets(o: LlmOptions): Promise<Target[]> {
   const out: Target[] = [];
   const gemini = o.noGemini ? "" : process.env.GEMINI_API_KEY?.trim();
   if (gemini) {
-    for (const model of await geminiModels()) {
-      // newer Gemini models think first: keep it short, and leave room for the thinking in the token allowance
-      out.push({ url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", key: gemini, model, ...(/gemini-(1|2\.0)/.test(model) ? {} : { extra: { reasoning_effort: "low" }, thinks: true }) });
+    const models = o.deep && !o.vision ? await researchModels() : await geminiModels();
+    for (const model of models) {
+      // newer Gemini models think first: keep it short (research thinks more), and leave room for the thinking
+      const old = /gemini-(1|2\.0)/.test(model);
+      out.push({
+        url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", key: gemini, model,
+        ...(old ? {} : { extra: { reasoning_effort: o.deep ? "medium" : "low" }, thinks: true, thinkTokens: o.deep ? 6144 : 2048 }),
+      });
     }
   }
   const or = process.env.OPENROUTER_API_KEY?.trim();
@@ -81,7 +90,7 @@ async function targets(o: LlmOptions): Promise<Target[]> {
         url: "https://openrouter.ai/api/v1/chat/completions",
         key: or,
         model,
-        extra: { reasoning: { effort: "low", exclude: true } },
+        extra: { reasoning: { effort: o.deep ? "medium" : "low", exclude: true } },
       });
     }
   }
@@ -102,7 +111,7 @@ async function once(t: Target, messages: LlmMessage[], o: LlmOptions, timeoutMs:
       model: t.model,
       messages: withNoDashRule(messages),
       temperature: o.temperature ?? 0.3,
-      max_tokens: (o.maxTokens ?? 1200) + (t.thinks ? 2048 : 0),
+      max_tokens: (o.maxTokens ?? 1200) + (t.thinks ? t.thinkTokens ?? 2048 : 0),
       ...(t.extra ?? {}),
     }),
     signal: AbortSignal.timeout(timeoutMs),
@@ -126,10 +135,12 @@ export async function llm(messages: LlmMessage[], o: LlmOptions = {}): Promise<{
     const left = deadline - Date.now();
     if (left < 3_000) break;
     try {
-      return { text: await once(t, messages, o, Math.min(30_000, left)), model: t.model };
+      return { text: await once(t, messages, o, Math.min(o.deep ? 55_000 : 30_000, left)), model: t.model };
     } catch (e) {
       last = e as Error;
-      cool.set(t.model, Date.now() + COOL_MS);
+      // out of quota (a Pro model on a free key): leave it for hours, not minutes
+      const quota = /\b(429|403)\b|quota|RESOURCE_EXHAUSTED/i.test(last.message) && /pro/i.test(t.model);
+      cool.set(t.model, Date.now() + (quota ? 3 * 60 * 60_000 : COOL_MS));
       console.warn("[sales-ai] model failed:", last.message.slice(0, 140));
     }
   }

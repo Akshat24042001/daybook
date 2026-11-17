@@ -318,6 +318,7 @@ export const SALES_ACTIONS: Record<string, SalesDef> = {
       if (set.website) {
         const dom = domainOf(String(set.website));
         if (dom && !(await one("select 1 from sales_companies where lower(domain) = lower($1) and id <> $2", [dom, cid]))) set.domain = dom;
+        set.website_source = "you";
       }
       const keys = Object.keys(set);
       if (keys.length) await q(`update sales_companies set ${keys.map((k, i) => `${k} = $${i + 2}`).join(", ")}, updated_at = now() where id = $1`, [cid, ...keys.map((k) => set[k])]);

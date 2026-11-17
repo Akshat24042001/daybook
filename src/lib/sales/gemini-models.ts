@@ -1,12 +1,14 @@
 /**
  * Which Gemini models to use, from Google's own list for your key, so a retired model never breaks anything.
- * Flash models first (fast, generous free tier), newest version first, then Flash-Lite. Pro is left out: its free
- * tier is too small for this. GEMINI_MODELS (or GEMINI_SEARCH_MODELS for research) still overrides it.
+ * Flash models first (fast, generous free tier), newest version first, then Flash-Lite. Pro is left out of everyday
+ * use: its free quota is small or nil. Research (researchModels) tries Pro first and falls back to Flash on a quota
+ * error, so a key with Pro quota gets the stronger model and one without loses only a second.
+ * GEMINI_MODELS, GEMINI_SEARCH_MODELS and GEMINI_RESEARCH_MODELS override the lists.
  */
 const FALLBACK = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest"];
 const TTL = 6 * 60 * 60 * 1000;
-const store = ((globalThis as unknown as { __geminiModels?: { at: number; list: string[] } | null }).__geminiModels ??= null);
-let cache: { at: number; list: string[] } | null = store;
+const store = ((globalThis as unknown as { __geminiModels?: { at: number; list: string[]; pro?: string[] } | null }).__geminiModels ??= null);
+let cache: { at: number; list: string[]; pro?: string[] } | null = store;
 
 const version = (id: string) => Number(id.match(/gemini-(\d+(?:\.\d+)?)/)?.[1] ?? 0);
 
@@ -19,6 +21,25 @@ export function pickGeminiModels(models: { name: string; supportedGenerationMeth
   const flash = ids.filter((id) => !id.endsWith("-lite")).sort((a, b) => version(b) - version(a));
   const lite = ids.filter((id) => id.endsWith("-lite")).sort((a, b) => version(b) - version(a));
   return [...flash.slice(0, 2), ...lite.slice(0, 1)];
+}
+
+/** The stable Pro models in Google's list, newest first (no preview or experimental ones). Pure. */
+export function pickGeminiPro(models: { name: string; supportedGenerationMethods?: string[] }[]): string[] {
+  return models
+    .filter((m) => (m.supportedGenerationMethods ?? []).includes("generateContent"))
+    .map((m) => m.name.replace(/^models\//, ""))
+    .filter((id) => /^gemini-[\d.]+-pro$/.test(id))
+    .sort((a, b) => version(b) - version(a))
+    .slice(0, 2);
+}
+
+/** For research: the strongest models first (Pro, then the Flash list). */
+export async function researchModels(): Promise<string[]> {
+  const env = (process.env.GEMINI_RESEARCH_MODELS ?? "").split(",").map((m) => m.trim()).filter(Boolean);
+  if (env.length) return env;
+  const flash = await geminiModels("GEMINI_SEARCH_MODELS");
+  const pro = cache?.pro ?? ["gemini-pro-latest", "gemini-2.5-pro"];
+  return [...new Set([...pro, ...flash])];
 }
 
 export async function geminiModels(envVar: "GEMINI_MODELS" | "GEMINI_SEARCH_MODELS" = "GEMINI_MODELS"): Promise<string[]> {
@@ -34,7 +55,7 @@ export async function geminiModels(envVar: "GEMINI_MODELS" | "GEMINI_SEARCH_MODE
     if (!res.ok) throw new Error(`models ${res.status}`);
     const json = (await res.json()) as { models?: { name: string; supportedGenerationMethods?: string[] }[] };
     const list = pickGeminiModels(json.models ?? []);
-    cache = { at: Date.now(), list: list.length ? list : FALLBACK };
+    cache = { at: Date.now(), list: list.length ? list : FALLBACK, pro: pickGeminiPro(json.models ?? []) };
   } catch {
     cache = { at: Date.now() - TTL + 10 * 60_000, list: FALLBACK }; // try the list again in 10 minutes
   }

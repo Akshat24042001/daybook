@@ -113,7 +113,7 @@ export async function createDealAction(d: {
   pipeline_id?: number | null;
 }) {
   return run<{ id: number }>(async () => {
-    const companyId = d.company_name?.trim() ? await ensureCompany(d.company_name.trim()) : null;
+    const companyId = d.company_name?.trim() ? await ensureCompany(d.company_name.trim(), { city: d.city?.trim() || null, country: d.region?.trim() || null, industry: d.industry?.trim() || null }) : null;
     const personId = d.person_name?.trim() || d.email || d.phone || d.linkedin
       ? await upsertPerson({ name: d.person_name, email: d.email, phone: d.phone, linkedin: d.linkedin, company_id: companyId, relationship: d.referrer_name ? "referral" : d.source === "network" ? "warm" : "cold" })
       : null;

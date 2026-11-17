@@ -34,6 +34,7 @@ export async function updateCompany(id: number, patch: Record<string, unknown>):
     const host = String(patch.website).replace(/^https?:\/\//i, "").replace(/^www\./i, "").split("/")[0].toLowerCase();
     params.push(host);
     sets.push(`domain = $${params.length}`);
+    sets.push("website_source = 'you'");
   }
   if (patch.custom && typeof patch.custom === "object") {
     params.push(JSON.stringify(await cleanCustom("company", patch.custom as Record<string, unknown>)));

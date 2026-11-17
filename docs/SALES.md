@@ -289,6 +289,31 @@ The research sheet shows the company, how to reach them, every person, all the f
 page and search used) and a plain log of what the researcher did. A lead that names no company says so and lets you type
 one. "Wrong company?" re-runs it on the right one. The same profile appears on the deal and the account.
 
+## Research is pinned to your lead (no namesakes)
+
+Research starts from everything you entered about the lead, not just the name: the city and country (from the deal,
+the contacts, the phone's country code or the email's ending), the industry and services, the contact's name, phone
+and email, the website, and your notes (`src/lib/sales/anchors.ts`).
+
+- **Website**: a website you or the lead gave is used as is. Otherwise every candidate (your contact's business email
+  domain, the web results for the name with the place, industry and phone, likely domains with the country's ending,
+  Google) is opened and scored against the lead: same phone, same contact, same city or country count for it; another
+  country's cities, phone codes or domain ending count against it. A namesake is rejected and the run log says why
+  ("Not their website: blissclub.com (it is about India, not Dubai)"). A website an earlier run picked that turns
+  out to be a namesake's is removed.
+- **Searches** carry the place in every query, plus searches for the phone, the contact and the email domain. Results
+  about a namesake elsewhere are left out before the AI sees them.
+- **Google (Gemini)** is told the whole lead and must start with how it confirmed the match, or say not found.
+- **The profile** opens with a verdict: Confirmed (shares the phone, email domain, contact or website), Very likely
+  (same name and place), or Not found (only what you entered is shown; nothing borrowed from a namesake). Your city
+  and country always win over the AI's; a profile that drifts to another country is wiped.
+- **People** are only taken from the web when the business is confirmed or likely. Person research searches LinkedIn
+  with the company and city, the phone and email, Instagram and Facebook, and checks it is the same person.
+- **Models**: research tries Gemini Pro first (when your key has Pro quota), then the newest Flash, with more thinking;
+  a model out of quota is skipped for 3 hours. Override with GEMINI_RESEARCH_MODELS.
+- **Older profiles** (written before this check) that belong to a live lead are researched again automatically, two
+  at a time. A new lead never joins a same-named company in another city or country.
+
 ## Tracked documents
 
 Send links, not attachments. Quotes, opportunity briefs, files and any URL (Loom, Drive, a case study) get an unguessable

@@ -890,17 +890,20 @@ export async function linkDealCompany(dealId: number, personId: number | null, p
     out.push("Deal: Company");
     fresh = true;
   }
-  const co = await one<{ website: string | null; domain: string | null; enriched_at: string | null; name: string }>("select website, domain, enriched_at, name from sales_companies where id = $1", [companyId]);
+  const co = await one<{ website: string | null; domain: string | null; enriched_at: string | null; name: string; website_source: string | null }>(
+    "select website, domain, enriched_at, name, website_source from sales_companies where id = $1", [companyId]);
   if (!co) return out;
-  if (site && !co.website) {
+  // the lead's own word beats a website research guessed (that guess may have been a namesake's)
+  const replaces = !!site && !!co.website && co.website_source !== "you" && co.website_source !== "lead" && domainOf(site) !== co.domain;
+  if (site && (!co.website || replaces)) {
     const dom = domainOf(site);
     const taken = dom ? await one("select 1 from sales_companies where lower(domain) = lower($1) and id <> $2", [dom, companyId]) : null;
-    await q("update sales_companies set website = $2, domain = coalesce(domain, $3), updated_at = now() where id = $1", [companyId, site, taken ? null : dom]);
+    await q("update sales_companies set website = $2, domain = $3, website_source = 'lead', updated_at = now() where id = $1", [companyId, site, taken ? null : dom]);
     out.push("Company: Website");
     fresh = true;
   }
-  // a business with a name or website and no research yet: research it now (and check its website)
-  if (fresh && !co.enriched_at) {
+  // a business with a name or website and no research yet (or researched from a website that was not theirs): research it now
+  if (fresh && (!co.enriched_at || replaces)) {
     await enqueue("enrich_company", { id: companyId }, { dedupeKey: `enrich_company:${companyId}` });
     if (site || co.website) await enqueue("audit_website", { id: companyId }, { dedupeKey: `audit:${companyId}` });
     out.push("Company research started");

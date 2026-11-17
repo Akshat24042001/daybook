@@ -108,7 +108,7 @@ export function subLinks(base: string, html: string): string[] {
   return [...out].slice(0, 4);
 }
 
-const NOT_THEIR_SITE = /linkedin|facebook|instagram|wikipedia|crunchbase|zaubacorp|tofler|glassdoor|indeed|justdial|indiamart|yelp|trustpilot|bloomberg|zoominfo|dnb\.com|twitter|x\.com|youtube|google\.|bing\.|duckduckgo|mojeek|ambitionbox|naukri|sulekha|tracxn|owler|apollo\.io|rocketreach|signalhire|lusha|instafinancials|thecompanycheck|falconebiz|vertexaisearch/i;
+export const NOT_THEIR_SITE = /linkedin|facebook|instagram|wikipedia|crunchbase|zaubacorp|tofler|glassdoor|indeed|justdial|indiamart|yelp|trustpilot|bloomberg|zoominfo|dnb\.com|twitter|x\.com|youtube|google\.|bing\.|duckduckgo|mojeek|ambitionbox|naukri|sulekha|tracxn|owler|apollo\.io|rocketreach|signalhire|lusha|instafinancials|thecompanycheck|falconebiz|vertexaisearch/i;
 
 /** The distinctive words of a company name ("Glowyug Skincare Pvt Ltd" -> ["glowyug", "skincare"]). Pure. */
 export function nameWords(name: string): string[] {

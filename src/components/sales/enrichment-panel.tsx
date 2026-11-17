@@ -57,6 +57,7 @@ export function EnrichmentPanel({ kind, id, data, groups, enrichedAt, title }: {
           </Button>
         </div>
       </div>
+      <IdentityLine kind={kind} data={data} />
       {filled ? (
         <div className="grid gap-4 md:grid-cols-2">
           {groups.map((g) => {
@@ -91,5 +92,22 @@ export function EnrichmentPanel({ kind, id, data, groups, enrichedAt, title }: {
         <p className="text-sm text-subtle">Runs on its own for new leads.</p>
       )}
     </section>
+  );
+}
+
+/** Whether this profile is really about your lead, and how we know: the first thing to read. */
+function IdentityLine({ kind, data }: { kind: "company" | "person"; data: Enrichment }) {
+  const v = String(data?.identity_match?.v ?? "");
+  if (!v || v === "unchecked") return null;
+  const basis = data?.identity_basis?.v ? String(data.identity_basis.v) : "";
+  const who = kind === "company" ? "business" : "person";
+  const [tone, head] = v === "confirmed" ? ["bg-p-mint text-p-mint-fg", `Confirmed: this is your ${who}.`]
+    : v === "likely" ? ["bg-p-sky text-p-sky-fg", `Very likely your ${who}.`]
+    : ["bg-p-butter text-p-butter-fg", `Could not find this exact ${who} online, so only what you entered is shown. Namesakes were left out.`];
+  return (
+    <p className={`mb-3 rounded-xl px-3 py-2 text-xs ${tone}`} data-identity={v}>
+      <span className="font-semibold">{head}</span>{basis ? ` ${basis}` : ""}
+      {v === "not found" ? ` Add their website, Instagram or a phone number on the ${kind === "company" ? "company" : "contact"} and research again.` : ""}
+    </p>
   );
 }

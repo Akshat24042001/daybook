@@ -169,7 +169,7 @@ export async function addIdentities(personId: number, h: PersonHint): Promise<vo
   );
 }
 
-export async function ensureCompany(name: string | null | undefined, opts: { domain?: string | null; website?: string | null; country?: string | null; industry?: string | null } = {}): Promise<number | null> {
+export async function ensureCompany(name: string | null | undefined, opts: { domain?: string | null; website?: string | null; country?: string | null; city?: string | null; industry?: string | null } = {}): Promise<number | null> {
   const domain = opts.domain ?? domainOf(opts.website);
   const clean = (name ?? "").trim();
   if (!clean && !domain) return null;
@@ -178,15 +178,25 @@ export async function ensureCompany(name: string | null | undefined, opts: { dom
     if (hit) return hit.id;
   }
   if (clean) {
-    const hit = await one<{ id: number }>("select id from sales_companies where lower(name) = lower($1) order by id limit 1", [clean]);
+    // the same name in another place is another business (Bliss in Dubai is not Bliss in Bangalore)
+    const { countryOfCity, knownCountry } = await import("./anchors");
+    const want = knownCountry(opts.country) ?? countryOfCity(opts.country) ?? countryOfCity(opts.city);
+    const wantCity = (opts.city ?? "").trim().toLowerCase() || null;
+    const same = await q<{ id: number; country: string | null; city: string | null }>("select id, country, city from sales_companies where lower(name) = lower($1) order by id", [clean]);
+    const hit = same.find((c) => {
+      const theirs = knownCountry(c.country) ?? countryOfCity(c.city);
+      if (want && theirs && theirs !== want) return false;
+      if (wantCity && c.city && c.city.trim().toLowerCase() !== wantCity && countryOfCity(c.city) !== countryOfCity(wantCity)) return false;
+      return true;
+    });
     if (hit) {
       if (domain) await q("update sales_companies set domain = coalesce(domain, $2), website = coalesce(website, $3) where id = $1", [hit.id, domain, opts.website ?? `https://${domain}`]).catch(() => {});
       return hit.id;
     }
   }
   const row = await one<{ id: number }>(
-    `insert into sales_companies (name, domain, website, country, industry) values ($1,$2,$3,$4,$5) returning id`,
-    [clean || domain, domain, opts.website ?? (domain ? `https://${domain}` : null), opts.country ?? null, opts.industry ?? null],
+    `insert into sales_companies (name, domain, website, country, city, industry) values ($1,$2,$3,$4,$5,$6) returning id`,
+    [clean || domain, domain, opts.website ?? (domain ? `https://${domain}` : null), opts.country ?? null, opts.city ?? null, opts.industry ?? null],
   );
   return row!.id;
 }

@@ -208,6 +208,11 @@ export async function runSalesTick(now: Date = new Date()): Promise<string> {
   if (Date.now() - (await lastDone("refresh_moves")) > 10 * 60_000) await enqueue("refresh_moves", {}, { dedupeKey: "refresh_moves:all" });
   if (Date.now() - (await lastDone("radar_run")) > 15 * 60_000) await enqueue("radar_run", {}, { dedupeKey: "radar_run" });
   await scheduleHunts(now).catch((e) => console.warn("[sales] hunts:", (e as Error).message));
+  // profiles written before research was pinned to the lead are checked again (they may describe a namesake)
+  if (Date.now() - (await lastDone("research_company")) > 20 * 60_000) {
+    const { scheduleIdentityRechecks } = await import("./research");
+    await scheduleIdentityRechecks().catch((e) => console.warn("[sales] rechecks:", (e as Error).message));
+  }
   // qualified leads are made ready on their own: requirement, business behind it, company, decision maker, contacts, draft
   await scheduleRadarPrep().catch((e) => console.warn("[sales] radar prep:", (e as Error).message));
   // anything captured but never queued (a crash mid-request)

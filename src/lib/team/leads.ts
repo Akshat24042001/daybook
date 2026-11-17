@@ -229,7 +229,10 @@ export async function repUpdateContact(rep: Rep, dealId: number, patch: Record<s
   if (Object.keys(company).length) {
     if (!d.company_id) throw new UserError("This lead has no company yet.");
     if ("name" in company && !company.name) throw new UserError("A company needs a name.");
-    if (company.website) company.domain = domainOf(String(company.website));
+    if (company.website) {
+      company.domain = domainOf(String(company.website));
+      company.website_source = "you";
+    }
     const keys = Object.keys(company);
     await q(`update sales_companies set ${keys.map((k, i) => `${k} = $${i + 2}`).join(", ")}, updated_at = now() where id = $1`, [d.company_id, ...keys.map((k) => company[k])]);
   }

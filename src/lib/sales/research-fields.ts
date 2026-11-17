@@ -9,6 +9,7 @@ export type Enrichment = Record<string, Field>;
 
 export const COMPANY_FIELDS: { group: string; fields: [string, string][] }[] = [
   { group: "Identity", fields: [
+    ["identity_match", "Same business as your lead?"], ["identity_basis", "How we know"],
     ["legal_name", "Legal name"], ["brand_names", "Brands"], ["website", "Website"], ["founded_year", "Founded"], ["company_age_years", "Age (years)"],
     ["hq_city", "HQ city"], ["hq_country", "HQ country"], ["other_locations", "Other locations"], ["company_type", "Type (private, family, public, subsidiary)"],
     ["listed", "Listed?"], ["stock_exchange", "Exchange"], ["ticker", "Ticker"], ["parent_company", "Parent company"], ["subsidiaries", "Subsidiaries"],
@@ -54,6 +55,7 @@ export const COMPANY_FIELDS: { group: string; fields: [string, string][] }[] = [
 
 export const PERSON_FIELDS: { group: string; fields: [string, string][] }[] = [
   { group: "Who", fields: [
+    ["identity_match", "Same person as your contact?"], ["identity_basis", "How we know"],
     ["full_name", "Full name"], ["first_name", "First name"], ["current_title", "Title"], ["seniority", "Seniority"], ["department", "Department"],
     ["company", "Company"], ["is_decision_maker", "Decision maker?"], ["decision_role", "Role in the decision"], ["reports_to", "Reports to"], ["team_size", "Team size"],
   ] },
