@@ -28,6 +28,9 @@ async function setup(viewport = { width: 1440, height: 1000 }) {
     // open the first closed one until none are left (opening one shifts the rest, so never by position)
     const closed = page.locator('[data-fold][aria-expanded="false"]');
     for (let i = 0; i < 30 && (await closed.count()) > 0; i++) await closed.first().click().catch(() => {});
+    // pages with tabs: "Everything" shows every tab at once (the choice is remembered for the next lead)
+    const all = page.locator('[data-tab="all"][aria-selected="false"]');
+    for (let i = 0; i < 5 && (await all.count()) > 0; i++) await all.first().click().catch(() => {});
     await page.waitForTimeout(150);
   };
   const go = async (path) => {

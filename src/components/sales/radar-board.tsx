@@ -7,9 +7,9 @@ import {
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
-  addBlockAction, radarBriefAction, radarDraftAction, radarHideAction, radarSeenAction, radarStatusAction, radarToDealAction,
+  addBlockAction, radarBriefAction, radarDraftAction, radarHideAction, radarSeenAction, radarStatusAction, radarLogAction, radarToDealAction,
 } from "@/app/sales-actions";
-import { Button, Select, Sheet } from "@/components/ui";
+import { Button, Input, Select, Sheet, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import type { MoveRow } from "@/lib/sales/moves";
@@ -27,7 +27,7 @@ import { SalesChat } from "./sales-chat";
 import { Ago } from "@/components/sales/ago";
 import { BookMeeting, TripBadge } from "./radar-trip";
 import { ShareLead } from "./radar-share";
-import { Fold } from "./fold";
+import { Tabs } from "./tabs";
 
 // ------------------------------------------------------------------ ranking lives in lib/sales/radar-rank (pure, tested)
 
@@ -248,6 +248,58 @@ function Row({ it, rank, also, reasons, first, active, tz, now, onOpen }: { it: 
   );
 }
 
+/** What to do with this lead now, in one line. */
+function LeadNext({ it, hasMessage, direct, replyOn, channel }: { it: RadarItem; hasMessage: boolean; direct: boolean; replyOn: string | null; channel: string | null }) {
+  const reach = reachOf(it);
+  const text = it.deal_id ? "It is a deal now: log and follow up on the deal page."
+    : hasMessage && direct ? `Send the message${channel ? ` on ${channel}` : ""}${reach.level === "decision_maker" ? " to the decision maker" : ""}, then log it below.`
+    : direct ? "Write the first message (Draft), send it, then log it below."
+    : replyOn ? `Reply on ${replyOn}, or find who is behind it for a direct contact (Who they are).`
+    : "Find who is behind it first: open Who they are.";
+  return (
+    <p className="mt-2 rounded-lg border border-accent/30 bg-accent-muted/40 px-2.5 py-1.5 text-sm" aria-label="Next step">
+      <span className="mr-1.5 text-xs font-semibold uppercase tracking-wide text-accent">Next step</span>{text}
+    </p>
+  );
+}
+
+/** Already reached out, or they answered? Log it here: the lead becomes a deal with it on record. */
+function RadarLog({ itemId, dealId }: { itemId: number; dealId: number | null }) {
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({ type: "whatsapp", body: "", next: "" });
+  const [busy, start] = useTransition();
+  const { toast } = useToast();
+  const router = useRouter();
+  if (!open) {
+    return (
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Button size="sm" variant="outline" onClick={() => setOpen(true)}><Plus className="h-3.5 w-3.5" /> Log what you did</Button>
+        <span className="text-xs text-subtle">Sent a message, called, or they replied? Log it and it becomes a deal.</span>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2 space-y-2 rounded-xl border border-accent/40 bg-surface p-3" aria-label="Log what you did">
+      <div className="flex flex-wrap gap-1" role="group" aria-label="How">
+        {([["whatsapp", "WhatsApp"], ["email", "Email"], ["linkedin", "LinkedIn"], ["call", "Call"], ["other", "Other"]] as const).map(([k, l]) => (
+          <button key={k} type="button" aria-pressed={f.type === k} onClick={() => setF({ ...f, type: k })} className={cn("rounded-md border px-2.5 py-1 text-xs", f.type === k ? "border-accent bg-accent-muted text-accent" : "border-border text-subtle")}>{l}</button>
+        ))}
+      </div>
+      <Textarea value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} rows={3} placeholder="What you sent, or what happened" aria-label="What happened" autoFocus />
+      <Input value={f.next} onChange={(e) => setF({ ...f, next: e.target.value })} placeholder="Next step (optional), e.g. Follow up on Friday" aria-label="Next step after this" />
+      <div className="flex gap-2">
+        <Button size="sm" variant="primary" disabled={busy || !f.body.trim()} onClick={() => start(async () => {
+          const r = await radarLogAction(itemId, { type: f.type, body: f.body, next_step: f.next || null });
+          if (!r.ok) return toast(r.error, "error");
+          toast(dealId ? "Logged on the deal" : "Logged. It is a deal now.");
+          router.push(`/sales/deal/${r.id}`);
+        })}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Log it</Button>
+        <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+      </div>
+    </div>
+  );
+}
+
 /** Who you can reach and how: the decision maker's own contact beats a shared inbox or a front desk number. */
 function ReachLine({ it }: { it: RadarItem }) {
   const r = reachOf(it);
@@ -356,6 +408,7 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
           </p>
         ) : null}
 
+        <LeadNext it={it} hasMessage={!!message} direct={direct} replyOn={where?.replyable ? where.name : null} channel={move?.channel ?? it.ready_channel ?? null} />
         {/* the actions you need, one click each */}
         <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Reach them">
           {c.emails.map((e) => (
@@ -409,28 +462,12 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
           </span>
         </div>
         {it.trip || it.lead_kind === "prospect" || it.meeting_at ? <div className="mt-2 border-t border-border pt-2"><BookMeeting itemId={it.id} trip={it.trip ?? null} today={today} booked={it.meeting_at ?? null} /></div> : null}
+        <RadarLog itemId={it.id} dealId={it.deal_id ?? null} />
       </header>
       {move ? <div ref={(el) => el?.scrollIntoView({ behavior: "smooth", block: "nearest" })}><MoveCard m={move} googleReady={googleReady} onGone={() => onDrop(it.id)} /></div> : null}
 
-      {/* who */}
-      <Section icon={Search} title="Who posted it">
-        <PosterLine p={it.poster} />
-        {!it.poster?.name && !it.poster?.username && it.author ? <p className="text-xs">{it.author}</p> : null}
-        {!it.known && !it.deal_id ? <WhoPanel itemId={it.id} identity={it.identity} paid={paid} platform={where?.name ?? null} /> : null}
-      </Section>
-
-      {it.links?.length ? <Fold id="radar-links" compact title="Links" summary="their profile, website, where it was posted"><QuickLinks groups={it.links} fold={3} /></Fold> : null}
-
-      {it.prep && !move ? <ReadyPack itemId={it.id} prep={it.prep} draft={it.ready_draft ?? null} subject={it.ready_subject ?? null} channel={it.ready_channel ?? null} /> : null}
-
-      {/* the post itself, then what needs doing */}
-      {it.body ? (
-        <Fold id="radar-post" compact title={it.lead_kind === "prospect" || it.lead_kind === "signal" ? "What we found about them" : it.lead_kind === "news" ? "The news, word for word" : "Their post, word for word"} summary={it.body.replace(/\s+/g, " ").slice(0, 90)}>
-          <p className={cn("whitespace-pre-line text-sm text-subtle", !full && "line-clamp-[12]")}>{it.body}</p>
-          {it.body.length > 800 ? <button type="button" className="mt-1 text-xs text-accent" onClick={() => setFull((x) => !x)}>{full ? "Show less" : "Show the whole post"}</button> : null}
-        </Fold>
-      ) : null}
-
+      <Tabs id="radar-lead" label="More about this lead" tabs={[
+        { key: "need", label: "What they need", content: (<>
       {/* what they need */}
       <Section icon={Target} title="What they need" tone="accent">
         {brief ? (
@@ -464,7 +501,7 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
       </Section>
 
       {brief?.questions.length || brief?.watch_out ? (
-        <Fold id="radar-ask" compact title="Ask them and watch out" summary={[brief?.questions.length ? `${brief.questions.length} question${brief.questions.length === 1 ? "" : "s"} to ask` : "", brief?.watch_out ? "one thing to watch" : ""].filter(Boolean).join(" · ")}>
+        <Section icon={HelpCircle} title="Ask them and watch out">
           {brief?.questions.length ? (
             <>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-subtle">Ask them</p>
@@ -472,8 +509,34 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
             </>
           ) : null}
           {brief?.watch_out ? <p className="mt-2 rounded-lg bg-warn/10 px-2 py-1.5 text-sm"><b>Watch out:</b> {brief.watch_out}</p> : null}
-        </Fold>
+        </Section>
       ) : null}
+
+        </>) },
+        { key: "who", label: "Who they are", aliases: ["contacts", "research"], content: (<>
+      {/* who */}
+      <Section icon={Search} title="Who posted it">
+        <PosterLine p={it.poster} />
+        {!it.poster?.name && !it.poster?.username && it.author ? <p className="text-xs">{it.author}</p> : null}
+        {!it.known && !it.deal_id ? <WhoPanel itemId={it.id} identity={it.identity} paid={paid} platform={where?.name ?? null} /> : null}
+      </Section>
+
+      {it.links?.length ? <Section icon={ArrowUpRight} title="Links"><QuickLinks groups={it.links} fold={3} /></Section> : null}
+
+      {it.prep && !move ? <ReadyPack itemId={it.id} prep={it.prep} draft={it.ready_draft ?? null} subject={it.ready_subject ?? null} channel={it.ready_channel ?? null} /> : null}
+
+        </>) },
+        ...(it.body ? [{ key: "post", label: it.lead_kind === "prospect" || it.lead_kind === "signal" ? "What we found" : it.lead_kind === "news" ? "The news" : "Their post", content: (<>
+      {/* the post itself, then what needs doing */}
+      {it.body ? (
+        <Section icon={Search} title={it.lead_kind === "prospect" || it.lead_kind === "signal" ? "What we found about them" : it.lead_kind === "news" ? "The news, word for word" : "Their post, word for word"}>
+          <p className={cn("whitespace-pre-line text-sm text-subtle", !full && "line-clamp-[12]")}>{it.body}</p>
+          {it.body.length > 800 ? <button type="button" className="mt-1 text-xs text-accent" onClick={() => setFull((x) => !x)}>{full ? "Show less" : "Show the whole post"}</button> : null}
+        </Section>
+      ) : null}
+
+        </>) }] : []),
+      ]} />
 
       {research ? <ResearchSheet open onOpenChange={setResearch} radarItemId={it.id} companyId={it.company_id ?? undefined} title={it.title.slice(0, 60)} /> : null}
     </article>

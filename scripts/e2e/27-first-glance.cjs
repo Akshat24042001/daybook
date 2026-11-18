@@ -1,0 +1,46 @@
+// A lead at first glance: where it stands, the next step (changed in place) and logging at the top; everything else
+// in tabs. A radar lead says what to do next and can be logged, which makes it a deal.
+const { setup, check, U } = require("./lib.cjs");
+
+(async () => {
+  const { page, one, done } = await setup();
+  const tag = Date.now().toString(36);
+  const deal = await one(`insert into sales_deals (title, stage_id, next_action) values ($1, (select id from sales_stages where key = 'contacted'), 'Call them back') returning id`, [`Glance ${tag}`]);
+  await page.goto(`${U}/sales/deal/${deal.id}`, { waitUntil: "networkidle" });
+
+  const stands = page.getByLabel("Where it stands");
+  check("where it stands is on top", await stands.isVisible() && (await stands.innerText()).includes("Contacted"));
+  const next = page.locator('[aria-label="Next step"]').first();
+  check("the next step is on top", (await next.innerText()).includes("Call them back"));
+  check("logging is on top", await page.getByLabel("Log something").isVisible());
+  check("the details are in tabs, not on the first screen", await page.getByRole("tab", { name: /Details/ }).isVisible() && !(await page.getByRole("tabpanel", { name: "Details" }).isVisible().catch(() => false)));
+
+  await next.getByRole("button", { name: "Change" }).click();
+  await page.getByRole("textbox", { name: "Next step" }).fill(`Send proposal ${tag}`);
+  await next.getByRole("button", { name: "Save" }).click();
+  await page.waitForTimeout(1500);
+  check("next step changed in place", (await one("select next_action from sales_deals where id = $1", [deal.id])).next_action === `Send proposal ${tag}`);
+
+  await page.getByRole("tab", { name: /Details/ }).click();
+  check("a tab opens its part", await page.getByRole("tabpanel", { name: "Details" }).getByText("Deal details").first().isVisible());
+  await page.getByRole("tab", { name: /History/ }).click();
+  check("another tab", await page.getByRole("tabpanel", { name: "History" }).getByText("Journey").first().isVisible());
+  await page.reload({ waitUntil: "networkidle" });
+  check("the last tab is remembered", (await page.getByRole("tab", { name: /History/ }).getAttribute("aria-selected")) === "true");
+  await page.goto(`${U}/sales/deal/${deal.id}#documents`, { waitUntil: "networkidle" });
+  check("a #documents link opens that tab", (await page.getByRole("tab", { name: /Documents/ }).getAttribute("aria-selected")) === "true");
+
+  const lead = await one(`insert into sales_radar_items (url, url_hash, title, body, status, score, identity) values ($1, md5($1), $2, 'Need a WhatsApp bot for our clinic', 'qualified', 90, $3) returning id`,
+    [`https://e2e.example/glance-${tag}`, `Clinic bot ${tag}`, JSON.stringify({ status: "found", person: "Asha", emails: [`asha${tag}@clinic.in`], phones: [], evidence: [], candidates: [] })]);
+  await page.goto(`${U}/sales/radar?lead=${lead.id}`, { waitUntil: "networkidle" });
+  const pane = page.getByLabel("Selected lead");
+  check("the lead says what to do next", (await pane.locator('[aria-label="Next step"]').innerText()).length > 20);
+  await pane.getByRole("button", { name: "Log what you did" }).click();
+  await pane.getByLabel("What happened").fill(`Sent the intro on email ${tag}`);
+  await pane.getByRole("button", { name: "Log it" }).click();
+  await page.waitForURL(/\/sales\/deal\/\d+/, { timeout: 15000 });
+  const made = await one("select deal_id from sales_radar_items where id = $1", [lead.id]);
+  check("logging a radar lead makes it a deal", !!made.deal_id);
+  check("with what you did on record", !!(await one("select 1 as x from sales_interactions where deal_id = $1 and body like $2", [made.deal_id, `%${tag}%`])));
+  await done();
+})();

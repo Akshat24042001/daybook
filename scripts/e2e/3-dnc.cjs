@@ -73,6 +73,8 @@ const { setup, check } = require("./lib.cjs");
 
   // 4. deal page "Do not contact": no outreach moves, banner shown
   page.__dialogAnswer = "not a fit";
+  // a rare action: it lives in the History tab (or Everything)
+  if (!(await page.getByRole("button", { name: "Do not contact" }).isVisible().catch(() => false))) await page.getByRole("tab", { name: /History/ }).click();
   await page.getByRole("button", { name: "Do not contact" }).click();
   await page.waitForTimeout(2000);
   await go(`/sales/deal/${deal}`);

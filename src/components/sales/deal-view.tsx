@@ -34,7 +34,7 @@ import { FitCard, LineItems, PlaybookCard, type PackageOpt } from "./deal-extras
 import type { Fit } from "@/lib/sales/fit-calc";
 import type { DealItem } from "@/lib/sales/items-calc";
 import type { StagePlay } from "@/lib/sales/playbook-stages";
-import { Fold } from "./fold";
+import { Tabs } from "./tabs";
 import { ago, ChannelIcon, CHANNEL_LABEL, CURRENCIES, currencyLabel, currencySymbol, fmtDate, Label, money, Priority } from "./util";
 import { Ago } from "@/components/sales/ago";
 import { fmtZoned, fromZonedInput, toZonedInput } from "@/lib/display-tz";
@@ -158,7 +158,7 @@ export function DealView({ d }: { d: DealPageData }) {
   return (
     <VoiceReady.Provider value={d.voiceEnabled}>
     <div className="space-y-4">
-      {/* header */}
+      {/* first glance: who, where it is stuck, what happens next, and logging. Everything else is in the tabs below. */}
       <div className="rounded-2xl border border-border bg-surface p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -167,7 +167,7 @@ export function DealView({ d }: { d: DealPageData }) {
                 <span className="h-2 w-2 rounded-full" style={{ background: deal.stage_color }} />{deal.stage_name}
               </span>
               <Priority value={deal.priority} prev={deal.priority_prev} why={deal.priority_why} />
-              {d.fit ? <span title="Fit: how well they suit your business (see the Fit card)" className={cn("rounded-md px-2 py-0.5 text-xs font-semibold", d.fit.grade === "A" ? "bg-p-mint text-p-mint-fg" : d.fit.grade === "B" ? "bg-p-sky text-p-sky-fg" : d.fit.grade === "C" ? "bg-p-butter text-p-butter-fg" : "bg-muted text-subtle")}>Fit {d.fit.grade} · {d.fit.score}</span> : null}
+              {d.fit ? <span title="Fit: how well they suit your business (see the Research tab)" className={cn("rounded-md px-2 py-0.5 text-xs font-semibold", d.fit.grade === "A" ? "bg-p-mint text-p-mint-fg" : d.fit.grade === "B" ? "bg-p-sky text-p-sky-fg" : d.fit.grade === "C" ? "bg-p-butter text-p-butter-fg" : "bg-muted text-subtle")}>Fit {d.fit.grade} · {d.fit.score}</span> : null}
               <Chip>{deal.source}{deal.source_detail && !/^https?:/.test(deal.source_detail) ? `: ${deal.source_detail.slice(0, 40)}` : ""}</Chip>
               {deal.source_detail && /^https?:/.test(deal.source_detail) ? <a href={deal.source_detail} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-accent">source <ExternalLink className="h-3 w-3" /></a> : null}
               {deal.country ? <Chip>{deal.country}</Chip> : null}
@@ -181,13 +181,16 @@ export function DealView({ d }: { d: DealPageData }) {
           <div className="text-right">
             <p className="font-display text-2xl tabular">{deal.value_amount ? money(deal.value_amount, deal.currency) : "No value yet"}</p>
             {net !== null ? <p className="text-xs text-subtle">net after commission {money(net, deal.currency)}</p> : null}
-            <p className="text-xs text-subtle">{Math.floor((Date.now() - new Date(deal.stage_changed_at).getTime()) / 86_400_000)}d in stage{deal.stage_sla ? ` (limit ${deal.stage_sla})` : ""}</p>
           </div>
         </div>
-        {deal.radar_item_id ? <SendBackToRadar dealId={deal.id} /> : null}
-        {addedBy ? <p className="mt-2 text-xs text-subtle">Added by <b className="text-fg">{addedBy.display_name}</b> (sales team)</p> : null}
-        {dupHint ? <p className="mt-2 rounded-md bg-p-butter px-3 py-2 text-xs text-p-butter-fg">Possible duplicate: {dupHint}</p> : null}
         {d.blocked ? <p className="mt-3 rounded-md bg-p-rose px-3 py-2 text-xs text-p-rose-fg">Do not contact: no outreach moves. <a href="/sales/playbook#dnc" className="font-medium underline">Manage</a></p> : null}
+        {dupHint ? <p className="mt-2 rounded-md bg-p-butter px-3 py-2 text-xs text-p-butter-fg">Possible duplicate: {dupHint}</p> : null}
+
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          <WhereItStands deal={deal} pulse={d.pulse} touches={d.touches} />
+          <NextStep dealId={deal.id} action={deal.next_action} at={deal.next_action_at} />
+        </div>
+
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-subtle">Move to:</span>
           {d.targets.map((t) => (
@@ -204,267 +207,247 @@ export function DealView({ d }: { d: DealPageData }) {
           <span className="ml-auto" />
           <SalesChat focus={{ deal_id: deal.id }} title={`Chat about ${deal.title}`} voiceEnabled={d.voiceEnabled} label="Chat about this lead" />
           <Button size="sm" variant="ghost" onClick={() => openEdit()}>Edit details</Button>
-          {!d.blocked && (d.company?.website || deal.company_name || deal.person_name) ? (
-            <Button size="sm" variant="ghost" className="text-bad hover:text-bad" title="Stop all outreach to them, now and in future radar leads"
-              onClick={() => {
-                const [kind, value] = d.company?.website ? ["domain", d.company.website] as const : deal.company_name ? ["company", deal.company_name] as const : ["person", deal.person_name!] as const;
-                const why = prompt(`Never contact ${value} again? Optional: why (e.g. "asked not to be contacted").`, "");
-                if (why === null) return;
-                act(async () => (await import("@/app/sales-actions")).addBlockAction(kind, value, why || "from deal"), "Added to do-not-contact");
-              }}>Do not contact</Button>
-          ) : null}
         </div>
-        {deal.next_action ? (
-          <p className="mt-3 flex flex-wrap items-baseline gap-x-2 rounded-xl bg-accent-muted/40 px-3 py-2 text-sm" aria-label="Next step">
-            <span className="text-xs font-semibold uppercase tracking-wide text-accent">Next step</span>
-            <span className="font-medium">{deal.next_action}</span>
-            {deal.next_action_at ? <span suppressHydrationWarning className={cn("text-xs", new Date(deal.next_action_at).getTime() < Date.now() ? "font-semibold text-bad" : "text-subtle")}>{new Date(deal.next_action_at).getTime() < Date.now() ? "overdue since " : "by "}{fmtDate(deal.next_action_at)}</span> : null}
-          </p>
-        ) : null}
-        {d.pulse ? (
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs" aria-label="Reach and behaviour">
-            <span><span className="text-subtle">Reach them on </span>{d.pulse.reach.length ? <b>{d.pulse.reach.join(", ")}</b> : <b className="text-bad">nothing yet</b>}{d.pulse.missing.length ? <span className="text-subtle"> · no {d.pulse.missing.join(", no ").toLowerCase().replace("linkedin", "LinkedIn").replace("whatsapp", "WhatsApp")} yet</span> : null}</span>
-            {d.pulse.engage ? <span className={cn(d.pulse.waiting === "you" && "font-semibold text-warn")}>{d.pulse.engage.replace(/^./, (x) => x.toUpperCase())}</span> : null}
-          </div>
-        ) : null}
-        {deal.priority_why?.length ? (
-          <p className="mt-2 text-xs text-subtle">Why this priority: {deal.priority_why.join(" · ")}</p>
-        ) : null}
-        {d.touches.length ? (
-          <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border pt-3">
-            <span className="text-xs text-subtle">Last touch:</span>
-            {d.touches.map((t) => (
-              <span key={t.channel} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs" title={`${t.count} touches${t.last_in ? `, they last wrote ${ago(t.last_in)}` : ""}`}>
-                <ChannelIcon channel={t.channel} className="h-3 w-3" /> {CHANNEL_LABEL[t.channel] ?? t.channel} <Ago d={t.last_at} />
-              </span>
-            ))}
-          </div>
-        ) : null}
       </div>
 
-      {/* 1. log it: the first thing under the header, so a screenshot or a chat goes in in seconds */}
+      {/* log it: right under the summary, so a screenshot, a chat or a call goes in in seconds */}
       <section className="rounded-2xl border border-accent/30 bg-accent-muted/20 p-4" aria-label="Log something">
         <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-3">
-          <h3 className="font-display text-base">Log something</h3>
-          <span className="text-xs text-subtle">Screenshots, pasted chats, emails or a voice note. Dates, the platform, details and the next step are picked up for you.</span>
+          <h3 className="font-display text-base">Log what happened</h3>
+          <span className="text-xs text-subtle">Paste a chat, drop a screenshot, or speak. The date, details and next step are picked up for you.</span>
         </div>
-        <CaptureBox dealId={deal.id} voiceEnabled={d.voiceEnabled} compact placeholder={`Paste the latest chat with ${deal.person_name ?? "them"}, an email, or speak a debrief. Promises and next steps are picked out for you.`} />
+        <CaptureBox dealId={deal.id} voiceEnabled={d.voiceEnabled} compact placeholder={`Paste the latest chat with ${deal.person_name ?? "them"}, an email, or speak a debrief.`} />
         <div className="mt-2">
           <ActivityLogger dealId={deal.id} people={people} />
         </div>
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
-        <div className="min-w-0 space-y-4">
-          <ConversationCard
-            dealId={deal.id}
-            summary={deal.summary}
-            timeline={d.timeline}
-            conversation={(deal as { conversation?: Conversation | null }).conversation ?? null}
-            contact={{ phone: d.people[0]?.phones?.[0] ?? null, email: d.people[0]?.emails?.[0] ?? null, name: d.people[0]?.full_name ?? null }}
-            onStage={(role) => {
-              const t = d.targets.find((x) => x.role === role);
-              if (!t) return toast(`It is not possible to move to ${role} from here.`, "error");
-              setPendingMove({ deal, to: t, requires: t.requires });
-            }}
-            extra={deal.objections?.length ? (
-              <dl className="mt-3 grid gap-2 text-xs">
-                <div><dt className="text-subtle">Objections</dt><dd>{deal.objections.join(" · ")}</dd></div>
-              </dl>
-            ) : null}
-          />
+      {d.moves.length ? (
+        <div>
+          <Label>Ready for you to send</Label>
+          <ul className="space-y-3">{d.moves.map((m) => <MoveCard key={m.id} m={m} googleReady={d.googleReady} onGone={() => router.refresh()} />)}</ul>
+        </div>
+      ) : null}
 
-          {d.moves.length ? (
-            <div>
-              <Label>Moves for this deal</Label>
-              <ul className="space-y-3">{d.moves.map((m) => <MoveCard key={m.id} m={m} googleReady={d.googleReady} onGone={() => router.refresh()} />)}</ul>
+      <ClosingRecord deal={deal} people={people} gaps={d.gaps} onComplete={() => setCompleting(true)} />
+
+      <Tabs id="deal" label="More about this deal" tabs={[
+        {
+          key: "conversation", label: "Conversation", count: d.timeline.length, aliases: ["timeline", "promises"],
+          content: (
+            <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
+              <div className="min-w-0 space-y-4">
+                <ConversationCard
+                  dealId={deal.id}
+                  summary={deal.summary}
+                  timeline={d.timeline}
+                  conversation={(deal as { conversation?: Conversation | null }).conversation ?? null}
+                  contact={{ phone: d.people[0]?.phones?.[0] ?? null, email: d.people[0]?.emails?.[0] ?? null, name: d.people[0]?.full_name ?? null }}
+                  onStage={(role) => {
+                    const t = d.targets.find((x) => x.role === role);
+                    if (!t) return toast(`It is not possible to move to ${role} from here.`, "error");
+                    setPendingMove({ deal, to: t, requires: t.requires });
+                  }}
+                  extra={deal.objections?.length ? (
+                    <dl className="mt-3 grid gap-2 text-xs">
+                      <div><dt className="text-subtle">Objections</dt><dd>{deal.objections.join(" · ")}</dd></div>
+                    </dl>
+                  ) : null}
+                />
+                <Section title={`Timeline · ${d.timeline.length}`}>
+                  {d.timeline.length ? (
+                    <ol className="space-y-2">
+                      {d.timeline.map((i) => <TimelineItem key={i.id} i={i} onDelete={() => act(() => deleteInteractionAction(i.id))} extra={<VisibleTo kind="interaction" id={i.id} sharedWith={i.shared_with ?? []} audience={audience} authorUser={i.author_user} authorName={i.author_name} />} />)}
+                    </ol>
+                  ) : <p className="text-sm text-subtle">No touches yet.</p>}
+                </Section>
+              </div>
+              <div className="min-w-0 space-y-4">
+                <Section title="Promises">
+                  <Promises dealId={deal.id} mine={mine} theirs={theirs} audience={audience} onChange={() => router.refresh()} />
+                </Section>
+                {d.meetings.length ? (
+                  <Section title="Meetings">
+                    <ul className="space-y-1.5 text-sm">
+                      {d.meetings.map((m) => (
+                        <li key={m.id} className="flex items-center justify-between gap-2">
+                          <span>{m.title} <span className="text-xs text-subtle">{fmtDate(m.starts_at)}</span></span>
+                          {m.link?.startsWith("https://") ? <a href={m.link} target="_blank" rel="noreferrer" className="text-xs text-accent">Join</a> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </Section>
+                ) : null}
+              </div>
             </div>
-          ) : null}
-
-          <ClosingRecord deal={deal} people={people} gaps={d.gaps} onComplete={() => setCompleting(true)} />
-
-          <Fold id="timeline" title={`Timeline · ${d.timeline.length}`} summary="every touch, newest first">
-            {d.timeline.length ? (
-              <ol className="space-y-2">
-                {d.timeline.map((i) => <TimelineItem key={i.id} i={i} onDelete={() => act(() => deleteInteractionAction(i.id))} extra={<VisibleTo kind="interaction" id={i.id} sharedWith={i.shared_with ?? []} audience={audience} authorUser={i.author_user} authorName={i.author_name} />} />)}
-              </ol>
-            ) : <p className="text-sm text-subtle">No touches yet.</p>}
-          </Fold>
-
-          <Fold id="playbook" title="Playbook for this stage" summary={`what to ask and do in ${deal.stage_name}`}>
-          <PlaybookCard key={d.stageKey} deal={deal} stageKey={d.stageKey} play={d.play} ticked={d.ticked} objections={d.objections} owner={d.owner} />
-          </Fold>
-
-          <Fold id="details" title="Deal details" summary="needs, budget, who decides, dates and your own fields">
-          <DealDetails deal={deal} people={people} customDefs={d.customDefs} onEdit={openEdit} choices={d.choices} />
-          </Fold>
-
-          <Fold id="items" title="Line items" summary={d.items.length ? `${d.items.length} item${d.items.length === 1 ? "" : "s"}` : "what you are selling, with prices"}>
-          <LineItems deal={deal} items={d.items} defaultTax={d.defaultTax} packages={d.itemPackages} />
-          </Fold>
-        </div>
-
-        <div className="min-w-0 space-y-4">
-          <Section title="Promises">
-            <Promises dealId={deal.id} mine={mine} theirs={theirs} audience={audience} onChange={() => router.refresh()} />
-          </Section>
-
-          {d.meetings.length ? (
-            <Section title="Meetings">
-              <ul className="space-y-1.5 text-sm">
-                {d.meetings.map((m) => (
-                  <li key={m.id} className="flex items-center justify-between gap-2">
-                    <span>{m.title} <span className="text-xs text-subtle">{fmtDate(m.starts_at)}</span></span>
-                    {m.link?.startsWith("https://") ? <a href={m.link} target="_blank" rel="noreferrer" className="text-xs text-accent">Join</a> : null}
-                  </li>
-                ))}
-              </ul>
-            </Section>
-          ) : null}
-
-          <Section title="People" action={<AddPerson dealId={deal.id} />}>
-            <ul className="space-y-2">
-              {d.people.map((p) => (
-                <li key={p.id} className="flex items-start justify-between gap-2 text-sm">
-                  <div className="min-w-0">
-                    <p className="font-medium">{p.full_name} <span className="text-xs font-normal text-subtle">{p.role.replace("_", " ")}{p.is_decision_maker ? " · decides" : ""}</span></p>
-                    <p className="truncate text-xs text-subtle">{[p.title, ...p.emails, ...p.phones].filter(Boolean).join(" · ")}</p>
-                  </div>
-                  <span className="flex shrink-0 gap-1">
-                    <button type="button" aria-label={`Edit ${p.full_name}`} onClick={() => setEditPerson(p)} className="text-subtle hover:text-accent"><Pencil className="h-3.5 w-3.5" /></button>
-                    <button type="button" aria-label="Remove from deal" onClick={() => act(() => removeDealPersonAction(deal.id, p.id))} className="text-subtle hover:text-bad"><X className="h-3.5 w-3.5" /></button>
-                  </span>
-                </li>
-              ))}
-              {!d.people.length ? <li className="text-sm text-subtle">Nobody yet.</li> : null}
-            </ul>
-            {deal.intermediary_name ? (
-              <label className="mt-3 flex items-center gap-2 text-xs">
-                <input type="checkbox" checked={f.talk_via_intermediary} onChange={(e) => {
-                  setF((c) => ({ ...c, talk_via_intermediary: e.target.checked }));
-                  act(() => updateDealAction(deal.id, { talk_via_intermediary: e.target.checked }));
-                }} />
-                Follow-ups go to {deal.intermediary_name}, not the client
-              </label>
-            ) : null}
-          </Section>
-
-          {d.company ? (
-            <Section title={`Company: ${d.company.name}`} action={<Button size="sm" variant="ghost" onClick={() => setEditCompany(true)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>}>
-              <dl className="grid gap-x-3 gap-y-1.5 text-xs sm:grid-cols-2">
-                {([
-                  ["Industry", d.company.industry], ["Employees", d.company.employees ? String(d.company.employees) : null],
-                  ["Location", [d.company.city, d.company.region, d.company.country].filter(Boolean).join(", ")], ["PIN / postal code", d.company.postal_code],
-                  ["Phone", d.company.phone], ["Email", d.company.email], ["GST / tax ID", d.company.tax_id], ["Website", d.company.website],
-                  ...d.companyDefs.map((c) => [c.label, (() => { const v = ((d.company!.custom ?? {}) as Record<string, unknown>)[c.key.replace(/^custom\./, "")]; return v === null || v === undefined ? null : Array.isArray(v) ? v.join(", ") : String(v); })()]),
-                ] as [string, string | null | undefined][]).filter(([, v]) => v).map(([k, v]) => <div key={k}><dt className="text-subtle">{k}</dt><dd className="break-words">{v}</dd></div>)}
-                {d.company.address ? <div className="sm:col-span-2"><dt className="text-subtle">Address</dt><dd className="whitespace-pre-line">{d.company.address}</dd></div> : null}
-              </dl>
-              {!d.company.city && !d.company.address && !d.company.tax_id ? <p className="mt-2 text-xs text-subtle">No address or GST yet. Edit to add them.</p> : null}
-            </Section>
-          ) : null}
-
-          <Section title="Documents" action={<DocButtons dealId={deal.id} companyId={d.company?.id ?? null} packages={d.packages ?? []} />}>
-            {d.docs.length ? (
-              <ul className="space-y-2">
-                {d.docs.map((x) => {
-                  const url = x.kind === "link" ? `${d.baseUrl}/l/${x.slug}` : `${d.baseUrl}/q/${x.slug}`;
-                  return (
-                    <li key={x.id} className="rounded-xl border border-border p-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="min-w-0">
-                          <Link href={x.internal && x.kind === "file" ? `/api/sales/file/${x.slug}` : `/sales/docs/${x.id}`} target={x.internal && x.kind === "file" ? "_blank" : undefined} className="text-sm font-medium hover:text-accent">
-                            {x.kind === "quote" ? <FileText className="mr-1 inline h-3.5 w-3.5" /> : <Link2 className="mr-1 inline h-3.5 w-3.5" />}
-                            {x.title}{x.kind === "quote" ? ` v${x.current_rev}` : ""}
-                          </Link>
-                          <DocCategory category={DOC_CATEGORIES.find(([k]) => k === x.category)?.[1] ?? x.category} internal={x.internal} />
+          ),
+        },
+        {
+          key: "details", label: "Details", aliases: ["people", "company"],
+          content: (
+            <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
+              <div className="min-w-0 space-y-4">
+                <Section title="Deal details"><DealDetails deal={deal} people={people} customDefs={d.customDefs} onEdit={openEdit} choices={d.choices} /></Section>
+                <Section title={`Line items${d.items.length ? ` · ${d.items.length}` : ""}`}><LineItems deal={deal} items={d.items} defaultTax={d.defaultTax} packages={d.itemPackages} /></Section>
+              </div>
+              <div className="min-w-0 space-y-4">
+                <Section title="People" action={<AddPerson dealId={deal.id} />}>
+                  <ul className="space-y-2">
+                    {d.people.map((p) => (
+                      <li key={p.id} className="flex items-start justify-between gap-2 text-sm">
+                        <div className="min-w-0">
+                          <p className="font-medium">{p.full_name} <span className="text-xs font-normal text-subtle">{p.role.replace("_", " ")}{p.is_decision_maker ? " · decides" : ""}</span></p>
+                          <p className="truncate text-xs text-subtle">{[p.title, ...p.emails, ...p.phones].filter(Boolean).join(" · ")}</p>
+                        </div>
+                        <span className="flex shrink-0 gap-1">
+                          <button type="button" aria-label={`Edit ${p.full_name}`} onClick={() => setEditPerson(p)} className="text-subtle hover:text-accent"><Pencil className="h-3.5 w-3.5" /></button>
+                          <button type="button" aria-label="Remove from deal" onClick={() => act(() => removeDealPersonAction(deal.id, p.id))} className="text-subtle hover:text-bad"><X className="h-3.5 w-3.5" /></button>
                         </span>
-                        <Chip className={cn(x.status === "accepted" && "bg-p-mint text-p-mint-fg", x.status === "viewed" && "bg-p-sky text-p-sky-fg", x.status === "changes" && "bg-p-butter text-p-butter-fg")}>{x.status}</Chip>
-                      </div>
-                      <p suppressHydrationWarning className="mt-0.5 text-xs text-subtle">
-                        {x.total ? `${money(x.total, x.currency ?? deal.currency)} · ` : ""}{x.view_count ? `opened ${x.view_count}x, last ${ago(x.last_viewed_at)}` : x.sent_at ? "not opened yet" : "draft"}
-                      </p>
-                      <VisibleTo kind="doc" id={x.id} sharedWith={x.shared_with ?? []} audience={audience} authorUser={x.author_user} authorName={null} />
-                      <div className={cn("mt-1.5 flex items-center gap-1", x.internal && "hidden")}>
-                        <code className="truncate rounded bg-muted px-1.5 py-0.5 text-xs">{url.replace(/^https?:\/\//, "")}</code>
-                        <Button size="sm" variant="ghost" className="h-6 px-1.5" onClick={() => void navigator.clipboard.writeText(url).then(() => toast("Link copied. Send it instead of an attachment."), () => toast("Your browser blocked copying. Select the text and copy it by hand.", "error"))}>
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : <p className="text-sm text-subtle">Send links, not attachments: every open is tracked and pinged to you.</p>}
-          </Section>
-
-          <Fold id="money" title="Money" summary={d.payments.length ? `${d.payments.length} payment${d.payments.length === 1 ? "" : "s"}` : "payments and what is due"} defaultOpen={d.payments.length > 0}>
-            <Payments dealId={deal.id} currency={deal.currency} payments={d.payments} onChange={() => router.refresh()} />
-          </Fold>
-
-          {d.fit ? (
-            <Fold id="fit" title="Fit" summary={`${d.fit.grade} · ${d.fit.score}: how well they suit your business`}>
-              <FitCard fit={d.fit} deal={deal} />
-            </Fold>
-          ) : null}
-
-          {d.company?.audit?.summary ? (
-            <Fold id="audit" title="Opportunity audit" summary={d.company.audit.first_project ? `start with: ${d.company.audit.first_project}` : "what their website and business show"}>
-              <p className="text-sm">{d.company.audit.summary}</p>
-              {d.company.audit.money_leak ? <p className="mt-2 rounded-lg bg-warn-muted px-2.5 py-1.5 text-xs text-warn">{d.company.audit.money_leak}</p> : null}
-              <ul className="mt-2 space-y-1.5 text-xs">
-                {(d.company.audit.opportunities ?? []).map((o, i) => <li key={i}><b>{o.title}</b>: {o.fix} <span className="text-subtle">({o.impact}; {o.effort})</span></li>)}
-              </ul>
-              {d.company.audit.first_project ? <p className="mt-2 text-xs"><b>Start with:</b> {d.company.audit.first_project}</p> : null}
-              <AuditBasis companyId={d.company.id} audit={d.company.audit} auditedAt={d.company.audited_at ?? null} stale={!!d.company.audit_stale} />
-            </Fold>
-          ) : null}
-
-          {d.shots?.length ? (
-            <Fold id="shots" title={`Screenshots · ${d.shots.length}`} summary="the ones you logged">
-              <ul className="grid grid-cols-3 gap-2" aria-label="Screenshots you shared">
-                {d.shots.map((x) => (
-                  <li key={`${x.capture_id}-${x.index}`}>
-                    <a href={`/api/sales/shot/${x.capture_id}/${x.index}`} target="_blank" rel="noreferrer" title={`${fmtDate(x.at)}${x.summary ? `: ${x.summary}` : ""}`} className="block">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={`/api/sales/shot/${x.capture_id}/${x.index}`} alt={x.summary ?? "Screenshot"} loading="lazy" className="aspect-square w-full rounded-lg border border-border object-cover hover:border-accent" />
-                      <span className="mt-0.5 block truncate text-[11px] text-subtle">{fmtDate(x.at)}{x.source === "telegram" ? " · Telegram" : ""}</span>
-                    </a>
-                    {x.index === 0 ? <VisibleTo kind="capture" id={x.capture_id} sharedWith={x.shared_with ?? []} audience={audience} authorUser={x.author_user} authorName={x.author_name} /> : null}
-                  </li>
-                ))}
-              </ul>
-            </Fold>
-          ) : null}
-
-          {d.links.length ? (
-            <Fold id="links" title="Links" summary="profiles, website, where they came from">
-              <QuickLinks groups={d.links} />
-            </Fold>
-          ) : null}
-
-          {d.shares?.length ? (
-            <Fold id="team" title="Sales team" summary="who else sees this lead">
-              <TeamSharing dealId={deal.id} shares={d.shares} />
-            </Fold>
-          ) : null}
-
-          <Fold id="journey" title="Journey" summary="every stage and field change, dated">
-          <Journey events={d.events} created={deal.created_at} customLabels={customLabels} />
-          </Fold>
-        </div>
-      </div>
-
-      {d.company ? (
-        <Fold id="research-company" title={`Research: ${d.company.name}`} summary={d.company.enriched_at ? "everything found about the business, with sources" : "not researched yet"}>
-          <EnrichmentPanel kind="company" id={d.company.id} data={d.company.enrichment} groups={d.companyFields} enrichedAt={d.company.enriched_at} title={`Company: ${d.company.name}`} />
-        </Fold>
-      ) : null}
-      {d.person ? (
-        <Fold id="research-person" title={`Research: ${d.person.full_name}`} summary={d.person.enriched_at ? "their role, background and how to talk to them" : "not researched yet"}>
-          <EnrichmentPanel kind="person" id={d.person.id} data={d.person.enrichment} groups={d.personFields} enrichedAt={d.person.enriched_at} title={`Person: ${d.person.full_name}`} />
-        </Fold>
-      ) : null}
+                      </li>
+                    ))}
+                    {!d.people.length ? <li className="text-sm text-subtle">Nobody yet.</li> : null}
+                  </ul>
+                  {deal.intermediary_name ? (
+                    <label className="mt-3 flex items-center gap-2 text-xs">
+                      <input type="checkbox" checked={f.talk_via_intermediary} onChange={(e) => {
+                        setF((c) => ({ ...c, talk_via_intermediary: e.target.checked }));
+                        act(() => updateDealAction(deal.id, { talk_via_intermediary: e.target.checked }));
+                      }} />
+                      Follow-ups go to {deal.intermediary_name}, not the client
+                    </label>
+                  ) : null}
+                </Section>
+                {d.company ? (
+                  <Section title={`Company: ${d.company.name}`} action={<Button size="sm" variant="ghost" onClick={() => setEditCompany(true)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>}>
+                    <dl className="grid gap-x-3 gap-y-1.5 text-xs sm:grid-cols-2">
+                      {([
+                        ["Industry", d.company.industry], ["Employees", d.company.employees ? String(d.company.employees) : null],
+                        ["Location", [d.company.city, d.company.region, d.company.country].filter(Boolean).join(", ")], ["PIN / postal code", d.company.postal_code],
+                        ["Phone", d.company.phone], ["Email", d.company.email], ["GST / tax ID", d.company.tax_id], ["Website", d.company.website],
+                        ...d.companyDefs.map((c) => [c.label, (() => { const v = ((d.company!.custom ?? {}) as Record<string, unknown>)[c.key.replace(/^custom\./, "")]; return v === null || v === undefined ? null : Array.isArray(v) ? v.join(", ") : String(v); })()]),
+                      ] as [string, string | null | undefined][]).filter(([, v]) => v).map(([k, v]) => <div key={k}><dt className="text-subtle">{k}</dt><dd className="break-words">{v}</dd></div>)}
+                      {d.company.address ? <div className="sm:col-span-2"><dt className="text-subtle">Address</dt><dd className="whitespace-pre-line">{d.company.address}</dd></div> : null}
+                    </dl>
+                    {!d.company.city && !d.company.address && !d.company.tax_id ? <p className="mt-2 text-xs text-subtle">No address or GST yet. Edit to add them.</p> : null}
+                  </Section>
+                ) : null}
+                {d.links.length ? <Section title="Links"><QuickLinks groups={d.links} /></Section> : null}
+              </div>
+            </div>
+          ),
+        },
+        {
+          key: "docs", label: "Documents & money", count: d.docs.length + d.payments.length, aliases: ["documents", "money", "payments"],
+          content: (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Section title="Documents" action={<DocButtons dealId={deal.id} companyId={d.company?.id ?? null} packages={d.packages ?? []} />}>
+                {d.docs.length ? (
+                  <ul className="space-y-2">
+                    {d.docs.map((x) => {
+                      const url = x.kind === "link" ? `${d.baseUrl}/l/${x.slug}` : `${d.baseUrl}/q/${x.slug}`;
+                      return (
+                        <li key={x.id} className="rounded-xl border border-border p-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="min-w-0">
+                              <Link href={x.internal && x.kind === "file" ? `/api/sales/file/${x.slug}` : `/sales/docs/${x.id}`} target={x.internal && x.kind === "file" ? "_blank" : undefined} className="text-sm font-medium hover:text-accent">
+                                {x.kind === "quote" ? <FileText className="mr-1 inline h-3.5 w-3.5" /> : <Link2 className="mr-1 inline h-3.5 w-3.5" />}
+                                {x.title}{x.kind === "quote" ? ` v${x.current_rev}` : ""}
+                              </Link>
+                              <DocCategory category={DOC_CATEGORIES.find(([k]) => k === x.category)?.[1] ?? x.category} internal={x.internal} />
+                            </span>
+                            <Chip className={cn(x.status === "accepted" && "bg-p-mint text-p-mint-fg", x.status === "viewed" && "bg-p-sky text-p-sky-fg", x.status === "changes" && "bg-p-butter text-p-butter-fg")}>{x.status}</Chip>
+                          </div>
+                          <p suppressHydrationWarning className="mt-0.5 text-xs text-subtle">
+                            {x.total ? `${money(x.total, x.currency ?? deal.currency)} · ` : ""}{x.view_count ? `opened ${x.view_count}x, last ${ago(x.last_viewed_at)}` : x.sent_at ? "not opened yet" : "draft"}
+                          </p>
+                          <VisibleTo kind="doc" id={x.id} sharedWith={x.shared_with ?? []} audience={audience} authorUser={x.author_user} authorName={null} />
+                          <div className={cn("mt-1.5 flex items-center gap-1", x.internal && "hidden")}>
+                            <code className="truncate rounded bg-muted px-1.5 py-0.5 text-xs">{url.replace(/^https?:\/\//, "")}</code>
+                            <Button size="sm" variant="ghost" className="h-6 px-1.5" onClick={() => void navigator.clipboard.writeText(url).then(() => toast("Link copied. Send it instead of an attachment."), () => toast("Your browser blocked copying. Select the text and copy it by hand.", "error"))}>
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : <p className="text-sm text-subtle">Send links, not attachments: every open is tracked and pinged to you.</p>}
+              </Section>
+              <div className="space-y-4">
+                <Section title="Money"><Payments dealId={deal.id} currency={deal.currency} payments={d.payments} onChange={() => router.refresh()} /></Section>
+                {d.shots?.length ? (
+                  <Section title={`Screenshots · ${d.shots.length}`}>
+                    <ul className="grid grid-cols-3 gap-2" aria-label="Screenshots you shared">
+                      {d.shots.map((x) => (
+                        <li key={`${x.capture_id}-${x.index}`}>
+                          <a href={`/api/sales/shot/${x.capture_id}/${x.index}`} target="_blank" rel="noreferrer" title={`${fmtDate(x.at)}${x.summary ? `: ${x.summary}` : ""}`} className="block">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={`/api/sales/shot/${x.capture_id}/${x.index}`} alt={x.summary ?? "Screenshot"} loading="lazy" className="aspect-square w-full rounded-lg border border-border object-cover hover:border-accent" />
+                            <span className="mt-0.5 block truncate text-[11px] text-subtle">{fmtDate(x.at)}{x.source === "telegram" ? " · Telegram" : ""}</span>
+                          </a>
+                          {x.index === 0 ? <VisibleTo kind="capture" id={x.capture_id} sharedWith={x.shared_with ?? []} audience={audience} authorUser={x.author_user} authorName={x.author_name} /> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </Section>
+                ) : null}
+              </div>
+            </div>
+          ),
+        },
+        {
+          key: "research", label: "Research", aliases: ["audit", "fit"],
+          content: (
+            <div className="space-y-4">
+              <div className="grid gap-4 lg:grid-cols-2">
+                {d.fit ? <Section title={`Fit · ${d.fit.grade} ${d.fit.score}`}><FitCard fit={d.fit} deal={deal} /></Section> : null}
+                {d.company?.audit?.summary ? (
+                  <section className="rounded-2xl border border-border bg-surface p-4" data-fold-section="audit">
+                    <h3 className="mb-3 font-display text-base">Opportunity audit</h3>
+                    <p className="text-sm">{d.company.audit.summary}</p>
+                    {d.company.audit.money_leak ? <p className="mt-2 rounded-lg bg-warn-muted px-2.5 py-1.5 text-xs text-warn">{d.company.audit.money_leak}</p> : null}
+                    <ul className="mt-2 space-y-1.5 text-xs">
+                      {(d.company.audit.opportunities ?? []).map((o, i) => <li key={i}><b>{o.title}</b>: {o.fix} <span className="text-subtle">({o.impact}; {o.effort})</span></li>)}
+                    </ul>
+                    {d.company.audit.first_project ? <p className="mt-2 text-xs"><b>Start with:</b> {d.company.audit.first_project}</p> : null}
+                    <AuditBasis companyId={d.company.id} audit={d.company.audit} auditedAt={d.company.audited_at ?? null} stale={!!d.company.audit_stale} />
+                  </section>
+                ) : null}
+              </div>
+              {d.company ? <EnrichmentPanel kind="company" id={d.company.id} data={d.company.enrichment} groups={d.companyFields} enrichedAt={d.company.enriched_at} title={`Company: ${d.company.name}`} /> : null}
+              {d.person ? <EnrichmentPanel kind="person" id={d.person.id} data={d.person.enrichment} groups={d.personFields} enrichedAt={d.person.enriched_at} title={`Person: ${d.person.full_name}`} /> : null}
+              {!d.company && !d.person ? <p className="text-sm text-subtle">Add a person or a company to research them.</p> : null}
+            </div>
+          ),
+        },
+        {
+          key: "playbook", label: "Playbook",
+          content: <PlaybookCard key={d.stageKey} deal={deal} stageKey={d.stageKey} play={d.play} ticked={d.ticked} objections={d.objections} owner={d.owner} />,
+        },
+        {
+          key: "history", label: "History", aliases: ["journey", "team"],
+          content: (
+            <div className="space-y-4">
+              <Section title="Journey"><Journey events={d.events} created={deal.created_at} customLabels={customLabels} /></Section>
+              {d.shares?.length ? <Section title="Sales team">{addedBy ? <p className="mb-2 text-xs text-subtle">Added by <b className="text-fg">{addedBy.display_name}</b> (sales team)</p> : null}<TeamSharing dealId={deal.id} shares={d.shares} /></Section> : null}
+              <Section title="Other actions">
+                <div className="flex flex-wrap gap-2">
+                  {deal.radar_item_id ? <SendBackToRadar dealId={deal.id} /> : null}
+                  {!d.blocked && (d.company?.website || deal.company_name || deal.person_name) ? (
+                    <Button size="sm" variant="ghost" className="text-bad hover:text-bad" title="Stop all outreach to them, now and in future radar leads"
+                      onClick={() => {
+                        const [kind, value] = d.company?.website ? ["domain", d.company.website] as const : deal.company_name ? ["company", deal.company_name] as const : ["person", deal.person_name!] as const;
+                        const why = prompt(`Never contact ${value} again? Optional: why (e.g. "asked not to be contacted").`, "");
+                        if (why === null) return;
+                        act(async () => (await import("@/app/sales-actions")).addBlockAction(kind, value, why || "from deal"), "Added to do-not-contact");
+                      }}>Do not contact</Button>
+                  ) : null}
+                </div>
+              </Section>
+            </div>
+          ),
+        },
+      ]} />
 
       <DealEditSheet deal={deal} people={people} customDefs={d.customDefs} open={edit} onOpenChange={setEdit} focusGroup={editGroup} choices={d.choices}
         footer={<Button variant="danger" size="sm" onClick={() => confirm("Delete this deal with its whole history? You can restore it any time from Deleted.") && act(async () => {
@@ -485,6 +468,79 @@ export function DealView({ d }: { d: DealPageData }) {
         onDone={() => setCompleting(false)} reasons={d.reasons} people={people} wonFields={wonFields} complete />
     </div>
     </VoiceReady.Provider>
+  );
+}
+
+/** Where the deal stands at a glance: how long in this stage, who is waiting on whom, the last touch, how to reach them. */
+function WhereItStands({ deal, pulse, touches }: { deal: DealCard; pulse: DealPageData["pulse"]; touches: DealPageData["touches"] }) {
+  const days = Math.floor((Date.now() - new Date(deal.stage_changed_at).getTime()) / 86_400_000);
+  const late = !!deal.stage_sla && days > deal.stage_sla;
+  const last = [...touches].sort((a, b) => new Date(b.last_at).getTime() - new Date(a.last_at).getTime())[0];
+  return (
+    <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm" aria-label="Where it stands">
+      <p className="text-xs font-semibold uppercase tracking-wide text-subtle">Where it stands</p>
+      <p className="mt-1" suppressHydrationWarning>
+        <b>{deal.stage_name}</b> for <span className={cn(late && "font-semibold text-bad")}>{days} day{days === 1 ? "" : "s"}</span>
+        {late ? <span className="text-bad"> (stuck: the limit is {deal.stage_sla})</span> : deal.stage_sla ? <span className="text-subtle"> (limit {deal.stage_sla})</span> : null}
+      </p>
+      {pulse?.engage ? <p className={cn("mt-0.5", pulse.waiting === "you" ? "font-semibold text-warn" : "text-subtle")}>{pulse.engage.replace(/^./, (x) => x.toUpperCase())}</p> : null}
+      {last ? (
+        <p className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-subtle">
+          Last touch: <ChannelIcon channel={last.channel} className="h-3 w-3" /> {CHANNEL_LABEL[last.channel] ?? last.channel} <Ago d={last.last_at} />
+        </p>
+      ) : <p className="mt-0.5 text-xs text-subtle">No touch logged yet.</p>}
+      {pulse ? (
+        <p className="mt-0.5 text-xs"><span className="text-subtle">Reach them on </span>{pulse.reach.length ? <b>{pulse.reach.join(", ")}</b> : <b className="text-bad">nothing yet</b>}</p>
+      ) : null}
+    </div>
+  );
+}
+
+/** The next step, always visible and changed in place: what to do and by when. */
+function NextStep({ dealId, action, at }: { dealId: number; action: string | null; at: string | null }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(action ?? "");
+  const [when, setWhen] = useState(at ? toZonedInput(at) : "");
+  const [busy, start] = useTransition();
+  const { toast } = useToast();
+  const router = useRouter();
+  useEffect(() => { setText(action ?? ""); setWhen(at ? toZonedInput(at) : ""); }, [action, at]);
+  const overdue = !!at && new Date(at).getTime() < Date.now();
+  const save = (done = false) => start(async () => {
+    const r = await updateDealAction(dealId, done ? { next_action: "", next_action_at: null } : { next_action: text.trim(), next_action_at: fromZonedInput(when) });
+    if (!r.ok) return toast(r.error, "error");
+    toast(done ? "Done. Set the next step when you know it." : "Next step saved");
+    setEditing(false);
+    router.refresh();
+  });
+  return (
+    <div className={cn("rounded-xl border px-3 py-2.5 text-sm", overdue ? "border-bad/40 bg-p-rose/30" : action ? "border-accent/30 bg-accent-muted/40" : "border-warn/40 bg-p-butter/40")} aria-label="Next step">
+      <p className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-accent">
+        Next step
+        {!editing ? <button type="button" className="font-medium normal-case text-accent hover:underline" onClick={() => setEditing(true)}>{action ? "Change" : "Add"}</button> : null}
+      </p>
+      {editing ? (
+        <div className="mt-1.5 space-y-2">
+          <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. Send the proposal" aria-label="Next step" autoFocus
+            onKeyDown={(e) => { if (e.key === "Enter" && text.trim()) save(); }} />
+          <div className="flex flex-wrap items-center gap-2">
+            <Input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} aria-label="By when" className="w-auto" />
+            <Button size="sm" variant="primary" disabled={busy || !text.trim()} onClick={() => save()}>Save</Button>
+            <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+          </div>
+        </div>
+      ) : action ? (
+        <>
+          <p className="mt-1 font-medium">{action}</p>
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs">
+            {at ? <span suppressHydrationWarning className={cn(overdue ? "font-semibold text-bad" : "text-subtle")}>{overdue ? "Overdue since " : "By "}{fmtDate(at)}</span> : <span className="text-subtle">No date</span>}
+            <button type="button" disabled={busy} className="text-accent hover:underline" onClick={() => save(true)}>Mark done</button>
+          </p>
+        </>
+      ) : (
+        <p className="mt-1 text-subtle">No next step yet. <button type="button" className="font-medium text-accent hover:underline" onClick={() => setEditing(true)}>Add one</button> so this lead never goes quiet.</p>
+      )}
+    </div>
   );
 }
 

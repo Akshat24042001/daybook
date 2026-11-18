@@ -739,3 +739,17 @@ export async function searchRadarAction(query: string): Promise<{ ok: true; lead
     return { ok: false, error: (e as Error).message };
   }
 }
+
+/**
+ * You already reached out to a radar lead (or they replied): it becomes a deal (or joins the one it belongs to) with
+ * what you did logged on it, and the next step if you gave one. Returns the deal, so the page can open it.
+ */
+export async function radarLogAction(itemId: number, a: { type: string; body: string; next_step?: string | null }) {
+  return run<{ id: number }>(async () => {
+    const r = await one<{ deal_id: number | null }>("select deal_id from sales_radar_items where id = $1", [itemId]);
+    if (!r) throw new UserError("That lead is gone. Refresh the radar.");
+    const id = r.deal_id ?? await radarToDeal(itemId);
+    await logActivity(id, { type: a.type, direction: "out", body: a.body, next_step: a.next_step ?? null });
+    return { id };
+  }, ["/sales/radar", "/sales", "/sales/pipeline"]);
+}
