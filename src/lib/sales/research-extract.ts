@@ -17,6 +17,9 @@ export interface Contacts {
   org: Record<string, unknown>;
 }
 
+/** A credit to whoever built or runs the site: the number or email after it is theirs, not the business's. */
+export const CREDIT = /(designed|developed|powered|maintained|hosted|created|built|managed)\s+(and\s+\w+\s+)?by\b|web\s*(design|development|developer)|digital\s+(agency|marketing)|website\s+by|site\s+by/i;
+
 export const GENERIC_LOCAL = /^(info|hello|hi|contact|sales|support|admin|office|enquir(y|ies)|inquir(y|ies)|careers|jobs|hr|team|mail|accounts?|billing|help|marketing|press|media|service|customerservice|reception|bookings?|orders?|general|partners?|hey)$/i;
 const JUNK_LOCAL = /^(no-?reply|do-?not-?reply|donotreply|user|name|yourname|your-?email|email|test|username|example|you|someone|firstname|lastname|john\.?doe|jane\.?doe)$/i;
 const JUNK_DOMAIN = /(^|\.)(example\.(com|org)|domain\.com|email\.com|sentry\.io|sentry\.wixpress\.com|wixpress\.com|yoursite\.com|yourdomain\.com|mysite\.com|company\.com|test\.com|godaddy\.com|schema\.org|w3\.org|gravatar\.com)$/i;
@@ -29,6 +32,7 @@ export function extractEmails(text: string, page: string): FoundEmail[] {
     const [local, domain] = email.split("@");
     if (!domain || /\.(png|jpe?g|gif|svg|webp|css|js|woff2?)$/i.test(email)) continue;
     if (JUNK_LOCAL.test(local) || JUNK_DOMAIN.test(domain) || local.length < 2 || /^\d+$/.test(local)) continue;
+    if (CREDIT.test(decoded.slice(Math.max(0, (m.index ?? 0) - 400), m.index ?? 0).replace(/<[^>]+>/g, " ").slice(-160))) continue; // the site builder's address
     if (!found.has(email)) found.set(email, { email, kind: GENERIC_LOCAL.test(local) ? "generic" : "personal", page });
   }
   return [...found.values()];
@@ -44,8 +48,14 @@ export function extractPhones(html: string): string[] {
     const key = digits.slice(-9);
     if (!out.has(key)) out.set(key, cleaned.startsWith("+") ? cleaned : raw.trim().replace(/\s+/g, " "));
   };
-  for (const m of html.matchAll(/href=["']tel:([^"']+)["']/gi)) add(decodeURIComponent(m[1]));
-  for (const m of html.matchAll(/\+\d{1,3}[\s().-]*\d[\d\s().-]{7,15}\d/g)) add(m[0]);
+  // never a number inside a script, or credited to whoever built the site ("designed by ... +91 ..."): not theirs
+  const skip = (i: number) => {
+    if (html.lastIndexOf("<script", i) > html.lastIndexOf("</script", i)) return true;
+    const before = html.slice(Math.max(0, i - 400), i).replace(/<[^>]+>/g, " ").slice(-160);
+    return CREDIT.test(before);
+  };
+  for (const m of html.matchAll(/href=["']tel:([^"']+)["']/gi)) if (!skip(m.index ?? 0)) add(decodeURIComponent(m[1]));
+  for (const m of html.matchAll(/\+\d{1,3}[\s().-]*\d[\d\s().-]{7,15}\d/g)) if (!skip(m.index ?? 0)) add(m[0]);
   return [...out.values()].slice(0, 6);
 }
 

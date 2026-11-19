@@ -5,6 +5,7 @@ import {
   MessageCircle, Phone, Plus, Search, Sparkles, Target, TriangleAlert, UserCheck, Wallet, X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { safeRefresh, watchLinks } from "@/lib/client/safe-refresh";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   addBlockAction, radarBriefAction, radarDraftAction, radarHideAction, radarSeenAction, radarStatusAction, radarLogAction, radarToDealAction,
@@ -79,7 +80,8 @@ export function RadarBoard({ items, googleReady, tz, emptyText, voiceEnabled = f
   const preparing = rows.some((r) => r.it.prep && !isReady(r.it) && now - new Date(r.it.prep.started_at).getTime() < 30 * 60_000);
   useEffect(() => {
     if (!preparing) return;
-    const t = setInterval(() => router.refresh(), 30_000);
+    watchLinks();
+    const t = setInterval(() => safeRefresh(router), 30_000);
     return () => clearInterval(t);
   }, [preparing, router]);
   const ready = rows.filter((r) => isReady(r.it)).length;
@@ -423,6 +425,7 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
           }]}
           company={site || co ? { name: co ?? site ?? "", website: site } : null}
           message={message || null} subject={move?.draft_subject ?? subject}
+          proof={Object.fromEntries((it.identity?.verified ?? []).map((v) => [v.kind === "email" ? v.value.toLowerCase() : v.value.replace(/\D/g, "").slice(-9), v.url]))}
         />
         {/* the actions you need, one click each */}
         <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Reach them">

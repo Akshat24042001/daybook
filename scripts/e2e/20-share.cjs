@@ -42,8 +42,8 @@ const { setup, check } = require("./lib.cjs");
   await page.keyboard.press("Escape");
   const msgBox = pane.getByLabel("Your first message");
   check("the first message is shown on the lead, not hidden behind a copy button", (await msgBox.innerText()).includes("Saw your 4 salons lose bookings."));
-  const emailHref = decodeURIComponent(await pane.getByRole("link", { name: /Email meera@glowsalons.in/ }).getAttribute("href"));
-  check("Email sends the whole message, and hovering shows it", emailHref.includes("Hi Meera,") && emailHref.includes("Saw your 4 salons lose bookings.") && (await pane.getByRole("link", { name: /Email meera@glowsalons.in/ }).getAttribute("title")).includes("Saw your 4 salons"));
+  const emailHref = decodeURIComponent(await pane.getByLabel("Contact details").getByRole("link", { name: /meera@glowsalons.in/ }).getAttribute("href"));
+  check("Email sends the whole message, and hovering shows it", emailHref.includes("Hi Meera,") && emailHref.includes("Saw your 4 salons lose bookings.") && (await pane.getByLabel("Contact details").getByRole("link", { name: /meera@glowsalons.in/ }).getAttribute("title")).includes("Saw your 4 salons"));
   // a lead's chat takes screenshots
   const deal = await one("insert into sales_deals (title, stage_id, source) select 'E2E share chat deal', id, 'outbound' from sales_stages where role = 'new' returning id");
   await db.query(`update sales_deals set conversation = $2 where id = $1`, [deal.id, JSON.stringify({ quick_actions: [], reply_draft: null, at: new Date().toISOString(), autopilot: { at: new Date().toISOString(), items: [{ label: "Message being written: Reply to Neha", href: "/sales/moves" }, { label: "Prep note ready: Prepare the demo" }] } })]);

@@ -14,6 +14,7 @@ import { domainOf } from "./identity";
 import { llmConfigured, llmJson } from "./llm";
 import { extractEmails, extractPhones } from "./research-extract";
 import { seenIn } from "./research";
+import { verifyEmails, verifyPhones, type Source, type VerifiedContact } from "./contact-verify";
 import { fetchPage, geminiSearchReady, groundedResearch, webSearch, type SearchHit } from "./search";
 import type { Poster } from "./radar";
 
@@ -34,6 +35,10 @@ export interface Identity {
   candidates?: Candidate[];
   /** while it runs: which step (planning, checking) */
   stage?: string;
+  /** every phone and email kept, with the page that proves it and whether it is the person's own or the business's */
+  verified?: VerifiedContact[];
+  /** contacts from an older search that were never proven: kept for the record, never shown as a way to reach them */
+  unverified?: { phones: string[]; emails: string[] };
 }
 
 export interface Candidate {
@@ -107,8 +112,8 @@ You get the post, the poster's public profile, and EVIDENCE (search results and 
  "person": the decision maker's full name (owner, founder, director or the poster) exactly as the evidence writes it, or null,
  "title": their role, or null,
  "linkedin": their LinkedIn URL only if it appears in the evidence, else null,
- "emails": business emails that appear in the evidence, [],
- "phones": business phone numbers that appear in the evidence, [],
+ "emails": emails written on a page (not your own guess) that is clearly about THIS business or person, [],
+ "phones": phone numbers written on a page that is clearly about THIS business or person, copied exactly, [],
  "confidence": "high" (the evidence clearly ties this business to this post: same details, same site, same name and place) | "medium" (likely) | "low" (a guess),
  "evidence": [{"url": a URL from the evidence, "says": "what it shows, one line"}],
  "note": "one or two plain lines: what you found and how sure you are, or why nothing could be tied to the post",
@@ -121,7 +126,10 @@ Match the poster's city and country, the industry, the size and the exact detail
 country, or one whose details contradict the post, is not a match.
 Rules: only businesses. If the post is a private person's personal job, kind "private" and every other field null or empty.
 Never guess an email or phone pattern. Never use details of a different business with a similar name.
-If nothing in the evidence ties a business to this post, say so with confidence "low" and nulls.`;
+If nothing in the evidence ties a business to this post, say so with confidence "low" and nulls.
+A wrong phone number or email is far worse than none: the owner will call a stranger. Leave a contact out unless you see it
+written on a page about this exact business. What "Google search (Gemini)" wrote is a summary, not a page: it proves nothing.
+Every contact is checked against the pages afterwards and dropped when it is not there.`;
 
 const blank = (note: string, status: Identity["status"]): Identity => ({ status, emails: [], phones: [], evidence: [], note, checked_at: new Date().toISOString() });
 
@@ -131,7 +139,7 @@ type Draft = {
   emails?: string[]; phones?: string[]; confidence?: string; evidence?: { url: string; says: string }[]; note?: string; candidates?: unknown;
 };
 /** What round one leaves for round two: the evidence read and the first answer. */
-export interface HuntWork { hay: string; evidence: { url: string; text: string }[]; draft: Draft; hooks: string[]; place: string | null }
+export interface HuntWork { hay: string; evidence: { url: string; text: string; ai?: boolean }[]; draft: Draft; hooks: string[]; place: string | null }
 
 const loadItem = (itemId: number) => one<Item>("select id, title, body, url, poster, fit from sales_radar_items where id = $1", [itemId]);
 const saveIdentity = (itemId: number, id: Identity) => q("update sales_radar_items set identity = $2 where id = $1", [itemId, JSON.stringify(id)]);
@@ -157,7 +165,7 @@ export async function huntRound1(it: Item, deadline: number): Promise<HuntWork |
   const place = plan.place ? String(plan.place).slice(0, 80) : [it.poster?.city, it.poster?.country ?? it.fit?.country].filter(Boolean).join(", ") || null;
   const queries = [...new Set([...behindQueries(it, clues, it.fit), ...(plan.queries ?? []).map((x) => String(x).trim()).filter((x) => x.length > 3)])].slice(0, 12);
 
-  const evidence: { url: string; text: string }[] = [{ url: it.url ?? "the post", text: post }];
+  const evidence: { url: string; text: string; ai?: boolean }[] = [{ url: it.url ?? "the post", text: post }];
   if (it.poster) evidence.push({ url: it.poster.profile_url ?? "poster profile", text: `Poster's public profile: ${JSON.stringify(it.poster)}` });
 
   // the business's own site, when the post names it
@@ -191,7 +199,11 @@ export async function huntRound1(it: Item, deadline: number): Promise<HuntWork |
     seen.add(h.url);
     evidence.push({ url: h.url, text: `${h.title}\n${h.snippet}` });
   }
-  if (g?.text) evidence.push({ url: "Google search (Gemini)", text: `${g.text}\n${g.sources.map((x) => `${x.title} ${x.url} ${x.snippet}`).join("\n")}` });
+  if (g?.text) {
+    // what Google's AI wrote is a lead to follow, never proof; the pages it cites are evidence
+    evidence.push({ url: "Google search (Gemini)", text: g.text, ai: true });
+    for (const x of g.sources) evidence.push({ url: x.url, text: `${x.title}\n${x.snippet}` });
+  }
 
   const draft = await llmJson<Draft>(SYSTEM, `${known}\n\nHINTS: ${hooks.join("; ")}\nPLACE: ${place ?? "unknown"}\n\nEVIDENCE:\n${evidence.slice(1).map((e, i) => `[${i + 1}] ${e.url}\n${e.text.slice(0, 1800)}`).join("\n\n").slice(0, 26_000)}`,
     { maxTokens: 1800, totalMs: Math.max(12_000, deadline - Date.now()), deep: true });
@@ -213,7 +225,7 @@ export async function huntRound2(it: Item, w: HuntWork, deadline: number): Promi
   };
   add(w.draft.company, w.draft.website);
   for (const c of Array.isArray(w.draft.candidates) ? w.draft.candidates : []) add((c as Record<string, unknown>)?.company, (c as Record<string, unknown>)?.website);
-  if (!names.length) return groundIdentity(w.draft, w.hay);
+  if (!names.length) return groundIdentity(w.draft, w.hay, proofOf(it, w.evidence, w.place));
   const more: { url: string; text: string }[] = [];
   await Promise.all(names.slice(0, 4).map(async (n) => {
     if (Date.now() > deadline - 15_000) return;
@@ -235,7 +247,7 @@ those businesses publish, only as they appear in the evidence.`,
   `POST (${it.url ?? ""}):\n${post.slice(0, 3000)}\n\nPOSTER: ${JSON.stringify(it.poster ?? {})}\nHINTS: ${w.hooks.join("; ")}\nPLACE: ${w.place ?? "unknown"}\n\nFIRST ANSWER: ${JSON.stringify(w.draft).slice(0, 3000)}\n\nEVIDENCE:\n${evidence.slice(1).map((e, i) => `[${i + 1}] ${e.url}\n${e.text.slice(0, 1500)}`).join("\n\n").slice(0, 30_000)}`,
   { maxTokens: 1800, totalMs: Math.max(12_000, deadline - Date.now()), deep: true }).catch(() => w.draft);
   if (out.kind === "private") return blank(out.note || "This reads like a private person's own job, not a business.", "private");
-  return groundIdentity(out, hay);
+  return groundIdentity(out, hay, proofOf(it, evidence, w.place));
 }
 
 /**
@@ -250,7 +262,7 @@ export async function findBehindPost(itemId: number, budgetMs = 45_000): Promise
   await saveIdentity(itemId, blank("Looking for the business behind this post…", "running"));
   try {
     const w = await huntRound1(it, deadline - (budgetMs > 40_000 ? 15_000 : 0));
-    const id = "private" in w ? blank(w.note, "private") : Date.now() < deadline - 15_000 ? await huntRound2(it, w, deadline) : groundIdentity(w.draft, w.hay);
+    const id = "private" in w ? blank(w.note, "private") : Date.now() < deadline - 15_000 ? await huntRound2(it, w, deadline) : groundIdentity(w.draft, w.hay, proofOf(it, w.evidence, w.place));
     await saveIdentity(itemId, id);
     return id;
   } catch (e) {
@@ -311,32 +323,58 @@ async function afterFound(itemId: number, id: Identity, trigger: string): Promis
   }
 }
 
-/** Keeps only what the evidence shows: names and sites it mentions, emails and phones it literally contains. Pure. */
+/** The pages read for a lead, the post itself, and the country it is in: what a contact is checked against. */
+export interface Proof { sources: Source[]; post: { url: string; text: string }; country: string | null }
+
+/** Builds the proof for groundIdentity from what a round read. Pure. */
+export function proofOf(it: Pick<Item, "url" | "title" | "body" | "poster" | "fit">, evidence: { url: string; text: string; ai?: boolean }[], place: string | null): Proof {
+  const country = it.poster?.country ?? it.fit?.country ?? (place ? place.split(",").pop()!.trim() : null);
+  return { sources: evidence.map((e) => ({ url: e.url, text: e.text, ai: e.ai || !/^https?:\/\//i.test(e.url) })), post: { url: it.url ?? "the post", text: `${it.title}\n${it.body ?? ""}` }, country: country || null };
+}
+
+/** Keeps only what the evidence shows: names and sites it mentions, and contacts proven by contact-verify. Pure. */
 export function groundIdentity(
   out: { company?: string | null; website?: string | null; person?: string | null; title?: string | null; linkedin?: string | null; emails?: string[]; phones?: string[]; confidence?: string; evidence?: { url: string; says: string }[]; note?: string; candidates?: unknown },
   hay: string,
+  proof?: Proof,
 ): Identity {
-  const low = hay.toLowerCase();
+  // only what real pages say counts: the AI's own summary is not a source for a name, a site or a contact
+  const low = (proof ? [`${proof.post.url}\n${proof.post.text}`, ...proof.sources.filter((x) => !x.ai).map((x) => `${x.url}\n${x.text}`)].join("\n\n") : hay).toLowerCase();
   const inHay = (v: string | null | undefined) => (v && v.trim().length >= 2 && low.includes(v.trim().toLowerCase()) ? v.trim() : null);
   const dom = out.website ? domainOf(/^https?:/i.test(out.website) ? out.website : `https://${out.website}`) : null;
   const website = dom && !PLATFORM.test(dom) && low.includes(dom) ? `https://${dom}` : null;
   const digits = (s: string) => s.replace(/\D/g, "");
   const hayDigits = hay.replace(/\D/g, "");
-  const emails = [...new Set((out.emails ?? []).map((e) => String(e).trim().toLowerCase()).filter((e) => /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(e) && low.includes(e)))].slice(0, 5);
-  const phones = [...new Set((out.phones ?? []).map(String).filter((p) => digits(p).length >= 8 && hayDigits.includes(digits(p))))].slice(0, 4);
-  const linkedin = out.linkedin && seenIn(hay, out.linkedin) ? out.linkedin : null;
   const company = inHay(out.company);
   const person = inHay(out.person);
+  // a contact counts only with proof: on a real page about this business or person (contact-verify). With no pages to
+  // check against, nothing is kept: no contact is better than someone else's.
+  const verified: VerifiedContact[] = [];
+  if (proof) {
+    const subject = { company, domain: website ? domainOf(website) : null, person, country: proof.country };
+    // what the poster wrote in their own post is theirs
+    const postText = `${proof.post.text}`;
+    for (const e of out.emails ?? []) if (postText.toLowerCase().includes(String(e).toLowerCase())) verified.push({ kind: "email", value: String(e).toLowerCase(), url: proof.post.url, owner: "person" });
+    for (const p of out.phones ?? []) if (digits(p).length >= 8 && digits(postText).includes(digits(p).slice(-9))) verified.push({ kind: "phone", value: String(p), url: proof.post.url, owner: "person" });
+    const others = proof.sources.filter((x) => x.url !== proof.post.url);
+    for (const v of [...verifyEmails(out.emails ?? [], others, subject), ...verifyPhones(out.phones ?? [], others, subject)]) {
+      if (!verified.some((x) => digits(x.value) === digits(v.value) && x.kind === v.kind && (v.kind === "phone" || x.value === v.value))) verified.push(v);
+    }
+  }
+  void hayDigits;
+  const emails = verified.filter((v) => v.kind === "email").map((v) => v.value).slice(0, 5);
+  const phones = verified.filter((v) => v.kind === "phone").map((v) => v.value).slice(0, 4);
+  const linkedin = out.linkedin && seenIn(low, out.linkedin) ? out.linkedin : null;
   const confidence = (["high", "medium", "low"].includes(String(out.confidence)) ? out.confidence : "low") as Identity["confidence"];
   const found = !!(company || website) && confidence !== "low";
   const direct = emails.length || phones.length || linkedin;
   return {
     status: found && (direct || person) ? "found" : found || direct ? "partial" : "not_found",
-    company, website, person, title: person ? out.title ?? null : null, linkedin, emails, phones, confidence,
+    company, website, person, title: person ? out.title ?? null : null, linkedin, emails, phones, confidence, verified,
     evidence: (out.evidence ?? []).filter((e) => e?.url && (low.includes(String(e.url).toLowerCase()) || /gemini/i.test(String(e.url)))).slice(0, 6).map((e) => ({ url: String(e.url), says: String(e.says ?? "").slice(0, 200) })),
     note: String(out.note ?? "").slice(0, 400) || (found ? "Business identified from the evidence." : "Nothing in the evidence ties a business to this post."),
     checked_at: new Date().toISOString(),
-    candidates: groundCandidates(out.candidates, hay, company),
+    candidates: groundCandidates(out.candidates, low, company),
   };
 }
 

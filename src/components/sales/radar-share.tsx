@@ -2,7 +2,7 @@
 // Share a radar lead: everything known about it, copied or sent in one go (WhatsApp, email, any app, Telegram, Claude, a file).
 import { Bot, Check, Copy, Download, Loader2, Mail, MessageCircle, Send, Share2 } from "lucide-react";
 import { useState, useTransition } from "react";
-import { leadShareAction, leadToTelegramAction } from "@/app/sales-actions";
+import { dealShareAction, dealToTelegramAction, leadShareAction, leadToTelegramAction } from "@/app/sales-actions";
 import { Button, Sheet } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
@@ -10,7 +10,7 @@ import type { LeadShare } from "@/lib/sales/lead-share";
 
 type Format = "full" | "whatsapp" | "claude" | "json";
 const TABS: [Format, string, string][] = [
-  ["full", "Full details", "Every section: post, who posted it, business, decision maker, contacts, research with sources, brief, draft."],
+  ["full", "Full details", "Every section: contacts, where it stands, the need, the business, the conversation and what was found."],
   ["whatsapp", "WhatsApp", "The essentials, formatted for WhatsApp and short enough to send."],
   ["claude", "For Claude", "The full lead with instructions to verify it, research further and advise. Nothing invented."],
   ["json", "Data", "The same facts as structured data, for Claude or another tool."],
@@ -18,7 +18,8 @@ const TABS: [Format, string, string][] = [
 // claude.ai opens a new chat with the text when it fits in a link; longer text is copied for you to paste
 const CLAUDE_LINK_MAX = 6000;
 
-export function ShareLead({ itemId, title }: { itemId: number; title: string }) {
+/** Share a radar lead (itemId) or a deal (dealId). */
+export function ShareLead({ itemId, dealId, title }: { itemId?: number; dealId?: number; title: string }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [share, setShare] = useState<LeadShare | null>(null);
@@ -29,7 +30,7 @@ export function ShareLead({ itemId, title }: { itemId: number; title: string }) 
   const load = () => {
     setOpen(true);
     start(async () => {
-      const r = await leadShareAction(itemId);
+      const r = dealId ? await dealShareAction(dealId) : await leadShareAction(itemId!);
       if (!r.ok) return toast(r.error, "error");
       setShare(r.share);
     });
@@ -97,7 +98,7 @@ export function ShareLead({ itemId, title }: { itemId: number; title: string }) 
                 <Button variant="outline" onClick={toClaude}><Bot className="h-4 w-4" /> Ask Claude about it</Button>
                 <a className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 text-sm font-medium hover:bg-muted" href={`mailto:?subject=${encodeURIComponent(`Lead: ${share.title.slice(0, 90)}`)}&body=${encodeURIComponent((fmt === "whatsapp" ? share.whatsapp : share.full).slice(0, 1800))}`}><Mail className="h-4 w-4" /> Email it</a>
                 <Button variant="outline" disabled={busy} onClick={() => start(async () => {
-                  const r = await leadToTelegramAction(itemId);
+                  const r = dealId ? await dealToTelegramAction(dealId) : await leadToTelegramAction(itemId!);
                   toast(r.ok ? `Sent to your Telegram${r.parts > 1 ? ` in ${r.parts} parts` : ""}. Forward it from there.` : r.error, r.ok ? "ok" : "error");
                 })}><Send className="h-4 w-4" /> Send to my Telegram</Button>
                 <Button variant="outline" onClick={download}><Download className="h-4 w-4" /> Download {fmt === "json" ? ".json" : ".md"}</Button>

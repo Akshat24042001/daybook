@@ -115,6 +115,8 @@ describe("the research pipeline", () => {
 
   it("reads the site, searches the web, writes the profile, finds the people and researches the decision makers", async () => {
     const cid = await company();
+    // you gave their website: its published contacts are theirs (a website research only guessed is not trusted for contacts)
+    await q("update sales_companies set website = 'https://acmefreight.com', website_source = 'you' where id = $1", [cid]);
     const runId = await startResearch({ subject: "company", id: cid, trigger: "manual" });
     expect(await startResearch({ subject: "company", id: cid })).toBe(runId); // joins the run already in flight
     expect(await jobs()).toEqual(["research_company"]);

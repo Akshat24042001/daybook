@@ -47,7 +47,7 @@ describe("quick links from a post (no invention)", () => {
 });
 
 describe("quick links from what Daybook holds", () => {
-  it("a researched radar lead gets post, company and people links, with guesses labelled", async () => {
+  it("a researched radar lead gets post, company and people links, never a guessed email", async () => {
     const companyId = (await ensureCompany("Noor Jewels", { website: "https://noorjewels.ae" }))!;
     await q("update sales_companies set enriched_at = now(), enrichment = $2 where id = $1", [companyId, JSON.stringify({
       generic_email: { v: "info@noorjewels.ae" }, public_phones: { v: "+971 4 555 0101" }, whatsapp_number: { v: "+971501234567" },
@@ -66,9 +66,8 @@ describe("quick links from what Daybook holds", () => {
     expect(all.find((l) => l.value === "ops@noorjewels.ae")?.source).toBe("post");
     expect(all.find((l) => l.kind === "whatsapp" && l.source === "website")?.href).toBe("https://wa.me/971501234567");
     expect(all.find((l) => l.kind === "map")?.href).toContain("google.com/maps");
-    const guess = all.find((l) => l.value === "fatima.noor@noorjewels.ae")!;
-    expect(guess.source).toBe("guess");
-    expect(guess.label).toBe("Likely email");
+    // a guessed address is never offered as a way to reach them: it may be someone else's
+    expect(all.find((l) => l.value === "fatima.noor@noorjewels.ae")).toBeUndefined();
   });
 
   it("a lead with no company says so instead of showing nothing", async () => {

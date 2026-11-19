@@ -18,6 +18,13 @@ const { setup, check, U } = require("./lib.cjs");
     && (await contact.getByRole("link", { name: `asha.${tag}@clinic.in` }).getAttribute("href")).startsWith(`mailto:asha.${tag}@clinic.in`)
     && (await contact.getByRole("link", { name: "LinkedIn" }).getAttribute("href")) === "https://linkedin.com/in/asha-glance"
     && (await contact.innerText()).includes("Pune, India"));
+  await page.getByRole("button", { name: "Share this lead" }).click();
+  const sheet = page.getByRole("dialog");
+  await sheet.getByLabel("What will be shared").waitFor({ timeout: 15000 });
+  const shared = await sheet.getByLabel("What will be shared").inputValue();
+  check("a deal can be shared, contacts first", shared.includes("## Contacts") && shared.includes("+91 98765 43210") && shared.indexOf("## Contacts") < shared.indexOf("## Next step"));
+  check("and sent on WhatsApp", (await sheet.getByRole("link", { name: "Send on WhatsApp" }).getAttribute("href")).startsWith("https://wa.me/?text="));
+  await page.keyboard.press("Escape");
   const stands = page.getByLabel("Where it stands");
   check("where it stands is on top", await stands.isVisible() && (await stands.innerText()).includes("Contacted"));
   const next = page.locator('[aria-label="Next step"]').first();

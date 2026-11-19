@@ -179,7 +179,7 @@ function personGroup(p: PersonLinks, title?: string): LinkGroup {
   if (p.linkedin) links.push({ kind: "linkedin", label: "LinkedIn", value: null, href: linkedinUrl(p.linkedin), source: "saved" });
   if (p.instagram) links.push({ kind: "social", label: "Instagram", value: `@${p.instagram}`, href: `https://www.instagram.com/${p.instagram.replace(/^@/, "")}`, source: "saved" });
   if (p.twitter) links.push({ kind: "social", label: "X", value: `@${p.twitter}`, href: `https://x.com/${p.twitter.replace(/^@/, "")}`, source: "saved" });
-  if (!p.emails?.length) links.push(...emailLinks(v(e.email_guess), "guess", "Likely email"));
+  // a guessed address (first.last@their domain) is never offered as a way to reach them: it may be someone else's
   links.push(...phoneLinks(v(e.phone_found), "research", true));
   for (const u of (v(e.other_profiles) ?? "").match(/https?:\/\/[^\s,;]+/g) ?? []) {
     try {

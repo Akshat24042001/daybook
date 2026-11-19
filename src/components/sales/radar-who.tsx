@@ -2,6 +2,7 @@
 
 import { Building2, Globe, Linkedin, Loader2, Mail, MapPin, Phone, UserRound, UserSearch } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { safeRefresh, watchLinks } from "@/lib/client/safe-refresh";
 import { useEffect, useTransition } from "react";
 import { findBehindAction, researchLeadAction } from "@/app/sales-actions";
 import { Button } from "@/components/ui";
@@ -18,6 +19,9 @@ export interface WhoIdentity {
   evidence: { url: string; says: string }[]; note: string; checked_at: string;
   /** while it runs: planning or checking */
   stage?: string;
+  /** each phone and email that passed the strict check, with the page that shows it */
+  verified?: { kind: "phone" | "email"; value: string; url: string; owner: "person" | "company" }[];
+  unverified?: { phones: string[]; emails: string[] };
 }
 
 /** Dates for the radar, in your time zone: "Today, 4:20 pm", "Yesterday, 9:05 am", "Wed 12 Nov, 6:40 pm". */
@@ -68,7 +72,8 @@ export function WhoPanel({ itemId, identity, paid, platform }: { itemId: number;
   const running = identity?.status === "running" && Date.now() - new Date(identity.checked_at).getTime() < 5 * 60_000;
   useEffect(() => {
     if (!running) return;
-    const t = setTimeout(() => router.refresh(), 4000);
+    watchLinks();
+    const t = setTimeout(() => safeRefresh(router), 4000);
     return () => clearTimeout(t);
   }, [running, router, identity?.checked_at]);
 

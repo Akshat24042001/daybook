@@ -79,7 +79,7 @@ describe("only what the evidence shows", () => {
       company: "Shah Dental Clinics", website: "shahdental.in", person: "Dr Ravi Shah", title: "Founder",
       emails: ["contact@shahdental.in", "ravi@shahdental.in"], phones: ["+91 98200 11111", "+91 90000 00000"], linkedin: "https://linkedin.com/in/ravishah",
       confidence: "high", evidence: [{ url: "https://shahdental.in", says: "their site" }, { url: "https://made-up.example", says: "x" }],
-    }, hay);
+    }, hay, { sources: [{ url: "https://shahdental.in", text: hay }], post: { url: "https://www.freelancer.com/projects/x", text: "Need a booking bot" }, country: "India" });
     expect(id).toMatchObject({ status: "found", company: "Shah Dental Clinics", website: "https://shahdental.in", person: "Dr Ravi Shah", emails: ["contact@shahdental.in"], phones: ["+91 98200 11111"], linkedin: null });
     expect(id.evidence).toEqual([{ url: "https://shahdental.in", says: "their site" }]);
     const none = groundIdentity({ company: "Invented Corp", website: "invented.io", confidence: "high" }, hay);
@@ -107,8 +107,10 @@ describe("finding the business behind a post", () => {
       "select d.title, p.full_name as person, p.emails, p.phones from sales_deals d join sales_people p on p.id = d.person_id where d.id = $1", [deal]))!;
     expect(d.title).toMatch(/^Shah Dental Clinics: /);
     expect(d.person).toBe("Dr Ravi Shah");
-    expect(d.emails).toContain("contact@shahdental.in");
+    // the number shown next to the founder's name is his; the shared inbox is the clinic's, so it goes on the company
     expect(d.phones.join(" ")).toContain("98200");
+    expect(d.emails).not.toContain("contact@shahdental.in");
+    expect((await one<{ email: string | null }>("select c.email from sales_deals d join sales_companies c on c.id = d.company_id where d.id = $1", [deal]))!.email).toBe("contact@shahdental.in");
   });
 
   it("stops at a private person's job and does not dig further", async () => {

@@ -36,6 +36,7 @@ import type { DealItem } from "@/lib/sales/items-calc";
 import type { StagePlay } from "@/lib/sales/playbook-stages";
 import { Tabs } from "./tabs";
 import { ContactBar } from "./contact-bar";
+import { ShareLead } from "./radar-share";
 import { ago, ChannelIcon, CHANNEL_LABEL, CURRENCIES, currencyLabel, currencySymbol, fmtDate, Label, money, Priority } from "./util";
 import { Ago } from "@/components/sales/ago";
 import { fmtZoned, fromZonedInput, toZonedInput } from "@/lib/display-tz";
@@ -216,6 +217,7 @@ export function DealView({ d }: { d: DealPageData }) {
             </button>
           ))}
           <span className="ml-auto" />
+          <ShareLead dealId={deal.id} title={deal.title} />
           <SalesChat focus={{ deal_id: deal.id }} title={`Chat about ${deal.title}`} voiceEnabled={d.voiceEnabled} label="Chat about this lead" />
           <Button size="sm" variant="ghost" onClick={() => openEdit()}>Edit details</Button>
         </div>

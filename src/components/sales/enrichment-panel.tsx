@@ -2,6 +2,7 @@
 
 import { Loader2, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { safeRefresh, watchLinks } from "@/lib/client/safe-refresh";
 import { useEffect, useState, useTransition } from "react";
 import { enrichAction } from "@/app/sales-actions";
 import { Button } from "@/components/ui";
@@ -29,7 +30,8 @@ export function EnrichmentPanel({ kind, id, data, groups, enrichedAt, title }: {
       toast("Profile updated");
       return;
     }
-    const t = setInterval(() => router.refresh(), 6000);
+    watchLinks();
+    const t = setInterval(() => safeRefresh(router), 6000);
     const stop = setTimeout(() => setWaiting(false), 4 * 60_000);
     return () => {
       clearInterval(t);

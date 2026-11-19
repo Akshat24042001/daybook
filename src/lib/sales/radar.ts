@@ -501,7 +501,7 @@ export async function alertItem(id: number): Promise<void> {
 /** Turns a radar item into a company, a person (when named) and a New deal with a first-touch move. */
 export async function radarToDeal(id: number): Promise<number> {
   const it = await one<{ id: number; title: string; body: string | null; url: string | null; author: string | null; fit: Verdict | null; deal_id: number | null; source_id: number | null;
-    identity: { company?: string | null; website?: string | null; person?: string | null; title?: string | null; emails?: string[]; phones?: string[]; linkedin?: string | null; confidence?: string | null } | null }>("select * from sales_radar_items where id = $1", [id]);
+    identity: { company?: string | null; website?: string | null; person?: string | null; title?: string | null; emails?: string[]; phones?: string[]; linkedin?: string | null; confidence?: string | null; verified?: { kind: string; value: string; owner: string }[] } | null }>("select * from sales_radar_items where id = $1", [id]);
   if (!it) throw new Error("radar item missing");
   if (it.deal_id) return it.deal_id;
   const f = it.fit ?? ({} as Verdict);
@@ -525,9 +525,16 @@ export async function radarToDeal(id: number): Promise<number> {
   const coSite = f.website ?? who?.website ?? null;
   const companyId = coName || coSite ? await ensureCompany(coName, { website: coSite, country: f.country ?? null, industry: f.industry ?? null }) : null;
   const personName = who?.person || f.contact || it.author;
+  // only a phone or email proven to be the person's own goes on the person (contact-verify)
+  const own = (kind: string) => who?.verified?.find((v) => v.kind === kind && v.owner === "person")?.value ?? null;
   const personId = personName
-    ? await upsertPerson({ name: personName, company_id: companyId, country: f.country ?? null, title: who?.person ? who.title ?? null : null, email: who?.emails?.[0] ?? null, phone: who?.phones?.[0] ?? null, linkedin: who?.linkedin ?? null })
+    ? await upsertPerson({ name: personName, company_id: companyId, country: f.country ?? null, title: who?.person ? who.title ?? null : null, email: own("email"), phone: own("phone"), linkedin: who?.linkedin ?? null })
     : null;
+  // the business's own line and inbox go on the company, never on the person as if they were theirs
+  const office = (kind: string) => who?.verified?.find((v) => v.kind === kind && v.owner === "company")?.value ?? null;
+  if (companyId && (office("phone") || office("email"))) {
+    await q("update sales_companies set phone = coalesce(phone, $2), email = coalesce(email, $3) where id = $1", [companyId, office("phone"), office("email")]);
+  }
   const dealId = await createDeal({
     title: coName ? `${coName}: ${it.title.slice(0, 60)}` : it.title.slice(0, 90),
     company_id: companyId,

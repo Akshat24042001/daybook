@@ -110,6 +110,11 @@ export const HANDLERS: Record<string, Handler> = {
     const r = await huntSignals(45_000);
     if (r.added) await enqueue("radar_qualify", {}, { dedupeKey: "radar_qualify" });
   },
+  async scrub_contacts() {
+    const { scrubContacts } = await import("./contact-scrub");
+    const r = await scrubContacts();
+    console.log("[sales] contacts scrubbed:", JSON.stringify(r));
+  },
   async enrich_sweep() {
     await enrichSweep();
   },
@@ -255,6 +260,8 @@ export async function runSalesTick(now: Date = new Date()): Promise<string> {
   // businesses that never posted a need but show a buying signal (hiring salespeople, funding, expansion, slow replies)
   const every = cfg.radar.signal_every_hours ?? 3;
   if (every > 0 && Date.now() - (await lastDone("signal_hunt")) > every * 3_600_000) await enqueue("signal_hunt", {}, { dedupeKey: "signal_hunt" });
+  // once: contacts saved before every number needed proof are taken out of sight (contact-scrub)
+  if (!(await lastDone("scrub_contacts"))) await enqueue("scrub_contacts", {}, { dedupeKey: "scrub_contacts:v1" });
   // every deal's business and contact are researched without a click, a few at a time
   if (Date.now() - (await lastDone("enrich_sweep")) > 10 * 60_000) await enqueue("enrich_sweep", {}, { dedupeKey: "enrich_sweep" });
   // qualified leads are made ready on their own: requirement, business behind it, company, decision maker, contacts, draft

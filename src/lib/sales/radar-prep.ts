@@ -153,6 +153,11 @@ const val = (e: Enrichment | null | undefined, k: string): string | null => {
 const list = (s: string | null) => (s ? s.split(/[,;\n]+/).map((x) => x.trim()).filter(Boolean) : []);
 
 /** The decision maker, contacts and what matters about the company, from everything the research found. */
+/** The person's OWN phone or email from what was found behind the post: never the business's line or shared inbox. Pure. */
+export function ownContact(who: Pick<Identity, "verified">, kind: "phone" | "email"): string | null {
+  return who.verified?.find((v) => v.kind === kind && v.owner === "person")?.value ?? null;
+}
+
 export async function buildPack(id: number): Promise<Pack | null> {
   const it = await one<{ company_id: number | null; identity: Identity | null }>("select company_id, identity from sales_radar_items where id = $1", [id]);
   if (!it) return null;
@@ -175,7 +180,7 @@ export async function buildPack(id: number): Promise<Pack | null> {
   const decision_maker = dm
     ? { name: dm.full_name, title: dm.title ?? val(dm.enrichment, "current_title"), email: dm.emails[0] ?? val(dm.enrichment, "email_found"), phone: dm.phones[0] ?? val(dm.enrichment, "phone_found"), linkedin: dm.linkedin, why: val(dm.enrichment, "decision_role") ?? (dm.is_decision_maker ? "Decides on purchases like this" : null) }
     : who?.person
-      ? { name: who.person, title: who.title ?? null, email: who.emails?.[0] ?? null, phone: who.phones?.[0] ?? null, linkedin: who.linkedin ?? null, why: "Posted the requirement" }
+      ? { name: who.person, title: who.title ?? null, email: ownContact(who, "email"), phone: ownContact(who, "phone"), linkedin: who.linkedin ?? null, why: "Posted the requirement" }
       : named
         ? { name: named, title: val(e, "ceo") ? "CEO / MD" : "Founder", email: null, phone: null, linkedin: null, why: val(e, "best_entry_person") }
         : null;

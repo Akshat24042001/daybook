@@ -753,3 +753,17 @@ export async function radarLogAction(itemId: number, a: { type: string; body: st
     return { id };
   }, ["/sales/radar", "/sales", "/sales/pipeline"]);
 }
+
+/** Everything about a deal, ready to copy or send (the same forms as sharing a radar lead). */
+export async function dealShareAction(dealId: number) {
+  return run<{ share: import("@/lib/sales/lead-share").LeadShare }>(async () => {
+    const { dealShare } = await import("@/lib/sales/deal-share");
+    return { share: await dealShare(dealId) };
+  }, []);
+}
+export async function dealToTelegramAction(dealId: number) {
+  return run<{ parts: number }>(async () => {
+    const { sendDealToTelegram } = await import("@/lib/sales/deal-share");
+    return { parts: await sendDealToTelegram(dealId) };
+  }, []);
+}

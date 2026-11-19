@@ -15,9 +15,10 @@ import {
   COMPANY_FIELDS, NOT_THEIR_SITE, PERSON_FIELDS, allKeys, domainGuesses, subLinks, techAudit, wikidata, type Enrichment, type Field,
 } from "./enrich";
 import {
-  anchorLines, canDisambiguate, gatherAnchors, knownCountry, matchLead, nameKeyWords, normCountry, placeOf, placeTerm, type Anchors, type Match,
+  anchorLines, businessDomain, canDisambiguate, gatherAnchors, knownCountry, matchLead, nameKeyWords, normCountry, placeOf, placeTerm, type Anchors, type Match,
 } from "./anchors";
 import { domainOf, ensureCompany, upsertPerson } from "./identity";
+import { verifyEmails, wrongCountry, type Source as ProofSource } from "./contact-verify";
 import { enqueue } from "./jobs";
 import { llmJson } from "./llm";
 import {
@@ -369,7 +370,7 @@ export async function siteStage(runId: number): Promise<void> {
     await q("update sales_research_runs set evidence = $2 where id = $1", [runId, JSON.stringify(evidence)]);
     await addSources(runId, sources);
     if (evidence.website) {
-      await q("update sales_companies set website = coalesce(website, $2), domain = coalesce(domain, $3), website_source = coalesce(website_source, 'research') where id = $1", [c.id, evidence.website, domain]).catch(() => {});
+      await q("update sales_companies set website = coalesce(website, $2), domain = coalesce(domain, $3), website_source = coalesce(website_source, case when website is not null then 'you' else 'research' end) where id = $1", [c.id, evidence.website, domain]).catch(() => {});
     }
     await stage(runId, "search");
     await enqueue("research_search", { runId }, { dedupeKey: `research_search:${runId}` });
@@ -596,6 +597,54 @@ export function applyAnchors(out: Enrichment, a: Anchors, siteMatch?: { score: n
   return out;
 }
 
+/**
+ * The saved evidence as sources a contact can be proven by: each website page ("[page URL] text") and each search result
+ * line ("- title | URL | snippet") is its own source. Anything without a link is not proof. Pure.
+ */
+export function proofSources(parts: string[]): ProofSource[] {
+  const out: ProofSource[] = [];
+  for (const part of parts) {
+    const page = part.match(/^\[(?:page|home|[a-z ]+)\s+(https?:\/\/[^\]\s]+)\]\s*([\s\S]*)$/i);
+    if (page) { out.push({ url: page[1], text: page[2] }); continue; }
+    for (const line of part.split("\n")) {
+      const m = line.match(/^- (.*?) \| (https?:\/\/\S+) \| (.*)$/);
+      if (m) out.push({ url: m[2], text: `${m[1]}\n${m[3]}` });
+    }
+  }
+  return out;
+}
+
+const CONTACT_FIELDS = ["public_emails", "generic_email", "public_phones", "whatsapp_number"] as const;
+
+/** A site's contacts that can be theirs: phones from the lead's country, emails at their domain or a webmail. Pure. */
+export function strictSiteContacts(c: Contacts, o: { country: string | null; domain: string | null }): Contacts {
+  const dom = o.domain?.toLowerCase().replace(/^www\./, "") ?? null;
+  const wa = c.socials.whatsapp ? c.socials.whatsapp.replace(/\D/g, "") : null;
+  return {
+    ...c,
+    phones: c.phones.filter((p) => !wrongCountry(p, o.country)),
+    emails: c.emails.filter((e) => { const d = businessDomain(e.email); return !d || !dom || d === dom || d.endsWith(`.${dom}`); }),
+    socials: { ...c.socials, ...(wa && wrongCountry(`+${wa}`, o.country) ? { whatsapp: "" } : {}) },
+  };
+}
+
+/** The website is surely theirs: you or the lead gave it, or it matched the lead decisively (phone, email, contact). Pure. */
+export function siteIsTheirs(out: Enrichment, websiteSource: string | null, siteMatch: { score: number } | null): boolean {
+  if (websiteSource === "you" || websiteSource === "lead") return true;
+  if (String(out.identity_match?.v ?? "") === "not found") return false;
+  return String(out.identity_match?.v ?? "") === "confirmed" || (siteMatch?.score ?? 0) >= 8;
+}
+
+/** Takes the website's contacts out of a profile; returns how many there were. Pure. */
+export function dropSiteContacts(out: Enrichment): number {
+  let n = 0;
+  for (const k of CONTACT_FIELDS) {
+    const v = out[k]?.v;
+    if (v !== null && v !== undefined && String(v).trim()) { n += String(v).split(",").filter((x) => x.trim()).length; out[k] = { v: null }; }
+  }
+  return n;
+}
+
 /** Facts that came straight off the pages and DNS overwrite whatever the AI wrote for the same field. Pure. */
 export function applyFacts(out: Enrichment, ev: Pick<Evidence, "contacts" | "intel">): Enrichment {
   const { contacts, intel } = ev;
@@ -673,8 +722,16 @@ export async function synthStage(runId: number): Promise<void> {
     const a = await gatherAnchors(c.id);
     const lead = a && canDisambiguate(a) ? anchorLines(a) : null;
     const out = await llmJson<Enrichment>(companySystem(cfg.offers, year, lead), `COMPANY: ${c.name}${a && placeOf(a) ? `, ${placeOf(a)}` : c.country ? `, ${c.country}` : ""}${(a?.industry ?? c.industry) ? `, ${a?.industry ?? c.industry}` : ""}\n\nEVIDENCE:\n${aiText}`, { maxTokens: 6500, totalMs: 55_000, deep: true });
-    applyFacts(out, { contacts, intel: ev.intel ?? { registered: null, age: null, registrar: null, nameservers: [], mail: null, tools: [] } });
+    // contacts off the site: never a number from another country, never another company's email address
+    const strict = strictSiteContacts(contacts, { country: a?.country ?? c.country, domain: ev.domain });
+    applyFacts(out, { contacts: strict, intel: ev.intel ?? { registered: null, age: null, registrar: null, nameservers: [], mail: null, tools: [] } });
     if (a) applyAnchors(out, a, ev.siteMatch ?? null);
+    // and only when the website is surely theirs: you gave it, it came with the lead, or it matched the lead decisively
+    const src = (await one<{ website_source: string | null }>("select website_source from sales_companies where id = $1", [c.id]))?.website_source ?? null;
+    if (!siteIsTheirs(out, src, ev.siteMatch ?? null)) {
+      const dropped = dropSiteContacts(out);
+      if (dropped) await say(runId, `Not sure the website ${ev.domain ?? ""} is really this business, so its ${dropped} contact detail${dropped === 1 ? " is" : "s are"} not shown. Add their website or a phone to the lead and research again.`);
+    }
     await saveCompany(c.id, out, ev.website, ev.domain, ev.audit);
     const filled = Object.values(out).filter((f) => f?.v !== null && f?.v !== undefined && f?.v !== "").length;
     const im = String(out.identity_match?.v ?? "");
@@ -693,7 +750,10 @@ export async function synthStage(runId: number): Promise<void> {
       for (const p of (people.people ?? []).slice(0, 8)) {
         const name = String(p.name ?? "").trim();
         if (!NAME_OK.test(name) || name.toLowerCase() === c.name.toLowerCase()) continue;
-        const email = typeof p.email === "string" && /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(p.email) && seenIn(evidenceText, p.email) ? p.email.toLowerCase() : null;
+        // their email only when a real page about this business shows it next to them (or it is at the business's own domain)
+        const email = typeof p.email === "string"
+          ? verifyEmails([p.email], proofSources([...ev.site, ...ev.search]), { company: c.name, domain: ev.domain, person: name, country: a?.country ?? c.country }).find((v) => v.owner === "person")?.value ?? null
+          : null;
         const id = await upsertPerson({ name, title: p.title ?? null, company_id: c.id, email, country: c.country });
         found += 1;
         names.push(name);
@@ -897,7 +957,7 @@ Rules:
       `update sales_people set enrichment = $2, enriched_at = now(), title = coalesce(title, $3), city = coalesce(city, $4), country = coalesce(country, $5),
          linkedin = coalesce(linkedin, $6), is_decision_maker = coalesce(is_decision_maker, $7), updated_at = now() where id = $1`,
       [p.id, JSON.stringify(out), str(out.current_title), str(out.location_city), str(out.location_country),
-        str(out.linkedin_url)?.includes("linkedin.com") && seenIn(evidence.join("\n"), str(out.linkedin_url)) ? str(out.linkedin_url) : null, typeof out.is_decision_maker?.v === "boolean" ? out.is_decision_maker.v : null],
+        str(out.linkedin_url)?.includes("linkedin.com") && seenIn(evidence.join("\n"), str(out.linkedin_url)) && ["confirmed", "likely"].includes(String(out.identity_match?.v ?? "")) ? str(out.linkedin_url) : null, typeof out.is_decision_maker?.v === "boolean" ? out.is_decision_maker.v : null],
     );
     const filled = Object.values(out).filter((f) => f?.v !== null && f?.v !== undefined && f?.v !== "").length;
     await say(runId, `Profile written: ${filled} facts${out.email_guess ? `, best-guess email ${String(out.email_guess.v)} (unverified)` : ""}.`);

@@ -27,3 +27,4 @@ They change data in that database (offers, blocklist, test deals): never point t
 | 26-search | Search finds a deal by a word only in its chat, a radar lead by a word only in its research, the Hidden needs filter, and Ctrl K |
 | 27-first-glance | A lead's first screen: where it stands, next step changed in place, logging; details in tabs (remembered, #links); logging a radar lead makes it a deal |
 | 27-first-glance (contacts) | The contact bar on top: number (call), WhatsApp, email, LinkedIn and place, each one tap |
+| 27-first-glance (share) | A deal can be shared (contacts first) and sent on WhatsApp |

@@ -19,6 +19,11 @@ const { setup, check, U } = require("./lib.cjs");
   await page.waitForTimeout(500); // the sections finish opening
   await link.scrollIntoViewIfNeeded();
   await Promise.all([page.waitForURL(`**/sales/docs/${doc.id}`, { timeout: 15000 }).catch(() => {}), link.click()]);
+  // a click that lands while the page is still settling is tried once more
+  if (!page.url().endsWith(`/sales/docs/${doc.id}`)) {
+    await page.waitForLoadState("networkidle");
+    await Promise.all([page.waitForURL(`**/sales/docs/${doc.id}`, { timeout: 15000 }).catch(() => {}), page.getByRole("link", { name: /Prep: prepare the demo/ }).first().click()]);
+  }
   await page.waitForLoadState("networkidle");
   await page.waitForTimeout(400);
   const body = await page.locator("main").innerText();

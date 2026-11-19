@@ -30,7 +30,14 @@ export function hasContact(people: ContactPerson[], company?: ContactCompany | n
  * where they are, then the business's own line, inbox and website. One tap to call, write or open; one tap to copy.
  * With a message ready, WhatsApp and email open with it filled in.
  */
-export function ContactBar({ people, company, message, subject, onAdd }: { people: ContactPerson[]; company?: ContactCompany | null; message?: string | null; subject?: string | null; onAdd?: () => void }) {
+export function ContactBar({ people, company, message, subject, onAdd, proof = {} }: { people: ContactPerson[]; company?: ContactCompany | null; message?: string | null; subject?: string | null; onAdd?: () => void;
+  /** where each found phone or email was seen (by phone digits or lowercase email): shown as "source" so you can check it */
+  proof?: Record<string, string> }) {
+  const proofOf = (v: string) => proof[/@/.test(v) ? v.toLowerCase() : digits(v).slice(-9)] ?? null;
+  const Src = ({ v }: { v: string }) => {
+    const u = proofOf(v);
+    return u && /^https?:/.test(u) ? <a href={u} target="_blank" rel="noreferrer" className="text-[11px] text-subtle underline hover:text-accent" title={`Seen on ${u}`}>source</a> : null;
+  };
   const { toast } = useToast();
   const copy = (t: string) => void navigator.clipboard.writeText(t).then(() => toast(`Copied ${t}`), () => toast("Your browser blocked copying.", "error"));
   const shown = people.slice(0, 3);
@@ -59,14 +66,14 @@ export function ContactBar({ people, company, message, subject, onAdd }: { peopl
               {phones.map((n) => (
                 <span key={n} className="inline-flex items-center gap-1">
                   <a href={`tel:${n.replace(/[^\d+]/g, "")}`} className="act act-primary" title="Call"><Phone className="h-3.5 w-3.5" /> {n}</a>
-                  <a href={wa(n)} target="_blank" rel="noreferrer" className="act" title="WhatsApp"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</a>
-                  <CopyBtn onClick={() => copy(n)} label={`Copy ${n}`} />
+                  <a href={wa(n)} target="_blank" rel="noreferrer" className="act" title={message || "WhatsApp"}><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</a>
+                  <CopyBtn onClick={() => copy(n)} label={`Copy ${n}`} /><Src v={n} />
                 </span>
               ))}
               {emails.map((e) => (
                 <span key={e} className="inline-flex items-center gap-1">
-                  <a href={mail(e)} className="act act-primary" title="Email"><Mail className="h-3.5 w-3.5" /> {e}</a>
-                  <CopyBtn onClick={() => copy(e)} label={`Copy ${e}`} />
+                  <a href={mail(e)} className="act act-primary" title={message || "Email"}><Mail className="h-3.5 w-3.5" /> {e}</a>
+                  <CopyBtn onClick={() => copy(e)} label={`Copy ${e}`} /><Src v={e} />
                 </span>
               ))}
               {p.linkedin ? <a href={href(p.linkedin)} target="_blank" rel="noreferrer" className="act"><Linkedin className="h-3.5 w-3.5" /> LinkedIn</a> : null}
