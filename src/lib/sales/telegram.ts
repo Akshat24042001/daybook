@@ -383,10 +383,12 @@ export async function salesCallback(chat: number, mid: number | undefined, parts
       });
       return undefined;
     }
-    case "mx":
-      // done some other way: closes the move, logs no message
+    case "mx": {
+      // done some other way: closed and logged on the lead's timeline (done.ts picks the channel)
       await completeMove(id, null);
-      return "Closed. Nothing logged.";
+      const i = await one<{ channel: string }>("select channel from sales_interactions where external_id = $1", [`move:${id}`]);
+      return i ? `Done and logged (${i.channel}).` : "Done.";
+    }
     case "ms": {
       const r = await confirmSent(id, await googleConfigured());
       if (mid) await edit(r.where ? `✅ Logged as sent on ${esc(r.where)}.` : "✅ Done. Open one of the buttons first next time, so I know where it went.");

@@ -28,3 +28,4 @@ They change data in that database (offers, blocklist, test deals): never point t
 | 27-first-glance | A lead's first screen: where it stands, next step changed in place, logging; details in tabs (remembered, #links); logging a radar lead makes it a deal |
 | 27-first-glance (contacts) | The contact bar on top: number (call), WhatsApp, email, LinkedIn and place, each one tap |
 | 27-first-glance (share) | A deal can be shared (contacts first) and sent on WhatsApp |
+| 27-first-glance (done) | Mark done on the next step and the tick on a move are logged on the timeline (WhatsApp with the message) |

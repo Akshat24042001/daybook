@@ -427,9 +427,11 @@ describe("buttons only promise what they do", () => {
     expect(r.where).toBe("WhatsApp");
     const logged = await q<{ channel: string; confidence: string }>("select channel, confidence from sales_interactions where deal_id = $1", [id]);
     expect(logged).toEqual([{ channel: "whatsapp", confidence: "sure" }]);
-    // "done another way" closes without logging a message
+    // ticked done another way: still logged, on the channel the step names
     const mv2 = (await one<{ id: number }>("insert into sales_moves (deal_id, kind, title, dedupe_key) values ($1,'custom','Call later','t2') returning id", [id]))!.id;
     await completeMove(mv2, null);
-    expect(await q("select 1 from sales_interactions where deal_id = $1", [id])).toHaveLength(1);
+    const after = await q<{ channel: string; summary: string }>("select channel, summary from sales_interactions where deal_id = $1 order by id", [id]);
+    expect(after).toHaveLength(2);
+    expect(after[1]).toEqual({ channel: "call", summary: "Done: Call later" });
   });
 });

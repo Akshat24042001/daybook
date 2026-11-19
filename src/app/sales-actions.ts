@@ -11,7 +11,7 @@ import { journaled } from "@/lib/undo";
 import { completeMove, markOpened, sendMoveEmail, targetsFor } from "@/lib/sales/act";
 import { salesConfig, updateSalesConfig, type SalesConfig } from "@/lib/sales/config";
 import {
-  addCommitment, addPayment, createDeal, deletePayment, editInteraction, logActivity, markPaid, recomputeTouches, setCommitment, updateDeal, deleteDeal,
+  addCommitment, addPayment, createDeal, deletePayment, editInteraction, logActivity, logInteraction, markPaid, recomputeTouches, setCommitment, updateDeal, deleteDeal,
   type NewActivity,
 } from "@/lib/sales/deals";
 import { closeDeal, type ClosePayload } from "@/lib/sales/closing";
@@ -76,11 +76,29 @@ export async function moveOpenedAction(id: number, targetId: string, text?: stri
     await markOpened(id, targetId);
   }, []);
 }
-export async function moveStatusAction(id: number, status: "done" | "skipped" | "open") {
-  return run(async () => {
-    // "done" without a channel closes the move and logs nothing: you did it some other way
-    if (status === "done") await completeMove(id, null);
-    else await setMoveStatus(id, status);
+export async function moveStatusAction(id: number, status: "done" | "skipped" | "open", text?: string) {
+  return run<{ logged: string | null; dealId: number | null }>(async () => {
+    // "done" is logged on the lead's timeline (done.ts picks the channel); "skipped" closes it without logging
+    if (status === "done") {
+      await completeMove(id, null, { text });
+      const i = await one<{ channel: string; deal_id: number | null }>("select channel, deal_id from sales_interactions where external_id = $1", [`move:${id}`]);
+      return { logged: i?.channel ?? null, dealId: i?.deal_id ?? null };
+    }
+    await setMoveStatus(id, status);
+    return { logged: null, dealId: null };
+  }, ALL);
+}
+/** The deal's next step is done: logged on its timeline (channel from its words or where you last talked), then cleared. */
+export async function nextStepDoneAction(dealId: number) {
+  return run<{ logged: string | null }>(async () => {
+    const d = await one<{ next_action: string | null; person_id: number | null }>("select next_action, person_id from sales_deals where id = $1", [dealId]);
+    if (!d?.next_action) throw new UserError("There is no next step to mark done.");
+    const { recordDone } = await import("@/lib/sales/done");
+    const r = await recordDone(dealId, d.next_action, { personId: d.person_id, wasNextStep: true });
+    // its move, if one was waiting, is done too
+    await q("update sales_moves set status = 'done', done_at = now() where deal_id = $1 and kind = 'next_action' and status in ('open','snoozed')", [dealId]);
+    await refreshMoves(dealId);
+    return { logged: r?.channel ?? null };
   }, ALL);
 }
 export async function snoozeMoveAction(id: number, hours: number) {
@@ -319,7 +337,20 @@ export async function undoCaptureAction(id: number) {
   return run(() => undoCapture(id), ALL);
 }
 export async function commitmentAction(id: number, status: "open" | "done" | "dropped") {
-  return run(() => setCommitment(id, status), ALL);
+  return run<{ logged: string | null }>(async () => {
+    const c = await one<{ deal_id: number | null; owner: string; text: string; status: string }>("select deal_id, owner, text, status from sales_commitments where id = $1", [id]);
+    await setCommitment(id, status);
+    // a promise kept is logged: yours as something you did for them, theirs as a note that they delivered
+    if (status === "done" && c && c.status !== "done" && c.deal_id) {
+      if (c.owner === "me") {
+        const { recordDone } = await import("@/lib/sales/done");
+        return { logged: (await recordDone(c.deal_id, c.text, { externalId: `promise:${id}` }))?.channel ?? null };
+      }
+      await logInteraction({ deal_id: c.deal_id, channel: "note", direction: "internal", summary: `They delivered: ${c.text}`.slice(0, 300), source: "daybook", external_id: `promise:${id}` });
+      return { logged: "note" };
+    }
+    return { logged: null };
+  }, ALL);
 }
 export async function addCommitmentAction(dealId: number, owner: "me" | "them", text: string, due?: string | null) {
   return run(async () => {

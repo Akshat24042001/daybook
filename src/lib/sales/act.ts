@@ -2,7 +2,7 @@
  * Carrying out a move. Opening an app or a page is never treated as sending: a move is logged as sent only when
  * Daybook itself sent it (Gmail) or you confirmed "Sent it". Shared by the web app, Telegram and go-links.
  */
-import { one, UserError } from "../db";
+import { one, q, UserError } from "../db";
 import { CHANNELS, logInteraction, type Channel } from "./deals";
 import { sendEmail } from "./google";
 import { getMove, setMoveStatus, targetInput, type MoveRow } from "./moves";
@@ -34,7 +34,7 @@ export async function markOpened(moveId: number, targetId: string): Promise<void
 
 /**
  * Closes a move.
- *   logChannel null: just done (nothing was sent, e.g. a task you did yourself).
+ *   logChannel null: you ticked it done (did it some other way): it is still logged, on the channel done.ts works out.
  *   logChannel set: you confirmed you sent it there; it is logged on the deal (a radar lead becomes a deal first).
  *   assumed: the text may have been changed outside Daybook, so whether you edited the draft stays unknown.
  */
@@ -63,6 +63,21 @@ export async function completeMove(
         });
       }
       if (m.radar_item_id) await one("update sales_radar_items set status = 'contacted' where id = $1 and status in ('qualified','new','skipped','converted')", [m.radar_item_id]);
+    }
+    else if (m.kind !== "debrief") {
+      // ticked done without a send button: you did it some other way, and it is logged all the same (done.ts works out
+      // the channel from the button you opened, the step's own words, or where you last talked)
+      const dealId = m.deal_id ?? (m.radar_item_id ? await radarToDeal(m.radar_item_id) : null);
+      const { recordDone } = await import("./done");
+      await recordDone(dealId, m.title, {
+        target: m.channel, body: o.text ?? m.draft, subject: m.draft_subject, personId: m.person_id, moveId: m.id, moveKind: moveKindTag(m),
+        externalId: `move:${moveId}`, wasNextStep: m.kind === "next_action",
+      });
+      if (m.radar_item_id) await one("update sales_radar_items set status = 'contacted' where id = $1 and status in ('qualified','new','skipped','converted')", [m.radar_item_id]);
+    }
+    if (logChannel && m.kind === "next_action" && m.deal_id) {
+      // sent from a button: when it was the deal's next step, that step is done
+      await q("update sales_deals set next_action = null, next_action_at = null where id = $1 and next_action is not null", [m.deal_id]);
     }
     await setMoveStatus(moveId, "done");
   }

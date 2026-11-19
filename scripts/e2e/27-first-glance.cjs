@@ -38,6 +38,20 @@ const { setup, check, U } = require("./lib.cjs");
   await page.waitForTimeout(1500);
   check("next step changed in place", (await one("select next_action from sales_deals where id = $1", [deal.id])).next_action === `Send proposal ${tag}`);
 
+  // Mark done logs it on the timeline and asks for the next step
+  await next.getByRole("button", { name: "Mark done" }).click();
+  await page.getByRole("textbox", { name: "Next step" }).waitFor({ timeout: 10000 });
+  const doneRow = await one("select channel, summary from sales_interactions where deal_id = $1 and summary like 'Done: Send proposal%'", [deal.id]);
+  check("Mark done logs the step on the timeline", !!doneRow, doneRow);
+  check("and the next step is cleared, asking for the new one", (await one("select next_action from sales_deals where id = $1", [deal.id])).next_action === null);
+  // ticking a move after sending it on WhatsApp logs it there, with the message
+  const mv = await one("insert into sales_moves (deal_id, kind, title, draft, channel, dedupe_key) values ($1, 'follow_up', $2, 'Hi Asha, did you see the plan?', 'whatsapp', $3) returning id", [deal.id, `Follow up ${tag}`, `e2e-done-${tag}`]);
+  await page.reload({ waitUntil: "networkidle" });
+  const card = page.locator("li", { hasText: `Follow up ${tag}` }).first();
+  await card.getByRole("button", { name: "Done", exact: true }).click();
+  await page.waitForTimeout(1500);
+  const sent = await one("select channel, body from sales_interactions where external_id = $1", [`move:${mv.id}`]);
+  check("ticking a move done logs it on WhatsApp with the message", sent && sent.channel === "whatsapp" && sent.body.includes("did you see the plan"), sent);
   await page.getByRole("tab", { name: /Details/ }).click();
   check("a tab opens its part", await page.getByRole("tabpanel", { name: "Details" }).getByText("Deal details").first().isVisible());
   await page.getByRole("tab", { name: /History/ }).click();

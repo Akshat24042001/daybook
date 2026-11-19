@@ -58,6 +58,8 @@ const TARGET_ICON: Record<string, typeof Mail> = {
   whatsapp: MessageCircle, gmail: Mail, mail: Mail, linkedin: Linkedin, find_linkedin: Search, find_dm: Search, website: Globe, call: Phone, platform: ExternalLink,
 };
 
+const CHANNEL_WORD: Record<string, string> = { whatsapp: "WhatsApp", email: "email", call: "a call", linkedin: "LinkedIn", instagram: "Instagram", meeting: "a meeting", sms: "SMS", telegram: "Telegram", note: "the timeline as a note", other: "the timeline" };
+
 export function MoveCard({ m, googleReady, onGone }: { m: MoveRow; googleReady: boolean; onGone: (id: number) => void }) {
   const [move, setMove] = useState(m);
   const [text, setText] = useState(m.draft ?? "");
@@ -140,13 +142,17 @@ export function MoveCard({ m, googleReady, onGone }: { m: MoveRow; googleReady: 
           ) : null}
         </div>
         <div className="flex shrink-0 gap-1">
-          <Button size="icon" variant="ghost" title="Done another way: closes it without logging a message" aria-label="Done another way" onClick={() => run("done", () => moveStatusAction(move.id, "done"))}>
+          <Button size="icon" variant="ghost" title="Done: logs it on their timeline" aria-label="Done" onClick={() => run("done", async () => {
+            const r = await moveStatusAction(move.id, "done", text || undefined);
+            if (r.ok) toast(r.logged ? `Done. Logged on ${CHANNEL_WORD[r.logged] ?? r.logged}.` : "Done.");
+            return r;
+          })}>
             <Check className="h-4 w-4" />
           </Button>
           <Button size="icon" variant="ghost" title="Remind me tomorrow" aria-label="Snooze to tomorrow" onClick={() => run("snooze", () => snoozeMoveAction(move.id, 24))}>
             <Clock className="h-4 w-4" />
           </Button>
-          <Button size="icon" variant="ghost" title="Skip: not doing this one" aria-label="Skip" onClick={() => run("skip", () => moveStatusAction(move.id, "skipped"))}>
+          <Button size="icon" variant="ghost" title="Skip: not doing this one (nothing is logged)" aria-label="Skip" onClick={() => run("skip", () => moveStatusAction(move.id, "skipped"))}>
             <X className="h-4 w-4" />
           </Button>
         </div>

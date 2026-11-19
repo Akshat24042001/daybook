@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
   addCommitmentAction, addPaymentAction, briefFromAuditAction, enrichAction, commitmentAction, createLinkAction, createQuoteAction, deleteDealAction,
-  deleteInteractionAction, deletePaymentAction, markPaidAction, removeDealPersonAction, setPersonAction, startFileAction, updateDealAction,
+  deleteInteractionAction, deletePaymentAction, markPaidAction, removeDealPersonAction, setPersonAction, startFileAction, updateDealAction, nextStepDoneAction,
 } from "@/app/sales-actions";
 import { Button, Chip, Field, Input, Select, Sheet, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
@@ -520,9 +520,20 @@ function NextStep({ dealId, action, at }: { dealId: number; action: string | nul
   useEffect(() => { setText(action ?? ""); setWhen(at ? toZonedInput(at) : ""); }, [action, at]);
   const overdue = !!at && new Date(at).getTime() < Date.now();
   const save = (done = false) => start(async () => {
-    const r = await updateDealAction(dealId, done ? { next_action: "", next_action_at: null } : { next_action: text.trim(), next_action_at: fromZonedInput(when) });
+    if (done) {
+      // done is logged on the timeline (on the channel the step names, or where you last talked), then you set the next one
+      const r = await nextStepDoneAction(dealId);
+      if (!r.ok) return toast(r.error, "error");
+      toast(`Done and logged${r.logged && !["other", "note"].includes(r.logged) ? ` (${r.logged})` : ""}. What is the next step?`);
+      setText("");
+      setWhen("");
+      setEditing(true);
+      router.refresh();
+      return;
+    }
+    const r = await updateDealAction(dealId, { next_action: text.trim(), next_action_at: fromZonedInput(when) });
     if (!r.ok) return toast(r.error, "error");
-    toast(done ? "Done. Set the next step when you know it." : "Next step saved");
+    toast("Next step saved");
     setEditing(false);
     router.refresh();
   });
@@ -547,7 +558,7 @@ function NextStep({ dealId, action, at }: { dealId: number; action: string | nul
           <p className="mt-1 font-medium">{action}</p>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs">
             {at ? <span suppressHydrationWarning className={cn(overdue ? "font-semibold text-bad" : "text-subtle")}>{overdue ? "Overdue since " : "By "}{fmtDate(at)}</span> : <span className="text-subtle">No date</span>}
-            <button type="button" disabled={busy} className="text-accent hover:underline" onClick={() => save(true)}>Mark done</button>
+            <button type="button" disabled={busy} className="text-accent hover:underline" title="Logs it on their timeline" onClick={() => save(true)}>Mark done</button>
           </p>
         </>
       ) : (
@@ -564,7 +575,9 @@ function Promises({ dealId, mine, theirs, audience, onChange }: { dealId: number
   const [, start] = useTransition();
   const { toast } = useToast();
   const set = (id: number, s: "done" | "dropped") => start(async () => {
-    await commitmentAction(id, s);
+    const r = await commitmentAction(id, s);
+    if (!r.ok) return toast(r.error, "error");
+    if (s === "done") toast(r.logged === "note" ? "Kept, and noted on the timeline" : "Done, and logged on the timeline");
     onChange();
   });
   const List = ({ items, label }: { items: CommitmentRow[]; label: string }) => (
