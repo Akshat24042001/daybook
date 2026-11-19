@@ -35,6 +35,7 @@ import type { Fit } from "@/lib/sales/fit-calc";
 import type { DealItem } from "@/lib/sales/items-calc";
 import type { StagePlay } from "@/lib/sales/playbook-stages";
 import { Tabs } from "./tabs";
+import { ContactBar } from "./contact-bar";
 import { ago, ChannelIcon, CHANNEL_LABEL, CURRENCIES, currencyLabel, currencySymbol, fmtDate, Label, money, Priority } from "./util";
 import { Ago } from "@/components/sales/ago";
 import { fmtZoned, fromZonedInput, toZonedInput } from "@/lib/display-tz";
@@ -183,6 +184,16 @@ export function DealView({ d }: { d: DealPageData }) {
             {net !== null ? <p className="text-xs text-subtle">net after commission {money(net, deal.currency)}</p> : null}
           </div>
         </div>
+        <ContactBar
+          people={d.people.map((p) => ({
+            name: p.full_name, role: [p.title, p.is_decision_maker ? "decides" : null].filter(Boolean).join(" · ") || null,
+            phones: p.phones, whatsapp: (p.whatsapp as string | null) ?? null, emails: p.emails, linkedin: p.linkedin, instagram: (p.instagram as string | null) ?? null,
+            location: [p.city, p.country].filter(Boolean).join(", ") || null,
+          }))}
+          company={d.company ? { name: d.company.name, website: d.company.website, phone: d.company.phone ?? null, email: d.company.email ?? null, location: [d.company.city, d.company.country].filter(Boolean).join(", ") || null } : null}
+          message={d.moves.find((m) => m.draft)?.draft ?? null}
+          onAdd={() => (d.people[0] ? setEditPerson(d.people[0]) : d.company ? setEditCompany(true) : openEdit())}
+        />
         {d.blocked ? <p className="mt-3 rounded-md bg-p-rose px-3 py-2 text-xs text-p-rose-fg">Do not contact: no outreach moves. <a href="/sales/playbook#dnc" className="font-medium underline">Manage</a></p> : null}
         {dupHint ? <p className="mt-2 rounded-md bg-p-butter px-3 py-2 text-xs text-p-butter-fg">Possible duplicate: {dupHint}</p> : null}
 

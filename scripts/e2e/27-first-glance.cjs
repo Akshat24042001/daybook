@@ -5,9 +5,19 @@ const { setup, check, U } = require("./lib.cjs");
 (async () => {
   const { page, one, done } = await setup();
   const tag = Date.now().toString(36);
-  const deal = await one(`insert into sales_deals (title, stage_id, next_action) values ($1, (select id from sales_stages where key = 'contacted'), 'Call them back') returning id`, [`Glance ${tag}`]);
+  const person = await one(`insert into sales_people (full_name, title, emails, phones, linkedin, city, country) values ($1, 'Founder', $2, $3, 'linkedin.com/in/asha-glance', 'Pune', 'India') returning id`,
+    [`Asha ${tag}`, [`asha.${tag}@clinic.in`], ["+91 98765 43210"]]);
+  const deal = await one(`insert into sales_deals (title, stage_id, next_action, person_id) values ($1, (select id from sales_stages where key = 'contacted'), 'Call them back', $2) returning id`, [`Glance ${tag}`, person.id]);
+  await one("insert into sales_deal_people (deal_id, person_id, role) values ($1, $2, 'decision_maker') returning deal_id", [deal.id, person.id]);
   await page.goto(`${U}/sales/deal/${deal.id}`, { waitUntil: "networkidle" });
 
+  const contact = page.getByLabel("Contact details");
+  check("contacts are on top: number, WhatsApp, email, LinkedIn, place",
+    (await contact.getByRole("link", { name: /\+91 98765 43210/ }).getAttribute("href")) === "tel:+919876543210"
+    && (await contact.getByRole("link", { name: "WhatsApp" }).getAttribute("href")).startsWith("https://wa.me/919876543210")
+    && (await contact.getByRole("link", { name: `asha.${tag}@clinic.in` }).getAttribute("href")).startsWith(`mailto:asha.${tag}@clinic.in`)
+    && (await contact.getByRole("link", { name: "LinkedIn" }).getAttribute("href")) === "https://linkedin.com/in/asha-glance"
+    && (await contact.innerText()).includes("Pune, India"));
   const stands = page.getByLabel("Where it stands");
   check("where it stands is on top", await stands.isVisible() && (await stands.innerText()).includes("Contacted"));
   const next = page.locator('[aria-label="Next step"]').first();

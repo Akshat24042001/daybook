@@ -28,6 +28,7 @@ import { Ago } from "@/components/sales/ago";
 import { BookMeeting, TripBadge } from "./radar-trip";
 import { ShareLead } from "./radar-share";
 import { Tabs } from "./tabs";
+import { ContactBar } from "./contact-bar";
 
 // ------------------------------------------------------------------ ranking lives in lib/sales/radar-rank (pure, tested)
 
@@ -371,6 +372,9 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
   // the full first message: the drafted one when it is ready, else the brief's opener with a greeting
   const message = (move?.draft ?? it.ready_draft ?? (opener ? `${greeting}${opener}` : "")).trim();
   const [showMsg, setShowMsg] = useState(false);
+  const dm = it.prep?.pack?.decision_maker ?? null;
+  const site = it.identity?.website ?? it.prep?.pack?.company?.website ?? f.website ?? null;
+  const co = it.identity?.company ?? it.prep?.pack?.company?.name ?? f.company ?? null;
 
   return (
     <article className="space-y-3" aria-label="Selected lead">
@@ -409,18 +413,19 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
         ) : null}
 
         <LeadNext it={it} hasMessage={!!message} direct={direct} replyOn={where?.replyable ? where.name : null} channel={move?.channel ?? it.ready_channel ?? null} />
+        <ContactBar
+          people={[{
+            name: dm?.name ?? c.name ?? it.poster?.name ?? it.author ?? "Them",
+            role: dm ? [dm.title, "decides"].filter(Boolean).join(" · ") : null,
+            phones: [...new Set([...(dm?.phone ? [dm.phone] : []), ...c.phones])], emails: [...new Set([...(dm?.email ? [dm.email] : []), ...c.emails])],
+            whatsapp: it.prep?.pack?.contacts?.whatsapp ?? null, linkedin: dm?.linkedin ?? c.linkedin,
+            location: [it.poster?.city, it.poster?.country ?? f.country].filter(Boolean).join(", ") || null,
+          }]}
+          company={site || co ? { name: co ?? site ?? "", website: site } : null}
+          message={message || null} subject={move?.draft_subject ?? subject}
+        />
         {/* the actions you need, one click each */}
         <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Reach them">
-          {c.emails.map((e) => (
-            <a key={e} href={`mailto:${e}?subject=${encodeURIComponent(move?.draft_subject ?? subject)}&body=${encodeURIComponent(message)}`} title={message || undefined} className="act act-primary"><Mail className="h-3.5 w-3.5" /> Email {e}</a>
-          ))}
-          {c.phones.map((p) => (
-            <span key={p} className="inline-flex gap-1.5">
-              <a href={`tel:${p.replace(/[^\d+]/g, "")}`} className="act"><Phone className="h-3.5 w-3.5" /> Call {p}</a>
-              <a href={`https://wa.me/${p.replace(/\D/g, "")}?text=${encodeURIComponent(message)}`} title={message || undefined} target="_blank" rel="noreferrer" className="act"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</a>
-            </span>
-          ))}
-          {c.linkedin ? <a href={c.linkedin} target="_blank" rel="noreferrer" className="act"><Linkedin className="h-3.5 w-3.5" /> LinkedIn</a> : null}
           {it.url?.startsWith("http") ? <a href={it.url} target="_blank" rel="noreferrer" className="act">{it.lead_kind === "prospect" || it.lead_kind === "signal" ? "Open their website" : it.lead_kind === "news" ? "Open the news" : "Open the post"} <ArrowUpRight className="h-3.5 w-3.5" /></a> : null}
           {message ? <button type="button" className="act" title={message} onClick={() => copy(message, "Message")}><Copy className="h-3.5 w-3.5" /> Copy message</button> : null}
         </div>
