@@ -3,7 +3,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   BarChart3, BookMarked, BookOpen, Bot, Briefcase, CalendarCheck, ClipboardList, FolderOpen, HeartPulse, KanbanSquare, LayoutGrid, Monitor, Moon, PenLine, Radar, Settings, Sun, Target,
-  History, Search, Trash2, Users, X, Building2, ListChecks, Undo2, CalendarDays, LogOut, LineChart, Library,
+  History, Search, Trash2, Users, X, Building2, ListChecks, Undo2, CalendarDays, LogOut, LineChart, Library, Newspaper,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -58,6 +58,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/today", label: "Today", Icon: Sun },
       { href: "/calendar", label: "Calendar", Icon: CalendarDays },
       { href: "/assistant", label: "Assistant", Icon: Bot },
+      { href: "/news", label: "News", Icon: Newspaper },
       { href: "/plan", label: "Plan", Icon: ClipboardList },
       { href: "/priorities", label: "Priorities", Icon: LayoutGrid },
       { href: "/tasks", label: "All tasks", Icon: ListChecks },

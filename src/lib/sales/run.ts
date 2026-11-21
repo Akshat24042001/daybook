@@ -115,6 +115,24 @@ export const HANDLERS: Record<string, Handler> = {
     const r = await scrubContacts();
     console.log("[sales] contacts scrubbed:", JSON.stringify(r));
   },
+  async news_collect() {
+    const { collectNews, scoreNews } = await import("../news/collect");
+    await collectNews(25_000);
+    await scoreNews(20_000);
+  },
+  async news_score() {
+    const { scoreNews } = await import("../news/collect");
+    await scoreNews(40_000);
+  },
+  async news_edition(p) {
+    const { writeEdition } = await import("../news/edition");
+    const e = await writeEdition(String(p.date), { budgetMs: 48_000 });
+    if (e) await enqueue("news_send", { date: e.date }, { dedupeKey: `news_send:${e.date}` });
+  },
+  async news_send(p) {
+    const { sendEdition } = await import("../news/edition");
+    await sendEdition(String(p.date));
+  },
   async enrich_sweep() {
     await enrichSweep();
   },
@@ -260,6 +278,17 @@ export async function runSalesTick(now: Date = new Date()): Promise<string> {
   // businesses that never posted a need but show a buying signal (hiring salespeople, funding, expansion, slow replies)
   const every = cfg.radar.signal_every_hours ?? 3;
   if (every > 0 && Date.now() - (await lastDone("signal_hunt")) > every * 3_600_000) await enqueue("signal_hunt", {}, { dedupeKey: "signal_hunt" });
+  // news: read and score every hour; the morning newsletter at the hour in News settings (scored stories wait for it)
+  if (Date.now() - (await lastDone("news_collect")) > 55 * 60_000) await enqueue("news_collect", {}, { dedupeKey: "news_collect" });
+  if (await one("select 1 from news_items where score is null and found_at > now() - interval '2 days' limit 1") && Date.now() - (await lastDone("news_score")) > 10 * 60_000) {
+    await enqueue("news_score", {}, { dedupeKey: "news_score" });
+  }
+  {
+    const { scheduleEdition } = await import("../news/edition");
+    const date = await scheduleEdition(now).catch(() => null);
+    // tried at most every half hour (a morning with nothing worth sending tries again later)
+    if (date && Date.now() - (await lastDone("news_edition")) > 30 * 60_000) await enqueue("news_edition", { date }, { dedupeKey: `news_edition:${date}` });
+  }
   // once: contacts saved before every number needed proof are taken out of sight (contact-scrub)
   if (!(await lastDone("scrub_contacts"))) await enqueue("scrub_contacts", {}, { dedupeKey: "scrub_contacts:v1" });
   // every deal's business and contact are researched without a click, a few at a time

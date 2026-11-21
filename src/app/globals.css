@@ -285,3 +285,15 @@ input::-webkit-datetime-edit-ampm-field:focus {
     @apply rounded border border-border bg-muted px-1 font-mono text-[10px] text-fg;
   }
 }
+
+/* ── News: the morning brief, read like a newsletter ─────────────────────── */
+.news-prose { font-size: 15px; line-height: 1.65; color: hsl(var(--fg)); max-width: 72ch; }
+.news-prose h2 { font-family: var(--font-display, inherit); font-size: 1.5rem; line-height: 1.25; font-weight: 600; margin: 0 0 0.75rem; }
+.news-prose h3 { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: hsl(var(--accent)); margin: 1.6rem 0 0.5rem; padding-bottom: 0.35rem; border-bottom: 1px solid hsl(var(--border)); }
+.news-prose p { margin: 0.5rem 0; }
+.news-prose ul, .news-prose ol { margin: 0.25rem 0 0.75rem 1.1rem; list-style: disc; }
+.news-prose ol { list-style: decimal; }
+.news-prose li { margin: 0.45rem 0; padding-left: 0.2rem; }
+.news-prose strong { font-weight: 600; }
+.news-prose a { color: hsl(var(--accent)); font-size: 0.85em; font-weight: 500; text-decoration: none; white-space: nowrap; }
+.news-prose a:hover { text-decoration: underline; }
