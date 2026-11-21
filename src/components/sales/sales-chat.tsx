@@ -180,8 +180,8 @@ export function SalesChat({ focus, title, voiceEnabled, label = "Chat" }: { focu
       <Button size="sm" variant="outline" className="shrink-0 whitespace-nowrap" onClick={() => setOpen(true)} aria-label={label}>
         <MessageCircle className="h-4 w-4" /> {label}
       </Button>
-      <Sheet open={open} onOpenChange={setOpen} title={title} description="Ask anything or say what changed. Changes wait for your tap." wide>
-        <div className="flex min-h-[60vh] flex-col">
+      <Sheet open={open} onOpenChange={setOpen} title={title} description="Ask anything or say what changed. Changes wait for your tap." side="right">
+        <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex-1 space-y-4 pb-3" aria-live="polite">
             {!messages.length ? (
               <div className="space-y-2">

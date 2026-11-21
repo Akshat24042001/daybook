@@ -101,6 +101,7 @@ export function Sheet({
   title,
   description,
   wide,
+  side = "center",
   children,
 }: {
   open: boolean;
@@ -109,14 +110,19 @@ export function Sheet({
   description?: string;
   /** a roomier sheet for long content such as a research profile */
   wide?: boolean;
+  /** "right": a drawer that slides in from the right edge, full height (chats), instead of a box in the middle */
+  side?: "center" | "right";
   children: React.ReactNode;
 }) {
+  const drawer = side === "right";
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="sheet-overlay fixed inset-0 z-40 bg-black/40" />
+        <Dialog.Overlay className={cn("sheet-overlay fixed inset-0 z-40", drawer ? "bg-black/20" : "bg-black/40")} />
         <Dialog.Content
-          className={cn("sheet-content fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[90vh] w-full overflow-y-auto rounded-t-2xl border border-border bg-surface p-5 pb-safe shadow-[var(--shadow-lg)] sm:bottom-auto sm:top-[8vh] sm:rounded-xl", wide ? "max-w-3xl" : "max-w-lg")}
+          className={drawer
+            ? "drawer-content fixed inset-y-0 right-0 z-50 flex h-dvh w-full flex-col overflow-y-auto border-l border-border bg-surface p-5 pb-safe shadow-[var(--shadow-lg)] sm:w-[480px] lg:w-[540px]"
+            : cn("sheet-content fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[90vh] w-full overflow-y-auto rounded-t-2xl border border-border bg-surface p-5 pb-safe shadow-[var(--shadow-lg)] sm:bottom-auto sm:top-[8vh] sm:rounded-xl", wide ? "max-w-3xl" : "max-w-lg")}
           aria-describedby={description ? undefined : undefined}
         >
           <div className="mb-3 flex items-start justify-between gap-3">

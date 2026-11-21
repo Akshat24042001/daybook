@@ -45,7 +45,7 @@ const { setup, check, U } = require("./lib.cjs");
   check("Mark done logs the step on the timeline", !!doneRow, doneRow);
   check("and the next step is cleared, asking for the new one", (await one("select next_action from sales_deals where id = $1", [deal.id])).next_action === null);
   // ticking a move after sending it on WhatsApp logs it there, with the message
-  const mv = await one("insert into sales_moves (deal_id, kind, title, draft, channel, dedupe_key) values ($1, 'follow_up', $2, 'Hi Asha, did you see the plan?', 'whatsapp', $3) returning id", [deal.id, `Follow up ${tag}`, `e2e-done-${tag}`]);
+  const mv = await one("insert into sales_moves (deal_id, kind, title, draft, channel, dedupe_key, created_by) values ($1, 'custom', $2, 'Hi Asha, did you see the plan?', 'whatsapp', $3, 'me') returning id", [deal.id, `Follow up ${tag}`, `e2e-done-${tag}`]);
   await page.reload({ waitUntil: "networkidle" });
   const card = page.locator("li", { hasText: `Follow up ${tag}` }).first();
   await card.getByRole("button", { name: "Done", exact: true }).click();
@@ -73,5 +73,33 @@ const { setup, check, U } = require("./lib.cjs");
   const made = await one("select deal_id from sales_radar_items where id = $1", [lead.id]);
   check("logging a radar lead makes it a deal", !!made.deal_id);
   check("with what you did on record", !!(await one("select 1 as x from sales_interactions where deal_id = $1 and body like $2", [made.deal_id, `%${tag}%`])));
+  // chat opens as a drawer from the right, full height
+  const glance = await one("select id from sales_deals where title like $1 order by id desc limit 1", [`Glance ${tag}%`]) ?? deal;
+  await page.goto(`${U}/sales/deal/${glance.id}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "Chat about this lead" }).click();
+  const drawer = page.getByRole("dialog");
+  await drawer.waitFor({ timeout: 10000 });
+  await page.waitForTimeout(400);
+  const vb = page.viewportSize();
+  const box = await drawer.boundingBox();
+  check("chat opens as a drawer on the right, full height", Math.abs(box.x + box.width - vb.width) < 3 && box.y < 3 && box.height > vb.height - 5 && box.width < vb.width * 0.6, box);
+  await page.keyboard.press("Escape");
+
+  // a lead added by mistake: delete it from the gear (it goes to Deleted)
+  const oops = await one(`insert into sales_deals (title, stage_id) values ($1, (select id from sales_stages where key = 'new')) returning id`, [`Oops ${tag}`]);
+  await page.goto(`${U}/sales/deal/${oops.id}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "Lead settings" }).click();
+  page.__dialogAnswer = undefined;
+  await page.getByRole("menuitem", { name: /Delete this lead/ }).click();
+  await page.waitForURL(/\/sales\/pipeline/, { timeout: 15000 });
+  check("Delete from the gear removes the deal", !(await one("select 1 as x from sales_deals where id = $1", [oops.id])));
+  check("and it can be restored from Deleted", !!(await one("select 1 as x from deleted_rows where tbl = 'sales_deals' and (row->>'id')::int = $1 and restored_at is null", [oops.id])));
+  const rl = await one(`insert into sales_radar_items (url, url_hash, title, body, status, score) values ($1, md5($1), $2, 'pasted by mistake', 'qualified', 70) returning id`, [`https://e2e.example/oops-${tag}`, `Oops lead ${tag}`]);
+  await page.goto(`${U}/sales/radar?lead=${rl.id}`, { waitUntil: "networkidle" });
+  const pane2 = page.getByLabel("Selected lead");
+  await pane2.getByRole("button", { name: "Lead settings" }).click();
+  await pane2.getByRole("menuitem", { name: /Delete this lead/ }).click();
+  await page.waitForTimeout(1500);
+  check("a radar lead can be deleted from its gear", !(await one("select 1 as x from sales_radar_items where id = $1", [rl.id])));
   await done();
 })();

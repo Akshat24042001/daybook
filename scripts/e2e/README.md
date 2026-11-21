@@ -29,3 +29,4 @@ They change data in that database (offers, blocklist, test deals): never point t
 | 27-first-glance (contacts) | The contact bar on top: number (call), WhatsApp, email, LinkedIn and place, each one tap |
 | 27-first-glance (share) | A deal can be shared (contacts first) and sent on WhatsApp |
 | 27-first-glance (done) | Mark done on the next step and the tick on a move are logged on the timeline (WhatsApp with the message) |
+| 27-first-glance (settings, drawer) | Lead settings gear deletes a deal or radar lead (restorable from Deleted); chat opens as a right-side drawer |

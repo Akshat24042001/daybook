@@ -11,7 +11,8 @@ const { setup, check } = require("./lib.cjs");
   };
   await clean();
   const M = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const day = (n) => { const d = new Date(Date.now() + n * 86400000); return { iso: d.toISOString().slice(0, 10), words: `${d.getUTCDate()} ${M[d.getUTCMonth()]}` }; };
+  // days counted from today in the owner's time zone (India), as the app counts them, not in UTC
+  const day = (n) => { const d = new Date(new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }) + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return { iso: d.toISOString().slice(0, 10), words: `${d.getUTCDate()} ${M[d.getUTCMonth()]}` }; };
   const from = day(15), to = day(18);
 
   await go("/sales/radar");

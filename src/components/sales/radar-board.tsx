@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { safeRefresh, watchLinks } from "@/lib/client/safe-refresh";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
-  addBlockAction, radarBriefAction, radarDraftAction, radarHideAction, radarSeenAction, radarStatusAction, radarLogAction, radarToDealAction,
+  addBlockAction, deleteRadarItemsAction, radarBriefAction, radarDraftAction, radarHideAction, radarSeenAction, radarStatusAction, radarLogAction, radarToDealAction,
 } from "@/app/sales-actions";
 import { Button, Input, Select, Sheet, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
@@ -29,6 +29,7 @@ import { Ago } from "@/components/sales/ago";
 import { BookMeeting, TripBadge } from "./radar-trip";
 import { ShareLead } from "./radar-share";
 import { Tabs } from "./tabs";
+import { LeadSettings } from "./lead-settings";
 import { ContactBar } from "./contact-bar";
 
 // ------------------------------------------------------------------ ranking lives in lib/sales/radar-rank (pure, tested)
@@ -396,6 +397,21 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
           <span className="flex shrink-0 gap-1.5">
             <ShareLead itemId={it.id} title={it.title} />
             <SalesChat focus={{ radar_item_id: it.id }} title={`Ask about: ${it.title.slice(0, 60)}`} voiceEnabled={voiceEnabled} label="Ask about this lead" />
+            <LeadSettings items={[
+              { label: it.hidden ? "Unhide" : "Hide", hint: "Out of the list, kept for later", onSelect: () => act(() => radarHideAction(ids, !it.hidden), it.hidden ? "Back in the list" : "Hidden") },
+              { label: "Not relevant", hint: "Teaches the radar what to skip", onSelect: () => act(async () => { for (const x of ids) { const r = await radarStatusAction(x, "rejected"); if (!r.ok) return r; } return { ok: true }; }, "Marked not relevant") },
+              {
+                label: "Never contact", hint: "Future leads from them are dropped", hidden: !!it.blocked || !(f.website || f.company || f.contact),
+                onSelect: () => {
+                  const [kind, value] = f.website ? ["domain", f.website] as const : f.company ? ["company", f.company] as const : ["person", f.contact!] as const;
+                  if (confirm(`Never contact ${value}? Future leads from them are dropped.`)) act(() => addBlockAction(kind, value, "from radar"), "Added to do-not-contact");
+                },
+              },
+              {
+                label: "Delete this lead", danger: true, hint: "Added by mistake? You can restore it from Deleted.",
+                onSelect: () => { if (confirm(`Delete "${it.title.slice(0, 80)}"?\n\nYou can restore it any time from Deleted.`)) act(() => deleteRadarItemsAction(ids), "Deleted. Restore it from Deleted if you need it back."); },
+              },
+            ]} />
           </span>
         </div>
         <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-subtle">

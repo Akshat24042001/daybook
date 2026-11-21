@@ -798,3 +798,14 @@ export async function dealToTelegramAction(dealId: number) {
     return { parts: await sendDealToTelegram(dealId) };
   }, []);
 }
+
+/** A radar lead added by mistake: removed (it can be restored from Deleted), with the moves waiting on it. */
+export async function deleteRadarItemsAction(ids: number[]) {
+  return run<{ deleted: number }>(async () => {
+    const list = ids.filter(Number.isInteger);
+    if (!list.length) throw new UserError("Nothing to delete.");
+    await q("delete from sales_moves where radar_item_id = any($1::int[]) and status in ('open','snoozed')", [list]);
+    const r = await q<{ id: number }>("delete from sales_radar_items where id = any($1::int[]) returning id", [list]);
+    return { deleted: r.length };
+  }, ["/sales/radar", "/sales"]);
+}

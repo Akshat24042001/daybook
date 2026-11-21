@@ -37,6 +37,7 @@ import type { StagePlay } from "@/lib/sales/playbook-stages";
 import { Tabs } from "./tabs";
 import { ContactBar } from "./contact-bar";
 import { ShareLead } from "./radar-share";
+import { LeadSettings } from "./lead-settings";
 import { ago, ChannelIcon, CHANNEL_LABEL, CURRENCIES, currencyLabel, currencySymbol, fmtDate, Label, money, Priority } from "./util";
 import { Ago } from "@/components/sales/ago";
 import { fmtZoned, fromZonedInput, toZonedInput } from "@/lib/display-tz";
@@ -220,6 +221,31 @@ export function DealView({ d }: { d: DealPageData }) {
           <ShareLead dealId={deal.id} title={deal.title} />
           <SalesChat focus={{ deal_id: deal.id }} title={`Chat about ${deal.title}`} voiceEnabled={d.voiceEnabled} label="Chat about this lead" />
           <Button size="sm" variant="ghost" onClick={() => openEdit()}>Edit details</Button>
+          <LeadSettings items={[
+            { label: "Edit details", onSelect: () => openEdit() },
+            { label: "Rename", hint: "Or tap the pencil next to the name", onSelect: () => document.querySelector<HTMLButtonElement>('[aria-label="Rename this deal"]')?.click() },
+            {
+              label: "Do not contact", hint: "Stops all outreach to them, now and from the radar", hidden: !!d.blocked || !(d.company?.website || deal.company_name || deal.person_name),
+              onSelect: () => {
+                const [kind, value] = d.company?.website ? ["domain", d.company.website] as const : deal.company_name ? ["company", deal.company_name] as const : ["person", deal.person_name!] as const;
+                const why = prompt(`Never contact ${value} again? Optional: why (e.g. "asked not to be contacted").`, "");
+                if (why === null) return;
+                act(async () => (await import("@/app/sales-actions")).addBlockAction(kind, value, why || "from deal"), "Added to do-not-contact");
+              },
+            },
+            {
+              label: "Delete this lead", danger: true, hint: "Added by mistake? You can restore it from Deleted.",
+              onSelect: () => {
+                if (!confirm(`Delete "${deal.title}" with its whole history?\n\nYou can restore it any time from Deleted.`)) return;
+                start(async () => {
+                  const r = await deleteDealAction(deal.id);
+                  if (!r.ok) return toast(r.error, "error");
+                  toast("Deleted. Restore it from Deleted if you need it back.");
+                  router.push("/sales/pipeline");
+                });
+              },
+            },
+          ]} />
         </div>
       </div>
 
