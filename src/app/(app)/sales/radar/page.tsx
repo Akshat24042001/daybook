@@ -36,5 +36,5 @@ export default async function RadarPage({ searchParams }: { searchParams: Promis
   ]);
   const links = await radarQuickLinks(items.map((i) => i.id));
   for (const it of items) it.links = links[it.id] ?? [];
-  return <RadarView items={items} sources={sources} googleReady={google} focus={await currentFocus(cfg)} searchProviders={searchConfigured()} hunts={hunts} plan={plan} searchCap={cfg.radar.search_daily_cap} tz={(await getSettings()).timezone} voiceEnabled={voiceConfigured()} openId={lead} />;
+  return <RadarView items={items} sources={sources} googleReady={google} focus={await currentFocus(cfg)} searchProviders={searchConfigured()} hunts={hunts} plan={plan} searchCap={cfg.radar.search_daily_cap} tz={(await getSettings()).timezone} voiceEnabled={voiceConfigured()} openId={lead} marketplace={cfg.radar.marketplace ?? "reachable"} />;
 }

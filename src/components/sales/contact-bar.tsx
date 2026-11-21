@@ -30,7 +30,9 @@ export function hasContact(people: ContactPerson[], company?: ContactCompany | n
  * where they are, then the business's own line, inbox and website. One tap to call, write or open; one tap to copy.
  * With a message ready, WhatsApp and email open with it filled in.
  */
-export function ContactBar({ people, company, message, subject, onAdd, proof = {} }: { people: ContactPerson[]; company?: ContactCompany | null; message?: string | null; subject?: string | null; onAdd?: () => void;
+export function ContactBar({ people, company, message, subject, onAdd, proof = {}, headline = null }: { people: ContactPerson[]; company?: ContactCompany | null; message?: string | null; subject?: string | null; onAdd?: () => void;
+  /** one line on how good the contact is ("Decision maker reachable: ...") */
+  headline?: string | null;
   /** where each found phone or email was seen (by phone digits or lowercase email): shown as "source" so you can check it */
   proof?: Record<string, string> }) {
   const proofOf = (v: string) => proof[/@/.test(v) ? v.toLowerCase() : digits(v).slice(-9)] ?? null;
@@ -50,7 +52,7 @@ export function ContactBar({ people, company, message, subject, onAdd, proof = {
   return (
     <div className={cn("mt-3 rounded-xl border px-3 py-2.5", any ? "border-good/30 bg-p-mint/25" : "border-warn/40 bg-p-butter/40")} aria-label="Contact details">
       <p className="mb-1.5 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-subtle">
-        Contact
+        <span>Contact{headline ? <span className="ml-2 font-medium normal-case tracking-normal text-good">{headline}</span> : null}</span>
         {onAdd ? <button type="button" onClick={onAdd} className="inline-flex items-center gap-0.5 font-medium normal-case text-accent hover:underline"><Plus className="h-3 w-3" /> Add details</button> : null}
       </p>
       {!any ? <p className="text-sm">No phone, email or profile yet.{onAdd ? " Add what you have, or research finds it." : ""}</p> : null}

@@ -6,6 +6,10 @@ const { setup, check } = require("./lib.cjs");
   const clean = () => db.query("delete from sales_radar_items where url like 'https://e2e.radar/%' or url like 'https://www.freelancer.com/projects/e2e-%'");
   await clean();
   await db.query("update sales_radar_items set hidden = true where status = 'qualified'"); // only this test's leads in view
+  // the ranking checks below include a paid-site lead with no contact: show those (the default hides them; checked at the end)
+  const setMarket = (v) => db.query(`update sales_settings set config = coalesce(config, '{}'::jsonb) || jsonb_build_object('radar', coalesce(config->'radar', '{}'::jsonb) || jsonb_build_object('marketplace', $1::text)) where id = 1`, [v]);
+  await setMarket("show");
+  await new Promise((r) => setTimeout(r, 3500)); // the settings cache
   const add = (url, title, hoursAgo, extra = {}) => one(
     `insert into sales_radar_items (url, url_hash, title, body, status, score, posted_at, found_at, poster, identity, fit, brief)
      values ($1, md5($1), $2, $3, 'qualified', $4, now() - ($5 || ' hours')::interval, now() - ($5 || ' hours')::interval, $6, $7, $8, $9) returning id`,
@@ -38,15 +42,15 @@ const { setup, check } = require("./lib.cjs");
   const pane = page.getByRole("article", { name: "Selected lead" }).first();
   await pane.waitFor();
   const pt = await pane.innerText();
-  check("first lead opens on the right by itself", pt.includes("E2E: Inventory app") && pt.includes("#1 to do"));
-  check("what they need, in plain words, with deliverables and budget", /What they need[\s\S]*pharmacy chain with 6 stores[\s\S]*Low-stock alerts[\s\S]*INR 50,000/i.test(pt));
-  check("how you can help, with the opener", /How you can help[\s\S]*2-week pilot[\s\S]*Open with[\s\S]*six stores/i.test(pt));
+  check("first lead opens on the right by itself", pt.includes("E2E: Inventory app") && (await list.getByRole("option").first().innerText()).includes("#1"));
+  check("what they need on top, in plain words, with budget and timing; what to build below", /What they need[\s\S]*pharmacy chain with 6 stores[\s\S]*Budget[\s\S]*INR 50,000[\s\S]*What they want built[\s\S]*Low-stock alerts/i.test(pt));
+  check("the opener in full near the top, how you can help below", /Your opener[\s\S]*six stores[\s\S]*How you can help[\s\S]*2-week pilot/i.test(pt));
   check("questions to ask", /Ask them[\s\S]*billing software/i.test(pt));
   const email = pane.getByLabel("Contact details").getByRole("link", { name: /owner@medpluspune.in/ });
   const href = await email.getAttribute("href");
   check("one-click email, addressed by first name, with the opener", href.startsWith("mailto:owner@medpluspune.in") && decodeURIComponent(href).includes("Hi Anita,") && decodeURIComponent(href).includes("six stores"));
   check("one-click call and WhatsApp", (await pane.getByLabel("Contact details").getByRole("link", { name: /\+91 98200 22222/ }).count()) === 1 && (await pane.getByRole("link", { name: "WhatsApp" }).first().getAttribute("href")).startsWith("https://wa.me/919820022222?text="));
-  check("open the post", (await pane.getByRole("link", { name: /Open the post/ }).getAttribute("href")) === "https://www.freelancer.com/projects/e2e-found");
+  check("open the post", (await pane.getByRole("link", { name: "The post", exact: true }).getAttribute("href")) === "https://www.freelancer.com/projects/e2e-found");
   await page.waitForTimeout(800);
   check("opening a lead marks it read", !!(await one("select seen_at from sales_radar_items where id = $1", [found.id])).seen_at);
 
@@ -118,6 +122,16 @@ const { setup, check } = require("./lib.cjs");
   await page.waitForTimeout(500);
   check("on a phone the lead opens in a sheet", await page.getByRole("dialog").getByRole("article", { name: "Selected lead" }).isVisible());
   check("paid site with no contact: no bid draft, Find them directly offered", (await page.getByRole("dialog").getByRole("button", { name: /Draft/ }).count()) === 0 && (await page.getByRole("dialog").getByRole("button", { name: "Find them directly" }).count()) === 1);
+  // by default a paid-site lead with no direct contact is kept out of the main list, under its own filter
+  await setMarket("reachable");
+  await new Promise((r) => setTimeout(r, 3500));
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await go("/sales/radar");
+  const mainRows = await list.getByRole("option").allInnerTexts();
+  check("default: paid-site leads with no contact are not in the main list", !mainRows.some((r) => r.includes("Logo animation")) && mainRows.some((r) => r.includes("pharmacy chain")), mainRows.length);
+  await page.getByRole("button", { name: /Paid sites, no contact/ }).click();
+  await page.waitForTimeout(400);
+  check("they wait under Paid sites, no contact", (await list.getByRole("option").allInnerTexts()).some((r) => r.includes("Logo animation")));
   t.errors.splice(0); // the brief request without an AI key logs a failed request in the browser
   await clean();
   await db.query("update sales_radar_items set hidden = false where status = 'qualified' and hidden");

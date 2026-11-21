@@ -8,6 +8,7 @@ import { Button, Field, Input, Select, Sheet, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import { haystack, matchesAll, searchTerms } from "@/lib/sales/find-match";
+import { isBlindMarketplace } from "@/lib/sales/radar-rank";
 import type { LinkGroup } from "@/lib/sales/quick-links-types";
 import { ago } from "./util";
 import { HuntsPanel } from "./hunts-view";
@@ -48,11 +49,11 @@ export interface SourceRow {
   last_run_at: string | null; last_ok_at: string | null; last_error: string | null; items_found: number; items_qualified: number; deals_created: number;
 }
 
-const KINDS = [["all", "All kinds"], ["post", "Posted needs"], ["signal", "Hidden needs"], ["prospect", "Local businesses"], ["news", "News"]] as const;
+const KINDS = [["all", "All kinds"], ["post", "Posted needs"], ["signal", "Hidden needs"], ["prospect", "Local businesses"], ["news", "News"], ["marketplace", "Paid sites, no contact"]] as const;
 type KindFilter = (typeof KINDS)[number][0];
 const tabOf = (status: string) => (status === "qualified" ? "qualified" : status === "new" ? "new" : "rejected");
 
-export function RadarView({ items, sources, googleReady, focus, searchProviders, hunts, plan, searchCap, tz, voiceEnabled = false, openId = null }: { items: RadarItem[]; sources: SourceRow[]; googleReady: boolean; focus: { country: string; industry: string }; searchProviders: string[]; hunts: HuntView[]; plan: RadarPlan; searchCap: number; tz: string; voiceEnabled?: boolean; openId?: number | null }) {
+export function RadarView({ items, sources, googleReady, focus, searchProviders, hunts, plan, searchCap, tz, voiceEnabled = false, openId = null, marketplace = "reachable" }: { marketplace?: "reachable" | "show"; items: RadarItem[]; sources: SourceRow[]; googleReady: boolean; focus: { country: string; industry: string }; searchProviders: string[]; hunts: HuntView[]; plan: RadarPlan; searchCap: number; tz: string; voiceEnabled?: boolean; openId?: number | null }) {
   const opened = openId ? items.find((i) => i.id === openId) : null;
   const [tab, setTab] = useState<"qualified" | "new" | "rejected" | "hunts" | "plan" | "sources">(opened ? tabOf(opened.status) : "qualified");
   const [query, setQuery] = useState("");
@@ -78,12 +79,16 @@ export function RadarView({ items, sources, googleReady, focus, searchProviders,
   const [src, setSrc] = useState({ name: "", kind: "rss" as "rss" | "search" | "reddit" | "gnews", value: "", category: "requirement" });
   const { toast } = useToast();
   const router = useRouter();
-  const ofKind = (i: RadarItem) => kind === "all" || (i.lead_kind ?? "post") === kind;
+  // Freelancer, Upwork and the like need an account and credits to answer: by default such a post only shows once a
+  // direct way to reach the client is found; until then it waits under "Paid sites, no contact"
+  const blind = (i: RadarItem) => marketplace !== "show" && isBlindMarketplace(i);
+  const ofKind = (i: RadarItem) => kind === "marketplace" ? isBlindMarketplace(i) : (kind === "all" || (i.lead_kind ?? "post") === kind) && !blind(i);
   // a search looks in every tab at once: what you look for may be scored, below the bar or skipped
   const searching = terms.length > 0;
   const matched = searching ? items.filter((i) => ofKind(i) && (matchesAll(haystack(i), terms) || deep?.ids.has(i.id))) : [];
   const tabItems = searching ? matched : items.filter((i) => (opened && i.id === opened.id && tabOf(i.status) === tab) || (ofKind(i) && (tab === "qualified" ? i.status === "qualified" : tab === "new" ? i.status === "new" : ["rejected", "skipped"].includes(i.status))));
-  const counts = { qualified: items.filter((i) => !i.hidden && i.status === "qualified").length, new: items.filter((i) => !i.hidden && i.status === "new").length, rejected: items.filter((i) => !i.hidden && ["rejected", "skipped"].includes(i.status)).length };
+  const blindCount = items.filter((i) => !i.hidden && i.status === "qualified" && isBlindMarketplace(i)).length;
+  const counts = { qualified: items.filter((i) => !i.hidden && i.status === "qualified" && !blind(i)).length, new: items.filter((i) => !i.hidden && i.status === "new").length, rejected: items.filter((i) => !i.hidden && ["rejected", "skipped"].includes(i.status)).length };
   const broken = sources.filter((s) => s.enabled && s.last_error).length;
 
   return (
@@ -120,8 +125,8 @@ export function RadarView({ items, sources, googleReady, focus, searchProviders,
             <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search anything: company, person, city, need, email, number" aria-label="Search the radar" className="h-9 pl-8 text-sm" />
           </div>
           <div className="flex flex-wrap gap-1" role="group" aria-label="Kind of lead">
-            {KINDS.map(([k, l]) => (
-              <button key={k} type="button" onClick={() => setKind(k)} aria-pressed={kind === k} className={cn("rounded-md border px-2.5 py-1 text-xs", kind === k ? "border-accent bg-accent-muted text-accent" : "border-border text-subtle")}>{l}</button>
+            {KINDS.filter(([k]) => k !== "marketplace" || marketplace !== "show").map(([k, l]) => (
+              <button key={k} type="button" onClick={() => setKind(k)} aria-pressed={kind === k} className={cn("rounded-md border px-2.5 py-1 text-xs", kind === k ? "border-accent bg-accent-muted text-accent" : "border-border text-subtle")}>{l}{k === "marketplace" ? ` · ${blindCount}` : ""}</button>
             ))}
           </div>
           {searching ? <span className="text-xs text-subtle">{matched.length} match{matched.length === 1 ? "" : "es"} in every tab</span> : null}

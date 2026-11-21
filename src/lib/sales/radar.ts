@@ -461,7 +461,9 @@ export async function qualifyPending(budgetMs = 45_000): Promise<number> {
       if (status === "qualified" && screen !== "blocked") {
         await q("update sales_radar_sources set items_qualified = items_qualified + 1 where id = (select source_id from sales_radar_items where id = $1)", [b.id]);
         const fresh = !b.posted_at || Date.now() - new Date(b.posted_at).getTime() < 12 * 3_600_000;
-        if (score >= cfg.radar.alert_score && fresh && b.hunt_notify !== false) await alertItem(b.id);
+        // a paid-marketplace post with no direct way to reach the client is not worth a ping (no account there)
+        const blindNow = (cfg.radar.marketplace ?? "reachable") !== "show" && !!(await one(`select 1 from sales_radar_items r where id = $1 and ${BLIND_MARKETPLACE}`, [b.id]));
+        if (score >= cfg.radar.alert_score && fresh && b.hunt_notify !== false && !blindNow) await alertItem(b.id);
         // every qualified lead is then prepared on its own (radar-prep): the minute tick picks it up
       }
       done += 1;
@@ -679,11 +681,23 @@ export async function hunt(budgetMs = 45_000): Promise<number> {
 }
 
 /** The daily digest. Hunts until the minimum is met; never pads the list with junk, says so when it falls short. */
+/**
+ * SQL: a lead on a paid marketplace (you need an account and credits to answer there) with no direct way to reach the
+ * client: no email or phone proven behind it, no LinkedIn, no email written in the post. Hidden from alerts and the
+ * digest unless Sales settings say to show marketplace leads.
+ */
+export const BLIND_MARKETPLACE = `(r.url ~* '(freelancer\\.[a-z.]+|upwork\\.com|peopleperhour\\.com|guru\\.com|fiverr\\.com|truelancer\\.com|workana\\.com)/'
+  and coalesce(jsonb_array_length(case when jsonb_typeof(r.identity->'emails') = 'array' then r.identity->'emails' end), 0)
+    + coalesce(jsonb_array_length(case when jsonb_typeof(r.identity->'phones') = 'array' then r.identity->'phones' end), 0) = 0
+  and coalesce(r.identity->>'linkedin', '') = ''
+  and coalesce(r.body, '') !~* '[a-z0-9._%+-]+@[a-z0-9-]+\\.[a-z]{2,}')`;
+
 export async function dailyDigest(budgetMs = 50_000): Promise<string> {
   const cfg = await salesConfig();
   const deadline = Date.now() + budgetMs;
+  const blind = (cfg.radar.marketplace ?? "reachable") === "show" ? "" : ` and not ${BLIND_MARKETPLACE}`;
   const countQualified = async () =>
-    (await one<{ n: number }>("select count(*)::int as n from sales_radar_items where status = 'qualified' and found_at > now() - interval '24 hours'"))?.n ?? 0;
+    (await one<{ n: number }>(`select count(*)::int as n from sales_radar_items r where status = 'qualified' and found_at > now() - interval '24 hours'${blind}`))?.n ?? 0;
   let n = await countQualified();
   let rounds = 0;
   while (n < cfg.radar.daily_min && rounds < 2 && Date.now() < deadline - 20_000) {
@@ -693,8 +707,8 @@ export async function dailyDigest(budgetMs = 50_000): Promise<string> {
     rounds += 1;
   }
   const top = await q<{ id: number; title: string; url: string | null; score: number; fit: Verdict | null; status: string }>(
-    `select id, title, url, score, fit, status from sales_radar_items
-     where found_at > now() - interval '48 hours' and not hidden and digest_sent_at is null and (status = 'qualified' or (status = 'rejected' and score >= 40))
+    `select id, title, url, score, fit, status from sales_radar_items r
+     where found_at > now() - interval '48 hours' and not hidden and digest_sent_at is null and (status = 'qualified' or (status = 'rejected' and score >= 40))${blind}
      order by (status = 'qualified') desc, score desc limit 8`,
   );
   const good = top.filter((t) => t.status === "qualified");

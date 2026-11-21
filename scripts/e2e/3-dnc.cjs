@@ -56,7 +56,9 @@ const { setup, check } = require("./lib.cjs");
   check("known lead's move says so; blocked lead has no move", moves.length === 1 && moves[0].title.startsWith("Known contact:"), moves);
 
   const card3 = await pick("Golf Corp wants a CRM cleanup");
-  await card3.getByRole("button", { name: "Never contact" }).click();
+  // a rarer action: it lives in the lead's gear
+  await card3.getByRole("button", { name: "Lead settings" }).click();
+  await card3.getByRole("menuitem", { name: /Never contact/ }).click();
   await page.waitForTimeout(1500);
   const r3 = await one("select status, blocked from sales_radar_items where url_hash = 'e2e-3'");
   check("Never contact blocks the company and drops the lead, showing the name as written", r3.status === "rejected" && /company: Golf Corp Pvt Ltd, from radar/.test(r3.blocked), r3);

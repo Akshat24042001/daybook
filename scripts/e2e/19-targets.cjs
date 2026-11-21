@@ -47,7 +47,7 @@ const { setup, check } = require("./lib.cjs");
   check("the row says trip and local business", /Udaipur trip/.test(rows[0]) && /local business/.test(rows[0]));
   const pane = page.getByRole("article", { name: "Selected lead" }).first();
   const pt = await pane.innerText();
-  check("the lead shows the trip countdown and that nobody posted it", /Udaipur trip · in 15 days/.test(pt) && /nobody posted this/.test(pt));
+  check("the lead shows the trip countdown and that nobody posted it", /Udaipur trip · in 15 days/.test(pt) && /nobody posted this/i.test(pt));
   await pane.getByRole("button", { name: "Book a meeting in Udaipur" }).click();
   const book = pane.getByLabel("Book a meeting");
   check("booking starts on the first day of the trip", (await book.getByLabel("Day").inputValue()) === from.iso);

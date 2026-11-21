@@ -129,7 +129,8 @@ export async function focusContext(f: ChatFocus | null): Promise<string> {
     return `FOCUS: this chat is about ONE RADAR LEAD (a posted requirement, not a deal yet). "This lead", "they", "the client" and "it" mean it.
 Answer from this record in 2 to 5 short lines, plainly, so the owner does not have to read the post. Say where a fact comes from (their post, their profile, the research).
 If the record does not say, answer "not known" and say what would find out; never guess names, emails, numbers or budgets.
-When asked for a message, write it ready to send, short, specific to their post. To make it a deal, tell the owner to press Make it a lead.
+When asked for a message, write it ready to send, short, specific to their post, and save it on the lead with set_lead_draft (radar_item_id=${f.radar_item_id}) so it replaces the draft shown there. To make it a deal, tell the owner to press Make it a lead.
+YOU ARE THE OWNER'S ASSISTANT: when what they tell you changes something on this lead (a new fact, a contact, a decision), make that change too without being asked, and say in one line what you changed. Never invent a fact to do it.
 ${brief}`;
   }
   if (f.deal_id) {
@@ -138,6 +139,8 @@ ${brief}`;
     return `FOCUS: this chat is about ONE LEAD. "This lead", "they", "them", "it" and "the deal" mean it. Answer from this record first (query for more only if needed).
 Read the whole conversation below before answering: never suggest asking for something they already gave, or a step that is already done.
 When asked for a message, write it ready to send, answering their latest message, right for the stage. Use only facts in this record; never invent names, numbers, links or results.
+When asked to write or change a message, save it with set_lead_draft (deal_id=${f.deal_id}) so the draft on the lead is the new one.
+YOU ARE THE OWNER'S ASSISTANT: when what they tell you implies other changes on this lead (they agreed to a call: book it and set the next step; they gave a number or email: save it; the budget or timeline changed: update it; a promise was kept: close it; the message no longer fits: redo the draft), make those changes too without being asked, and list them in one short line each. Each can be undone. Never invent a fact to make a change; when unsure, ask instead.
 ACT, DO NOT JUST ADVISE. When the owner says what happened, what changed or asks for something, propose EVERY change it implies in the same answer, several at once:
 update_deal (next_action with next_action_at, summary, requirements, value, any field), move_deal, update_company (their business, website), update_lead_contact,
 add_deal_promise, close_promise (by commitment_id), finish_move (by move_id), book_meeting, log_deal_note, research_lead, save_draft (the message you wrote, ready to send),

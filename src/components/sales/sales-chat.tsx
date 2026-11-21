@@ -154,7 +154,7 @@ export function SalesChat({ focus, title, voiceEnabled, label = "Chat" }: { focu
           else if (ev.t === "done") {
             finished = true;
             const hasActions = ev.message.blocks.some((b) => b.type === "actions" && b.items.some((x) => x.status === "proposed"));
-            if (dealId && auto && hasActions) {
+            if ((dealId || "radar_item_id" in focus) && auto && hasActions) {
               // shown once the changes are made, so the cards show them applied (with Undo)
               setStatus("Making the changes…");
               const applied = await applyNow(ev.message);
@@ -255,7 +255,7 @@ export function SalesChat({ focus, title, voiceEnabled, label = "Chat" }: { focu
               {messages.length ? (
                 <Button type="button" size="sm" variant="ghost" onClick={fresh}><RotateCcw className="h-3.5 w-3.5" /> New chat</Button>
               ) : null}
-              {dealId ? (
+              {dealId || "radar_item_id" in focus ? (
                 <label className="flex items-center gap-1.5 text-xs text-subtle" title="On: changes you ask for are made straight away, and each can be undone. Off: tap to apply.">
                   <input type="checkbox" checked={auto} onChange={(e) => { setAuto(e.target.checked); try { localStorage.setItem("sales-chat:auto", e.target.checked ? "1" : "0"); } catch { /* ignore */ } }} /> Apply changes right away
                 </label>

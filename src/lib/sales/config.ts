@@ -54,6 +54,8 @@ export interface SalesConfig {
     auto_prep_daily: number;
     /** hidden needs: how often to look for businesses showing a buying signal; 0 turns it off */
     signal_every_hours?: number;
+    /** leads on paid marketplaces (Freelancer, Upwork...): "reachable" shows them only once a direct contact is proven; "show" always */
+    marketplace?: "reachable" | "show";
     /** adaptive: countries and industries that bring results get more turns; rotate: the old even rotation */
     targeting: "adaptive" | "rotate";
     /** share of turns (percent) given to the least-tested country or industry when adaptive */
@@ -136,7 +138,7 @@ export const DEFAULT_CONFIG: SalesConfig = {
   reengage_days: 7,
   reply_within_hours: 3,
   ghost_revisit_days: 60,
-  radar: { min_score: 60, daily_min: 1, digest_hour: 9, alert_score: 85, search_daily_cap: 25, enrich_queries: 5, auto_research_score: 0, auto_prep_daily: 40, signal_every_hours: 3, targeting: "adaptive", explore_pct: 20 },
+  radar: { min_score: 60, daily_min: 1, digest_hour: 9, alert_score: 85, search_daily_cap: 25, enrich_queries: 5, auto_research_score: 0, auto_prep_daily: 40, signal_every_hours: 3, marketplace: "reachable", targeting: "adaptive", explore_pct: 20 },
   targets: { monthly_revenue: 0, weekly_conversations: 15, daily_outreach: 5 },
   post_sale: { checkin_days: [30, 90], upsell_after_days: 45, retainer: true },
   brief_hour: 9,

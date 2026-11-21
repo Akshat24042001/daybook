@@ -252,6 +252,17 @@ function Row({ it, rank, also, reasons, first, active, tz, now, onOpen }: { it: 
   );
 }
 
+/** One fact in the need strip: a small label over its value. */
+function Fact({ label, value }: { label: string; value: string }) {
+  const unknown = /^not (stated|known)$/i.test(value);
+  return (
+    <div className="min-w-0">
+      <dt className="text-[10px] font-semibold uppercase tracking-wider text-subtle">{label}</dt>
+      <dd className={cn("truncate", unknown ? "text-subtle" : "font-medium text-fg")} title={value}>{value}</dd>
+    </div>
+  );
+}
+
 /** What to do with this lead now, in one line. */
 function LeadNext({ it, hasMessage, direct, replyOn, channel }: { it: RadarItem; hasMessage: boolean; direct: boolean; replyOn: string | null; channel: string | null }) {
   const reach = reachOf(it);
@@ -381,25 +392,33 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
 
   return (
     <article className="space-y-3" aria-label="Selected lead">
-      {/* header */}
-      <header className="rounded-xl border border-border bg-surface p-3.5">
-        <p className="flex flex-wrap items-center gap-1.5 text-xs">
-          {sort === "first" ? <span className="rounded-md bg-accent px-1.5 py-0.5 font-bold text-accent-fg">#{rank} to do</span> : null}
-          <span className={cn("rounded-md px-1.5 py-0.5 font-semibold tabular", (it.score ?? 0) >= 80 ? "bg-p-mint text-p-mint-fg" : "bg-p-sky text-p-sky-fg")}>Fit {it.score ?? "?"}</span>
-          <span className="inline-flex items-center gap-1 font-semibold"><Clock className="h-3.5 w-3.5 text-subtle" />{it.posted_at ? "Posted" : "Found"} {whenLabel(at, tz)}</span>
-          <span className="text-subtle">(<Ago d={at} />)</span>
-          {it.trip ? <TripBadge trip={it.trip} today={today} /> : null}
-          {it.lead_kind === "prospect" ? <span className="rounded-md bg-p-lilac px-1.5 py-0.5 text-p-lilac-fg">Local business we found for you: nobody posted this</span> : it.lead_kind === "signal" ? <span className="rounded-md bg-p-lilac px-1.5 py-0.5 text-p-lilac-fg">Hidden need: nobody posted this, we found a public buying signal</span> : null}
-        </p>
-        <ReachLine it={it} />
-        <div className="mt-1.5 flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
-          <h2 className="min-w-0 flex-1 basis-64 font-display text-xl leading-snug">{it.title}</h2>
-          <span className="flex shrink-0 gap-1.5">
+      {/* 1. who and what: the title first, one quiet line of facts, then what they need and how to reach them */}
+      <header className="rounded-xl border border-border bg-surface p-4">
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            {it.lead_kind === "prospect" || it.lead_kind === "signal" ? (
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-p-lilac-fg">{it.lead_kind === "signal" ? "Hidden need: nobody posted this" : "Local business: nobody posted this"}</p>
+            ) : null}
+            <h2 className="text-lg font-semibold leading-snug text-fg sm:text-xl">{it.title}</h2>
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-subtle">
+              <span title="How well it fits your business" className={cn("rounded px-1.5 py-0.5 font-semibold tabular", (it.score ?? 0) >= 80 ? "bg-p-mint text-p-mint-fg" : "bg-p-sky text-p-sky-fg")}>Fit {it.score ?? "?"}</span>
+              <span suppressHydrationWarning>{it.posted_at ? "Posted" : "Found"} {whenLabel(at, tz)} (<Ago d={at} />)</span>
+              <span>·</span>
+              <span>{where?.name ?? it.source ?? "manual"}</span>
+              {f.country ? <><span>·</span><span className="inline-flex items-center gap-0.5"><MapPin className="h-3 w-3" />{f.country}</span></> : null}
+              {f.industry ? <><span>·</span><span>{f.industry}</span></> : null}
+              {it.url?.startsWith("http") ? <><span>·</span><a href={it.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-medium text-accent hover:underline">{it.lead_kind === "prospect" || it.lead_kind === "signal" ? "Their website" : it.lead_kind === "news" ? "The news" : "The post"} <ArrowUpRight className="h-3 w-3" /></a></> : null}
+              {also ? <><span>·</span><span>on {also + 1} sources</span></> : null}
+              {it.trip ? <TripBadge trip={it.trip} today={today} /> : null}
+            </p>
+          </div>
+          <span className="flex shrink-0 flex-wrap justify-end gap-1.5">
             <ShareLead itemId={it.id} title={it.title} />
             <SalesChat focus={{ radar_item_id: it.id }} title={`Ask about: ${it.title.slice(0, 60)}`} voiceEnabled={voiceEnabled} label="Ask about this lead" />
             <LeadSettings items={[
               { label: it.hidden ? "Unhide" : "Hide", hint: "Out of the list, kept for later", onSelect: () => act(() => radarHideAction(ids, !it.hidden), it.hidden ? "Back in the list" : "Hidden") },
               { label: "Not relevant", hint: "Teaches the radar what to skip", onSelect: () => act(async () => { for (const x of ids) { const r = await radarStatusAction(x, "rejected"); if (!r.ok) return r; } return { ok: true }; }, "Marked not relevant") },
+              { label: "Research the business again", onSelect: () => setResearch(true) },
               {
                 label: "Never contact", hint: "Future leads from them are dropped", hidden: !!it.blocked || !(f.website || f.company || f.contact),
                 onSelect: () => {
@@ -414,13 +433,6 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
             ]} />
           </span>
         </div>
-        <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-subtle">
-          <span>{where?.name ?? it.source ?? "manual"}{it.source && where?.key !== "page" ? ` · ${it.source}` : ""}</span>
-          {f.country ? <span className="inline-flex items-center gap-0.5"><MapPin className="h-3 w-3" />{f.country}</span> : null}
-          {f.industry ? <span>{f.industry}</span> : null}
-          {also ? <span>also found on {also} more source{also > 1 ? "s" : ""}</span> : null}
-        </p>
-        {reasons.length ? <p className="mt-2 flex flex-wrap gap-1 text-[11px]">{reasons.map((r) => <span key={r} className="rounded-full bg-accent-muted px-2 py-0.5 text-accent">{r}</span>)}</p> : null}
         {it.blocked ? <p className="mt-2 rounded-md bg-p-rose px-2 py-1 text-xs text-p-rose-fg">{it.blocked}</p> : null}
         {it.known ? (
           <p className="mt-2 rounded-md bg-p-sky px-2 py-1 text-xs text-p-sky-fg">
@@ -430,7 +442,22 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
           </p>
         ) : null}
 
-        <LeadNext it={it} hasMessage={!!message} direct={direct} replyOn={where?.replyable ? where.name : null} channel={move?.channel ?? it.ready_channel ?? null} />
+        {/* what they need: the one thing to read, with the facts that decide whether it is worth it */}
+        <div className="mt-3 rounded-lg bg-muted/50 px-3 py-2.5" aria-label="What they need">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-subtle">What they need</p>
+          <p className="mt-0.5 text-[15px] leading-relaxed text-fg">
+            {brief?.need ?? (f as { need?: string }).need ?? f.why ?? (briefErr ? it.title : <span className="inline-flex items-center gap-1.5 text-subtle"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Reading the requirement…</span>)}
+          </p>
+          {!brief && briefErr ? <p className="mt-0.5 text-xs text-subtle">{briefErr}</p> : null}
+          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
+            <Fact label="Budget" value={brief?.budget ?? (f.budget ? String(f.budget) : null) ?? "Not stated"} />
+            <Fact label="Timing" value={brief?.timing ?? (f.urgency === "high" ? "Urgent" : null) ?? "Not stated"} />
+            <Fact label="Size" value={brief?.size ? `${brief.size} job` : "Not known"} />
+            <Fact label="What fits" value={(brief?.offers.length ? brief.offers : f.services ?? []).slice(0, 2).join(", ") || "See How to win it"} />
+          </dl>
+        </div>
+
+        {/* how to reach them: the decision maker first, each number and email one tap away */}
         <ContactBar
           people={[{
             name: dm?.name ?? c.name ?? it.poster?.name ?? it.author ?? "Them",
@@ -441,30 +468,48 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
           }]}
           company={site || co ? { name: co ?? site ?? "", website: site } : null}
           message={message || null} subject={move?.draft_subject ?? subject}
+          headline={reachOf(it).level !== "none" ? reachOf(it).label : null}
           proof={Object.fromEntries((it.identity?.verified ?? []).map((v) => [v.kind === "email" ? v.value.toLowerCase() : v.value.replace(/\D/g, "").slice(-9), v.url]))}
         />
-        {/* the actions you need, one click each */}
-        <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Reach them">
-          {it.url?.startsWith("http") ? <a href={it.url} target="_blank" rel="noreferrer" className="act">{it.lead_kind === "prospect" || it.lead_kind === "signal" ? "Open their website" : it.lead_kind === "news" ? "Open the news" : "Open the post"} <ArrowUpRight className="h-3.5 w-3.5" /></a> : null}
-          {message ? <button type="button" className="act" title={message} onClick={() => copy(message, "Message")}><Copy className="h-3.5 w-3.5" /> Copy message</button> : null}
-        </div>
-        {message ? (
-          <div className="mt-2 rounded-lg border border-accent/25 bg-accent-muted/30 p-2.5 text-sm" aria-label="Your first message">
-            <p className="flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-wide text-subtle">
-              <span>{move?.draft || it.ready_draft ? `Your message${(move?.channel ?? it.ready_channel) ? ` for ${move?.channel ?? it.ready_channel}` : ""}` : "Your opener"}</span>
-              <button type="button" className="font-medium normal-case text-accent" onClick={() => setShowMsg((x) => !x)}>{showMsg ? "Show less" : "Show all"}</button>
-            </p>
-            <p className={cn("mt-1 whitespace-pre-line", !showMsg && "line-clamp-3")}>{message}</p>
-          </div>
+        {!direct && !it.known && !it.deal_id ? (
+          <p className="mt-2 text-xs text-subtle">
+            {paid ? `${where?.name ?? "This site"} needs an account and credits to reply. ` : ""}No direct contact yet: open <button type="button" className="font-medium text-accent hover:underline" onClick={() => { window.location.hash = "who"; }}>Who they are</button> to find the business behind it. A contact is only shown once a page proves it.
+          </p>
         ) : null}
-        <div className="mt-2 flex flex-wrap gap-1.5 border-t border-border pt-2">
-          {!(paid && !direct) ? (
-            <Button id="radar-draft" size="sm" variant={direct ? "outline" : "primary"} disabled={busy} onClick={() => start(async () => {
-              const r = await radarDraftAction(it.id);
-              if (!r.ok) return toast(r.error, "error");
-              setMove(r.move);
-            })}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} {direct && (paid || !where?.replyable) ? "Draft a direct message" : where?.replyable ? `Draft reply for ${where.name}` : "Draft first message"}</Button>
-          ) : null}
+      </header>
+
+      {/* 2. the message: in full, ready to send from the buttons above */}
+      {move ? <div ref={(el) => el?.scrollIntoView({ behavior: "smooth", block: "nearest" })}><MoveCard m={move} googleReady={googleReady} onGone={() => onDrop(it.id)} /></div> : (
+        <section className="rounded-xl border border-border bg-surface p-4" aria-label="Your first message">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-subtle">
+              {it.ready_draft ? `Your message${it.ready_channel ? ` · ${it.ready_channel}` : ""}` : message ? "Your opener" : "Your message"}
+            </p>
+            <span className="flex flex-wrap gap-1.5">
+              {message ? <button type="button" className="act" onClick={() => copy(message, "Message")}><Copy className="h-3.5 w-3.5" /> Copy</button> : null}
+              {!(paid && !direct) ? (
+                <Button id="radar-draft" size="sm" variant={message ? "outline" : "primary"} disabled={busy} onClick={() => start(async () => {
+                  const r = await radarDraftAction(it.id);
+                  if (!r.ok) return toast(r.error, "error");
+                  setMove(r.move);
+                })}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} {it.ready_draft ? "Redraft" : direct && (paid || !where?.replyable) ? "Draft a direct message" : where?.replyable ? `Draft reply for ${where.name}` : "Draft first message"}</Button>
+              ) : null}
+            </span>
+          </div>
+          {message ? (
+            <>
+              <p className={cn("mt-2 whitespace-pre-line text-sm leading-relaxed text-fg", !showMsg && "line-clamp-[10]")}>{message}</p>
+              {message.split("\n").length > 10 || message.length > 700 ? <button type="button" className="mt-1 text-xs font-medium text-accent" onClick={() => setShowMsg((x) => !x)}>{showMsg ? "Show less" : "Show all"}</button> : null}
+              <p className="mt-2 text-[11px] text-subtle">{direct ? "The WhatsApp and email buttons above open with this message. " : ""}Want it different? Ask in the chat (&quot;shorter&quot;, &quot;mention a 2-week pilot&quot;): the draft here is updated.</p>
+            </>
+          ) : <p className="mt-2 text-sm text-subtle">{paid && !direct ? "No message until there is a way to reach them directly." : "No message yet: draft one, or ask in the chat."}</p>}
+        </section>
+      )}
+
+      {/* 3. what to do now, and logging what you did */}
+      <section className="rounded-xl border border-border bg-surface p-4" aria-label="Next">
+        <LeadNext it={it} hasMessage={!!message} direct={direct} replyOn={where?.replyable ? where.name : null} channel={move?.channel ?? it.ready_channel ?? null} />
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {it.deal_id ? <Button size="sm" variant="outline" onClick={() => router.push(`/sales/deal/${it.deal_id}`)}>Open deal</Button> : (
             <Button size="sm" variant="outline" disabled={busy} onClick={() => start(async () => {
               const r = await radarToDealAction(it.id);
@@ -472,56 +517,28 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
               router.push(`/sales/deal/${r.id}`);
             })}><Plus className="h-3.5 w-3.5" /> Make it a lead</Button>
           )}
-          <Button size="sm" variant="ghost" onClick={() => setResearch(true)}>{it.researched_at ? <CheckCircle2 className="h-3.5 w-3.5 text-good" /> : <Search className="h-3.5 w-3.5" />} Research</Button>
-          <span className="ml-auto flex flex-wrap gap-1">
-            <Button id="radar-skip" size="sm" variant="ghost" onClick={() => act(async () => { for (const x of ids) { const r = await radarStatusAction(x, "skipped"); if (!r.ok) return r; } return { ok: true }; }, "Skipped")}><X className="h-3.5 w-3.5" /> Skip</Button>
-            <Button id="radar-hide" size="sm" variant="ghost" onClick={() => act(() => radarHideAction(ids, !it.hidden), it.hidden ? "Back in the list" : "Hidden")}>{it.hidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />} {it.hidden ? "Unhide" : "Hide"}</Button>
-            <Button size="sm" variant="ghost" onClick={() => act(async () => { for (const x of ids) { const r = await radarStatusAction(x, "rejected"); if (!r.ok) return r; } return { ok: true }; }, "Marked not relevant")}>Not relevant</Button>
-            {!it.blocked && (f.website || f.company || f.contact) ? (
-              <Button size="sm" variant="ghost" className="text-bad hover:text-bad" onClick={() => {
-                const [kind, value] = f.website ? ["domain", f.website] as const : f.company ? ["company", f.company] as const : ["person", f.contact!] as const;
-                if (confirm(`Never contact ${value}? Future leads from them are dropped.`)) act(() => addBlockAction(kind, value, "from radar"), "Added to do-not-contact");
-              }}><Ban className="h-3.5 w-3.5" /> Never contact</Button>
-            ) : null}
+          <span className="ml-auto flex gap-1">
+            <Button id="radar-skip" size="sm" variant="ghost" title="Not now (s)" onClick={() => act(async () => { for (const x of ids) { const r = await radarStatusAction(x, "skipped"); if (!r.ok) return r; } return { ok: true }; }, "Skipped")}><X className="h-3.5 w-3.5" /> Skip</Button>
+            <button id="radar-hide" type="button" className="sr-only" onClick={() => act(() => radarHideAction(ids, !it.hidden), it.hidden ? "Back in the list" : "Hidden")}>{it.hidden ? "Unhide" : "Hide"}</button>
           </span>
         </div>
         {it.trip || it.lead_kind === "prospect" || it.meeting_at ? <div className="mt-2 border-t border-border pt-2"><BookMeeting itemId={it.id} trip={it.trip ?? null} today={today} booked={it.meeting_at ?? null} /></div> : null}
         <RadarLog itemId={it.id} dealId={it.deal_id ?? null} />
-      </header>
-      {move ? <div ref={(el) => el?.scrollIntoView({ behavior: "smooth", block: "nearest" })}><MoveCard m={move} googleReady={googleReady} onGone={() => onDrop(it.id)} /></div> : null}
+      </section>
 
       <Tabs id="radar-lead" label="More about this lead" tabs={[
-        { key: "need", label: "What they need", content: (<>
-      {/* what they need */}
-      <Section icon={Target} title="What they need" tone="accent">
-        {brief ? (
-          <>
-            <p className="text-[15px] leading-relaxed">{brief.need}</p>
-            {brief.deliverables.length ? <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">{brief.deliverables.map((d) => <li key={d} className="flex gap-1.5"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />{d}</li>)}</ul> : null}
-            <p className="mt-2 flex flex-wrap gap-1.5 text-xs">
-              {brief.budget ?? f.budget ? <Tag><Wallet className="h-3 w-3" /> {brief.budget ?? f.budget}</Tag> : <Tag>No budget stated</Tag>}
-              {brief.timing ? <Tag><Clock className="h-3 w-3" /> {brief.timing}</Tag> : null}
-              {brief.size ? <Tag><Briefcase className="h-3 w-3" /> {brief.size} job</Tag> : null}
-            </p>
-          </>
-        ) : briefErr ? (
-          <p className="text-sm">{(f as { need?: string }).need ?? f.why ?? it.title}<span className="mt-1 block text-xs text-subtle">{briefErr}</span></p>
-        ) : (
-          <p className="flex items-center gap-1.5 text-sm text-subtle"><Loader2 className="h-3.5 w-3.5 animate-spin" />{(f as { need?: string }).need ?? "Reading the requirement…"}</p>
-        )}
-      </Section>
+        { key: "win", label: "How to win it", aliases: ["need", "help"], content: (<>
+      {brief?.deliverables.length ? (
+        <Section icon={Target} title="What they want built">
+          <ul className="grid gap-1 text-sm sm:grid-cols-2">{brief.deliverables.map((d) => <li key={d} className="flex gap-1.5"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />{d}</li>)}</ul>
+        </Section>
+      ) : null}
 
       {/* how you can help */}
       <Section icon={Lightbulb} title="How you can help">
         {brief?.help.length ? <ol className="list-decimal space-y-1 pl-5 text-sm">{brief.help.map((h) => <li key={h}>{h}</li>)}</ol> : <p className="text-sm">{(f as { help?: string }).help ?? f.why ?? "Open the post to see what they want."}</p>}
         {(brief?.offers.length ? brief.offers : f.services ?? []).length ? <p className="mt-2 flex flex-wrap gap-1">{(brief?.offers.length ? brief.offers : f.services ?? []).map((s) => <span key={s} className="rounded-md border border-accent/30 px-2 py-0.5 text-xs text-accent">{s}</span>)}</p> : null}
         {f.money_leak ? <p className="mt-2 rounded-lg bg-p-butter px-2 py-1 text-xs text-p-butter-fg">{f.money_leak}</p> : null}
-        {opener ? (
-          <div className="mt-2 rounded-lg bg-muted/60 p-2 text-sm">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-subtle">Open with</span>
-            <p className="mt-0.5">{opener}</p>
-          </div>
-        ) : null}
       </Section>
 
       {brief?.questions.length || brief?.watch_out ? (
@@ -537,7 +554,7 @@ function Detail({ it, ids, rank, also, reasons, sort, googleReady, tz, onDrop, v
       ) : null}
 
         </>) },
-        { key: "who", label: "Who they are", aliases: ["contacts", "research"], content: (<>
+        { key: "who", label: "Who they are", aliases: ["contacts", "research", "find"], content: (<>
       {/* who */}
       <Section icon={Search} title="Who posted it">
         <PosterLine p={it.poster} />

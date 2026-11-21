@@ -28,11 +28,29 @@ export const isReady = (it: RankItem) => it.prep?.stage === "ready";
 
 const PAID = new Set(["upwork", "freelancer", "pph", "guru"]);
 export const isPaid = (url: string | null) => PAID.has(platformOf(url)?.key ?? "") || /fiverr\.com|truelancer\.com|workana\.com/.test(url ?? "");
+/** A paid-marketplace post (you would need an account and credits to answer) with no direct way to reach the client. Pure. */
+export function isBlindMarketplace(it: RankItem): boolean {
+  if (!isPaid(it.url)) return false;
+  const c = contactsOf(it);
+  return !c.emails.length && !c.phones.length && !c.linkedin;
+}
 export const hoursSince = (it: RankItem, now: number) => (now - new Date(it.posted_at ?? it.found_at).getTime()) / 3_600_000;
 
 /** Contacts you can use right now: the business found behind the post, plus any written in the post itself. */
+/**
+ * Emails people disguise in posts ("jane [at] acme [dot] com", "jane at acme dot com", "jane@acme dot io") written out
+ * plainly. Only clear disguises: "at" and "dot" must both be there, so ordinary sentences are left alone. Pure.
+ */
+export function deobfuscate(text: string): string {
+  return text
+    .replace(/\s*[[({<]\s*at\s*[\])}>]\s*/gi, "@")
+    .replace(/\s*[[({<]\s*dot\s*[\])}>]\s*/gi, ".")
+    .replace(/\b([a-z0-9][a-z0-9._%+-]{0,40})\s+at\s+([a-z0-9-]{2,40})\s+dot\s+([a-z]{2,10})\b/gi, "$1@$2.$3")
+    .replace(/\b([a-z0-9][a-z0-9._%+-]{0,40}@[a-z0-9-]{2,40})\s+dot\s+([a-z]{2,10})\b/gi, "$1.$2");
+}
+
 export function contactsOf(it: RankItem): { emails: string[]; phones: string[]; linkedin: string | null; name: string | null } {
-  const text = `${it.title}\n${it.body ?? ""}`;
+  const text = deobfuscate(`${it.title}\n${it.body ?? ""}`);
   const fromPost = {
     emails: [...text.matchAll(/[a-z0-9][a-z0-9._%+-]{0,63}@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,24}/gi)].map((m) => m[0].toLowerCase()).filter((e) => !/noreply|example\./.test(e)),
     phones: [...text.matchAll(/\+\d{1,3}[\s().-]*\d[\d\s().-]{7,15}\d/g)].map((m) => m[0].trim()),

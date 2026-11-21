@@ -363,7 +363,12 @@ export const SALES_ACTIONS: Record<string, SalesDef> = {
     scopes: (_c, p) => [rowScope("sales_moves", p.id as number)],
     async run(_c, p) {
       if (p.status === "snoozed") await q("update sales_moves set status = 'snoozed', snoozed_until = $2::date where id = $1", [p.id, p.until]);
-      else await q("update sales_moves set status = $2, done_at = now() where id = $1", [p.id, p.status]);
+      else if (p.status === "done") {
+        // done is logged on the lead's timeline, the same as ticking it on the page
+        const { completeMove } = await import("../sales/act");
+        await completeMove(p.id as number, null);
+        return "Done, and logged on the lead.";
+      } else await q("update sales_moves set status = $2, done_at = now() where id = $1", [p.id, p.status]);
       return "Updated.";
     },
   },
@@ -426,6 +431,54 @@ export const SALES_ACTIONS: Record<string, SalesDef> = {
         [p.deal_id, p.title, p.channel, noDashes(p.message as string), p.subject, `chat:${p.deal_id}:${Date.now()}`]);
       undo.created.push({ table: "sales_moves", id: r!.id });
       return "Saved. It is in Moves, ready to send.";
+    },
+  },
+
+  set_lead_draft: {
+    doc: "set_lead_draft: radar_item_id OR deal_id, message (the full new text, ready to send), channel (whatsapp|email|linkedin|instagram|sms|platform, optional), subject (email only): replaces the message drafted for this lead (the one shown on the lead with its Send buttons) when the owner asks to change, shorten, translate or redo it, or when what they told you changes what it should say",
+    async prepare(_c, o) {
+      const message = s(o.message ?? o.text, 4000);
+      if (!message) throw new UserError("set_lead_draft needs the new message.");
+      const channel = ["whatsapp", "email", "linkedin", "instagram", "sms", "platform"].includes(s(o.channel, 12)) ? s(o.channel, 12) : null;
+      const rid = int(o.radar_item_id);
+      let move: { id: number; title: string; channel: string | null } | null = null;
+      let dealId: number | null = null;
+      let label = "";
+      if (rid !== null) {
+        const it = await one<{ id: number; title: string; deal_id: number | null }>("select id, title, deal_id from sales_radar_items where id = $1", [rid]);
+        if (!it) throw new UserError("That radar lead does not exist.");
+        move = await one<{ id: number; title: string; channel: string | null }>("select id, title, channel from sales_moves where dedupe_key = $1 and status in ('open','snoozed')", [`radar:${rid}`]);
+        dealId = it.deal_id;
+        label = it.title;
+      } else {
+        const d = await dealOr(o.deal_id);
+        dealId = d.id;
+        label = d.title;
+        // the message waiting to be sent on this deal: the one drafted most recently, else the first due
+        type M = { id: number; title: string; channel: string | null };
+        move = await one<M>("select id, title, channel from sales_moves where deal_id = $1 and status in ('open','snoozed') and draft is not null order by created_at desc limit 1", [d.id])
+          ?? await one<M>("select id, title, channel from sales_moves where deal_id = $1 and status in ('open','snoozed') order by due_at limit 1", [d.id]);
+      }
+      return {
+        params: { move_id: move?.id ?? null, radar_item_id: rid, deal_id: dealId, message, channel: channel ?? move?.channel ?? null, subject: s(o.subject, 200) || null, title: move?.title ?? `Message to ${label.slice(0, 60)}` },
+        label: `✏️ Draft updated: ${(move?.title ?? label).slice(0, 50)}`, detail: message.slice(0, 200),
+      };
+    },
+    scopes: (_c, p) => (p.move_id ? [rowScope("sales_moves", p.move_id as number)] : []),
+    async run(_c, p, undo) {
+      const { noDashes } = await import("../text/no-dashes");
+      const text = noDashes(p.message as string);
+      if (p.move_id) {
+        await q("update sales_moves set draft = $2, channel = coalesce($3, channel), draft_subject = coalesce($4, draft_subject) where id = $1", [p.move_id, text, p.channel, p.subject]);
+        return "Draft updated on the lead.";
+      }
+      const r = await one<{ id: number }>(
+        `insert into sales_moves (deal_id, radar_item_id, kind, title, why, channel, due_at, draft, ai_draft, draft_subject, created_by, dedupe_key)
+         values ($1, $2, $3, $4, 'Written with you in the chat', $5, now(), $6, $6, $7, 'ai', $8) returning id`,
+        [p.deal_id, p.radar_item_id, p.radar_item_id && !p.deal_id ? "radar" : "custom", p.title, p.channel, text, p.subject,
+          p.radar_item_id && !p.deal_id ? `radar:${p.radar_item_id}` : `chat:${p.deal_id}:${Date.now()}`]);
+      undo.created.push({ table: "sales_moves", id: r!.id });
+      return "Draft saved on the lead.";
     },
   },
 
