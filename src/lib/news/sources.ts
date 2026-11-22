@@ -8,6 +8,10 @@
 import { q } from "../db";
 
 export const TOPICS = {
+  world: "World and geopolitics",
+  business: "Business: who wins, who loses",
+  commodities: "Oil, gold, currencies",
+  supply_chain: "Trade and supply chains",
   ai_tools: "AI tools and launches",
   ai_models: "Models and platforms",
   sales_tech: "Sales and revenue tech",
@@ -25,12 +29,29 @@ export const TOPICS = {
 } as const;
 export type Topic = keyof typeof TOPICS;
 
-export interface SourceDef { key: string; name: string; kind: "gnews" | "rss" | "hn"; config: Record<string, unknown>; topic: Topic }
+export interface SourceDef { key: string; name: string; kind: "gnews" | "rss" | "hn" | "tavily"; config: Record<string, unknown>; topic: Topic }
 
 const gn = (key: string, name: string, q: string, topic: Topic, ed: "IN" | "US" = "US"): SourceDef => ({ key: `gn_${key}`, name, kind: "gnews", config: { q, ed }, topic });
+/** Tavily's news search: real article addresses and their full text. Its free plan has a monthly limit, so these run
+ *  once a day (before the morning brief) and only when TAVILY_API_KEY is set. */
+const tv = (key: string, name: string, q: string, topic: Topic): SourceDef => ({ key: `tv_${key}`, name, kind: "tavily", config: { q, every: 20 }, topic });
 const rss = (key: string, name: string, url: string, topic: Topic): SourceDef => ({ key: `rss_${key}`, name, kind: "rss", config: { url }, topic });
 
 export const DEFAULT_SOURCES: SourceDef[] = [
+  // the world: wars, conflicts, elections, sanctions, and what they do to demand and supply
+  gn("geopolitics", "Wars, conflicts and sanctions", "(war OR conflict OR sanctions OR ceasefire OR missile OR invasion) (economy OR markets OR oil OR trade) when:1d", "world"),
+  gn("world_top", "World headlines", "world news today (economy OR markets OR government) when:1d", "world"),
+  gn("india_world", "India and the world", "India (US OR China OR Pakistan OR Russia OR Gulf OR EU) (trade OR talks OR tension OR deal) when:1d", "world", "IN"),
+  gn("business_hit", "Businesses hit or helped", "(shares plunge OR shares surge OR layoffs OR shutdown OR bankruptcy OR \"profit warning\") when:1d", "business"),
+  gn("india_business", "Indian business today", "India (company OR shares OR results OR layoffs OR expansion) when:1d", "business", "IN"),
+  gn("sectors_india", "Indian sectors", "India (IT sector OR manufacturing OR retail OR real estate OR banking OR pharma OR auto) outlook when:2d", "business", "IN"),
+  gn("oil", "Oil and energy prices", "(\"oil prices\" OR Brent OR crude OR OPEC OR \"gas prices\") when:1d", "commodities"),
+  gn("gold_fx", "Gold, dollar and rupee", "(gold price OR \"dollar index\" OR \"rupee\" OR \"currency\") today when:1d", "commodities", "IN"),
+  gn("commodities", "Metals and food prices", "(copper OR steel OR wheat OR rice OR \"food prices\" OR commodities) prices when:2d", "commodities"),
+  gn("supply_chain", "Supply chains and shipping", "(\"supply chain\" OR shipping OR freight OR \"Red Sea\" OR \"chip shortage\" OR port) disruption when:2d", "supply_chain"),
+  gn("india_trade", "India trade and exports", "India (exports OR imports OR tariff OR \"trade deficit\" OR FTA) when:2d", "supply_chain", "IN"),
+  gn("us_uk_eu", "US, UK and Europe business", "(US OR UK OR Europe) (economy OR jobs OR \"consumer spending\" OR recession) when:1d", "global_economy"),
+  gn("china", "China economy", "China (economy OR exports OR factory OR stimulus) when:1d", "global_economy"),
   // AI tools, models and platforms
   gn("ai_launch", "New AI tools launched", "\"launches\" AI tool OR \"AI agent\" OR \"AI assistant\" when:1d", "ai_tools"),
   gn("ai_models", "AI model releases", "(OpenAI OR Anthropic OR Gemini OR \"Meta AI\" OR Llama OR Mistral OR DeepSeek OR Qwen) (releases OR launches OR announces) when:1d", "ai_models"),
@@ -61,6 +82,24 @@ export const DEFAULT_SOURCES: SourceDef[] = [
   gn("ai_rules", "AI regulation", "(\"AI Act\" OR \"AI regulation\" OR \"AI policy\" OR \"AI law\") when:2d", "policy"),
   gn("agencies", "AI agencies and outsourcing", "(\"AI agency\" OR \"AI automation agency\" OR \"software outsourcing\") when:3d", "competitors"),
   gn("funding_ai", "AI funding rounds", "AI startup raises (seed OR \"Series A\" OR \"Series B\") when:1d", "funding"),
+  // world outlets' own feeds (real article links, usually with a picture)
+  rss("bbc_world", "BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml", "world"),
+  rss("bbc_business", "BBC Business", "https://feeds.bbci.co.uk/news/business/rss.xml", "business"),
+  rss("guardian_business", "The Guardian: Business", "https://www.theguardian.com/business/rss", "business"),
+  rss("aljazeera", "Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml", "world"),
+  rss("cnbc", "CNBC: Top news", "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114", "markets_global"),
+  rss("nyt_business", "New York Times: Business", "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml", "business"),
+  rss("et_markets", "Economic Times: Markets", "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms", "markets_india"),
+  rss("et_economy", "Economic Times: Economy", "https://economictimes.indiatimes.com/news/economy/rssfeeds/1373380680.cms", "india_economy"),
+  rss("mint_markets", "Mint: Markets", "https://www.livemint.com/rss/markets", "markets_india"),
+  rss("bs_economy", "Business Standard: Economy", "https://www.business-standard.com/rss/economy-102.rss", "india_economy"),
+  rss("verge_ai", "The Verge: AI", "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", "ai_tools"),
+  // Tavily news search (only with a key): the full article behind the biggest topics
+  tv("world", "Tavily: world and markets", "biggest world news today affecting global markets and business", "world"),
+  tv("india", "Tavily: India economy and markets", "India economy stock market Sensex Nifty rupee news today", "markets_india"),
+  tv("ai", "Tavily: AI launches", "new AI tools and AI model launches today", "ai_tools"),
+  tv("sales", "Tavily: AI in sales and business", "AI agents for sales and business automation news", "sales_tech"),
+  tv("supply", "Tavily: trade, oil and supply chains", "oil prices trade tariffs supply chain news today", "supply_chain"),
   // publishers' own feeds (known to work, or listed as their official feeds)
   rss("techcrunch_ai", "TechCrunch: AI", "https://techcrunch.com/category/artificial-intelligence/feed/", "ai_tools"),
   rss("openai", "OpenAI news", "https://openai.com/news/rss.xml", "ai_models"),

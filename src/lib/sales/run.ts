@@ -124,6 +124,12 @@ export const HANDLERS: Record<string, Handler> = {
     const { scoreNews } = await import("../news/collect");
     await scoreNews(40_000);
   },
+  async news_read() {
+    // the important stories opened in full (text, picture, real address), then written up in detail
+    const { readStories, detailStories } = await import("../news/read");
+    await readStories(20_000);
+    await detailStories(32_000);
+  },
   async news_edition(p) {
     const { writeEdition } = await import("../news/edition");
     const e = await writeEdition(String(p.date), { budgetMs: 48_000 });
@@ -282,6 +288,10 @@ export async function runSalesTick(now: Date = new Date()): Promise<string> {
   if (Date.now() - (await lastDone("news_collect")) > 55 * 60_000) await enqueue("news_collect", {}, { dedupeKey: "news_collect" });
   if (await one("select 1 from news_items where score is null and found_at > now() - interval '2 days' limit 1") && Date.now() - (await lastDone("news_score")) > 10 * 60_000) {
     await enqueue("news_score", {}, { dedupeKey: "news_score" });
+  }
+  {
+    const { newsWorkWaiting } = await import("../news/read");
+    if (Date.now() - (await lastDone("news_read")) > 8 * 60_000 && (await newsWorkWaiting().catch(() => false))) await enqueue("news_read", {}, { dedupeKey: "news_read" });
   }
   {
     const { scheduleEdition } = await import("../news/edition");

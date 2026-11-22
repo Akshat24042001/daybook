@@ -12,19 +12,22 @@ import { Ago } from "@/components/sales/ago";
 import { Button, Field, Input, Select, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
+import { PaperView, type LayoutView, type PaperStoryView } from "./paper-view";
 
 export interface NewsStory { id: number; title: string; url: string; outlet: string | null; summary: string | null; score: number | null; topic: string; why: string | null; action: string | null; starred: boolean; at: string }
 export interface NewsSourceView { id: number; name: string; kind: string; topic: string | null; enabled: boolean; custom: boolean; last_ok_at: string | null; last_error: string | null; items_found: number }
 export interface EditionListItem { date: string; title: string; stories: number; sent_at: string | null }
 type Settings = { enabled: boolean; send_hour: number; telegram: boolean; pdf: boolean; extra_interests: string };
 
-const TABS = [["brief", "Morning brief"], ["stories", "All stories"], ["sources", "Sources"], ["settings", "Settings"]] as const;
+const TABS = [["brief", "The paper"], ["stories", "All stories"], ["sources", "Sources"], ["settings", "Settings"]] as const;
 
 const dayLabel = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 
-export function NewsView({ today, editions, stories, sources, topics, edition, settings }: {
+export interface PaperProp { layout: LayoutView; stories: PaperStoryView[]; dayLine: string; number: number; owner: string; company: string; sources: number }
+
+export function NewsView({ today, tz, editions, stories, sources, topics, edition, paper, settings }: {
   today: string; tz: string; editions: EditionListItem[]; stories: NewsStory[]; sources: NewsSourceView[]; topics: Record<string, string>;
-  edition: { date: string; title: string; html: string; stories: number; sent_at: string | null } | null; settings: Settings;
+  edition: { date: string; title: string; html: string; stories: number; sent_at: string | null } | null; paper: PaperProp | null; settings: Settings;
 }) {
   const [tab, setTab] = useState<(typeof TABS)[number][0]>("brief");
   const [busy, start] = useTransition();
@@ -43,20 +46,20 @@ export function NewsView({ today, editions, stories, sources, topics, edition, s
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl sm:text-3xl leading-tight">News</h1>
-          <p className="text-sm text-subtle">Your morning brief at {String(settings.send_hour).padStart(2, "0")}:00{settings.telegram ? ", on Telegram with its PDF" : ""}, and every story that matters to you.</p>
+          <p className="text-sm text-subtle">Your personal newspaper, every morning at {String(settings.send_hour).padStart(2, "0")}:00{settings.telegram ? ", sent to Telegram as a PDF" : ""}: the world, markets, business and AI, and what each story means for you.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" disabled={busy} onClick={() => go(() => readNewsNowAction(), (r) => `Read ${r.read} sources: ${r.added} new stories, ${r.scored} scored`)}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Read the news now
           </Button>
           <Button size="sm" variant="primary" disabled={busy} onClick={() => start(async () => {
-            toast("Writing today's brief from the latest news. Up to a minute…");
+            toast("Making today's paper from the latest news. Up to a minute…");
             const r = await writeEditionNowAction(today);
             if (!r.ok) return toast(r.error, "error");
-            toast("Today's brief is ready");
+            toast("Today's paper is ready");
             router.push(`/news?date=${r.date}`);
             router.refresh();
-          })}><Newspaper className="h-4 w-4" /> Write today&apos;s brief</Button>
+          })}><Newspaper className="h-4 w-4" /> Make today&apos;s paper</Button>
         </div>
       </div>
 
@@ -70,9 +73,9 @@ export function NewsView({ today, editions, stories, sources, topics, edition, s
       </div>
 
       {tab === "brief" ? (
-        <div className="grid gap-4 lg:grid-cols-[200px_1fr]">
-          <nav aria-label="Past briefs" className="order-2 lg:order-1">
-            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-subtle">Past briefs</p>
+        <div className="grid gap-4 lg:grid-cols-[150px_1fr]">
+          <nav aria-label="Past papers" className="order-2 lg:order-1">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-subtle">Past papers</p>
             {editions.length ? (
               <ul className="flex gap-1.5 overflow-x-auto lg:flex-col lg:overflow-visible">
                 {editions.map((e) => (
@@ -87,22 +90,28 @@ export function NewsView({ today, editions, stories, sources, topics, edition, s
           </nav>
           <div className="order-1 min-w-0 lg:order-2">
             {edition ? (
-              <article className="rounded-2xl border border-border bg-surface p-5 sm:p-7" aria-label="Morning brief">
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs text-subtle">{edition.stories} stories read for it{edition.sent_at ? " · sent to Telegram" : ""}</p>
                   <span className="flex flex-wrap gap-1.5">
                     <a href={`/api/news/pdf/${edition.date}`} target="_blank" rel="noreferrer" className="act"><FileText className="h-3.5 w-3.5" /> Open PDF</a>
-                    <a href={`/api/news/pdf/${edition.date}`} download={`morning-brief-${edition.date}.pdf`} className="act"><Download className="h-3.5 w-3.5" /> Download</a>
+                    <a href={`/api/news/pdf/${edition.date}?download=1`} className="act"><Download className="h-3.5 w-3.5" /> Download</a>
                     <Button size="sm" variant="ghost" disabled={busy} onClick={() => go(() => sendEditionAction(edition.date), () => "Sent to your Telegram")}><Send className="h-3.5 w-3.5" /> Send to Telegram</Button>
-                    {edition.date === today ? <Button size="sm" variant="ghost" disabled={busy} onClick={() => go(() => writeEditionNowAction(today), () => "Rewritten with the latest news")}><RefreshCw className="h-3.5 w-3.5" /> Rewrite</Button> : null}
+                    {edition.date === today ? <Button size="sm" variant="ghost" disabled={busy} onClick={() => go(() => writeEditionNowAction(today), () => "Remade with the latest news")}><RefreshCw className="h-3.5 w-3.5" /> Remake</Button> : null}
                   </span>
                 </div>
-                <div className="news-prose" dangerouslySetInnerHTML={{ __html: edition.html }} />
-              </article>
+                {paper ? (
+                  <PaperView layout={paper.layout} stories={paper.stories} tz={tz} topics={topics} dayLine={paper.dayLine} number={paper.number} owner={paper.owner} company={paper.company} sources={paper.sources} />
+                ) : (
+                  <article className="rounded-2xl border border-border bg-surface p-5 sm:p-7" aria-label="Morning brief">
+                    <div className="news-prose" dangerouslySetInnerHTML={{ __html: edition.html }} />
+                  </article>
+                )}
+              </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-border p-8 text-center">
-                <p className="font-medium">No brief yet.</p>
-                <p className="mt-1 text-sm text-subtle">It is written every morning at {String(settings.send_hour).padStart(2, "0")}:00 from the news read overnight. Write one now with the button above.</p>
+                <p className="font-medium">No paper yet.</p>
+                <p className="mt-1 text-sm text-subtle">It is made every morning at {String(settings.send_hour).padStart(2, "0")}:00 from the news read overnight. Make one now with the button above.</p>
               </div>
             )}
           </div>

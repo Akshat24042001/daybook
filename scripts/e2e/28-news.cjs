@@ -1,4 +1,5 @@
-// News: the morning brief by date (with its PDF), every story with why it matters, sources with their health, settings.
+// News: the morning paper by date (front page, who wins and who loses, sections, each story opening in place, with its PDF),
+// every story with why it matters, sources with their health, settings.
 const { setup, check, choose, U } = require("./lib.cjs");
 
 (async () => {
@@ -9,21 +10,34 @@ const { setup, check, choose, U } = require("./lib.cjs");
   await db.query(`insert into news_items (url, url_hash, title_key, title, outlet, score, topic, why, action, scored_at) values
     ('https://e2e.news/gemini', md5('e2e-gemini'), 'e2e gemini prices', 'E2E: Gemini cuts API prices by half', 'The Verge', 93, 'ai_models', 'Cheaper Gemini lowers the cost of your voice agents', 'Check your API bill', now()),
     ('https://e2e.news/rbi', md5('e2e-rbi'), 'e2e rbi holds', 'E2E: RBI holds the repo rate', 'ET', 81, 'india_economy', 'Loan costs stay flat for your clients', null, now())`);
-  await db.query("insert into news_editions (date, title, markdown, stories) values ($1, $2, $3, 2)", [day, "Aivaura Morning Brief, E2E",
-    "# Aivaura Morning Brief, E2E\n## The 60-second brief\n- **Gemini** cut API prices by half: your voice agents get cheaper. [The Verge](https://e2e.news/gemini)\n## Markets: India\n- **RBI** held the repo rate. [ET](https://e2e.news/rbi)\n## Do today\n- Check your API bill"]);
+  const ids = (await db.query("select id from news_items where url like 'https://e2e.news/%' order by score desc")).rows.map((r) => r.id);
+  await db.query(`update news_items set detail = 'Google halved the price of Gemini Flash for developers from Monday.', affects = 'AI agencies and SaaS firms building on Gemini.',
+    impact = 'up', for_you = 'Your voice agents get cheaper to run this month.', author = 'Tom Lee', real_url = 'https://e2e.news/gemini-full' where id = $1`, [ids[0]]);
+  await db.query("update news_items set detail = 'The RBI kept the repo rate unchanged.', impact = 'none' where id = $1", [ids[1]]);
+  const layout = { v: 2, headline: "E2E: Gemini prices halved", standfirst: "Your agents get cheaper.", lead: ids[0], brief: [{ text: "The RBI held rates.", id: ids[1] }],
+    glance: "A calm day for markets.", note: "Watch the rupee.", sectors: [{ name: "AI agencies", move: "up", why: "Cheaper models.", ids: [ids[0]] }],
+    opportunities: [{ idea: "Pitch cheaper voice agents.", id: ids[0] }], today: ["Check your API bill"], sections: [{ key: "economy", title: "Economy and markets", ids: [ids[1]] }] };
+  await db.query("insert into news_editions (date, title, markdown, stories, layout, item_ids) values ($1, 'Aivaura Morning Brief, E2E', '# E2E', 2, $2, $3)", [day, JSON.stringify(layout), ids]);
 
   await go("/news");
-  const brief = page.getByLabel("Morning brief");
-  const text = await brief.innerText();
-  check("the brief shows, by date", text.includes("Aivaura Morning Brief, E2E") && /Gemini/.test(text) && /MARKETS: INDIA|Markets: India/i.test(text));
-  check("its sources are links", (await brief.getByRole("link", { name: "The Verge" }).getAttribute("href")) === "https://e2e.news/gemini");
+  const paper = page.getByLabel("Today's paper");
+  const text = await paper.innerText();
+  check("the paper shows: masthead, headline, the lead story told in full", /The Daybook Daily/.test(text) && text.includes("E2E: Gemini prices halved") && text.includes("Google halved the price") && text.includes("Your voice agents get cheaper to run"));
+  check("each story links to its full article at the source", (await paper.getByRole("link", { name: /Read the full story at The Verge/ }).getAttribute("href")) === "https://e2e.news/gemini-full");
+  check("who wins and who loses, and what to do", text.includes("AI agencies") && text.includes("Pitch cheaper voice agents") && text.includes("Check your API bill"));
+  const rbi = page.locator(`[data-story="${ids[1]}"]`);
+  check("a section story starts closed", (await rbi.getByRole("button", { name: "E2E: RBI holds the repo rate" }).getAttribute("aria-expanded")) === "false");
+  await paper.getByRole("button", { name: "ET ›" }).first().click();
+  await page.waitForTimeout(500);
+  check("a brief point opens its story", (await rbi.getByRole("button", { name: "E2E: RBI holds the repo rate" }).getAttribute("aria-expanded")) === "true" && (await rbi.innerText()).includes("Loan costs stay flat"));
   const pdf = await page.request.get(`${U}/api/news/pdf/${day}`);
-  check("the PDF opens", pdf.ok() && pdf.headers()["content-type"] === "application/pdf" && (await pdf.body()).slice(0, 5).toString() === "%PDF-");
+  const body = await pdf.body();
+  check("the PDF opens: the newspaper, with clickable sources", pdf.ok() && pdf.headers()["content-type"] === "application/pdf" && body.slice(0, 5).toString() === "%PDF-" && body.toString("latin1").includes("/URI (https://e2e.news/gemini-full)"));
   check("the PDF needs your login", (await (await require("playwright").request.newContext()).get(`${U}/api/news/pdf/${day}`)).status() === 401);
 
   await page.getByRole("tab", { name: "All stories" }).click();
   check("every story with why it matters", (await page.getByText("Cheaper Gemini lowers the cost of your voice agents").count()) === 1 && (await page.getByText("Check your API bill").count()) >= 1);
-  await page.getByRole("button", { name: "Star" }).first().click();
+  await page.locator("li", { hasText: "E2E: Gemini cuts API prices by half" }).getByRole("button", { name: "Star" }).click();
   await page.waitForTimeout(1200);
   check("a story can be starred", !!(await one("select 1 as x from news_items where url = 'https://e2e.news/gemini' and starred")));
 

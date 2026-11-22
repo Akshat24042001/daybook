@@ -11,7 +11,7 @@
  * After a 429 Reddit is left alone for a while instead of being asked again and again. Other feeds and APIs that
  * answer 403 or 429 get one more try through the Jina relay.
  */
-import { fetchFeed } from "./search";
+import { fetchFeed, type FeedEntry } from "./search";
 
 export interface FeedItem { title: string; url: string | null; body: string; author?: string | null; posted_at?: string | Date | null }
 
@@ -118,7 +118,7 @@ export async function readSubreddit(sub: string, query: string | null, token: st
 }
 
 /** A feed, and on 403 or 429 the same feed through the Jina relay. */
-export async function feedWithRelay(url: string): Promise<{ title: string; url: string; body: string; date: string | null; author: string | null }[]> {
+export async function feedWithRelay(url: string): Promise<FeedEntry[]> {
   try {
     return await fetchFeed(url);
   } catch (e) {

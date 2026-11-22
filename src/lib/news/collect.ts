@@ -11,14 +11,14 @@ import { feedWithRelay } from "../sales/radar-fetch";
 import { noDashes } from "../text/no-dashes";
 import { gnewsUrl, seedNewsSources, TOPICS, type Topic } from "./sources";
 
-export interface SourceRow { id: number; key: string; name: string; kind: "gnews" | "rss" | "hn"; config: Record<string, unknown>; topic: string | null; enabled: boolean; last_run_at: string | null; last_ok_at: string | null; last_error: string | null; items_found: number; custom: boolean }
-export interface Story { title: string; url: string; summary: string; published_at: string | null; outlet: string | null }
+export interface SourceRow { id: number; key: string; name: string; kind: "gnews" | "rss" | "hn" | "tavily"; config: Record<string, unknown>; topic: string | null; enabled: boolean; last_run_at: string | null; last_ok_at: string | null; last_error: string | null; items_found: number; custom: boolean }
+export interface Story { title: string; url: string; summary: string; published_at: string | null; outlet: string | null; image?: string | null; author?: string | null; body?: string | null }
 
 const hash = (s: string) => createHash("sha1").update(s).digest("hex");
 
 /** "Nvidia beats estimates - Reuters" into the title and the outlet. Pure. */
 export function splitOutlet(title: string): { title: string; outlet: string | null } {
-  const m = title.match(/^(.*\S)\s+[-|–—]\s+([^-|–—]{2,60})$/);
+  const m = title.match(/^(.*\S)\s+[-|\u2013\u2014]\s+([^-|\u2013\u2014]{2,60})$/);
   return m ? { title: m[1].trim(), outlet: m[2].trim() } : { title: title.trim(), outlet: null };
 }
 
@@ -34,6 +34,18 @@ export function isRecent(published: string | null, now: number, hours = 36): boo
   return Number.isNaN(t) || now - t <= hours * 3_600_000;
 }
 
+/** "www.reuters.com" into "Reuters". Pure. */
+export function outletOf(url: string): string | null {
+  try {
+    const h = new URL(url).hostname.replace(/^(www|m|amp|edition)\./, "");
+    const parts = h.split(".");
+    // "bbc.co.uk", "abc.net.au": the country ending has two parts
+    const cut = parts.length > 2 && /^(co|com|net|org|gov|ac)$/.test(parts[parts.length - 2]) ? 2 : 1;
+    const name = parts[parts.length - 1 - cut] ?? h;
+    return name.length <= 4 ? name.toUpperCase() : name.charAt(0).toUpperCase() + name.slice(1);
+  } catch { return null; }
+}
+
 async function readSource(s: SourceRow): Promise<Story[]> {
   if (s.kind === "hn") {
     const res = await fetch("https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=40", { signal: AbortSignal.timeout(15_000) });
@@ -41,11 +53,25 @@ async function readSource(s: SourceRow): Promise<Story[]> {
     const j = (await res.json()) as { hits: { title: string; url: string | null; objectID: string; created_at: string; points: number }[] };
     return j.hits.filter((h) => h.points >= 80).map((h) => ({ title: h.title, url: h.url ?? `https://news.ycombinator.com/item?id=${h.objectID}`, summary: `${h.points} points on Hacker News`, published_at: h.created_at, outlet: "Hacker News" }));
   }
+  if (s.kind === "tavily") {
+    const res = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${process.env.TAVILY_API_KEY}` },
+      body: JSON.stringify({ query: String(s.config.q), topic: "news", days: 1, max_results: 10, include_raw_content: true }),
+      signal: AbortSignal.timeout(25_000),
+    });
+    if (!res.ok) throw new Error(`Tavily ${res.status}`);
+    const j = (await res.json()) as { results?: { title: string; url: string; content?: string; raw_content?: string | null; published_date?: string }[] };
+    return (j.results ?? []).map((r) => ({
+      title: r.title, url: r.url, summary: (r.content ?? "").replace(/\s+/g, " ").slice(0, 600), published_at: r.published_date ?? null,
+      outlet: outletOf(r.url), body: r.raw_content ? r.raw_content.replace(/\n{3,}/g, "\n\n").slice(0, 6000) : null,
+    }));
+  }
   const url = s.kind === "gnews" ? gnewsUrl(String(s.config.q), s.config.ed === "IN" ? "IN" : "US") : String(s.config.url);
   const items = await feedWithRelay(url);
   return items.map((x) => {
     const sp = s.kind === "gnews" ? splitOutlet(x.title) : { title: x.title, outlet: s.name.replace(/\s*\(.*\)$/, "") };
-    return { title: sp.title, url: x.url, summary: x.body.replace(/\s+/g, " ").slice(0, 600), published_at: x.date, outlet: sp.outlet };
+    return { title: sp.title, url: x.url, summary: x.body.replace(/\s+/g, " ").slice(0, 600), published_at: x.date, outlet: sp.outlet, image: x.image ?? null, author: x.author };
   });
 }
 
@@ -54,8 +80,10 @@ export async function collectNews(budgetMs = 40_000, o: { force?: boolean; every
   await seedNewsSources();
   const deadline = Date.now() + budgetMs;
   const due = await q<SourceRow>(
-    `select * from news_sources where enabled and ($1 or last_run_at is null or last_run_at < now() - make_interval(hours => $2)) order by last_run_at nulls first limit 40`,
-    [!!o.force, o.everyHours ?? 3],
+    `select * from news_sources where enabled and (kind <> 'tavily' or $3)
+       and ($1 or last_run_at is null or last_run_at < now() - make_interval(hours => coalesce((config->>'every')::int, $2)))
+     order by last_run_at nulls first limit 60`,
+    [!!o.force, o.everyHours ?? 3, !!process.env.TAVILY_API_KEY?.trim()],
   );
   let read = 0;
   let added = 0;
@@ -73,9 +101,10 @@ export async function collectNews(budgetMs = 40_000, o: { force?: boolean; every
           // the same story from another outlet, already kept in the last three days
           if (await one("select 1 from news_items where title_key = $1 and found_at > now() - interval '3 days'", [key])) continue;
           const row = await one<{ id: number }>(
-            `insert into news_items (source_id, url, url_hash, title_key, title, outlet, summary, published_at, topic)
-             values ($1,$2,$3,$4,$5,$6,$7,$8,$9) on conflict (url_hash) do nothing returning id`,
-            [s.id, x.url, hash(x.url.replace(/[?#].*$/, "")), key, x.title.slice(0, 400), x.outlet, x.summary || null, x.published_at && !Number.isNaN(new Date(x.published_at).getTime()) ? new Date(x.published_at) : null, s.topic],
+            `insert into news_items (source_id, url, url_hash, title_key, title, outlet, summary, published_at, topic, image_url, author, body, real_url, read_at)
+             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) on conflict (url_hash) do nothing returning id`,
+            [s.id, x.url, hash(x.url.replace(/[?#].*$/, "")), key, x.title.slice(0, 400), x.outlet, x.summary || null, x.published_at && !Number.isNaN(new Date(x.published_at).getTime()) ? new Date(x.published_at) : null, s.topic,
+              x.image ?? null, x.author ? x.author.slice(0, 120) : null, x.body ?? null, x.body ? x.url : null, x.body ? new Date() : null],
           );
           if (row) n += 1;
         }
@@ -124,7 +153,9 @@ ${who}
 Score each story for how much THEY need to know it today, from the title and snippet only.
 90 to 100: must know today: it directly changes their business, costs, clients or a tool they use or should adopt now; a big move in Indian markets,
   the rupee or RBI; a major AI model or tool release they can use or sell; a big shift in their client countries or industries.
-70 to 89: important for their work or money. 50 to 69: useful context. Under 50: skip it.
+70 to 89: important for their work or money, directly or INDIRECTLY: wars, conflicts and sanctions, oil and commodity shocks, big market
+  falls or rallies, currency moves, trade and tariff changes, supply chain breaks, big company failures or layoffs, anything that moves
+  demand and supply for businesses in India, the Gulf, the US, the UK and Europe. 50 to 69: useful context. Under 50: skip it.
 Score low: celebrity, sports, crime, local politics with no business effect, listicles, how-to guides, opinion with no news, sponsored posts,
 rehashes of old news, stock tips about single small companies.
 Return a JSON array: {"i": story number, "score": 0 to 100, "topic": one of ${topics},

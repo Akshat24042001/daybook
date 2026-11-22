@@ -389,14 +389,26 @@ export async function fetchPage(url: string, o: { maxChars?: number; reader?: bo
 }
 
 /** Reads an RSS or Atom feed. */
-export async function fetchFeed(url: string): Promise<{ title: string; url: string; body: string; date: string | null; author: string | null }[]> {
+export async function fetchFeed(url: string): Promise<FeedEntry[]> {
   const res = await fetch(url, { headers: { "user-agent": UA, accept: "application/rss+xml,application/atom+xml,text/xml" }, signal: AbortSignal.timeout(15_000) });
   if (!res.ok) throw new Error(`feed ${res.status}`);
   return parseFeed(await res.text());
 }
 
+export interface FeedEntry { title: string; url: string; body: string; date: string | null; author: string | null; image?: string | null }
+
+/** The picture an RSS or Atom item carries: media:content, media:thumbnail, an image enclosure, or the first img. Pure. */
+export function feedImage(it: string): string | null {
+  const pick = (u: string | undefined) => (u && /^https?:\/\//.test(u.trim()) ? u.trim().replace(/&amp;/g, "&") : null);
+  const media = [...it.matchAll(/<media:(?:content|thumbnail)\b([^>]*)>/gi)].map((m) => m[1]);
+  const best = media.find((a) => /medium="image"|type="image\//i.test(a) || /url="[^"]+\.(?:jpe?g|png|webp)/i.test(a)) ?? media[0];
+  return pick(best?.match(/url="([^"]+)"/i)?.[1])
+    ?? pick(it.match(/<enclosure\b[^>]*type="image\/[^"]*"[^>]*>/i)?.[0].match(/url="([^"]+)"/i)?.[1])
+    ?? pick(it.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').match(/<img\b[^>]*src="([^"]+)"/i)?.[1]);
+}
+
 /** RSS or Atom items. Pure. */
-export function parseFeed(xml: string): { title: string; url: string; body: string; date: string | null; author: string | null }[] {
+export function parseFeed(xml: string): FeedEntry[] {
   const items = xml.split(/<item[\s>]|<entry[\s>]/i).slice(1);
   const tag = (s: string, t: string) => {
     const m = s.match(new RegExp(`<${t}[^>]*>([\\s\\S]*?)</${t}>`, "i"));
@@ -410,6 +422,7 @@ export function parseFeed(xml: string): { title: string; url: string; body: stri
       body: strip(tag(it, "description") || tag(it, "content:encoded") || tag(it, "summary") || tag(it, "content")).slice(0, 3000),
       date: tag(it, "pubDate") || tag(it, "updated") || tag(it, "published") || null,
       author: strip(tag(it, "dc:creator") || tag(it, "author")) || null,
+      image: feedImage(it),
     };
   });
 }
