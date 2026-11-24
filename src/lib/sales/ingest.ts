@@ -5,14 +5,16 @@
  */
 import { createHash } from "node:crypto";
 import { one, q, UserError } from "../db";
+import { AiUnavailable, isAiUnavailable } from "../ai-quota";
 import { getSettings } from "../settings";
 import { zonedInstant } from "../time";
 import { salesConfig, toUsd, type SalesConfig } from "./config";
 import { dealStateForFiling, iso } from "./context";
 import { dealReach, onlyReachable } from "./reach";
 import {
-  addCommitment, createDeal, dealForPerson, getDeal, logInteraction, updateDeal, type Channel, type Direction,
+  addCommitment, createDeal, dealForPerson, getDeal, logActivity, logInteraction, updateDeal, type Channel, type Direction,
 } from "./deals";
+import { ACTIVITY_TYPES } from "./fields";
 import { addIdentities, domainOf, ensureCompany, resolvePerson, upsertPerson, type PersonRow } from "./identity";
 import { enqueue } from "./jobs";
 import { llmJson } from "./llm";
@@ -296,6 +298,10 @@ export interface CaptureResult {
   messages?: { from: "me" | "them"; at?: string | null; text: string }[];
   /** filing failed: the capture is kept so it can be tried again */
   failed?: string;
+  /** it failed only because today's AI allowance is used up: it is filed by itself when the AI is back */
+  waiting?: boolean;
+  /** the deal it can be saved to as a plain note right now, without AI */
+  note_deal_id?: number | null;
   /** something to check (the chat looks like it is with someone else) */
   warning?: string | null;
   /** how it was handled, when that matters (an older screenshot did not change the next step) */
@@ -465,13 +471,21 @@ export async function processCapture(id: number, force: { person_id?: number; de
     }
     ext = await extract(cfg, tz, text, images, prev, hintLine, { screenText: screen, totalMs: Math.max(15_000, 54_000 - (Date.now() - started)) });
   } catch (e) {
+    if (isAiUnavailable(e)) {
+      // nothing is lost: the entry waits and is filed by itself when the allowance is back (or saved now as a note)
+      const back = e.until ? ` at ${e.until.toLocaleString("en-IN", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: tz })}` : "";
+      const msg = `Today's free AI allowance is used up, so this is not filed yet. It is kept and will be filed by itself when the AI is back${back}.` +
+        (dealId ? " To have it on the timeline now, save it as a note." : "");
+      await q("update sales_captures set status = 'failed', wait_ai = true, error = $2, processed_at = now() where id = $1", [id, msg]);
+      throw new AiUnavailable(e.until, msg);
+    }
     const msg = e instanceof UserError ? e.message : `The AI could not file this: ${(e as Error).message.slice(0, 160)}. Try again.`;
-    await q("update sales_captures set status = 'failed', error = $2, processed_at = now() where id = $1", [id, msg]);
+    await q("update sales_captures set status = 'failed', wait_ai = false, error = $2, processed_at = now() where id = $1", [id, msg]);
     throw new UserError(msg);
   }
   const result = await applyExtraction(cap, ext, { cfg, dealId, personId, chat, chatName, newPersonName: force.newPersonName });
   if (chat && result.deal_id) result.seen = (chat as (ChatLine & { h?: string })[]).map((l) => l.h).filter((x): x is string => !!x);
-  await q("update sales_captures set status = $2, result = $3, processed_at = now(), error = null where id = $1", [
+  await q("update sales_captures set status = $2, result = $3, processed_at = now(), error = null, wait_ai = false where id = $1", [
     id, result.candidates?.length || (!result.deal_id && !result.skipped) ? "needs_person" : result.skipped ? "ignored" : "done", JSON.stringify(result),
   ]);
   if (chat && result.deal_id) {
@@ -937,6 +951,50 @@ export async function linkDealCompany(dealId: number, personId: number | null, p
 }
 
 /** Takes back everything a capture did: timeline entries, promises, stage moves, and a person or deal it created. */
+/**
+ * Saves a capture that the AI could not file (today's allowance is used up) to its deal's timeline as you wrote it:
+ * no AI. The channel and who it was from are the ones you picked (else it is a note); the screenshots stay with it.
+ * The entry is then done, so it is not filed again when the AI is back; Undo removes it like any capture.
+ */
+export async function keepAsNote(id: number): Promise<CaptureResult> {
+  const cap = await one<CaptureRow & { deal_id: number | null; created_at: string; screen_text: string | null }>("select * from sales_captures where id = $1", [id]);
+  if (!cap) throw new UserError("That entry is no longer there.");
+  if (cap.status === "done" || cap.status === "needs_person") throw new UserError("That entry is already filed.");
+  const dealId = Number(cap.hints?.deal_id ?? cap.deal_id) || null;
+  if (!dealId) throw new UserError("Open the deal it belongs to and save it there.");
+  const deal = await one<{ title: string | null }>("select title from sales_deals where id = $1", [dealId]);
+  if (!deal) throw new UserError("That deal is no longer there.");
+  const type = cap.channel && ACTIVITY_TYPES.some((t) => t.key === cap.channel) ? cap.channel : "note";
+  const dir = cap.hints?.direction;
+  const direction = type === "note" ? "internal" : dir === "in" || dir === "out" || dir === "both" ? dir : "both";
+  const shots = (cap.images?.length ?? 0) || (cap.image_paths?.length ?? 0);
+  const body = (cap.text ?? "").trim() || (cap.screen_text ?? "").trim();
+  const interactionId = await logActivity(dealId, {
+    type, direction, occurred_at: new Date(cap.created_at).toISOString(), body: body || null,
+    subject: body ? null : `${shots} screenshot${shots === 1 ? "" : "s"}, saved without AI`,
+  });
+  await q("update sales_interactions set capture_id = $2 where id = $1", [interactionId, id]);
+  if (shots) await keepShots(id, dealId);
+  const result: CaptureResult = {
+    deal_id: dealId, deal_title: deal.title, interactions: [interactionId], channel: type === "note" ? null : type, shots: shots || undefined,
+    note: "Saved as you wrote it, without AI. Edit it on the timeline to set the channel or who it was from.",
+  };
+  await q("update sales_captures set status = 'done', wait_ai = false, error = null, deal_id = $2, result = $3, processed_at = now() where id = $1", [id, dealId, JSON.stringify(result)]);
+  return { ...result, capture_id: id };
+}
+
+/** Entries kept while the AI allowance was used up go back in the queue; a job that still finds no AI waits for it. */
+export async function requeueWaitingCaptures(): Promise<number> {
+  const rows = await q<{ id: number; tg_chat: number | null }>(
+    `select id, tg_chat from sales_captures where wait_ai and status = 'failed' and created_at > now() - interval '4 days' order by id limit 10`,
+  );
+  let n = 0;
+  for (const r of rows) {
+    if (await enqueue("process_capture", { id: r.id, ...(r.tg_chat ? { notify: true } : {}) }, { dedupeKey: `capture:${r.id}` })) n += 1;
+  }
+  return n;
+}
+
 export async function undoCapture(id: number): Promise<void> {
   const cap = await one<{ result: CaptureResult | null }>("select result from sales_captures where id = $1", [id]);
   const r = cap?.result ?? {};

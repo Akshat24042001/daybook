@@ -1,11 +1,11 @@
 "use client";
 
-import { AlertTriangle, Check, ImagePlus, Loader2, RefreshCw, Send, UserPlus, X } from "lucide-react";
+import { AlertTriangle, Check, Clock, ImagePlus, Loader2, NotebookPen, RefreshCw, Send, UserPlus, X } from "lucide-react";
 import { InfoTip } from "@/components/info-tip";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { logToDealAction, resolveCaptureAction, retryCaptureAction, undoCaptureAction } from "@/app/sales-actions";
+import { keepCaptureAsNoteAction, logToDealAction, resolveCaptureAction, retryCaptureAction, undoCaptureAction } from "@/app/sales-actions";
 import { prepImages } from "@/lib/client/image-prep";
 import { QuickActions, ReplyDraft } from "./conversation-card";
 import { Button, Input, Select, Textarea } from "@/components/ui";
@@ -246,17 +246,36 @@ export function CaptureBox({ dealId, voiceEnabled, placeholder, compact }: { dea
         </div>
       ) : null}
       {failed && !pending ? (
-        <div className="mt-3 rounded-xl border border-bad/30 bg-bad/5 p-3 text-sm" role="alert" aria-label="Could not file it">
-          <p className="flex items-start gap-1.5"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-bad" /> {failed.failed}</p>
-          <div className="mt-2 flex gap-2">
-            <Button size="sm" variant="primary" disabled={pending} onClick={() => start(async () => {
+        <div
+          className={cn("mt-3 rounded-xl border p-3 text-sm", failed.waiting ? "border-warn/40 bg-warn-muted/40" : "border-bad/30 bg-bad/5")}
+          role="alert" aria-label={failed.waiting ? "Waiting for the AI" : "Could not file it"}
+        >
+          <p className="flex items-start gap-1.5">
+            {failed.waiting ? <Clock className="mt-0.5 h-4 w-4 shrink-0 text-warn" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-bad" />} {failed.failed}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {failed.waiting && failed.note_deal_id ? (
+              <Button size="sm" variant="primary" disabled={pending} onClick={() => start(async () => {
+                const r = await keepCaptureAsNoteAction(failed.capture_id!);
+                if (!r.ok) return toast(r.error, "error");
+                setFailed(null);
+                setLast(r.result);
+                toast("Saved to the timeline");
+                router.refresh();
+              })}><NotebookPen className="h-3.5 w-3.5" /> Save as a note now</Button>
+            ) : null}
+            <Button size="sm" variant={failed.waiting && failed.note_deal_id ? "outline" : "primary"} disabled={pending} onClick={() => start(async () => {
               const r = await retryCaptureAction(failed.capture_id!);
               if (!r.ok) return toast(r.error, "error");
               handle(r.result);
             })}><RefreshCw className="h-3.5 w-3.5" /> Try again</Button>
             <button type="button" className="text-xs text-subtle hover:text-fg" onClick={() => setFailed(null)}>Close</button>
           </div>
-          <p className="mt-1.5 text-xs text-subtle">Your text and screenshots are kept: trying again does not need them pasted again.</p>
+          <p className="mt-1.5 text-xs text-subtle">
+            {failed.waiting
+              ? "Your text and screenshots are kept. Closing this does not lose them: they are filed by themselves when the AI is back."
+              : "Your text and screenshots are kept: trying again does not need them pasted again."}
+          </p>
         </div>
       ) : null}
       {last && !pending ? <Filed r={last} onUndo={last.capture_id ? () => undo(last.capture_id!) : undefined} /> : null}

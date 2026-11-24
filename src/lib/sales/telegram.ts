@@ -17,6 +17,7 @@ import { iso } from "./context";
 import { deleteDeal } from "./deals";
 import { googleConfigured } from "./google";
 import { capture, processCapture, undoCapture, type CaptureResult } from "./ingest";
+import { isAiUnavailable } from "../ai-quota";
 import { baseUrl, goLink } from "./links";
 import { draftForMove, getMove, KIND_LABEL, listMoves, setMoveStatus, snoozeMove, type MoveRow } from "./moves";
 import { radarToDeal, setRadarStatus } from "./radar";
@@ -134,13 +135,24 @@ export async function captureText(chat: number, text: string, later: (fn: () => 
   later(() => processAndReport(id));
 }
 
-export async function processAndReport(id: number, force: Parameters<typeof processCapture>[1] = {}): Promise<void> {
-  const cap = await one<{ tg_chat: number | null; tg_message_id: number | null }>("select tg_chat, tg_message_id from sales_captures where id = $1", [id]);
+export async function processAndReport(id: number, force: Parameters<typeof processCapture>[1] = {}, o: { fromJob?: boolean } = {}): Promise<void> {
+  const cap = await one<{ tg_chat: number | null; tg_message_id: number | null; wait_ai: boolean }>("select tg_chat, tg_message_id, wait_ai from sales_captures where id = $1", [id]);
   try {
     const r = await processCapture(id, force);
     await report(id, r, cap?.tg_chat ?? null, cap?.tg_message_id ?? null);
   } catch (e) {
-    await q("update sales_captures set status = 'failed', error = $2 where id = $1", [id, (e as Error).message.slice(0, 500)]);
+    const waiting = isAiUnavailable(e); // today's AI allowance is used up: it is filed by itself when it is back
+    if (!waiting) await q("update sales_captures set status = 'failed', error = $2 where id = $1", [id, (e as Error).message.slice(0, 500)]);
+    if (waiting) {
+      // said once; a queued retry that still finds no AI waits quietly for the allowance
+      if (cap?.tg_chat && !cap.wait_ai) {
+        const msg = `⏸️ ${esc((e as Error).message.replace(/ To have it on the timeline now, save it as a note\.$/, "").slice(0, 300))}`;
+        if (cap.tg_message_id) await editMessage(cap.tg_chat, cap.tg_message_id, msg).catch(() => sendMessage(cap.tg_chat!, msg));
+        else await sendMessage(cap.tg_chat, msg).catch(() => {});
+      }
+      if (o.fromJob) throw e;
+      return;
+    }
     if (cap?.tg_chat) {
       const msg = `⚠️ Could not log that: ${esc((e as Error).message.slice(0, 200))}\nIt is saved; I will retry in a few minutes.`;
       if (cap.tg_message_id) await editMessage(cap.tg_chat, cap.tg_message_id, msg).catch(() => sendMessage(cap.tg_chat!, msg));

@@ -4,6 +4,7 @@
  */
 
 import { noDashes, withNoDashRule } from "./text/no-dashes";
+import { AiUnavailable, aiGate, aiSent, looksLikeQuota, quotaBack } from "./ai-quota";
 export function aiConfigured(): boolean {
   return !!process.env.OPENROUTER_API_KEY;
 }
@@ -64,6 +65,7 @@ async function chatOnce(messages: Message[], model: string, o: ChatOptions): Pro
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    await aiSent("openrouter", model, res.status, text); // a "used up for today" answer holds the free allowance until it resets
     throw new Error(`OpenRouter ${res.status}: ${text.slice(0, 200)}`);
   }
 
@@ -78,16 +80,30 @@ export async function chatWithModel(messages: Message[], o: ChatOptions = {}): P
   let last: Error | null = null;
   const deadline = Date.now() + (o.totalMs ?? 40_000);
   const order = o.prefer ? [o.prefer, ...openModels().filter((m) => m !== o.prefer)] : openModels();
+  // when every model is out of today's allowance (or it is kept for you), say so plainly and when it comes back
+  let allQuota = true;
+  let back: Date | null = null;
   for (const model of order) {
     const left = deadline - Date.now();
     if (left < 3_000) break;
+    const gate = await aiGate("openrouter", model);
+    if (!gate.ok) {
+      if (gate.until && (!back || gate.until < back)) back = gate.until;
+      continue;
+    }
     try {
       return { text: await chatOnce(messages, model, { ...o, timeoutMs: Math.min(o.timeoutMs ?? 15_000, left) }), model };
     } catch (e) {
       last = e as Error;
+      if (!looksLikeQuota(last.message)) allQuota = false;
+      else {
+        const b = await quotaBack("openrouter", model);
+        if (b && (!back || b < back)) back = b;
+      }
       console.warn("[ai] model failed, trying next:", model, last.message.slice(0, 120));
     }
   }
+  if (allQuota && back) throw new AiUnavailable(back);
   throw last ?? new Error("No AI model available");
 }
 

@@ -8,6 +8,7 @@ import { noDashes, withNoDashRule } from "../text/no-dashes";
 import { openModels } from "../ai";
 import { freeModels } from "../assistant/models";
 import { geminiModels, researchModels } from "./gemini-models";
+import { AiUnavailable, aiGate, aiSent, looksLikeQuota, quotaBack, type Provider } from "../ai-quota";
 
 export type Part = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 export interface LlmMessage {
@@ -48,6 +49,7 @@ interface Target {
   thinks?: boolean;
   /** how much room the thinking gets */
   thinkTokens?: number;
+  provider: Provider;
 }
 
 // a model that just failed is skipped for a while, so the next request does not wait on it again
@@ -77,7 +79,7 @@ async function targets(o: LlmOptions): Promise<Target[]> {
       // newer Gemini models think first: keep it short (research thinks more), and leave room for the thinking
       const old = /gemini-(1|2\.0)/.test(model);
       out.push({
-        url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", key: gemini, model,
+        url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", key: gemini, model, provider: "gemini",
         ...(old ? {} : { extra: { reasoning_effort: o.deep ? "medium" : "low" }, thinks: true, thinkTokens: o.deep ? 6144 : 2048 }),
       });
     }
@@ -90,6 +92,7 @@ async function targets(o: LlmOptions): Promise<Target[]> {
         url: "https://openrouter.ai/api/v1/chat/completions",
         key: or,
         model,
+        provider: "openrouter",
         extra: { reasoning: { effort: o.deep ? "medium" : "low", exclude: true } },
       });
     }
@@ -118,8 +121,10 @@ async function once(t: Target, messages: LlmMessage[], o: LlmOptions, timeoutMs:
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    await aiSent(t.provider, t.model, res.status, text); // a "used up for today" answer holds this allowance until it resets
     throw new Error(`${t.model} ${res.status}: ${text.slice(0, 160)}`);
   }
+  await aiSent(t.provider, t.model, res.status);
   const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
   const out = json.choices?.[0]?.message?.content?.trim() ?? "";
   if (!out) throw new Error(`${t.model}: empty answer`);
@@ -131,19 +136,31 @@ export async function llm(messages: LlmMessage[], o: LlmOptions = {}): Promise<{
   if (!list.length) throw new Error("No AI key set: add GEMINI_API_KEY or OPENROUTER_API_KEY");
   const deadline = Date.now() + (o.totalMs ?? 45_000);
   let last: Error | null = null;
+  // when every model is out of today's allowance (or it is kept for you), say so plainly and when it comes back
+  let allQuota = true;
+  let back: Date | null = null;
+  const later = (d: Date | null) => { if (d && (!back || d < back)) back = d; };
   for (const t of list) {
     const left = deadline - Date.now();
     if (left < 3_000) break;
+    const gate = await aiGate(t.provider, t.model);
+    if (!gate.ok) {
+      later(gate.until);
+      continue;
+    }
     try {
       return { text: await once(t, messages, o, Math.min(o.deep ? 55_000 : 30_000, left)), model: t.model };
     } catch (e) {
       last = e as Error;
+      if (!looksLikeQuota(last.message)) allQuota = false;
+      else later(await quotaBack(t.provider, t.model));
       // out of quota (a Pro model on a free key): leave it for hours, not minutes
       const quota = /\b(429|403)\b|quota|RESOURCE_EXHAUSTED/i.test(last.message) && /pro/i.test(t.model);
       cool.set(t.model, Date.now() + (quota ? 3 * 60 * 60_000 : COOL_MS));
       console.warn("[sales-ai] model failed:", last.message.slice(0, 140));
     }
   }
+  if (allQuota && back) throw new AiUnavailable(back);
   throw last ?? new Error("No AI model answered");
 }
 

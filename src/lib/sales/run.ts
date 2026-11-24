@@ -33,7 +33,7 @@ export const HANDLERS: Record<string, Handler> = {
     const cap = await one<{ tg_chat: number | null; source: string; status: string }>("select tg_chat, source, status from sales_captures where id = $1", [id]);
     if (!cap || (cap.status !== "pending" && cap.status !== "failed")) return;
     if (cap.tg_chat || p.notify) {
-      await processAndReport(id);
+      await processAndReport(id, {}, { fromJob: true });
       return;
     }
     const r = await processCapture(id);
@@ -305,6 +305,11 @@ export async function runSalesTick(now: Date = new Date()): Promise<string> {
   if (Date.now() - (await lastDone("enrich_sweep")) > 10 * 60_000) await enqueue("enrich_sweep", {}, { dedupeKey: "enrich_sweep" });
   // qualified leads are made ready on their own: requirement, business behind it, company, decision maker, contacts, draft
   await scheduleRadarPrep().catch((e) => console.warn("[sales] radar prep:", (e as Error).message));
+  // entries kept while today's AI allowance was used up: back in the queue (a job that still finds no AI waits for it)
+  {
+    const { requeueWaitingCaptures } = await import("./ingest");
+    await requeueWaitingCaptures().catch((e) => console.warn("[sales] waiting captures:", (e as Error).message));
+  }
   // anything captured but never queued (a crash mid-request)
   await q(
     `insert into sales_jobs (kind, payload, dedupe_key) select 'process_capture', jsonb_build_object('id', c.id), 'capture:' || c.id

@@ -7,6 +7,7 @@
  * itself is available through Gemini's grounding, used for deep research and as the last resort here.
  * A daily cap (Sales settings) protects the free quotas.
  */
+import { aiGate, aiSent } from "../ai-quota";
 import { geminiModels, researchModels } from "./gemini-models";
 import { NO_DASH_RULE, noDashes } from "../text/no-dashes";
 import { one, q } from "../db";
@@ -241,6 +242,7 @@ export async function groundedResearch(prompt: string, o: { timeoutMs?: number; 
   let last: Error | null = null;
   for (const model of models) {
     if (Date.now() - started > (o.timeoutMs ?? 45_000)) break;
+    if (!(await aiGate("gemini", model)).ok) continue; // today's allowance is used up, or kept for what you do yourself
     try {
       await geminiTurn();
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
@@ -249,7 +251,12 @@ export async function groundedResearch(prompt: string, o: { timeoutMs?: number; 
         body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `${prompt}\n\n${NO_DASH_RULE}` }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.2, maxOutputTokens: 8192 } }),
         signal: AbortSignal.timeout(o.timeoutMs ?? 45_000),
       });
-      if (!res.ok) throw new Error(`${model} ${res.status}: ${(await res.text()).slice(0, 160)}`);
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        await aiSent("gemini", model, res.status, body);
+        throw new Error(`${model} ${res.status}: ${body.slice(0, 160)}`);
+      }
+      await aiSent("gemini", model, res.status);
       const g = parseGrounded(await res.json());
       const urls = await Promise.all(g.chunks.slice(0, 20).map((ch) => realUrl(ch.uri)));
       const out: Grounded = { text: noDashes(g.text), sources: g.chunks.slice(0, 20).map((ch, i) => ({ title: ch.title, url: urls[i], snippet: ch.snippet })), queries: g.queries };

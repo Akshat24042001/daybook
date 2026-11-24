@@ -24,7 +24,8 @@ import { createLinkDoc, createQuote, deleteDoc, markDocSent, newRevision, saveRe
 import { auditCompany } from "@/lib/sales/enrich";
 import { researchRadarItem, researchView, startResearch, type ResearchView } from "@/lib/sales/research";
 import { ensureCompany, mergePeople, upsertPerson } from "@/lib/sales/identity";
-import { capture, processCapture, undoCapture, type CaptureResult } from "@/lib/sales/ingest";
+import { capture, keepAsNote, processCapture, undoCapture, type CaptureResult } from "@/lib/sales/ingest";
+import { isAiUnavailable } from "@/lib/ai-quota";
 import { enqueue } from "@/lib/sales/jobs";
 import { addCustomMove, draftForMove, getMove, markMovesStale, refreshMoves, setMoveStatus, snoozeMove, type MoveRow } from "@/lib/sales/moves";
 import { deleteHunt, recentRuns, runHuntNow, saveHunt, setHuntEnabled, type HuntInput, type HuntRun } from "@/lib/sales/hunts";
@@ -300,9 +301,22 @@ async function processOrKeep(id: number, force?: Parameters<typeof processCaptur
   try {
     return { ...(await processCapture(id, force)), capture_id: id };
   } catch (e) {
+    if (isAiUnavailable(e)) {
+      // today's AI allowance is used up: kept, filed by itself later, or saved now as a note on its deal
+      const c = await one<{ deal_id: number | null; hint: string | null }>("select deal_id, hints->>'deal_id' as hint from sales_captures where id = $1", [id]);
+      return { failed: e.message, capture_id: id, waiting: true, note_deal_id: Number(c?.hint ?? c?.deal_id) || null };
+    }
     if (e instanceof UserError) return { failed: e.message, capture_id: id };
     throw e;
   }
+}
+/** Saves an entry the AI could not file (allowance used up) to the deal's timeline as you wrote it, without AI. */
+export async function keepCaptureAsNoteAction(captureId: number) {
+  return run<{ result: CaptureResult }>(async () => {
+    const result = await keepAsNote(captureId);
+    if (result.deal_id) await refreshMoves(result.deal_id).catch(() => {});
+    return { result };
+  }, ALL);
 }
 /** Tries a failed capture again: the screenshots already read are not read again. */
 export async function retryCaptureAction(captureId: number) {
