@@ -336,6 +336,25 @@ payments with due dates.
 OmniDimension calls your phone only for: a quote accepted, a proposal opened 3+ times in 2 hours, a hot inbound lead.
 At most `max_per_day` calls (default 2), never twice for the same thing, never in quiet hours.
 
+## The free AI allowance
+
+Free AI comes with a daily allowance: OpenRouter gives 50 free-model requests a day for all free models together (1000
+once 10 credits were ever bought) and resets at midnight UTC (5:30 AM IST); Gemini gives each model its own allowance
+and resets at midnight Pacific time. Daybook keeps it fair (`src/lib/ai-quota.ts`):
+
+- **Kept for you.** The minute tick and the job queue (radar, research, news, hunts, briefs) stop using AI while what
+  is left is at or under the part kept for you: a quarter of the allowance, between 10 and 100 (13 of 50), or
+  `AI_KEEP_FOR_YOU`. What you start yourself (a log, a chat, a draft, Telegram) may use all of it. OpenRouter's own
+  count is read from `GET /api/v1/key`; for Gemini, Daybook counts what it sends and learns the allowance from its 429.
+- **Used up means stop.** When a provider answers that the day's allowance is gone, nothing is sent to it again until
+  it resets (shared by every server slot in `ai_quota`), so a request fails in a moment instead of walking every model.
+  A per-minute limit is not treated this way.
+- **Nothing is lost.** A log made while no AI can answer is kept and filed by itself once the AI is back (the tick
+  puts it back in the queue; a try that still finds no AI waits without using up its tries). On the deal page it can
+  also be saved straight away as a note, as you wrote it, with the channel and sender you picked. Background jobs that
+  only lacked AI wait the same way instead of failing for good.
+- Sales settings shows today's allowance next to the keys.
+
 ## Environment variables
 
 Already set for Daybook: `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `CRON_SECRET`, `ADMIN_PASSWORD`,

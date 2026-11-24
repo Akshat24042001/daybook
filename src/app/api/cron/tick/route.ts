@@ -2,6 +2,7 @@ import { after, NextResponse } from "next/server";
 import { safeEqual } from "@/lib/clock";
 import { runNightlyDiary, runNightlyReview, runTick } from "@/lib/telegram/tick";
 import { runSalesTick } from "@/lib/sales/run";
+import { inBackground } from "@/lib/ai-quota";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -18,18 +19,19 @@ export async function POST(req: Request) {
     return new NextResponse("forbidden", { status: 403 });
   }
   try {
-    const report = await runTick();
+    // everything the tick does on its own is background work: it never uses the AI allowance kept for you
+    const report = await inBackground(() => runTick());
     // The nightly diary summary can take up to a minute with free AI models: do it after answering the cron call.
     // Sales: jobs (AI capture, enrichment, radar), briefs, digests. Runs in its own background slot.
     after(async () => {
-      const r = await runSalesTick().catch((e: Error) => `failed: ${e.message}`);
+      const r = await inBackground(() => runSalesTick()).catch((e: Error) => `failed: ${e.message}`);
       if (r.startsWith("failed")) console.warn("[sales] tick:", r);
     });
     after(async () => {
       const quiet = ["not-yet", "not-today", "done-already", "ai-off"];
-      const r = await runNightlyDiary().catch((e: Error) => `failed: ${e.message}`);
+      const r = await inBackground(() => runNightlyDiary()).catch((e: Error) => `failed: ${e.message}`);
       if (!quiet.includes(r)) console.log("[diary] nightly:", r);
-      const rv = await runNightlyReview().catch((e: Error) => `failed: ${e.message}`);
+      const rv = await inBackground(() => runNightlyReview()).catch((e: Error) => `failed: ${e.message}`);
       if (!quiet.includes(rv)) console.log("[review] nightly:", rv);
     });
     return NextResponse.json({ ok: true, ...report });

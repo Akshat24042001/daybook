@@ -8,6 +8,7 @@
  */
 import { llm, llmConfigured } from "./llm";
 import { UserError } from "../db";
+import { isAiUnavailable } from "../ai-quota";
 
 export interface Owner { name: string; aliases: string[] }
 
@@ -73,6 +74,9 @@ export async function readScreens(images: string[], totalMs = 40_000, owner?: Ow
     }
   };
   await Promise.all([worker(), worker()]);
+  // today's AI allowance is used up: read every screenshot later, rather than keep "could not be read" for good
+  const out_of_ai = out.find((r) => isAiUnavailable(r));
+  if (out_of_ai) throw out_of_ai;
   const failed = out.map((r, i) => (r instanceof Error ? i + 1 : 0)).filter(Boolean);
   if (failed.length === images.length) {
     const why = (out[0] as Error).message;

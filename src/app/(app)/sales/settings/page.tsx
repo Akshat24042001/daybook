@@ -9,6 +9,8 @@ import { SettingsView } from "@/components/sales/settings-view";
 import { listCustomFields } from "@/lib/sales/custom-fields";
 import { listPipelines, listTeam } from "@/lib/sales/org";
 import { listTeamUsers } from "@/lib/team/users";
+import { aiAllowanceToday } from "@/lib/ai-quota";
+import { getSettings } from "@/lib/settings";
 
 export const metadata: Metadata = { title: "Sales settings" };
 export const dynamic = "force-dynamic";
@@ -26,9 +28,18 @@ export default async function SalesSettingsPage() {
   } catch {
     script = "// integrations/daybook-sales.gs was not found in this deployment";
   }
+  // today's free AI allowance, so a used-up day is visible here and not only as an error on a log
+  const [ai, tz] = await Promise.all([aiAllowanceToday().catch(() => null), getSettings().then((x) => x.timezone).catch(() => "Asia/Kolkata")]);
+  const until = (iso: string) => new Date(iso).toLocaleString("en-IN", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: tz });
+  const orToday = ai?.openrouter
+    ? ` Today: ${ai.openrouter.remaining} of ${ai.openrouter.limit} free requests left; the last ${ai.keep} are kept for what you do yourself.` +
+      (ai.openrouter.limit < 1000 ? " Buying 10 credits once raises this to 1000 a day." : "")
+    : "";
+  const geminiOut = (ai?.blocked ?? []).filter((b) => b.bucket.startsWith("gemini:"));
+  const geminiToday = geminiOut.length ? ` Today: ${geminiOut.map((b) => `${b.bucket.slice(7)} used up until ${until(b.until)}`).join("; ")}.` : "";
   const env = [
-    { key: "GEMINI_API_KEY", ok: has("GEMINI_API_KEY"), what: "Best free AI, and Google Search for deep research (Google AI Studio)", free: "free tier" },
-    { key: "OPENROUTER_API_KEY", ok: has("OPENROUTER_API_KEY"), what: "Free open models, already used by Daybook; fallback when Gemini is busy", free: "free models" },
+    { key: "GEMINI_API_KEY", ok: has("GEMINI_API_KEY"), what: `Best free AI, and Google Search for deep research (Google AI Studio).${geminiToday}`, free: "free tier" },
+    { key: "OPENROUTER_API_KEY", ok: has("OPENROUTER_API_KEY"), what: `Free open models, already used by Daybook; fallback when Gemini is busy.${orToday}`, free: "free models" },
     { key: "TAVILY_API_KEY", ok: has("TAVILY_API_KEY"), what: "Web search for the radar and research", free: "1,000 searches / month free" },
     { key: "SERPER_API_KEY", ok: has("SERPER_API_KEY"), what: "Google results, second search provider", free: "2,500 searches free (one time)" },
     { key: "BRAVE_API_KEY", ok: has("BRAVE_API_KEY"), what: "Third search provider (optional)", free: "free plan" },

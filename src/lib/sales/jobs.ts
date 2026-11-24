@@ -3,6 +3,21 @@
  * tick in the background, so webhooks answer instantly and nothing is lost when a free model is slow.
  */
 import { one, q } from "../db";
+import { asYou, inBackground, isAiUnavailable } from "../ai-quota";
+
+/** Jobs that carry something you did yourself (a log from Telegram, email or the web): they may use the AI allowance
+ * kept for you. Every other job is background work and stops before that part. */
+const YOUR_JOBS = new Set(["process_capture"]);
+const inLane = <T>(kind: string, fn: () => Promise<T>) => (YOUR_JOBS.has(kind) ? asYou(fn) : inBackground(fn));
+
+/** A job that only failed because today's AI allowance is used up waits for it, without using up its tries. */
+async function waitForAi(job: Job, e: Error & { until?: Date | null }): Promise<void> {
+  const until = e.until && e.until.getTime() > Date.now() ? e.until : new Date(Date.now() + 30 * 60_000);
+  await q(
+    "update sales_jobs set status = 'queued', attempts = greatest(attempts - 1, 0), last_error = $2, run_after = $3 where id = $1",
+    [job.id, e.message.slice(0, 500), new Date(until.getTime() + 2 * 60_000).toISOString()],
+  );
+}
 
 export interface Job {
   id: number;
@@ -44,10 +59,14 @@ export async function runJobs(handlers: Record<string, Handler>, budgetMs: numbe
     const handler = handlers[job.kind];
     try {
       if (!handler) throw new Error(`no handler for ${job.kind}`);
-      await handler(job.payload, job);
+      await inLane(job.kind, () => handler(job.payload, job));
       await q("update sales_jobs set status = 'done', done_at = now(), last_error = null, dedupe_key = null where id = $1", [job.id]);
       ran += 1;
     } catch (e) {
+      if (isAiUnavailable(e)) {
+        await waitForAi(job, e);
+        continue;
+      }
       failed += 1;
       const msg = (e as Error).message.slice(0, 500);
       console.warn(`[sales-job] ${job.kind}#${job.id} failed:`, msg);
@@ -86,10 +105,14 @@ export async function runJobNow(id: number | null, handlers: Record<string, Hand
   const handler = handlers[job.kind];
   try {
     if (!handler) throw new Error(`no handler for ${job.kind}`);
-    await handler(job.payload, job);
+    await inLane(job.kind, () => handler(job.payload, job));
     await q("update sales_jobs set status = 'done', done_at = now(), last_error = null, dedupe_key = null where id = $1", [job.id]);
     return true;
   } catch (e) {
+    if (isAiUnavailable(e)) {
+      await waitForAi(job, e);
+      return false;
+    }
     const msg = (e as Error).message.slice(0, 500);
     console.warn(`[sales-job] ${job.kind}#${job.id} failed:`, msg);
     if (job.attempts >= 3) await q("update sales_jobs set status = 'failed', last_error = $2, dedupe_key = null where id = $1", [job.id, msg]);
